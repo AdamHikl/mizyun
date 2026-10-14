@@ -12,7 +12,7 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IosTimePicker } from "@/components/ui/ios-time-picker";
-import { Spacing } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   applyFirstMealReminders,
@@ -92,7 +92,9 @@ export function FirstMealRoutineModal({
             styles.card,
             {
               backgroundColor:
-                theme.background === "#F8FAF9" ? "#FFFFFF" : "#1E293B",
+                theme.background === Colors.light.background
+                  ? "#FFFFFF"
+                  : "#1E293B",
             },
           ]}
         >
@@ -114,7 +116,7 @@ export function FirstMealRoutineModal({
               styles.pickerContainer,
               {
                 backgroundColor:
-                  theme.background === "#F8FAF9"
+                  theme.background === Colors.light.background
                     ? "rgba(0, 0, 0, 0.03)"
                     : "rgba(255, 255, 255, 0.05)",
                 borderColor: theme.border,
@@ -145,7 +147,7 @@ export function FirstMealRoutineModal({
                 color: theme.text,
                 borderColor: theme.border,
                 backgroundColor:
-                  theme.background === "#F8FAF9"
+                  theme.background === Colors.light.background
                     ? "rgba(0, 0, 0, 0.03)"
                     : "rgba(255, 255, 255, 0.05)",
               },

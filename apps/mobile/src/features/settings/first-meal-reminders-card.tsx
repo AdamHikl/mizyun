@@ -12,7 +12,7 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
-import { Spacing } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   DEFAULT_FIRST_MEAL_REMINDERS,
@@ -98,7 +98,7 @@ export function FirstMealRemindersCard({
               styles.insetGroup,
               {
                 backgroundColor:
-                  theme.background === "#F8FAF9"
+                  theme.background === Colors.light.background
                     ? "#FFFFFF"
                     : "rgba(255, 255, 255, 0.04)",
                 borderColor: theme.border,
@@ -131,7 +131,7 @@ export function FirstMealRemindersCard({
                   styles.insetGroup,
                   {
                     backgroundColor:
-                      theme.background === "#F8FAF9"
+                      theme.background === Colors.light.background
                         ? "#FFFFFF"
                         : "rgba(255, 255, 255, 0.04)",
                     borderColor: theme.border,
@@ -159,7 +159,7 @@ export function FirstMealRemindersCard({
                     styles.separator,
                     {
                       backgroundColor:
-                        theme.background === "#F8FAF9"
+                        theme.background === Colors.light.background
                           ? "rgba(0, 0, 0, 0.06)"
                           : "rgba(255, 255, 255, 0.08)",
                     },
@@ -172,7 +172,9 @@ export function FirstMealRemindersCard({
                     accessibilityLabel="Routine context (e.g. morning coffee)"
                     placeholder="Routine context (e.g. morning coffee)"
                     placeholderTextColor={
-                      theme.background === "#F8FAF9" ? "#94A3B8" : "#64748B"
+                      theme.background === Colors.light.background
+                        ? "#94A3B8"
+                        : "#64748B"
                     }
                     value={settings.routineLabel ?? ""}
                     onChangeText={(routineLabel) =>

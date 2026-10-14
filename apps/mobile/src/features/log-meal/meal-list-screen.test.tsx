@@ -104,7 +104,22 @@ vi.mock("@/components/account-header-button", () => ({
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  MinTouchTarget: 44,
+  PageGutter: 20,
+  Radius: {},
   Spacing: {},
+}));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  EmptyState: "EmptyState",
+  Icon: "Icon",
+  IconBadge: "IconBadge",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/composition/analytics-client", () => ({
@@ -561,7 +576,13 @@ function textContent(node: any): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node !== "object") return String(node);
   if (Array.isArray(node)) return node.map(textContent).join("");
-  return textContent(node.props?.children);
+  // Design-system primitives carry their visible text in props.
+  const own = ["label", "title", "subtitle", "message"]
+    .map((key) => node.props?.[key])
+    .filter((value) => typeof value === "string")
+    .join("");
+  const slots = ["action"].map((key) => textContent(node.props?.[key]));
+  return own + slots.join("") + textContent(node.props?.children);
 }
 
 it("keeps grouping selection and cancellation usable from the day actions", async () => {
@@ -974,7 +995,7 @@ it("opens the shared recipe flow from Meals without ingredient route payloads", 
 it("opens meal logging and recurring schedules from the compact actions", () => {
   const tree = render();
   for (const [label, route] of [
-    ["Log a meal", "/log-meal"],
+    ["Log meal", "/log-meal"],
     ["Recurring meals", "/recurring-meals"],
   ]) {
     const action = find(
@@ -1007,4 +1028,81 @@ it("announces nutrient expansion and retains its weekly and meal scope", () => {
   expect(expanded.props.accessibilityHint).toContain("logged meals");
   expanded.props.onPress();
   expect(textContent(render())).not.toContain("This week · more nutrients");
+});
+
+it("keeps every per-entry secondary action reachable behind the more button", async () => {
+  mocks.fetch.mockResolvedValue(response([entry("menu-meal")]));
+  render();
+  hooks.focus!();
+  await settle();
+  const row = () =>
+    find(
+      render(),
+      (node) =>
+        typeof node.type === "function" && node.type.name === "MealEntryRow",
+    );
+  const closed = row();
+  expect(closed.props.actionsOpen).toBe(false);
+  const closedTree = closed.type(closed.props);
+  expect(
+    find(closedTree, (node) => node.props?.accessibilityLabel === "Edit meal"),
+  ).toBeFalsy();
+  const more = find(
+    closedTree,
+    (node) =>
+      node.props?.accessibilityLabel === "More actions for Synthetic oats",
+  );
+  expect(more.type).toBe("IconButton");
+  expect(more.props.accessibilityState).toEqual({ expanded: false });
+  more.props.onPress();
+
+  const open = row();
+  expect(open.props.actionsOpen).toBe(true);
+  const openTree = open.type(open.props);
+  const action = (label: string) =>
+    find(openTree, (node) => node.props?.accessibilityLabel === label);
+  for (const label of [
+    "Edit meal",
+    "Repeat meal",
+    "Resize meal",
+    "Copy to Today meal",
+    "Delete meal",
+  ]) {
+    // Button always renders an accessible role="button" Pressable.
+    expect(action(label).type).toBe("Button");
+    expect(action(label).props.onPress).toEqual(expect.any(Function));
+  }
+  expect(action("Ungroup meal")).toBeFalsy();
+  action("Edit meal").props.onPress();
+  expect(router.push).toHaveBeenLastCalledWith("/edit-meal?id=menu-meal");
+  action("Repeat meal").props.onPress();
+  expect(router.push).toHaveBeenLastCalledWith(
+    "/recurring-meals?sourceEntryId=menu-meal",
+  );
+
+  const busyTree = open.type({ ...open.props, busy: true });
+  const busyAction = (label: string) =>
+    find(busyTree, (node) => node.props?.accessibilityLabel === label);
+  expect(busyAction("Delete meal").props.disabled).toBe(true);
+  expect(busyAction("Working… meal").props.loading).toBe(true);
+
+  // The menu closes again and never leaks to the next account.
+  find(
+    openTree,
+    (node) =>
+      node.props?.accessibilityLabel === "More actions for Synthetic oats",
+  ).props.onPress();
+  expect(row().props.actionsOpen).toBe(false);
+  more.props.onPress();
+  expect(row().props.actionsOpen).toBe(true);
+  mocks.owner = "user-b";
+  mocks.snapshot.mockReturnValue(
+    response([{ ...entry("menu-meal"), userId: "user-b" }]),
+  );
+  hooks.index = 0;
+  const firstB = MealListScreen();
+  expect(
+    find(firstB, (node) => node.props?.entry?.id === "menu-meal").props
+      .actionsOpen,
+  ).toBe(false);
 });

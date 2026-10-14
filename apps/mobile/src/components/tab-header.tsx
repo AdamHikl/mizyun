@@ -7,10 +7,10 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 
-import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { MaxContentWidth, PageGutter, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { AccountHeaderActions } from "./account-header-button";
-import { BrandWordmark } from "./brand-wordmark";
+import { ThemedText } from "./themed-text";
 
 export function useTabHeaderLayout() {
   const [headerHeight, setHeaderHeight] = useState(64);
@@ -21,11 +21,20 @@ export function useTabHeaderLayout() {
   return { headerHeight, onHeaderLayout };
 }
 
-/** Mount before the tab's scroller so account actions stay available. */
+/**
+ * Shared top bar for every tab: the tab's large title, optional tab-specific
+ * actions and the settings button. Mount before the tab's scroller so the
+ * actions stay available while content scrolls underneath.
+ */
 export function TabHeader({
+  title,
+  actions,
   onLayout,
   children,
 }: {
+  title?: string;
+  /** Tab-specific icon buttons shown before the settings button. */
+  actions?: ReactNode;
   onLayout?: (event: LayoutChangeEvent) => void;
   children?: ReactNode;
 }) {
@@ -34,11 +43,27 @@ export function TabHeader({
   return (
     <View
       onLayout={onLayout}
-      style={[styles.header, { backgroundColor: `${colors.background}E6` }]}
+      style={[styles.header, { backgroundColor: `${colors.background}F2` }]}
     >
       <View style={styles.row}>
-        <BrandWordmark />
-        <AccountHeaderActions />
+        {title ? (
+          <ThemedText
+            type="largeTitle"
+            accessibilityRole="header"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            style={styles.title}
+          >
+            {title}
+          </ThemedText>
+        ) : (
+          <View style={styles.title} />
+        )}
+        <View style={styles.actions}>
+          {actions}
+          <AccountHeaderActions />
+        </View>
       </View>
       {children}
       <LinearGradient
@@ -47,7 +72,7 @@ export function TabHeader({
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         colors={[
-          `${colors.background}E6`,
+          `${colors.background}F2`,
           `${colors.background}C0`,
           `${colors.background}70`,
           `${colors.background}00`,
@@ -69,19 +94,22 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
+    paddingLeft: PageGutter,
+    paddingRight: PageGutter - 6,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.one,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    flexWrap: "wrap",
     gap: Spacing.two,
   },
+  title: { flex: 1 },
+  actions: { flexDirection: "row", alignItems: "center" },
   feather: {
     position: "absolute",
     top: "100%",
     left: 0,
     right: 0,
-    height: Spacing.four,
+    height: Spacing.three,
   },
 });

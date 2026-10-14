@@ -72,7 +72,9 @@ export function DailyNutrients({
         onPress={() => setExpanded((value) => !value)}
         style={styles.toggle}
       >
-        <ThemedText type="smallBold">More nutrients</ThemedText>
+        <ThemedText type="smallBold" themeColor="textSecondary">
+          More nutrients
+        </ThemedText>
         <ThemedText themeColor="textSecondary">
           {expanded ? "−" : "+"}
         </ThemedText>
@@ -217,7 +219,11 @@ export function DailyNutrients({
 }
 
 const styles = StyleSheet.create({
-  section: { borderTopWidth: 1, borderTopColor: "rgba(148, 163, 184, 0.2)" },
+  section: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(148, 163, 184, 0.35)",
+    paddingHorizontal: 16,
+  },
   toggle: {
     minHeight: 44,
     flexDirection: "row",
@@ -226,7 +232,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 10,
   },
-  details: { gap: 10 },
+  details: { gap: 10, paddingBottom: 16 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card: {
     flexBasis: "45%",

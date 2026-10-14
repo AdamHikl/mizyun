@@ -26,7 +26,25 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  Icon,
+  ListGroup,
+  IconBadge,
+  ListRow,
+  Notice,
+  SectionHeader,
+  type IconName,
+} from "@/components/ui";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import {
   apiClient,
   invalidateSessionReads,
@@ -268,30 +286,41 @@ const actions = [
     control: "quick_log_meal",
     path: "/log-meal" as Href,
     hint: "Photo or manual entry",
-    icon: "🥗",
+    icon: "fork" as IconName,
+    tone: "primary" as const,
   },
   {
     label: "Start workout",
     control: "quick_log_workout",
     path: "/log-workout" as Href,
     hint: "One-time training session",
-    icon: "🏋️",
+    icon: "dumbbell" as IconName,
+    tone: "info" as const,
   },
   {
     label: "Log weight",
     control: "quick_log_weight",
     path: "/log-weight" as Href,
     hint: "Today's scale reading",
-    icon: "⚖️",
+    icon: "scale" as IconName,
+    tone: "warning" as const,
   },
   {
     label: "Progress photo",
     control: "quick_log_photo",
     path: "/progress-photos" as Href,
     hint: "Private photo & compare",
-    icon: "📷",
+    icon: "camera" as IconName,
+    tone: "fat" as const,
   },
 ] as const;
+
+const homeDateFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+const formatHomeDate = (date: Date): string => homeDateFormat.format(date);
 
 function initialMetricsFor(session: AuthSession | null): MetricsState {
   if (!session) return EMPTY_METRICS;
@@ -353,6 +382,7 @@ function initialMetricsFor(session: AuthSession | null): MetricsState {
 
 export function DashboardScreen() {
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
+  const colors = useTheme();
   const { profile, session, openOnboarding } = useAuth();
   const [prefetchRevision, setPrefetchRevision] = useState(0);
   useEffect(
@@ -939,8 +969,9 @@ export function DashboardScreen() {
             label: "Resume workout",
             control: action.control,
             path: `/log-workout?workoutId=${activeWorkout.id}` as Href,
-            hint: `⏱️ ${formatStopwatch(elapsedSeconds)} in progress`,
-            icon: "🏋️",
+            hint: `${formatStopwatch(elapsedSeconds)} in progress`,
+            icon: "dumbbell" as IconName,
+            tone: "info" as const,
           };
         }
         return action;
@@ -982,12 +1013,12 @@ export function DashboardScreen() {
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader onLayout={onHeaderLayout} />
+        <TabHeader title="Today" onLayout={onHeaderLayout} />
         <ScrollView
           style={{ marginTop: -headerHeight }}
           contentContainerStyle={[
             styles.content,
-            { paddingTop: headerHeight + Spacing.four },
+            { paddingTop: headerHeight + Spacing.two },
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -995,130 +1026,29 @@ export function DashboardScreen() {
               progressViewOffset={headerHeight}
               refreshing={refreshing}
               onRefresh={() => void handleRefresh()}
-              tintColor="#22C55E"
+              tintColor={colors.primary}
             />
           }
         >
-          {/* Top Header */}
-          <View style={styles.header}>
-            <ThemedText type="subtitle">
-              {profile?.displayName
-                ? `Welcome back, ${profile.displayName}`
-                : "Your day, in one place."}
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Confirmed food, training, and body metrics for your goal.
-            </ThemedText>
-          </View>
+          <ThemedText type="smallBold" themeColor="textSecondary">
+            {formatHomeDate(new Date())}
+          </ThemedText>
 
           {!profile?.displayName ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Set up Mizyun"
-              onPress={() => {
-                trackDashboardControl("complete_setup");
-                openOnboarding();
-              }}
-              style={styles.setupBanner}
-            >
-              <View style={styles.setupBannerText}>
-                <ThemedText type="smallBold" style={styles.setupBannerTitle}>
-                  Set up Mizyun
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  5 short steps: add your name, units, starting weight, and goal
-                  to personalize your daily targets.
-                </ThemedText>
-              </View>
-              <View style={styles.setupBannerBadge}>
-                <ThemedText type="smallBold" style={styles.setupBannerAction}>
-                  Start →
-                </ThemedText>
-              </View>
-            </Pressable>
+            <ListGroup>
+              <ListRow
+                icon="sparkles"
+                title="Set up Mizyun"
+                subtitle="Add your name, units, weight and goal to personalise your daily targets."
+                accessibilityLabel="Set up Mizyun"
+                onPress={() => {
+                  trackDashboardControl("complete_setup");
+                  openOnboarding();
+                }}
+              />
+            </ListGroup>
           ) : null}
 
-          {/* Quick logging stays ahead of review content. */}
-          <View style={styles.section}>
-            <ThemedText type="smallBold" style={styles.sectionTitle}>
-              QUICK LOG
-            </ThemedText>
-            <View style={styles.actionGrid}>
-              {quickLogActions.map((action) => (
-                <Pressable
-                  key={action.label}
-                  accessibilityRole="button"
-                  accessibilityLabel={action.label}
-                  accessibilityState={
-                    action.control === "quick_log_workout"
-                      ? { busy: startingOneTime, disabled: startingOneTime }
-                      : undefined
-                  }
-                  disabled={
-                    action.control === "quick_log_workout" && startingOneTime
-                  }
-                  onPress={() => {
-                    trackDashboardControl(action.control);
-                    if (action.control === "quick_log_workout") {
-                      void handleStartWorkout();
-                    } else {
-                      void router.push(action.path);
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.action,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View style={styles.actionIconContainer}>
-                    <ThemedText style={styles.actionIcon}>
-                      {action.icon}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.actionBody}>
-                    <ThemedText type="smallBold">{action.label}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {action.control === "quick_log_workout" && startingOneTime
-                        ? "Starting…"
-                        : action.hint}
-                    </ThemedText>
-                  </View>
-                  <ThemedText style={styles.actionPlus}>＋</ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* First-Meal Routine & Quick Reuse Card */}
-          {userId !== null && (metrics.macros?.entryCount ?? 0) === 0 ? (
-            <FirstMealDashboardCard
-              key={`${ownerKey}:${isoLocalDate(new Date())}`}
-              userId={userId}
-              isCurrent={() => currentOwner.current === ownerKey}
-              onAcknowledged={(date) =>
-                setMealCopiedScope(`${ownerKey}:${date}`)
-              }
-              yesterdayFirstMeal={yesterdayFirstMeal}
-              reminderSettings={firstMealReminders}
-              onMealCopied={loadMetrics}
-            />
-          ) : null}
-
-          {mealCopiedScope === `${ownerKey}:${isoLocalDate(new Date())}` ||
-          ((metrics.macros?.entryCount ?? 0) > 0 &&
-            !metrics.sectionStatus.nutritionToday.loading &&
-            !metrics.sectionStatus.nutritionToday.hasError) ? (
-            <ThemedText accessibilityLiveRegion="polite" type="smallBold">
-              First meal saved! ✨
-            </ThemedText>
-          ) : null}
-
-          <RecurringMealSuggestionCard
-            userId={userId}
-            hidden={(metrics.macros?.entryCount ?? 0) === 0}
-          />
-
-          {/* 1. Daily Nutrition & Macro Visual Card */}
           <DailyNutritionCard
             key={renderScope}
             summary={metrics.macros}
@@ -1140,66 +1070,137 @@ export function DashboardScreen() {
             onRetry={handleRefresh}
           />
 
-          {/* 2. Key Signals Grid (Weight & Training) */}
-          <View style={styles.signalsGrid}>
-            <View style={styles.signalColumn}>
-              <MetricCard
-                label="Current weight"
-                value={formatWeight(metrics.latestWeightKg, unitSystem)}
-                detail="Raw scale reading →"
+          {/* Quick logging stays directly under today's totals. */}
+          <ListGroup>
+            {quickLogActions.map((action) => (
+              <ListRow
+                key={action.label}
+                icon={action.icon}
+                iconTone={action.tone}
+                title={action.label}
+                subtitle={
+                  action.control === "quick_log_workout" && startingOneTime
+                    ? "Starting…"
+                    : action.hint
+                }
+                accessibilityLabel={action.label}
+                accessibilityState={
+                  action.control === "quick_log_workout"
+                    ? { busy: startingOneTime, disabled: startingOneTime }
+                    : undefined
+                }
+                disabled={
+                  action.control === "quick_log_workout" && startingOneTime
+                }
                 onPress={() => {
-                  trackDashboardControl("weight_card");
-                  void router.push("/body" as Href);
+                  trackDashboardControl(action.control);
+                  if (action.control === "quick_log_workout") {
+                    void handleStartWorkout();
+                  } else {
+                    void router.push(action.path);
+                  }
                 }}
               />
-              <RefreshNotice
-                label="Current weight"
-                status={metrics.sectionStatus.weight}
-                hasData={metrics.latestWeightKg !== null}
-                offline={offline}
-                retrying={refreshing}
-                onRetry={handleRefresh}
-              />
+            ))}
+          </ListGroup>
+
+          {userId !== null && (metrics.macros?.entryCount ?? 0) === 0 ? (
+            <FirstMealDashboardCard
+              key={`${ownerKey}:${isoLocalDate(new Date())}`}
+              userId={userId}
+              isCurrent={() => currentOwner.current === ownerKey}
+              onAcknowledged={(date) =>
+                setMealCopiedScope(`${ownerKey}:${date}`)
+              }
+              yesterdayFirstMeal={yesterdayFirstMeal}
+              reminderSettings={firstMealReminders}
+              onMealCopied={loadMetrics}
+            />
+          ) : null}
+
+          {mealCopiedScope === `${ownerKey}:${isoLocalDate(new Date())}` ||
+          ((metrics.macros?.entryCount ?? 0) > 0 &&
+            !metrics.sectionStatus.nutritionToday.loading &&
+            !metrics.sectionStatus.nutritionToday.hasError) ? (
+            <View style={styles.savedLine}>
+              <Icon name="checkCircle" size={16} color="success" />
+              <ThemedText
+                accessibilityLiveRegion="polite"
+                type="small"
+                themeColor="textSecondary"
+              >
+                First meal saved!
+              </ThemedText>
             </View>
+          ) : null}
+
+          <RecurringMealSuggestionCard
+            userId={userId}
+            hidden={(metrics.macros?.entryCount ?? 0) === 0}
+          />
+
+          <SectionHeader title="Body & activity" />
+          <ListGroup>
+            <MetricCard
+              label="Current weight"
+              icon="scale"
+              value={formatWeight(metrics.latestWeightKg, unitSystem)}
+              detail="Latest scale reading"
+              onPress={() => {
+                trackDashboardControl("weight_card");
+                void router.push("/body" as Href);
+              }}
+            />
             <MetricCard
               label="Training"
+              icon="dumbbell"
               value={formatCount(metrics.workoutsInReview)}
-              detail={`this ${reviewPeriod} →`}
+              detail={`Workouts this ${reviewPeriod}`}
               onPress={() => {
                 trackDashboardControl("training_card");
                 void router.push("/workouts" as Href);
               }}
             />
-          </View>
-
-          <MetricCard
-            label="Steps today"
-            accessibilityLabel={
-              steps.kind === "ready"
-                ? `Steps today: ${steps.count.toLocaleString()}. Open Health steps settings.`
-                : "Steps today unavailable. Open Health steps settings."
-            }
-            value={steps.kind === "ready" ? steps.count.toLocaleString() : "—"}
-            detail={
-              steps.kind === "ready"
-                ? `Read on this device from ${Platform.OS === "ios" ? "Apple Health" : "Health Connect"}`
-                : steps.kind === "loading"
-                  ? "Reading steps…"
-                  : steps.kind === "off"
-                    ? "Enable in Settings →"
-                    : steps.kind === "install_required"
-                      ? "Install Health Connect in Settings →"
-                      : steps.kind === "no_data"
-                        ? "No readable step data today; check permissions →"
-                        : "Steps unavailable; check Settings →"
-            }
-            onPress={() => {
-              trackDashboardControl("steps_card");
-              void router.push("/account-settings/health-steps" as Href);
-            }}
+            <MetricCard
+              label="Steps today"
+              icon="steps"
+              accessibilityLabel={
+                steps.kind === "ready"
+                  ? `Steps today: ${steps.count.toLocaleString()}. Open Health steps settings.`
+                  : "Steps today unavailable. Open Health steps settings."
+              }
+              value={
+                steps.kind === "ready" ? steps.count.toLocaleString() : "—"
+              }
+              detail={
+                steps.kind === "ready"
+                  ? `From ${Platform.OS === "ios" ? "Apple Health" : "Health Connect"}`
+                  : steps.kind === "loading"
+                    ? "Reading steps…"
+                    : steps.kind === "off"
+                      ? "Turn on in Settings"
+                      : steps.kind === "install_required"
+                        ? "Install Health Connect in Settings"
+                        : steps.kind === "no_data"
+                          ? "No step data today; check permissions"
+                          : "Steps unavailable; check Settings"
+              }
+              onPress={() => {
+                trackDashboardControl("steps_card");
+                void router.push("/account-settings/health-steps" as Href);
+              }}
+            />
+          </ListGroup>
+          <RefreshNotice
+            label="Current weight"
+            status={metrics.sectionStatus.weight}
+            hasData={metrics.latestWeightKg !== null}
+            offline={offline}
+            retrying={refreshing}
+            onRetry={handleRefresh}
           />
 
-          {/* 4. Energy Balance & Formula Breakdown */}
+          <SectionHeader title="Targets & progress" />
           <EnergyCard
             summary={metrics.energy}
             caloriesToday={metrics.caloriesToday}
@@ -1213,7 +1214,6 @@ export function DashboardScreen() {
             onRetry={handleRefresh}
           />
 
-          {/* 5. Weekly/Monthly Progress Review */}
           <ProgressReviewCard
             nutrition={metrics.nutritionReview}
             workouts={metrics.workoutsInReview}
@@ -1260,10 +1260,13 @@ function RefreshNotice(props: {
   readonly retrying: boolean;
   readonly onRetry: () => Promise<void>;
 }) {
+  const theme = useTheme();
   if (!props.status.hasError) return null;
   const title = props.offline ? "You’re offline" : "Couldn’t update";
   return (
-    <View style={styles.refreshNotice}>
+    <View
+      style={[styles.refreshNotice, { backgroundColor: theme.warningLight }]}
+    >
       <View style={styles.actionBody}>
         <ThemedText
           type="small"
@@ -1296,7 +1299,9 @@ function RefreshNotice(props: {
         }}
         style={styles.retryButton}
       >
-        <ThemedText type="smallBold">Retry</ThemedText>
+        <ThemedText type="smallBold" themeColor="primary">
+          Retry
+        </ThemedText>
       </Pressable>
     </View>
   );
@@ -1501,14 +1506,11 @@ function FirstMealDashboardCard(props: {
   };
 
   return (
-    <ThemedView
-      type="backgroundElement"
-      style={[styles.firstMealCard, { borderColor: theme.border }]}
-    >
+    <Card>
       <View style={styles.firstMealHeaderRow}>
-        <ThemedText style={styles.firstMealIcon}>🌅</ThemedText>
+        <IconBadge name="sunrise" tone="warning" />
         <View style={styles.firstMealHeaderContent}>
-          <ThemedText type="smallBold">Start with your first meal</ThemedText>
+          <ThemedText type="headline">Start with your first meal</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             Logging early sets today's routine.
           </ThemedText>
@@ -1519,18 +1521,12 @@ function FirstMealDashboardCard(props: {
         <View
           style={[
             styles.firstMealRepeatBox,
-            {
-              backgroundColor:
-                theme.background === "#F8FAF9"
-                  ? "#FFFFFF"
-                  : "rgba(255, 255, 255, 0.04)",
-              borderColor: theme.border,
-            },
+            { backgroundColor: theme.backgroundSelected },
           ]}
         >
           <View style={styles.firstMealRepeatInfo}>
             <ThemedText type="smallBold">{yesterdayFirstMeal.name}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="footnote" themeColor="textSecondary">
               {yesterdayFirstMeal.caloriesKcal != null
                 ? `${yesterdayFirstMeal.caloriesKcal} kcal`
                 : "—"}
@@ -1551,14 +1547,15 @@ function FirstMealDashboardCard(props: {
             }}
             style={({ pressed }) => [
               styles.copyToTodayButton,
+              { backgroundColor: theme.primary },
               (pressed || busy) && styles.pressed,
             ]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={theme.onPrimary} />
             ) : (
-              <ThemedText type="smallBold" style={styles.copyToTodayButtonText}>
-                {copied ? "Saved! ✨" : "Copy to Today"}
+              <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>
+                {copied ? "Saved" : "Copy to Today"}
               </ThemedText>
             )}
           </Pressable>
@@ -1566,8 +1563,12 @@ function FirstMealDashboardCard(props: {
       ) : null}
 
       {error ? (
-        <View>
-          <ThemedText accessibilityRole="alert" type="small">
+        <View style={styles.firstMealError}>
+          <ThemedText
+            accessibilityRole="alert"
+            type="small"
+            themeColor="danger"
+          >
             {error}
           </ThemedText>
           {yesterdayFirstMeal === null ? (
@@ -1579,8 +1580,11 @@ function FirstMealDashboardCard(props: {
               onPress={() => {
                 void retryRecovery();
               }}
+              style={styles.inlineAction}
             >
-              <ThemedText type="smallBold">Retry saved meal</ThemedText>
+              <ThemedText type="smallBold" themeColor="primary">
+                Retry saved meal
+              </ThemedText>
             </Pressable>
           ) : null}
         </View>
@@ -1595,20 +1599,24 @@ function FirstMealDashboardCard(props: {
             router.push("/log-meal" as Href);
           }}
           style={({ pressed }) => [
-            styles.firstMealLogLink,
+            styles.inlineAction,
             pressed && styles.pressed,
           ]}
         >
-          <ThemedText type="smallBold" style={styles.firstMealLogLinkText}>
-            🥗 Log a meal →
+          <Icon name="add" size={15} color="primary" />
+          <ThemedText type="smallBold" themeColor="primary">
+            Log a meal
           </ThemedText>
         </Pressable>
 
         {reminderSettings?.enabled ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            ⏰ Reminder:{" "}
-            {formatTime12(reminderSettings.hour, reminderSettings.minute)}
-          </ThemedText>
+          <View style={styles.inlineAction}>
+            <Icon name="bell" size={14} color="textSecondary" />
+            <ThemedText type="footnote" themeColor="textSecondary">
+              Reminder{" "}
+              {formatTime12(reminderSettings.hour, reminderSettings.minute)}
+            </ThemedText>
+          </View>
         ) : (
           <Pressable
             accessibilityRole="button"
@@ -1618,17 +1626,18 @@ function FirstMealDashboardCard(props: {
               router.push("/settings" as Href);
             }}
             style={({ pressed }) => [
-              styles.firstMealLogLink,
+              styles.inlineAction,
               pressed && styles.pressed,
             ]}
           >
-            <ThemedText type="small" themeColor="textSecondary">
-              ⏰ Set reminder
+            <Icon name="bell" size={14} color="textSecondary" />
+            <ThemedText type="footnote" themeColor="textSecondary">
+              Set reminder
             </ThemedText>
           </Pressable>
         )}
       </View>
-    </ThemedView>
+    </Card>
   );
 }
 
@@ -1648,6 +1657,7 @@ function DailyNutritionCard(props: {
     hasError = false,
     onPress,
   } = props;
+  const theme = useTheme();
   const { fontScale } = useWindowDimensions();
   const display = computeDailyNutritionDisplay({
     summary,
@@ -1656,9 +1666,15 @@ function DailyNutritionCard(props: {
     loading,
     hasError,
   });
+  const badge = {
+    normal: { bg: theme.primaryLight, fg: theme.primary },
+    over: { bg: theme.dangerLight, fg: theme.danger },
+    alert: { bg: theme.warningLight, fg: theme.warning },
+    neutral: { bg: theme.backgroundSelected, fg: theme.textSecondary },
+  }[display.badgeType];
 
   return (
-    <ThemedView type="backgroundElement" style={styles.dailyNutritionCard}>
+    <Card style={styles.dailyNutritionCard}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="View Meals Hub"
@@ -1668,64 +1684,61 @@ function DailyNutritionCard(props: {
           pressed && styles.pressed,
         ]}
       >
-        <View style={{ gap: Spacing.three }}>
+        <View style={styles.dailyNutritionStack}>
           <View style={styles.dailyNutritionHeader}>
             <View style={styles.nutritionHeaderCopy}>
               <ThemedText type="smallBold" themeColor="textSecondary">
-                TODAY'S NUTRITION
+                Calories today
               </ThemedText>
               <View style={styles.calorieRow}>
-                <ThemedText type="title" style={styles.dailyCalorieValue}>
+                <ThemedText type="title">
                   {display.consumedKcal !== null
                     ? `${display.consumedKcal}`
                     : "—"}
                 </ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  style={styles.dailyTargetSub}
-                >
+                <ThemedText type="small" themeColor="textSecondary">
                   {display.targetKcal !== null
                     ? ` / ${display.targetKcal} kcal`
                     : " kcal"}
                 </ThemedText>
               </View>
             </View>
-            <View
-              style={[
-                styles.remainingBadge,
-                display.badgeType === "over" && styles.remainingBadgeOver,
-                display.badgeType === "alert" && styles.remainingBadgeAlert,
-              ]}
-            >
-              <ThemedText
-                type="smallBold"
-                style={[
-                  styles.remainingBadgeText,
-                  display.badgeType === "over" && styles.remainingBadgeTextOver,
-                  display.badgeType === "alert" &&
-                    styles.remainingBadgeTextAlert,
-                ]}
-              >
-                {display.badgeText}
-              </ThemedText>
+            <View style={styles.nutritionBadgeColumn}>
+              {display.badgeText ? (
+                <View
+                  style={[styles.remainingBadge, { backgroundColor: badge.bg }]}
+                >
+                  <ThemedText type="smallBold" style={{ color: badge.fg }}>
+                    {display.badgeText}
+                  </ThemedText>
+                </View>
+              ) : null}
+              <Icon name="chevronRight" size={14} color="textTertiary" />
             </View>
           </View>
 
-          {/* Calorie Progress Bar */}
           {display.targetKcal !== null ? (
-            <View style={styles.progressBarTrack}>
+            <View
+              style={[
+                styles.progressBarTrack,
+                { backgroundColor: theme.backgroundSelected },
+              ]}
+            >
               <View
                 style={[
                   styles.progressBarFill,
-                  { width: `${display.kcalPercent}%` },
-                  display.badgeType === "over" && styles.progressBarFillOver,
+                  {
+                    width: `${display.kcalPercent}%`,
+                    backgroundColor:
+                      display.badgeType === "over"
+                        ? theme.danger
+                        : theme.primary,
+                  },
                 ]}
               />
             </View>
           ) : null}
 
-          {/* Macro Columns */}
           <View
             style={[styles.macroBarsRow, fontScale > 1.3 && styles.stackedRow]}
           >
@@ -1733,32 +1746,30 @@ function DailyNutritionCard(props: {
               label="Protein"
               current={display.proteinG}
               target={display.targetProteinG}
-              color="#10B981"
+              color={theme.protein}
               percent={display.proteinPercent}
             />
             <MacroBar
               label="Carbs"
               current={display.carbohydrateG}
               target={display.targetCarbohydrateG}
-              color="#F59E0B"
+              color={theme.carbs}
               percent={display.carbohydratePercent}
             />
             <MacroBar
               label="Fat"
               current={display.fatG}
               target={display.targetFatG}
-              color="#8B5CF6"
+              color={theme.fat}
               percent={display.fatPercent}
             />
           </View>
 
-          {/* Incomplete nutrition notice */}
           {display.hasIncompleteMeals ? (
-            <View style={styles.incompleteNotice}>
-              <ThemedText type="small" style={styles.incompleteNoticeText}>
-                Some meals have unconfirmed nutrition · Review in Meals Hub →
-              </ThemedText>
-            </View>
+            <Notice
+              tone="warning"
+              message="Some meals have unconfirmed nutrition. Review them in Meals."
+            />
           ) : null}
         </View>
       </Pressable>
@@ -1768,7 +1779,7 @@ function DailyNutritionCard(props: {
         loading={loading}
         hasError={hasError}
       />
-    </ThemedView>
+    </Card>
   );
 }
 
@@ -1780,18 +1791,31 @@ function MacroBar(props: {
   readonly percent: number;
 }) {
   const { label, current, target, color, percent } = props;
+  const theme = useTheme();
   const roundedCurrent = current !== null ? Math.round(current) : null;
   const roundedTarget = target !== null ? Math.round(target) : null;
 
   return (
     <View style={styles.macroBarItem}>
-      <View style={styles.macroHeaderRow}>
-        <View style={[styles.macroColorDot, { backgroundColor: color }]} />
-        <ThemedText type="smallBold" style={[styles.macroLabelText, { color }]}>
-          {label}
+      <ThemedText type="footnote" themeColor="textSecondary">
+        {label}
+      </ThemedText>
+      <ThemedText type="small">
+        <ThemedText type="smallBold">
+          {roundedCurrent !== null ? `${roundedCurrent}g` : "—"}
         </ThemedText>
-      </View>
-      <View style={styles.macroTrack}>
+        {roundedTarget !== null ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {` / ${roundedTarget}g`}
+          </ThemedText>
+        ) : null}
+      </ThemedText>
+      <View
+        style={[
+          styles.macroTrack,
+          { backgroundColor: theme.backgroundSelected },
+        ]}
+      >
         <View
           style={[
             styles.macroFill,
@@ -1801,22 +1825,6 @@ function MacroBar(props: {
             },
           ]}
         />
-      </View>
-      <View style={styles.macroValueRow}>
-        <ThemedText type="small" style={styles.macroValueContainer}>
-          <ThemedText type="smallBold" style={styles.macroCurrentNum}>
-            {roundedCurrent !== null ? `${roundedCurrent}g` : "—"}
-          </ThemedText>
-          {roundedTarget !== null ? (
-            <ThemedText
-              type="small"
-              themeColor="textSecondary"
-              style={styles.macroTargetNum}
-            >
-              {` / ${roundedTarget}g`}
-            </ThemedText>
-          ) : null}
-        </ThemedText>
       </View>
     </View>
   );
@@ -1828,26 +1836,28 @@ function EnergyCard(props: {
 }) {
   const summary = props.summary;
   const complete = summary?.complete === true;
+  const [showDetails, setShowDetails] = useState(false);
   return (
-    <ThemedView type="backgroundElement" style={styles.detailCard}>
+    <Card>
       <View style={styles.cardHeading}>
         <View style={styles.actionBody}>
-          <ThemedText type="smallBold">Energy balance</ThemedText>
-          <ThemedText type="subtitle" style={styles.energySubtitle}>
+          <ThemedText type="smallBold" themeColor="textSecondary">
+            Energy balance
+          </ThemedText>
+          <ThemedText type="title3">
             {complete ? formatEnergyBalance(summary) : "Needs confirmed inputs"}
           </ThemedText>
         </View>
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label="Review inputs"
           accessibilityLabel="Review energy inputs"
+          variant="tinted"
+          size="small"
           onPress={() => {
             trackDashboardControl("energy_setup");
             void router.push("/energy-setup" as Href);
           }}
-          style={styles.compactButton}
-        >
-          <ThemedText type="smallBold">Review inputs</ThemedText>
-        </Pressable>
+        />
       </View>
 
       {summary === null ? (
@@ -1857,59 +1867,90 @@ function EnergyCard(props: {
       ) : complete ? (
         <>
           <ThemedText type="small" themeColor="textSecondary">
-            Today: {formatCalories(props.caloriesToday)} consumed ·{" "}
+            {formatCalories(props.caloriesToday)} eaten ·{" "}
             {formatCalories(summary.dailyTargetKcal)} target
           </ThemedText>
-          <View style={styles.auditGrid}>
-            <AuditValue
-              label="Target Protein"
-              value={
-                summary.targetProteinG !== null
-                  ? `${summary.targetProteinG} g`
-                  : "—"
-              }
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="How this is calculated"
+            accessibilityState={{ expanded: showDetails }}
+            onPress={() => setShowDetails((open) => !open)}
+            style={({ pressed }) => [
+              styles.disclosure,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ThemedText type="smallBold" themeColor="primary">
+              How this is calculated
+            </ThemedText>
+            <Icon
+              name={showDetails ? "chevronUp" : "chevronDown"}
+              size={13}
+              color="primary"
             />
-            <AuditValue
-              label="Target Carbs"
-              value={
-                summary.targetCarbohydrateG !== null
-                  ? `${summary.targetCarbohydrateG} g`
-                  : "—"
-              }
-            />
-            <AuditValue
-              label="Target Fat"
-              value={
-                summary.targetFatG !== null ? `${summary.targetFatG} g` : "—"
-              }
-            />
-            <AuditValue
-              label="Target Calories"
-              value={formatCalories(summary.dailyTargetKcal)}
-            />
-            <AuditValue label="BMR" value={formatCalories(summary.bmrKcal)} />
-            <AuditValue label="TDEE" value={formatCalories(summary.tdeeKcal)} />
-          </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            Inputs: {summary.inputs.weightKg ?? "—"} kg ·{" "}
-            {summary.inputs.heightCm ?? "—"} cm · born{" "}
-            {summary.inputs.birthYear ?? "—"} ·{" "}
-            {titleCaseToken(summary.inputs.sexAtBirth)} ·{" "}
-            {titleCaseToken(summary.inputs.activityLevel)} ·{" "}
-            {titleCaseToken(summary.inputs.goalKind)} (
-            {titleCaseToken(summary.inputs.goalPace)})
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Formula {summary.formulaVersion}. Advisory estimate; confirmed
-            tracking remains authoritative.
-          </ThemedText>
+          </Pressable>
+          {showDetails ? (
+            <>
+              <View style={styles.auditGrid}>
+                <AuditValue
+                  label="Target protein"
+                  value={
+                    summary.targetProteinG !== null
+                      ? `${summary.targetProteinG} g`
+                      : "—"
+                  }
+                />
+                <AuditValue
+                  label="Target carbs"
+                  value={
+                    summary.targetCarbohydrateG !== null
+                      ? `${summary.targetCarbohydrateG} g`
+                      : "—"
+                  }
+                />
+                <AuditValue
+                  label="Target fat"
+                  value={
+                    summary.targetFatG !== null
+                      ? `${summary.targetFatG} g`
+                      : "—"
+                  }
+                />
+                <AuditValue
+                  label="Target calories"
+                  value={formatCalories(summary.dailyTargetKcal)}
+                />
+                <AuditValue
+                  label="BMR"
+                  value={formatCalories(summary.bmrKcal)}
+                />
+                <AuditValue
+                  label="TDEE"
+                  value={formatCalories(summary.tdeeKcal)}
+                />
+              </View>
+              <ThemedText type="footnote" themeColor="textSecondary">
+                Inputs: {summary.inputs.weightKg ?? "—"} kg ·{" "}
+                {summary.inputs.heightCm ?? "—"} cm · born{" "}
+                {summary.inputs.birthYear ?? "—"} ·{" "}
+                {titleCaseToken(summary.inputs.sexAtBirth)} ·{" "}
+                {titleCaseToken(summary.inputs.activityLevel)} ·{" "}
+                {titleCaseToken(summary.inputs.goalKind)} (
+                {titleCaseToken(summary.inputs.goalPace)})
+              </ThemedText>
+              <ThemedText type="footnote" themeColor="textSecondary">
+                Formula {summary.formulaVersion}. Advisory estimate; confirmed
+                tracking remains authoritative.
+              </ThemedText>
+            </>
+          ) : null}
         </>
       ) : (
         <ThemedText type="small" themeColor="textSecondary">
           {energyReason(summary.incompleteReason)} No missing value is guessed.
         </ThemedText>
       )}
-    </ThemedView>
+    </Card>
   );
 }
 
@@ -1921,12 +1962,19 @@ function ProgressReviewCard(props: {
   readonly hasError?: boolean;
   readonly onChangePeriod: (period: ReviewPeriod) => void;
 }) {
+  const theme = useTheme();
   const nutrition = props.nutrition;
   return (
-    <ThemedView type="backgroundElement" style={styles.detailCard}>
+    <Card>
       <View style={styles.cardHeading}>
-        <ThemedText type="smallBold">This {props.period} so far</ThemedText>
-        <View style={styles.periodChoices}>
+        <ThemedText type="headline">This {props.period} so far</ThemedText>
+        <View
+          accessibilityRole="radiogroup"
+          style={[
+            styles.periodChoices,
+            { backgroundColor: theme.backgroundSelected },
+          ]}
+        >
           {(["week", "month"] as const).map((period) => (
             <Pressable
               key={period}
@@ -1935,10 +1983,12 @@ function ProgressReviewCard(props: {
               onPress={() => props.onChangePeriod(period)}
               style={[
                 styles.periodChoice,
-                props.period === period && styles.periodChoiceSelected,
+                props.period === period && {
+                  backgroundColor: theme.backgroundElement,
+                },
               ]}
             >
-              <ThemedText type="smallBold">
+              <ThemedText type="footnote" style={styles.periodLabel}>
                 {period === "week" ? "Week" : "Month"}
               </ThemedText>
             </Pressable>
@@ -1947,7 +1997,7 @@ function ProgressReviewCard(props: {
       </View>
       <View style={styles.auditGrid}>
         <AuditValue
-          label="Nutrition days"
+          label="Days logged"
           value={nutrition === null ? "—" : String(nutrition.loggedDays)}
         />
         <AuditValue
@@ -1958,68 +2008,51 @@ function ProgressReviewCard(props: {
           label="Calories logged"
           value={formatCalories(nutrition?.caloriesKcal ?? null)}
         />
-        <AuditValue
-          label="Completed workouts"
-          value={formatCount(props.workouts)}
-        />
+        <AuditValue label="Workouts" value={formatCount(props.workouts)} />
       </View>
       {nutrition !== null && nutrition.incompleteDays > 0 ? (
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText type="footnote" themeColor="textSecondary">
           Period calories are withheld because {nutrition.incompleteDays} logged
           {nutrition.incompleteDays === 1 ? " day has" : " days have"}{" "}
           incomplete nutrition values.
         </ThemedText>
       ) : null}
-    </ThemedView>
+    </Card>
   );
 }
 
 function AuditValue(props: { readonly label: string; readonly value: string }) {
   return (
     <View style={styles.auditValue}>
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="footnote" themeColor="textSecondary">
         {props.label}
       </ThemedText>
-      <ThemedText type="smallBold">{props.value}</ThemedText>
+      <ThemedText type="headline">{props.value}</ThemedText>
     </View>
   );
 }
 
+/** A Home metric shown as one row of the grouped "Body & activity" list. */
 function MetricCard(props: {
   readonly label: string;
+  readonly icon: IconName;
   readonly accessibilityLabel?: string;
   readonly value: string;
   readonly detail: string;
   readonly onPress?: () => void;
 }) {
-  const content = (
-    <ThemedView type="backgroundElement" style={styles.metricCard}>
-      <ThemedText type="smallBold" themeColor="textSecondary">
-        {props.label}
-      </ThemedText>
-      <ThemedText type="title" style={styles.metricValue}>
-        {props.value}
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {props.detail}
-      </ThemedText>
-    </ThemedView>
+  return (
+    <ListRow
+      icon={props.icon}
+      title={props.label}
+      subtitle={props.detail}
+      trailing={<ThemedText type="headline">{props.value}</ThemedText>}
+      onPress={props.onPress}
+      accessibilityLabel={
+        props.accessibilityLabel ?? `${props.label}: ${props.value}`
+      }
+    />
   );
-
-  if (props.onPress) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={props.accessibilityLabel ?? props.label}
-        onPress={props.onPress}
-        style={{ flex: 1 }}
-      >
-        {content}
-      </Pressable>
-    );
-  }
-
-  return content;
 }
 
 const styles = StyleSheet.create({
@@ -2029,40 +2062,26 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingHorizontal: PageGutter,
     paddingBottom: BottomTabInset + Spacing.six,
-    gap: Spacing.four,
+    gap: Spacing.three,
   },
-  header: { gap: Spacing.one },
-  setupBanner: {
-    borderRadius: 16,
-    padding: Spacing.four,
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-    borderWidth: 1,
-    borderColor: "#10B981",
+  savedLine: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.three,
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.one,
   },
-  setupBannerText: { flex: 1, gap: Spacing.one },
-  setupBannerTitle: { color: "#10B981", fontSize: 16 },
-  setupBannerBadge: {
-    backgroundColor: "#10B981",
-    borderRadius: 12,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  setupBannerAction: { color: "#ffffff" },
-  dailyNutritionCardWrapper: { width: "100%" },
   dailyNutritionCard: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.18)",
+    padding: 0,
+    gap: 0,
+    overflow: "hidden",
   },
+  dailyNutritionCardWrapper: {
+    width: "100%",
+    padding: Spacing.three,
+  },
+  dailyNutritionStack: { gap: Spacing.three },
   dailyNutritionHeader: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -2077,327 +2096,132 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: Spacing.half,
   },
+  nutritionBadgeColumn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    maxWidth: "100%",
+  },
   calorieRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "baseline",
-    gap: 4,
-    marginTop: 2,
-  },
-  dailyCalorieValue: {
-    fontSize: 26,
-    fontWeight: "800",
-    letterSpacing: Platform.select({ ios: -0.5, default: 0 }),
-  },
-  dailyTargetSub: {
-    fontSize: 14,
-    fontWeight: "500",
   },
   remainingBadge: {
     maxWidth: "100%",
     flexShrink: 1,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
-  },
-  remainingBadgeOver: {
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
-  },
-  remainingBadgeAlert: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-  },
-  remainingBadgeText: {
-    fontSize: 12,
-    color: "#10B981",
-  },
-  remainingBadgeTextOver: {
-    color: "#EF4444",
-  },
-  remainingBadgeTextAlert: {
-    color: "#D97706",
+    borderRadius: Radius.pill,
   },
   progressBarTrack: {
     height: 8,
-    backgroundColor: "rgba(148, 163, 184, 0.2)",
-    borderRadius: 4,
+    borderRadius: Radius.pill,
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: "#10B981",
-    borderRadius: 4,
+    borderRadius: Radius.pill,
   },
-  progressBarFillOver: {
-    backgroundColor: "#EF4444",
-  },
-  stackedRow: { flexDirection: "column" },
   macroBarsRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.two,
+    gap: Spacing.three,
+  },
+  stackedRow: { flexDirection: "column" },
+  macroBarItem: { flex: 1, gap: Spacing.one },
+  macroTrack: {
+    height: 6,
+    borderRadius: Radius.pill,
+    overflow: "hidden",
     marginTop: Spacing.half,
   },
-  incompleteNotice: {
-    marginTop: Spacing.two,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
-    borderRadius: 8,
-  },
-  incompleteNoticeText: {
-    fontSize: 12,
-    color: "#D97706",
-    fontWeight: "600",
-  },
-  macroBarItem: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 0,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    borderRadius: 12,
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    gap: 6,
-  },
-  macroHeaderRow: {
+  macroFill: { height: "100%", borderRadius: Radius.pill },
+  cardHeading: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 5,
-  },
-  macroColorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  macroLabelText: {
-    flexShrink: 1,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  macroTrack: {
-    height: 4,
-    backgroundColor: "rgba(148, 163, 184, 0.2)",
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  macroFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  macroValueRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  macroValueContainer: {
-    flexShrink: 1,
-    fontSize: 11,
-  },
-  macroCurrentNum: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  macroTargetNum: {
-    fontSize: 11,
-    fontWeight: "400",
-  },
-  signalsGrid: {
-    flexDirection: "row",
+    justifyContent: "space-between",
     gap: Spacing.two,
   },
-  signalColumn: { flex: 1, gap: Spacing.one },
-  metricCard: {
-    borderRadius: 18,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    gap: Spacing.half,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.12)",
-  },
-  metricValue: {
-    fontSize: 24,
-    fontWeight: "800",
-    letterSpacing: Platform.select({ ios: -0.5, default: 0 }),
-  },
-  section: { gap: Spacing.two },
-  sectionTitle: {
-    letterSpacing: 0.8,
-    fontSize: 11,
-    opacity: 0.75,
-  },
-  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.one },
-  action: {
-    minWidth: "47%",
-    flexBasis: 240,
-    flexGrow: 1,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
-    borderRadius: 16,
-    minHeight: 48,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + Spacing.half,
+  actionBody: { flex: 1, minWidth: 160, gap: Spacing.half },
+  disclosure: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.two,
+    gap: Spacing.one,
+    minHeight: MinTouchTarget,
+    alignSelf: "flex-start",
   },
-  actionIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
+  auditGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: Spacing.three,
+  },
+  auditValue: { flexBasis: "50%", flexGrow: 1, gap: Spacing.half },
+  periodChoices: {
+    flexDirection: "row",
+    borderRadius: Radius.sm + 2,
+    padding: 2,
+  },
+  periodChoice: {
+    minHeight: 36,
+    minWidth: 64,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.sm,
     alignItems: "center",
     justifyContent: "center",
   },
-  actionIcon: {
-    fontSize: 16,
-  },
-  actionPlus: {
-    color: "#10B981",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
-  foundationCard: {
-    borderRadius: 16,
-    padding: Spacing.three,
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
-  },
-  actionBody: { flex: 1, minWidth: 0, gap: Spacing.half },
+  periodLabel: { fontWeight: "600" },
   refreshNotice: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-  },
-  retryButton: {
-    minHeight: 44,
-    minWidth: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  detailCard: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.12)",
-  },
-  energySubtitle: {
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: "700",
-  },
-  cardHeading: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: Spacing.three,
-  },
-  compactButton: {
-    borderWidth: 1,
-    borderColor: "#10B981",
-    borderRadius: 12,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
+    borderRadius: Radius.md,
   },
-  auditGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
-  auditValue: { minWidth: "45%", flexGrow: 1, gap: Spacing.one },
-  periodChoices: { flexDirection: "row", gap: Spacing.one },
-  periodChoice: {
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    borderRadius: 10,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-  },
-  periodChoiceSelected: {
-    borderWidth: 1.5,
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-  },
-  reviewErrorNotice: {
-    marginTop: Spacing.two,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
-    borderRadius: 8,
-  },
-  reviewErrorText: {
-    fontSize: 12,
-    color: "#D97706",
-    fontWeight: "600",
-  },
-  firstMealCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: Spacing.three,
-    gap: Spacing.two,
+  retryButton: {
+    minHeight: MinTouchTarget,
+    minWidth: MinTouchTarget,
+    alignItems: "center",
+    justifyContent: "center",
   },
   firstMealHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.two,
+    gap: 12,
   },
-  firstMealIcon: {
-    fontSize: 22,
-  },
-  firstMealHeaderContent: {
-    flex: 1,
-    gap: 2,
-  },
+  firstMealHeaderContent: { flex: 1, gap: Spacing.half },
   firstMealRepeatBox: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
     gap: Spacing.two,
+    padding: 12,
+    borderRadius: Radius.md,
   },
-  firstMealRepeatInfo: {
-    flexBasis: 140,
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 0,
-    gap: 2,
-  },
+  firstMealRepeatInfo: { flexBasis: 140, flexGrow: 1, gap: Spacing.half },
   copyToTodayButton: {
-    maxWidth: "100%",
-    flexShrink: 1,
-    backgroundColor: "#10B981",
+    minHeight: MinTouchTarget,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    borderRadius: 10,
-    minHeight: 44,
+    borderRadius: Radius.pill,
     alignItems: "center",
     justifyContent: "center",
   },
-  copyToTodayButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-  },
+  firstMealError: { gap: Spacing.one },
   firstMealFooterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.two,
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: Spacing.half,
+    gap: Spacing.two,
   },
-  firstMealLogLink: {
-    minHeight: 44,
-    maxWidth: "100%",
-    justifyContent: "center",
-    paddingVertical: Spacing.half,
+  inlineAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: MinTouchTarget,
   },
-  firstMealLogLinkText: {
-    color: "#10B981",
-    fontSize: 13,
-  },
+  pressed: { opacity: 0.6 },
 });

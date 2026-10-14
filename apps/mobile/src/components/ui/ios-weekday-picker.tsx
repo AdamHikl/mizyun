@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { Spacing } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { getWeekdayLabel, WEEKDAYS } from "./ios-time-picker-utils";
 
@@ -63,7 +63,9 @@ export function IosWeekdayPicker({
               styles.popoverCard,
               {
                 backgroundColor:
-                  theme.background === "#F8FAF9" ? "#FFFFFF" : "#1F2937",
+                  theme.background === Colors.light.background
+                    ? "#FFFFFF"
+                    : "#1F2937",
                 borderColor: theme.border,
               },
             ]}
@@ -110,7 +112,7 @@ export function IosWeekdayPicker({
                         styles.separator,
                         {
                           backgroundColor:
-                            theme.background === "#F8FAF9"
+                            theme.background === Colors.light.background
                               ? "rgba(0, 0, 0, 0.06)"
                               : "rgba(255, 255, 255, 0.08)",
                         },

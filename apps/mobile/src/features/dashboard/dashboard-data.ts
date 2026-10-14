@@ -485,8 +485,7 @@ export const computeDailyNutritionDisplay = (params: {
       fatG: 0,
       targetFatG: targetFat,
       fatPercent: 0,
-      badgeText:
-        targetKcal !== null ? `${targetKcal} kcal left` : "Meals Hub →",
+      badgeText: targetKcal !== null ? `${targetKcal} kcal left` : "",
       badgeType: "normal",
       hasIncompleteMeals: false,
     };
@@ -560,7 +559,7 @@ export const computeDailyNutritionDisplay = (params: {
       ? Math.min(Math.round((fat / targetFat) * 100), 100)
       : 0;
 
-  let badgeText = "Meals Hub →";
+  let badgeText = "";
   let badgeType: "normal" | "over" | "alert" | "neutral" = "normal";
 
   if (hasIncompleteMacros) {

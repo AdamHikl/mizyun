@@ -144,9 +144,22 @@ vi.mock("@/components/ui/ios-time-picker", () => ({
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  MinTouchTarget: 44,
+  PageGutter: 20,
+  Radius: {},
   Spacing: {},
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Icon: "Icon",
+  IconBadge: "IconBadge",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
 vi.mock("@/composition/analytics-client", () => ({
   analyticsClient: { track: vi.fn().mockResolvedValue({ recorded: true }) },
 }));
@@ -467,7 +480,7 @@ describe("dashboard cached display and refresh status", () => {
     ).toBeFalsy();
     expect(nutrition(tree).props.caloriesToday).toBe(750);
     expect(mocks.mealCopy).not.toHaveBeenCalled();
-    expect(text(tree)).toContain("First meal saved! ✨");
+    expect(text(tree)).toContain("First meal saved!");
     expect(
       find(tree, (node) => node.props?.accessibilityLabel === "Log a meal"),
     ).not.toBeNull();
@@ -1025,7 +1038,7 @@ describe("first-meal copy recovery", () => {
     await settle();
     await settle();
     expect(mocks.mealCopy).toHaveBeenCalledTimes(1);
-    expect(text(render())).toContain("First meal saved! ✨");
+    expect(text(render())).toContain("First meal saved!");
     expect(
       find(render(), (node) => node.type?.name === "FirstMealDashboardCard"),
     ).toBeFalsy();
@@ -1049,7 +1062,7 @@ describe("first-meal copy recovery", () => {
     expect(
       find(tree, (node) => node.type?.name === "FirstMealDashboardCard"),
     ).toBeFalsy();
-    expect(text(tree)).toContain("First meal saved! ✨");
+    expect(text(tree)).toContain("First meal saved!");
   });
 
   it("hydrates a failed copy after remount without yesterday's source and retries only on a tap", async () => {

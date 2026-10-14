@@ -118,6 +118,7 @@ vi.mock("expo-image-picker", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
+vi.mock("@/components/ui", () => ({ Icon: "Icon" }));
 vi.mock("@/components/tab-header", () => ({
   TabHeader: "TabHeader",
   useTabHeaderLayout: () => ({

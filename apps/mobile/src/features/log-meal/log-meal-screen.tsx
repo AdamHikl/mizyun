@@ -21,7 +21,12 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  Colors,
+  BottomTabInset,
+  MaxContentWidth,
+  Spacing,
+} from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -1644,7 +1649,7 @@ export function LogMealScreen() {
                       {
                         borderColor: theme.border,
                         backgroundColor:
-                          theme.background === "#F8FAF9"
+                          theme.background === Colors.light.background
                             ? "#FFFFFF"
                             : "rgba(255, 255, 255, 0.05)",
                       },

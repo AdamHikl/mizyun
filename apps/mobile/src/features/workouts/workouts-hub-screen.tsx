@@ -432,7 +432,7 @@ export function WorkoutsHubScreen() {
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Workouts" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader onLayout={onHeaderLayout} />
+        <TabHeader title="Workouts" onLayout={onHeaderLayout} />
         <ScrollView
           refreshControl={
             <RefreshControl
@@ -448,18 +448,10 @@ export function WorkoutsHubScreen() {
           style={{ marginTop: -headerHeight }}
           contentContainerStyle={[
             styles.content,
-            { paddingTop: headerHeight + Spacing.four },
+            { paddingTop: headerHeight + Spacing.three },
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Header */}
-          <View style={styles.header}>
-            <ThemedText type="subtitle">Workouts</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Start a session or choose a saved routine.
-            </ThemedText>
-          </View>
-
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
@@ -1155,9 +1147,6 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     width: "100%",
     alignSelf: "center",
-  },
-  header: {
-    gap: Spacing.one,
   },
   createRoutineHeroCard: {
     width: "100%",

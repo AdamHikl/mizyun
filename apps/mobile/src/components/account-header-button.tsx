@@ -3,7 +3,6 @@ import { SymbolView } from "expo-symbols";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { useTheme } from "@/hooks/use-theme";
-import { FeedbackHeaderButton } from "./feedback-header-button";
 
 export function AccountHeaderButton() {
   const colors = useTheme();
@@ -12,7 +11,7 @@ export function AccountHeaderButton() {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Open settings"
-      accessibilityHint="Manage your profile, settings and account"
+      accessibilityHint="Manage your profile, settings, feedback and account"
       onPress={() => router.push("/settings" as Href)}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
     >
@@ -21,8 +20,7 @@ export function AccountHeaderButton() {
         style={[
           styles.iconContainer,
           {
-            backgroundColor: colors.backgroundElement,
-            borderColor: colors.border,
+            backgroundColor: colors.backgroundSelected,
           },
         ]}
       >
@@ -37,10 +35,10 @@ export function AccountHeaderButton() {
   );
 }
 
+/** Feedback lives in Settings; tab headers keep one settings button. */
 export function AccountHeaderActions() {
   return (
     <View style={styles.actions}>
-      <FeedbackHeaderButton />
       <AccountHeaderButton />
     </View>
   );
@@ -58,7 +56,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },

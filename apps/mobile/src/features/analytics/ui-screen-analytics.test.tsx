@@ -72,9 +72,22 @@ vi.mock("@/components/ui/ios-time-picker", () => ({
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  MinTouchTarget: 44,
+  PageGutter: 20,
+  Radius: {},
   Spacing: {},
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Icon: "Icon",
+  IconBadge: "IconBadge",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
 vi.mock("@/composition/analytics-client", () => ({
   analyticsClient: { track: state.track },
 }));
@@ -173,7 +186,7 @@ describe("dashboard and settings usage telemetry", () => {
   it("opens Health steps settings directly from the disabled steps card", () => {
     const tree = render(DashboardScreen);
     const steps = find(tree, (node) => node.props?.label === "Steps today");
-    expect(steps.props.detail).toBe("Enable in Settings →");
+    expect(steps.props.detail).toBe("Turn on in Settings");
 
     steps.props.onPress();
 

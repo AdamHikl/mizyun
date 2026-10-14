@@ -41,6 +41,7 @@ import {
 
 import { ThemedText, type ThemedTextProps } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { Icon } from "@/components/ui";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import {
   BottomTabInset,
@@ -1067,7 +1068,7 @@ export function CoachSetupScreen() {
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader onLayout={onHeaderLayout}>
+        <TabHeader title="Coach" onLayout={onHeaderLayout}>
           {/* Top Header */}
           <View style={styles.header}>
             <View
@@ -1093,9 +1094,8 @@ export function CoachSetupScreen() {
                     pressed && styles.pressed,
                   ]}
                 >
-                  <ThemedText type="subtitle">Coach</ThemedText>
                   <View style={styles.threadTitleRow}>
-                    <ThemedText style={styles.navChatIcon}>💬</ThemedText>
+                    <Icon name="chat" size={15} color="textSecondary" />
                     <ThemedText
                       type="smallBold"
                       themeColor="textSecondary"
@@ -1104,17 +1104,11 @@ export function CoachSetupScreen() {
                     >
                       {active?.title ?? "Coach check-in"}
                     </ThemedText>
-                    <ThemedText
-                      type="small"
-                      themeColor="textSecondary"
-                      style={styles.navChevron}
-                    >
-                      ▾
-                    </ThemedText>
+                    <Icon name="chevronDown" size={12} color="textSecondary" />
                   </View>
                 </Pressable>
               ) : (
-                <ThemedText type="subtitle">Coach</ThemedText>
+                <View />
               )}
               <View style={styles.headerActions}>
                 <Pressable

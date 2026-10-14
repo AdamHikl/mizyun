@@ -12,7 +12,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
 import { IosWeekdayPicker } from "@/components/ui/ios-weekday-picker";
-import { Spacing } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   applyCoachReminders,
@@ -90,7 +90,7 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
               styles.insetGroup,
               {
                 backgroundColor:
-                  theme.background === "#F8FAF9"
+                  theme.background === Colors.light.background
                     ? "#FFFFFF"
                     : "rgba(255, 255, 255, 0.04)",
                 borderColor: theme.border,
@@ -113,7 +113,7 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
                 styles.separator,
                 {
                   backgroundColor:
-                    theme.background === "#F8FAF9"
+                    theme.background === Colors.light.background
                       ? "rgba(0, 0, 0, 0.06)"
                       : "rgba(255, 255, 255, 0.08)",
                 },
@@ -144,7 +144,7 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
                   styles.insetGroup,
                   {
                     backgroundColor:
-                      theme.background === "#F8FAF9"
+                      theme.background === Colors.light.background
                         ? "#FFFFFF"
                         : "rgba(255, 255, 255, 0.04)",
                     borderColor: theme.border,
@@ -175,7 +175,7 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
                         styles.separator,
                         {
                           backgroundColor:
-                            theme.background === "#F8FAF9"
+                            theme.background === Colors.light.background
                               ? "rgba(0, 0, 0, 0.06)"
                               : "rgba(255, 255, 255, 0.08)",
                         },

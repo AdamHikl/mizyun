@@ -1,11 +1,12 @@
 import React from "react";
+import { Colors } from "@/constants/theme";
 import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "@/hooks/use-theme";
 
 /** Presentation only: these colors and illustrations never imply access or status. */
 export function useCommunityPalette() {
   const theme = useTheme();
-  return theme.background === "#0B0F12"
+  return theme.background === Colors.dark.background
     ? {
         mint: "#12392F",
         mintText: "#C5F5DE",

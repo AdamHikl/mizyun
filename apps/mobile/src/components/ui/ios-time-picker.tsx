@@ -10,7 +10,7 @@ import {
 } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { Spacing } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   formatTime12,
@@ -186,7 +186,9 @@ export function IosTimePicker({
               styles.popoverCard,
               {
                 backgroundColor:
-                  theme.background === "#F8FAF9" ? "#FFFFFF" : "#1F2937",
+                  theme.background === Colors.light.background
+                    ? "#FFFFFF"
+                    : "#1F2937",
                 borderColor: theme.border,
               },
             ]}
@@ -198,7 +200,7 @@ export function IosTimePicker({
                 styles.selectionHighlight,
                 {
                   backgroundColor:
-                    theme.background === "#F8FAF9"
+                    theme.background === Colors.light.background
                       ? "rgba(0, 0, 0, 0.05)"
                       : "rgba(255, 255, 255, 0.1)",
                 },

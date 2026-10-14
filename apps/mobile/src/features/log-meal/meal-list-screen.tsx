@@ -38,7 +38,27 @@ import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+  type ThemeColors,
+} from "@/constants/theme";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Icon,
+  IconBadge,
+  IconButton,
+  ListGroup,
+  ListRow,
+  Notice,
+  SectionHeader,
+} from "@/components/ui";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isAutomaticallyLogged } from "@/features/recurring-meals/public-data";
 import { RecurringMealSuggestionCard } from "@/features/recurring-meals";
@@ -275,6 +295,11 @@ export function MealListScreen() {
   const [storedServerSearch, setServerSearch] =
     useState<MealSearchState | null>(null);
 
+  // Which entry or meal group currently shows its secondary actions.
+  const [storedOpenActionsKey, setOpenActionsKey] = useState<string | null>(
+    null,
+  );
+
   const searchQuery = ownsDisplay ? storedSearchQuery : "";
   const groupingDate = ownsDisplay ? storedGroupingDate : null;
   const selectedEntryIds = ownsDisplay
@@ -284,6 +309,7 @@ export function MealListScreen() {
   const renameTarget = ownsDisplay ? storedRenameTarget : null;
   const portionTarget = ownsDisplay ? storedPortionTarget : null;
   const serverSearch = ownsDisplay ? storedServerSearch : null;
+  const openActionsKey = ownsDisplay ? storedOpenActionsKey : null;
   useEffect(() => {
     requestVersion.current += 1;
     loaded.current = initialHistory !== null;
@@ -302,6 +328,7 @@ export function MealListScreen() {
     setRenameNewName("");
     setPortionTarget(null);
     setRenameTarget(null);
+    setOpenActionsKey(null);
   }, [ownerKey]);
 
   const load = useCallback(
@@ -937,100 +964,58 @@ export function MealListScreen() {
     [refreshAfterMutation, portionTarget],
   );
 
+  const toggleActions = useCallback((key: string) => {
+    setOpenActionsKey((current) => (current === key ? null : key));
+  }, []);
+
   return (
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Meals" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader onLayout={onHeaderLayout} />
+        <TabHeader title="Meals" onLayout={onHeaderLayout} />
         <ScrollView
           style={{ marginTop: -headerHeight }}
           contentContainerStyle={[
             styles.content,
-            { paddingTop: headerHeight + Spacing.three },
+            { paddingTop: headerHeight + Spacing.two },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.header}>
-            <ThemedText
-              type="subtitle"
-              accessibilityRole="header"
-              style={styles.pageTitle}
-            >
-              Meals
-            </ThemedText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Log a meal"
-              accessibilityHint="Add a photo or enter food manually"
-              onPress={() => router.push("/log-meal" as Href)}
-              style={({ pressed }) => [
-                styles.logMealButton,
-                { backgroundColor: theme.primary },
-                pressed && styles.pressed,
-              ]}
-            >
-              <ThemedText type="smallBold" style={styles.logMealButtonText}>
-                ＋ Log meal
-              </ThemedText>
-            </Pressable>
-          </View>
+          <Button
+            label="Log meal"
+            icon="add"
+            block
+            accessibilityRole="button"
+            accessibilityLabel="Log meal"
+            accessibilityHint="Add a photo or enter food manually"
+            onPress={() => router.push("/log-meal" as Href)}
+          />
 
-          <View style={styles.mealShortcuts}>
-            <Pressable
+          <ListGroup>
+            <ListRow
+              key="cook"
+              icon="cook"
+              title="What can I cook?"
+              subtitle="Ideas from your ingredients"
               accessibilityRole="button"
               accessibilityLabel="What can I cook?"
               accessibilityHint="Find recipe ideas from your ingredients"
               onPress={() => router.push("/meal-recipes" as Href)}
-              style={({ pressed }) => [
-                styles.mealShortcut,
-                {
-                  backgroundColor: theme.backgroundElement,
-                  borderColor: theme.border,
-                },
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.shortcutTitleRow}>
-                <ThemedText type="smallBold" style={styles.shortcutTitle}>
-                  What can I cook?
-                </ThemedText>
-                <ThemedText accessible={false} themeColor="textSecondary">
-                  ›
-                </ThemedText>
-              </View>
-              <ThemedText type="small" themeColor="textSecondary">
-                Ideas from ingredients
-              </ThemedText>
-            </Pressable>
-            <Pressable
+            />
+            <ListRow
+              key="recurring"
+              icon="repeat"
+              iconTone="info"
+              title="Recurring meals"
+              subtitle="Meals that log on a schedule"
               accessibilityRole="button"
               accessibilityLabel="Recurring meals"
               accessibilityHint="Manage meals that log on a schedule"
               onPress={() => router.push("/recurring-meals" as Href)}
-              style={({ pressed }) => [
-                styles.mealShortcut,
-                {
-                  backgroundColor: theme.backgroundElement,
-                  borderColor: theme.border,
-                },
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.shortcutTitleRow}>
-                <ThemedText type="smallBold" style={styles.shortcutTitle}>
-                  Recurring meals
-                </ThemedText>
-                <ThemedText accessible={false} themeColor="textSecondary">
-                  ›
-                </ThemedText>
-              </View>
-              <ThemedText type="small" themeColor="textSecondary">
-                Manage your schedule
-              </ThemedText>
-            </Pressable>
-          </View>
+            />
+          </ListGroup>
 
           <RecurringMealSuggestionCard
             userId={userId}
@@ -1040,150 +1025,42 @@ export function MealListScreen() {
           />
 
           {state.message !== null ? (
-            <ThemedView type="backgroundElement" style={styles.messageCard}>
+            <Card>
               <ThemedText type="small" accessibilityRole="alert">
                 {state.message}
               </ThemedText>
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Retry"
+                variant="plain"
+                size="small"
                 accessibilityLabel="Retry loading logged meals"
                 onPress={() => void load()}
-                style={styles.inlineButton}
-              >
-                <ThemedText type="smallBold">Retry</ThemedText>
-              </Pressable>
-            </ThemedView>
+              />
+            </Card>
           ) : null}
 
           {/* History Section */}
           <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText type="smallBold" accessibilityRole="header">
-                Meal history
-              </ThemedText>
-              <ThemedText
-                type="small"
-                themeColor="textSecondary"
-                accessibilityLiveRegion="polite"
-              >
-                {historySummary}
-              </ThemedText>
-            </View>
-
-            {advancedCapability.enabled ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showAdvanced
-                    ? "Hide more nutrient totals"
-                    : "Show more nutrient totals"
-                }
-                accessibilityHint="Shows nutrient details for this week and logged meals"
-                accessibilityState={{ expanded: showAdvanced }}
-                onPress={() => setShowAdvanced((value) => !value)}
-                style={({ pressed }) => [
-                  styles.nutrientDisclosure,
-                  {
-                    borderColor: theme.border,
-                    backgroundColor: theme.backgroundElement,
-                  },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.disclosureBody}>
-                  <ThemedText type="smallBold">More nutrients</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Weekly and meal details
-                  </ThemedText>
-                </View>
-                <ThemedText accessible={false} themeColor="textSecondary">
-                  {showAdvanced ? "−" : "+"}
-                </ThemedText>
-              </Pressable>
-            ) : null}
-            {advancedCapability.enabled && showAdvanced ? (
-              <ThemedView type="backgroundElement" style={styles.section}>
-                <ThemedText type="smallBold">
-                  This week · more nutrients
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Completeness covers nutrient values in logged meals. It does
-                  not mean every food eaten was logged.
-                </ThemedText>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    marginVertical: 8,
-                  }}
+            <SectionHeader
+              title="History"
+              action={
+                <ThemedText
+                  type="footnote"
+                  themeColor="textSecondary"
+                  accessibilityLiveRegion="polite"
                 >
-                  {ADVANCED_DISPLAY_FIELDS.map(({ key, label }) => (
-                    <Pressable
-                      key={key}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{
-                        checked: visibleAdvancedFields.includes(key),
-                      }}
-                      accessibilityLabel={`Show ${label}`}
-                      onPress={() =>
-                        setVisibleAdvancedFields((current) =>
-                          current.includes(key)
-                            ? current.filter((item) => item !== key)
-                            : [...current, key],
-                        )
-                      }
-                      style={{
-                        borderWidth: 1,
-                        borderColor: theme.border,
-                        borderRadius: 8,
-                        padding: 8,
-                      }}
-                    >
-                      <ThemedText type="small">
-                        {visibleAdvancedFields.includes(key) ? "✓ " : ""}
-                        {label}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </View>
-                {weeklySummaries === null ? (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Weekly nutrient summary unavailable.
-                  </ThemedText>
-                ) : (
-                  weeklyAdvancedNutrientLines(
-                    weeklySummaries,
-                    visibleAdvancedFields,
-                  ).map((line) => (
-                    <ThemedText
-                      key={line}
-                      type="small"
-                      themeColor="textSecondary"
-                    >
-                      {line}
-                    </ThemedText>
-                  ))
-                )}
-              </ThemedView>
-            ) : null}
+                  {historySummary}
+                </ThemedText>
+              }
+            />
 
             <View
               style={[
                 styles.searchRow,
-                {
-                  backgroundColor: theme.backgroundElement,
-                  borderColor: theme.border,
-                },
+                { backgroundColor: theme.backgroundSelected },
               ]}
             >
-              <ThemedText
-                accessible={false}
-                importantForAccessibility="no"
-                style={styles.searchIcon}
-              >
-                🔍
-              </ThemedText>
+              <Icon name="search" size={17} color="textSecondary" />
               <TextInput
                 accessibilityLabel="Search meal history"
                 accessibilityHint="Filters meals by name and saved details"
@@ -1198,22 +1075,110 @@ export function MealListScreen() {
                 returnKeyType="search"
               />
               {searchQuery.length > 0 ? (
-                <Pressable
-                  accessibilityRole="button"
+                <IconButton
+                  icon="close"
+                  variant="plain"
                   accessibilityLabel="Clear meal search"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   onPress={() => setSearchQuery("")}
-                  style={({ pressed }) => [
-                    styles.clearSearchButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedText type="smallBold" themeColor="textSecondary">
-                    ✕
-                  </ThemedText>
-                </Pressable>
+                />
               ) : null}
             </View>
+
+            {advancedCapability.enabled ? (
+              <ListGroup>
+                <ListRow
+                  key="nutrients"
+                  icon="chart"
+                  iconTone="fat"
+                  title="More nutrients"
+                  subtitle="Weekly and per-meal details"
+                  chevron={false}
+                  trailing={
+                    <Icon
+                      name={showAdvanced ? "chevronUp" : "chevronDown"}
+                      size={14}
+                      color="textTertiary"
+                    />
+                  }
+                  accessibilityLabel={
+                    showAdvanced
+                      ? "Hide more nutrient totals"
+                      : "Show more nutrient totals"
+                  }
+                  accessibilityHint="Shows nutrient details for this week and logged meals"
+                  accessibilityState={{ expanded: showAdvanced }}
+                  onPress={() => setShowAdvanced((value) => !value)}
+                />
+              </ListGroup>
+            ) : null}
+            {advancedCapability.enabled && showAdvanced ? (
+              <Card>
+                <ThemedText type="headline" accessibilityRole="header">
+                  This week · more nutrients
+                </ThemedText>
+                <ThemedText type="footnote" themeColor="textSecondary">
+                  Completeness reflects nutrient values in logged meals, not
+                  everything you ate.
+                </ThemedText>
+                <View style={styles.chipWrap}>
+                  {ADVANCED_DISPLAY_FIELDS.map(({ key, label }) => {
+                    const checked = visibleAdvancedFields.includes(key);
+                    return (
+                      <Pressable
+                        key={key}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked }}
+                        accessibilityLabel={`Show ${label}`}
+                        onPress={() =>
+                          setVisibleAdvancedFields((current) =>
+                            current.includes(key)
+                              ? current.filter((item) => item !== key)
+                              : [...current, key],
+                          )
+                        }
+                        style={({ pressed }) => [
+                          styles.toggleChip,
+                          {
+                            backgroundColor: checked
+                              ? theme.primaryLight
+                              : theme.backgroundSelected,
+                          },
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        {checked ? (
+                          <Icon name="check" size={13} color="primary" />
+                        ) : null}
+                        <ThemedText
+                          type="footnote"
+                          themeColor={checked ? "primary" : "text"}
+                        >
+                          {label}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {weeklySummaries === null ? (
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    Weekly nutrient summary unavailable.
+                  </ThemedText>
+                ) : (
+                  weeklyAdvancedNutrientLines(
+                    weeklySummaries,
+                    visibleAdvancedFields,
+                  ).map((line) => (
+                    <ThemedText
+                      key={line}
+                      type="footnote"
+                      themeColor="textSecondary"
+                    >
+                      {line}
+                    </ThemedText>
+                  ))
+                )}
+              </Card>
+            ) : null}
 
             {state.loading && state.groups.length === 0 ? (
               <ThemedText type="small" themeColor="textSecondary">
@@ -1222,22 +1187,20 @@ export function MealListScreen() {
             ) : null}
 
             {hasSearchQuery && serverSearch?.error ? (
-              <ThemedView
-                type="backgroundElement"
-                style={styles.messageCard}
-                accessibilityRole="alert"
-              >
+              <Card accessibilityRole="alert">
                 <ThemedText type="small">
                   {serverSearch.error.message}
                 </ThemedText>
                 {serverSearch.error.phase === "initial" &&
                 localFilteredGroups.length > 0 ? (
-                  <ThemedText type="small" themeColor="textSecondary">
+                  <ThemedText type="footnote" themeColor="textSecondary">
                     Showing matches from meals already loaded on this device.
                   </ThemedText>
                 ) : null}
-                <Pressable
-                  accessibilityRole="button"
+                <Button
+                  label="Retry"
+                  variant="plain"
+                  size="small"
                   accessibilityLabel={
                     serverSearch.error.phase === "load-more"
                       ? "Retry loading more matching meals"
@@ -1250,11 +1213,8 @@ export function MealListScreen() {
                       setSearchAttempt((attempt) => attempt + 1);
                     }
                   }}
-                  style={styles.inlineButton}
-                >
-                  <ThemedText type="smallBold">Retry</ThemedText>
-                </Pressable>
-              </ThemedView>
+                />
+              </Card>
             ) : null}
 
             {hasSearchQuery &&
@@ -1262,285 +1222,206 @@ export function MealListScreen() {
               serverSearch,
               displayGroups.length,
             ) ? (
-              <ThemedView
-                type="backgroundElement"
-                style={styles.emptyCard}
-                accessibilityRole="alert"
-              >
-                <ThemedText type="smallBold">
-                  No meals match “{searchQuery}”
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  style={styles.emptyStateDesc}
-                >
-                  Check spelling or clear the search to view all logged meals.
-                </ThemedText>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                  onPress={() => setSearchQuery("")}
-                  style={styles.emptyAddButton}
-                >
-                  <ThemedText
-                    type="smallBold"
-                    style={styles.emptyAddButtonText}
-                  >
-                    Clear search
-                  </ThemedText>
-                </Pressable>
-              </ThemedView>
+              <Card accessibilityRole="alert">
+                <EmptyState
+                  icon="search"
+                  title={`No meals match “${searchQuery}”`}
+                  message="Check the spelling or clear the search."
+                  action={
+                    <Button
+                      label="Clear search"
+                      variant="secondary"
+                      size="small"
+                      accessibilityLabel="Clear search"
+                      onPress={() => setSearchQuery("")}
+                      style={styles.centered}
+                    />
+                  }
+                />
+              </Card>
             ) : null}
 
             {!hasSearchQuery &&
             !state.loading &&
             state.groups.length === 0 &&
             state.message === null ? (
-              <ThemedView
-                type="backgroundElement"
-                style={styles.emptyCard}
-                accessibilityRole="alert"
-              >
-                <ThemedText type="smallBold">Nothing logged yet</ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  style={styles.emptyStateDesc}
-                >
-                  Meals you log manually or scan with AI will appear here
-                  grouped by day with detailed calorie and macro breakdowns.
-                </ThemedText>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Log your first meal"
-                  onPress={() => router.push("/log-meal" as Href)}
-                  style={styles.emptyAddButton}
-                >
-                  <ThemedText
-                    type="smallBold"
-                    style={styles.emptyAddButtonText}
-                  >
-                    ＋ Log your first meal
-                  </ThemedText>
-                </Pressable>
-              </ThemedView>
+              <Card accessibilityRole="alert">
+                <EmptyState
+                  icon="fork"
+                  title="Nothing logged yet"
+                  message="Logged meals appear here by day, with calories and macros."
+                  action={
+                    <Button
+                      label="Log your first meal"
+                      variant="tinted"
+                      size="small"
+                      icon="add"
+                      accessibilityLabel="Log your first meal"
+                      onPress={() => router.push("/log-meal" as Href)}
+                      style={styles.centered}
+                    />
+                  }
+                />
+              </Card>
             ) : null}
 
             {params.source === "evening_catch_up_reminder" &&
             !dismissEveningBanner ? (
-              <ThemedView
-                type="backgroundElement"
-                style={[
-                  styles.eveningCatchUpBanner,
-                  {
-                    borderColor: "rgba(16, 185, 129, 0.3)",
-                    backgroundColor:
-                      theme.background === "#F8FAF9"
-                        ? "rgba(16, 185, 129, 0.08)"
-                        : "rgba(16, 185, 129, 0.12)",
-                  },
-                ]}
-              >
-                <View style={styles.eveningBannerHeader}>
-                  <ThemedText style={styles.eveningBannerIcon}>🌙</ThemedText>
-                  <View style={styles.eveningBannerContent}>
-                    <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-                      Evening Food-Log Catch-Up
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Anything else to add from today? Add missed meals below.
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      style={styles.eveningSupportiveNote}
-                    >
-                      Missed a meal or day? Consistency is built over time, not
-                      perfection.
-                    </ThemedText>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
+              <Notice
+                tone="success"
+                title="Evening catch-up"
+                message="Anything else to add from today? Consistency matters more than perfection."
+                action={
+                  <Button
+                    label="Dismiss"
+                    variant="plain"
+                    size="small"
                     accessibilityLabel="Dismiss evening reminder banner"
                     onPress={() => setDismissEveningBanner(true)}
-                    style={styles.eveningBannerDismiss}
-                  >
-                    <ThemedText type="small" themeColor="textSecondary">
-                      ✕
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              </ThemedView>
+                  />
+                }
+              />
             ) : null}
 
             <View style={styles.groupList}>
               {displayGroups.map((group) => {
                 const isGroupingThisDay = groupingDate === group.date;
                 const clusters = clusterDayEntries(group.entries);
+                const rowProps = (entry: FoodEntry) => ({
+                  entry,
+                  mealVisualsEnabled: mealVisualCapability.enabled,
+                  showAdvanced: advancedCapability.enabled && showAdvanced,
+                  visibleAdvancedFields,
+                  isGrouping: isGroupingThisDay,
+                  isSelected: selectedEntryIds.has(entry.id),
+                  onToggleSelect: () => toggleSelectEntry(entry.id),
+                  busy: busyEntryId === entry.id,
+                  actionsOpen: openActionsKey === `entry:${entry.id}`,
+                  onToggleActions: () => toggleActions(`entry:${entry.id}`),
+                  onEdit: () =>
+                    router.push(
+                      `/edit-meal?id=${encodeURIComponent(entry.id)}` as Href,
+                    ),
+                  onRepeat: () =>
+                    router.push(
+                      `/recurring-meals?sourceEntryId=${encodeURIComponent(entry.id)}` as Href,
+                    ),
+                  onResize: () => openPortionAdjuster(entry),
+                  onDelete: () => confirmDelete(entry),
+                });
 
                 return (
-                  <ThemedView
-                    key={group.date}
-                    type="backgroundElement"
-                    style={styles.dayGroupCard}
-                  >
+                  <Card key={group.date} style={styles.dayCard}>
                     {/* Day identity and totals stay separate from actions. */}
-                    <View style={styles.dayHeader}>
-                      <View style={styles.dayTitleRow}>
-                        <ThemedText
-                          type="smallBold"
-                          accessibilityRole="header"
-                          style={styles.dayTitle}
-                        >
-                          {group.displayDate}
+                    <View style={styles.dayTitleRow}>
+                      <ThemedText
+                        type="headline"
+                        accessibilityRole="header"
+                        style={styles.dayTitle}
+                      >
+                        {group.displayDate}
+                      </ThemedText>
+                      <View style={styles.inlineWrap}>
+                        <ThemedText type="footnote" themeColor="textSecondary">
+                          {group.summary.entryCount}{" "}
+                          {group.summary.entryCount === 1 ? "meal" : "meals"}
                         </ThemedText>
-                        <View style={styles.dayMetadata}>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            {group.summary.entryCount}{" "}
-                            {group.summary.entryCount === 1 ? "meal" : "meals"}
-                          </ThemedText>
-                          {group.isPartial ? (
-                            <View style={styles.partialBadge}>
-                              <ThemedText
-                                type="smallBold"
-                                style={styles.partialBadgeText}
-                              >
-                                Partial
-                              </ThemedText>
-                            </View>
-                          ) : null}
-                        </View>
-                      </View>
-
-                      {isGroupingThisDay ? (
-                        <View style={styles.groupingToolbar}>
-                          <ThemedText
-                            type="smallBold"
-                            themeColor="textSecondary"
-                            style={styles.groupingCountText}
-                          >
-                            {selectedEntryIds.size} selected
-                          </ThemedText>
-                          <View style={styles.groupingToolbarActions}>
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel="Confirm grouping selected meals"
-                              disabled={selectedEntryIds.size < 2}
-                              onPress={() => setShowGroupModal(true)}
-                              style={[
-                                styles.groupConfirmBtn,
-                                selectedEntryIds.size < 2 && styles.disabledBtn,
-                              ]}
-                            >
-                              <ThemedText
-                                type="smallBold"
-                                style={styles.groupConfirmBtnText}
-                              >
-                                Group as…
-                              </ThemedText>
-                            </Pressable>
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel="Cancel grouping meals"
-                              onPress={cancelGrouping}
-                              style={styles.groupCancelBtn}
-                            >
-                              <ThemedText
-                                type="small"
-                                themeColor="textSecondary"
-                              >
-                                Cancel
-                              </ThemedText>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={styles.dayNutrition}>
-                          {hasSearchQuery || group.isPartial ? (
-                            <ThemedText type="small" themeColor="textSecondary">
-                              {hasSearchQuery
-                                ? group.isPartial
-                                  ? "Partial matching-meal totals"
-                                  : "Matching-meal totals"
-                                : "Partial totals"}
-                            </ThemedText>
-                          ) : null}
-                          {(
-                            [
-                              [group.summary.caloriesKcal, "kcal"],
-                              [group.summary.proteinG, "g protein"],
-                              [group.summary.carbohydrateG, "g carbs"],
-                              [group.summary.fatG, "g fat"],
-                            ] as const
-                          ).map(([value, unit], index) =>
-                            value === null ? null : (
-                              <ThemedText
-                                key={unit}
-                                type={index === 0 ? "smallBold" : "small"}
-                                themeColor={
-                                  index === 0 ? "text" : "textSecondary"
-                                }
-                                style={[
-                                  styles.dayNutrient,
-                                  index === 0 && styles.dayCalories,
-                                ]}
-                              >
-                                {value}
-                                {unit === "kcal" ? " " : ""}
-                                {unit}
-                              </ThemedText>
-                            ),
-                          )}
-                          {group.summary.caloriesKcal === null &&
-                          group.summary.proteinG === null &&
-                          group.summary.carbohydrateG === null &&
-                          group.summary.fatG === null ? (
-                            <ThemedText type="small" themeColor="textSecondary">
-                              No nutrition totals
-                            </ThemedText>
-                          ) : null}
-                        </View>
-                      )}
-
-                      <View style={styles.dayActions}>
-                        <Pressable
-                          testID={`add-meal-${group.date}`}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Add meal on ${group.displayDate}`}
-                          accessibilityHint="Opens a new meal entry for this day"
-                          onPress={() => {
-                            addMealDate.current = group.date;
-                            router.push({
-                              pathname: "/log-meal",
-                              params: { date: group.date },
-                            });
-                          }}
-                          style={({ pressed }) => [
-                            styles.dayAddButton,
-                            { backgroundColor: theme.backgroundSelected },
-                            pressed && { opacity: 0.6 },
-                          ]}
-                        >
-                          <ThemedText type="smallBold">＋ Add meal</ThemedText>
-                        </Pressable>
-                        {!isGroupingThisDay && group.entries.length >= 2 ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Group meals on ${group.displayDate}`}
-                            accessibilityHint="Select at least two entries to combine into a meal group"
-                            onPress={() => startGrouping(group.date)}
-                            style={({ pressed }) => [
-                              styles.groupActionTrigger,
-                              pressed && { opacity: 0.6 },
+                        {group.isPartial ? (
+                          <View
+                            style={[
+                              styles.pill,
+                              { backgroundColor: theme.warningLight },
                             ]}
                           >
-                            <ThemedText type="small" themeColor="textSecondary">
-                              Group meals
+                            <ThemedText type="caption" themeColor="warning">
+                              Partial
                             </ThemedText>
-                          </Pressable>
+                          </View>
                         ) : null}
                       </View>
                     </View>
+
+                    {isGroupingThisDay ? (
+                      <View
+                        style={[
+                          styles.groupingToolbar,
+                          { backgroundColor: theme.primaryLight },
+                        ]}
+                      >
+                        <ThemedText
+                          type="footnote"
+                          themeColor="textSecondary"
+                          style={styles.flexGrow}
+                        >
+                          {selectedEntryIds.size} selected
+                        </ThemedText>
+                        <View style={styles.inlineWrap}>
+                          <Button
+                            label="Group as…"
+                            variant="primary"
+                            size="small"
+                            accessibilityLabel="Confirm grouping selected meals"
+                            disabled={selectedEntryIds.size < 2}
+                            onPress={() => setShowGroupModal(true)}
+                          />
+                          <Button
+                            label="Cancel"
+                            variant="plain"
+                            size="small"
+                            accessibilityLabel="Cancel grouping meals"
+                            onPress={cancelGrouping}
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.inlineWrap}>
+                        {hasSearchQuery || group.isPartial ? (
+                          <ThemedText
+                            type="footnote"
+                            themeColor="textSecondary"
+                          >
+                            {hasSearchQuery
+                              ? group.isPartial
+                                ? "Partial matching-meal totals"
+                                : "Matching-meal totals"
+                              : "Partial totals"}
+                          </ThemedText>
+                        ) : null}
+                        {(
+                          [
+                            [group.summary.caloriesKcal, "kcal"],
+                            [group.summary.proteinG, "g protein"],
+                            [group.summary.carbohydrateG, "g carbs"],
+                            [group.summary.fatG, "g fat"],
+                          ] as const
+                        ).map(([value, unit], index) =>
+                          value === null ? null : (
+                            <ThemedText
+                              key={unit}
+                              type={index === 0 ? "smallBold" : "footnote"}
+                              themeColor={
+                                index === 0 ? "text" : "textSecondary"
+                              }
+                            >
+                              {value}
+                              {unit === "kcal" ? " " : ""}
+                              {unit}
+                            </ThemedText>
+                          ),
+                        )}
+                        {group.summary.caloriesKcal === null &&
+                        group.summary.proteinG === null &&
+                        group.summary.carbohydrateG === null &&
+                        group.summary.fatG === null ? (
+                          <ThemedText
+                            type="footnote"
+                            themeColor="textSecondary"
+                          >
+                            No nutrition totals
+                          </ThemedText>
+                        ) : null}
+                      </View>
+                    )}
 
                     {advancedCapability.enabled && showAdvanced
                       ? advancedNutrientLines(
@@ -1549,7 +1430,7 @@ export function MealListScreen() {
                         ).map((line) => (
                           <ThemedText
                             key={line}
-                            type="small"
+                            type="footnote"
                             themeColor="textSecondary"
                           >
                             {group.isPartial ? "Partial loaded history · " : ""}
@@ -1559,105 +1440,89 @@ export function MealListScreen() {
                       : null}
 
                     {/* Day Entries List (clusters & standalone meals) */}
-                    <View style={styles.dayEntries}>
+                    <View
+                      style={[
+                        styles.dayEntries,
+                        { borderTopColor: theme.separator },
+                      ]}
+                    >
                       {clusters.map((clusterItem, index) => {
                         if (clusterItem.kind === "group") {
+                          const clusterKey = `cluster:${clusterItem.id}`;
+                          const clusterActionsOpen =
+                            openActionsKey === clusterKey;
                           return (
                             <View
                               key={`cluster-${clusterItem.id}-${index}`}
-                              style={styles.clusterContainer}
+                              style={[
+                                styles.cluster,
+                                { backgroundColor: theme.background },
+                              ]}
                             >
-                              {/* Bigger Meal Header */}
                               <View style={styles.clusterHeader}>
-                                <View style={styles.clusterHeaderLeft}>
-                                  <ThemedText style={styles.clusterIcon}>
-                                    🍽️
-                                  </ThemedText>
+                                <IconBadge name="fork" size={26} />
+                                <View style={styles.flexGrow}>
                                   <ThemedText
-                                    type="smallBold"
-                                    style={styles.clusterTitle}
+                                    type="headline"
+                                    accessibilityRole="header"
                                   >
                                     {clusterItem.name}
                                   </ThemedText>
-                                  <View style={styles.clusterCountBadge}>
-                                    <ThemedText
-                                      type="small"
-                                      themeColor="textSecondary"
-                                    >
-                                      {clusterItem.entries.length} items
-                                    </ThemedText>
-                                  </View>
+                                  <ThemedText
+                                    type="footnote"
+                                    themeColor="textSecondary"
+                                  >
+                                    {clusterItem.entries.length} items ·{" "}
+                                    {formatGroupNutrition(clusterItem.summary)}
+                                  </ThemedText>
                                 </View>
-
-                                <View style={styles.clusterHeaderActions}>
-                                  <EntryAction
+                                <IconButton
+                                  icon="more"
+                                  variant="plain"
+                                  accessibilityLabel={`More actions for ${clusterItem.name}`}
+                                  accessibilityState={{
+                                    expanded: clusterActionsOpen,
+                                  }}
+                                  onPress={() => toggleActions(clusterKey)}
+                                />
+                              </View>
+                              {clusterActionsOpen ? (
+                                <View style={styles.chipWrap}>
+                                  <Button
                                     label="Rename"
-                                    groupAction
+                                    variant="tinted"
+                                    size="small"
+                                    icon="edit"
+                                    accessibilityLabel="Rename meal"
                                     disabled={busyEntryId !== null}
                                     onPress={() => {
                                       setRenameTarget(clusterItem);
                                       setRenameNewName(clusterItem.name);
                                     }}
                                   />
-                                  <EntryAction
+                                  <Button
                                     label="Ungroup all"
-                                    groupAction
+                                    variant="secondary"
+                                    size="small"
+                                    accessibilityLabel="Ungroup all meal"
                                     disabled={busyEntryId !== null}
                                     onPress={() =>
                                       void handleUngroupAll(clusterItem)
                                     }
                                   />
                                 </View>
-                              </View>
+                              ) : null}
 
-                              <ThemedText
-                                type="small"
-                                themeColor="textSecondary"
-                                style={styles.clusterTotalsText}
-                              >
-                                {formatGroupNutrition(clusterItem.summary)}
-                              </ThemedText>
-
-                              {/* Child items in this bigger meal */}
-                              <View style={styles.clusterChildrenList}>
-                                {clusterItem.entries.map((child) => (
-                                  <MealEntryRow
-                                    key={child.id}
-                                    entry={child}
-                                    mealVisualsEnabled={
-                                      mealVisualCapability.enabled
-                                    }
-                                    showAdvanced={
-                                      advancedCapability.enabled && showAdvanced
-                                    }
-                                    visibleAdvancedFields={
-                                      visibleAdvancedFields
-                                    }
-                                    isGrouping={isGroupingThisDay}
-                                    isSelected={selectedEntryIds.has(child.id)}
-                                    onToggleSelect={() =>
-                                      toggleSelectEntry(child.id)
-                                    }
-                                    busy={busyEntryId === child.id}
-                                    onEdit={() =>
-                                      router.push(
-                                        `/edit-meal?id=${encodeURIComponent(child.id)}` as Href,
-                                      )
-                                    }
-                                    onRepeat={() =>
-                                      router.push(
-                                        `/recurring-meals?sourceEntryId=${encodeURIComponent(child.id)}` as Href,
-                                      )
-                                    }
-                                    onResize={() => openPortionAdjuster(child)}
-                                    onUngroup={() =>
-                                      void handleUngroupItem(child)
-                                    }
-                                    onDelete={() => confirmDelete(child)}
-                                    inGroup
-                                  />
-                                ))}
-                              </View>
+                              {clusterItem.entries.map((child) => (
+                                <MealEntryRow
+                                  key={child.id}
+                                  {...rowProps(child)}
+                                  onUngroup={() =>
+                                    void handleUngroupItem(child)
+                                  }
+                                  inGroup
+                                />
+                              ))}
                             </View>
                           );
                         }
@@ -1666,41 +1531,45 @@ export function MealListScreen() {
                         return (
                           <MealEntryRow
                             key={clusterItem.entry.id}
-                            entry={clusterItem.entry}
-                            mealVisualsEnabled={mealVisualCapability.enabled}
-                            showAdvanced={
-                              advancedCapability.enabled && showAdvanced
-                            }
-                            visibleAdvancedFields={visibleAdvancedFields}
-                            isGrouping={isGroupingThisDay}
-                            isSelected={selectedEntryIds.has(
-                              clusterItem.entry.id,
-                            )}
-                            onToggleSelect={() =>
-                              toggleSelectEntry(clusterItem.entry.id)
-                            }
-                            busy={busyEntryId === clusterItem.entry.id}
-                            onEdit={() =>
-                              router.push(
-                                `/edit-meal?id=${encodeURIComponent(clusterItem.entry.id)}` as Href,
-                              )
-                            }
-                            onRepeat={() =>
-                              router.push(
-                                `/recurring-meals?sourceEntryId=${encodeURIComponent(clusterItem.entry.id)}` as Href,
-                              )
-                            }
-                            onResize={() =>
-                              openPortionAdjuster(clusterItem.entry)
-                            }
+                            {...rowProps(clusterItem.entry)}
                             onCopy={() => void copy(clusterItem.entry)}
-                            onDelete={() => confirmDelete(clusterItem.entry)}
                             inGroup={false}
                           />
                         );
                       })}
                     </View>
-                  </ThemedView>
+
+                    {!isGroupingThisDay ? (
+                      <View style={styles.inlineWrap}>
+                        <Button
+                          testID={`add-meal-${group.date}`}
+                          label="Add meal"
+                          variant="tinted"
+                          size="small"
+                          icon="add"
+                          accessibilityLabel={`Add meal on ${group.displayDate}`}
+                          accessibilityHint="Opens a new meal entry for this day"
+                          onPress={() => {
+                            addMealDate.current = group.date;
+                            router.push({
+                              pathname: "/log-meal",
+                              params: { date: group.date },
+                            });
+                          }}
+                        />
+                        {group.entries.length >= 2 ? (
+                          <Button
+                            label="Group meals"
+                            variant="plain"
+                            size="small"
+                            accessibilityLabel={`Group meals on ${group.displayDate}`}
+                            accessibilityHint="Select at least two entries to combine into a meal group"
+                            onPress={() => startGrouping(group.date)}
+                          />
+                        ) : null}
+                      </View>
+                    ) : null}
+                  </Card>
                 );
               })}
             </View>
@@ -1710,35 +1579,30 @@ export function MealListScreen() {
               <View style={styles.paginationFooter}>
                 {serverSearch?.loadingMore ? (
                   <View style={styles.loadingMoreRow}>
-                    <ActivityIndicator size="small" color="#10B981" />
-                    <ThemedText type="small" themeColor="textSecondary">
+                    <ActivityIndicator size="small" color={theme.primary} />
+                    <ThemedText type="footnote" themeColor="textSecondary">
                       Loading more matching meals…
                     </ThemedText>
                   </View>
                 ) : serverSearch?.nextCursor &&
                   serverSearch.error?.phase !== "load-more" ? (
-                  <Pressable
-                    accessibilityRole="button"
+                  <Button
+                    label="Load more matching meals"
+                    variant="tinted"
+                    size="small"
                     accessibilityLabel="Load more matching meals"
                     onPress={() => void loadMoreSearch()}
-                    style={styles.loadMoreButton}
-                  >
-                    <ThemedText
-                      type="smallBold"
-                      style={styles.loadMoreButtonText}
-                    >
-                      Load more matching meals
-                    </ThemedText>
-                  </Pressable>
+                    style={styles.centered}
+                  />
                 ) : serverSearch &&
                   !serverSearch.loading &&
                   !serverSearch.nextCursor &&
                   serverSearch.error === null &&
                   serverSearch.entries.length > 0 ? (
                   <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={styles.historyEndNotice}
+                    type="footnote"
+                    themeColor="textTertiary"
+                    style={styles.centerText}
                   >
                     All matching meals loaded ({serverSearch.entries.length}{" "}
                     total)
@@ -1749,8 +1613,8 @@ export function MealListScreen() {
               <View style={styles.paginationFooter}>
                 {state.loadingMore ? (
                   <View style={styles.loadingMoreRow}>
-                    <ActivityIndicator size="small" color="#10B981" />
-                    <ThemedText type="small" themeColor="textSecondary">
+                    <ActivityIndicator size="small" color={theme.primary} />
+                    <ThemedText type="footnote" themeColor="textSecondary">
                       Loading older meals…
                     </ThemedText>
                   </View>
@@ -1758,32 +1622,28 @@ export function MealListScreen() {
                   <>
                     {state.cutoffDateIsPartial ? (
                       <ThemedText
-                        type="small"
-                        style={styles.partialCutoffNotice}
+                        type="footnote"
+                        themeColor="warning"
+                        style={styles.centerText}
                       >
-                        Cutoff day is split across pages. Load older meals to
-                        complete totals.
+                        The oldest day continues on the next page. Load older
+                        meals to complete its totals.
                       </ThemedText>
                     ) : null}
-                    <Pressable
-                      accessibilityRole="button"
+                    <Button
+                      label="Load older meals"
+                      variant="tinted"
+                      size="small"
                       accessibilityLabel="Load older meals"
                       onPress={() => void loadMore()}
-                      style={styles.loadMoreButton}
-                    >
-                      <ThemedText
-                        type="smallBold"
-                        style={styles.loadMoreButtonText}
-                      >
-                        Load older meals
-                      </ThemedText>
-                    </Pressable>
+                      style={styles.centered}
+                    />
                   </>
                 ) : !state.loading && state.entries.length > 0 ? (
                   <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={styles.historyEndNotice}
+                    type="footnote"
+                    themeColor="textTertiary"
+                    style={styles.centerText}
                   >
                     All meals loaded ({state.entries.length} total)
                   </ThemedText>
@@ -1801,41 +1661,52 @@ export function MealListScreen() {
         animationType="fade"
         onRequestClose={() => setShowGroupModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View
             style={[
               styles.modalCard,
               { backgroundColor: theme.backgroundElement },
             ]}
           >
-            <ThemedText type="subtitle">Group Meals</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Combine {selectedEntryIds.size} items into a bigger meal while
-              keeping each one editable.
+            <ThemedText type="title3" accessibilityRole="header">
+              Group meals
+            </ThemedText>
+            <ThemedText type="footnote" themeColor="textSecondary">
+              Combine {selectedEntryIds.size} items into one meal. Each item
+              stays editable.
             </ThemedText>
 
-            <View style={styles.modalPresetsRow}>
-              {MEAL_GROUP_PRESETS.map((preset) => (
-                <Pressable
-                  key={preset}
-                  onPress={() => setGroupModalName(preset)}
-                  style={[
-                    styles.presetChip,
-                    groupModalName === preset && styles.presetChipActive,
-                  ]}
-                >
-                  <ThemedText
-                    type="smallBold"
-                    style={
-                      groupModalName === preset
-                        ? styles.presetChipTextActive
-                        : styles.presetChipText
-                    }
+            <View style={styles.chipWrap}>
+              {MEAL_GROUP_PRESETS.map((preset) => {
+                const selected = groupModalName === preset;
+                return (
+                  <Pressable
+                    key={preset}
+                    accessibilityRole="button"
+                    accessibilityLabel={preset}
+                    accessibilityState={{ selected }}
+                    onPress={() => setGroupModalName(preset)}
+                    style={({ pressed }) => [
+                      styles.toggleChip,
+                      {
+                        backgroundColor: selected
+                          ? theme.primary
+                          : theme.backgroundSelected,
+                      },
+                      pressed && styles.pressed,
+                    ]}
                   >
-                    {preset}
-                  </ThemedText>
-                </Pressable>
-              ))}
+                    <ThemedText
+                      type="smallBold"
+                      style={{
+                        color: selected ? theme.onPrimary : theme.text,
+                      }}
+                    >
+                      {preset}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <TextInput
@@ -1843,28 +1714,25 @@ export function MealListScreen() {
               value={groupModalName}
               onChangeText={setGroupModalName}
               placeholder="e.g. Post-workout meal"
-              placeholderTextColor="#8A8D91"
-              style={[styles.modalInput, { color: theme.text }]}
+              placeholderTextColor={theme.textTertiary}
+              style={[
+                styles.modalInput,
+                { color: theme.text, borderColor: theme.border },
+              ]}
             />
 
             <View style={styles.modalActionsRow}>
-              <Pressable
+              <Button
+                label="Cancel"
+                variant="secondary"
+                size="small"
                 onPress={() => setShowGroupModal(false)}
-                style={styles.modalCancelButton}
-              >
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Cancel
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
+              />
+              <Button
+                label="Create group"
+                size="small"
                 onPress={() => void handleCreateGroup()}
-                style={styles.modalConfirmButton}
-              >
-                <ThemedText type="smallBold" style={styles.modalConfirmText}>
-                  Create Group
-                </ThemedText>
-              </Pressable>
+              />
             </View>
           </View>
         </View>
@@ -1877,40 +1745,40 @@ export function MealListScreen() {
         animationType="fade"
         onRequestClose={() => setRenameTarget(null)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View
             style={[
               styles.modalCard,
               { backgroundColor: theme.backgroundElement },
             ]}
           >
-            <ThemedText type="subtitle">Rename Meal Group</ThemedText>
+            <ThemedText type="title3" accessibilityRole="header">
+              Rename meal group
+            </ThemedText>
             <TextInput
               accessibilityLabel="New meal group name"
               value={renameNewName}
               onChangeText={setRenameNewName}
               placeholder="e.g. Lunch"
-              placeholderTextColor="#8A8D91"
-              style={[styles.modalInput, { color: theme.text, marginTop: 12 }]}
+              placeholderTextColor={theme.textTertiary}
+              style={[
+                styles.modalInput,
+                { color: theme.text, borderColor: theme.border },
+              ]}
               autoFocus
             />
             <View style={styles.modalActionsRow}>
-              <Pressable
+              <Button
+                label="Cancel"
+                variant="secondary"
+                size="small"
                 onPress={() => setRenameTarget(null)}
-                style={styles.modalCancelButton}
-              >
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Cancel
-                </ThemedText>
-              </Pressable>
-              <Pressable
+              />
+              <Button
+                label="Save"
+                size="small"
                 onPress={() => void handleRenameGroup()}
-                style={styles.modalConfirmButton}
-              >
-                <ThemedText type="smallBold" style={styles.modalConfirmText}>
-                  Save
-                </ThemedText>
-              </Pressable>
+              />
             </View>
           </View>
         </View>
@@ -1929,6 +1797,35 @@ export function MealListScreen() {
   );
 }
 
+/** One quiet line of calories and macros; unknown values are omitted. */
+function MacroLine(props: {
+  readonly caloriesKcal: number | null;
+  readonly proteinG: number | null;
+  readonly carbohydrateG: number | null;
+  readonly fatG: number | null;
+}) {
+  const parts = (
+    [
+      [props.caloriesKcal, " kcal", "text"],
+      [props.proteinG, "g P", "protein"],
+      [props.carbohydrateG, "g C", "carbs"],
+      [props.fatG, "g F", "fat"],
+    ] as const
+  ).filter(([value]) => value !== null);
+  if (parts.length === 0) return null;
+  return (
+    <ThemedText type="footnote" themeColor="textSecondary">
+      {parts.map(([value, unit, color], index) => (
+        <ThemedText key={unit} type="footnote" themeColor={color}>
+          {index > 0 ? " · " : ""}
+          {value}
+          {unit}
+        </ThemedText>
+      ))}
+    </ThemedText>
+  );
+}
+
 function MealEntryRow(props: {
   readonly entry: FoodEntry;
   readonly mealVisualsEnabled: boolean;
@@ -1938,6 +1835,8 @@ function MealEntryRow(props: {
   readonly isSelected: boolean;
   readonly onToggleSelect: () => void;
   readonly busy: boolean;
+  readonly actionsOpen: boolean;
+  readonly onToggleActions: () => void;
   readonly onEdit: () => void;
   readonly onRepeat: () => void;
   readonly onResize: () => void;
@@ -1955,6 +1854,8 @@ function MealEntryRow(props: {
     isSelected,
     onToggleSelect,
     busy,
+    actionsOpen,
+    onToggleActions,
     onEdit,
     onResize,
     onRepeat,
@@ -1963,63 +1864,76 @@ function MealEntryRow(props: {
     onDelete,
     inGroup,
   } = props;
+  const theme = useTheme();
   const grams = getEntryGrams(entry);
   const calcText = getEntryCalculationText(entry);
+  const time = formatMealTime(entry.consumedAt);
+  const meta = grams !== null ? `${time} · ${grams} g` : time;
 
   return (
     <View
       style={[
-        styles.entryCard,
-        inGroup && styles.childEntryCard,
-        isGrouping && isSelected && styles.selectedEntryCard,
+        styles.entry,
+        { borderTopColor: theme.separator },
+        inGroup && styles.childEntry,
       ]}
     >
       <View style={styles.entryHeader}>
-        {isGrouping ? (
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isSelected }}
-            onPress={onToggleSelect}
-            style={styles.checkboxContainer}
-          >
-            <View
-              style={[styles.checkbox, isSelected && styles.checkboxChecked]}
-            >
-              {isSelected ? (
-                <ThemedText style={styles.checkboxCheckText}>✓</ThemedText>
-              ) : null}
-            </View>
-          </Pressable>
-        ) : null}
-
-        <ThemedText type="smallBold" style={styles.entryName}>
-          {entry.name}
-        </ThemedText>
-
-        <View style={styles.entryHeaderMeta}>
-          {grams !== null ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Adjust ${entry.name} weight`}
-              onPress={onResize}
-              style={styles.gramsBadge}
-            >
-              <ThemedText type="smallBold" style={styles.gramsBadgeText}>
-                ⚖️ {grams}g
-              </ThemedText>
-            </Pressable>
+        <Pressable
+          accessibilityRole={isGrouping ? "checkbox" : "button"}
+          accessibilityLabel={`${entry.name}, ${meta}`}
+          accessibilityHint={
+            isGrouping ? "Selects this meal for grouping" : "Opens the meal"
+          }
+          accessibilityState={isGrouping ? { checked: isSelected } : undefined}
+          onPress={isGrouping ? onToggleSelect : onEdit}
+          style={({ pressed }) => [styles.entryMain, pressed && styles.pressed]}
+        >
+          {isGrouping ? (
+            isSelected ? (
+              <Icon name="checkCircle" size={22} color="primary" />
+            ) : (
+              <View
+                style={[styles.checkbox, { borderColor: theme.textTertiary }]}
+              />
+            )
           ) : null}
-          <ThemedText type="small" themeColor="textSecondary">
-            {formatMealTime(entry.consumedAt)}
-          </ThemedText>
-        </View>
+          <View style={styles.entryText}>
+            <ThemedText type="default">{entry.name}</ThemedText>
+            <ThemedText type="footnote" themeColor="textSecondary">
+              {meta}
+            </ThemedText>
+            <MacroLine
+              caloriesKcal={entry.caloriesKcal}
+              proteinG={entry.proteinG}
+              carbohydrateG={entry.carbohydrateG}
+              fatG={entry.fatG}
+            />
+            {isAutomaticallyLogged(entry.details) ? (
+              <ThemedText type="footnote" themeColor="textSecondary">
+                Logged automatically · review if your meal changed
+              </ThemedText>
+            ) : null}
+          </View>
+        </Pressable>
+        {isGrouping ? null : busy ? (
+          <ActivityIndicator
+            size="small"
+            color={theme.textSecondary}
+            style={styles.busyIndicator}
+          />
+        ) : null}
+        {isGrouping ? null : (
+          <IconButton
+            icon="more"
+            variant="plain"
+            accessibilityLabel={`More actions for ${entry.name}`}
+            accessibilityState={{ expanded: actionsOpen }}
+            onPress={onToggleActions}
+          />
+        )}
       </View>
 
-      {isAutomaticallyLogged(entry.details) ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          Automatically logged · review if your meal changed
-        </ThemedText>
-      ) : null}
       <MealVisual
         entryId={entry.id}
         name={entry.name}
@@ -2027,80 +1941,91 @@ function MealEntryRow(props: {
         hasPhoto={Boolean(entry.photoAssetId)}
         editable
       />
-      {/* Semantic Macro Badges */}
-      <View style={styles.macroBadgesRow}>
-        {entry.caloriesKcal !== null ? (
-          <View style={styles.calorieBadge}>
-            <ThemedText type="smallBold" style={styles.calorieBadgeText}>
-              {entry.caloriesKcal} kcal
-            </ThemedText>
-          </View>
-        ) : null}
-        {entry.proteinG !== null ? (
-          <View style={styles.proteinBadge}>
-            <ThemedText type="small" style={styles.proteinBadgeText}>
-              {entry.proteinG}g P
-            </ThemedText>
-          </View>
-        ) : null}
-        {entry.carbohydrateG !== null ? (
-          <View style={styles.carbsBadge}>
-            <ThemedText type="small" style={styles.carbsBadgeText}>
-              {entry.carbohydrateG}g C
-            </ThemedText>
-          </View>
-        ) : null}
-        {entry.fatG !== null ? (
-          <View style={styles.fatBadge}>
-            <ThemedText type="small" style={styles.fatBadgeText}>
-              {entry.fatG}g F
-            </ThemedText>
-          </View>
-        ) : null}
-        {calcText !== null ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View AI calculation in edit"
-            onPress={onEdit}
-            style={styles.aiCalcBadge}
-          >
-            <ThemedText type="smallBold" style={styles.aiCalcBadgeText}>
-              ✨ AI Calc
-            </ThemedText>
-          </Pressable>
-        ) : null}
-      </View>
 
       {showAdvanced
         ? advancedNutrientLines([entry], visibleAdvancedFields).map((line) => (
-            <ThemedText key={line} type="small" themeColor="textSecondary">
+            <ThemedText key={line} type="footnote" themeColor="textSecondary">
               {line}
             </ThemedText>
           ))
         : null}
 
-      {/* Entry Actions */}
-      <View style={styles.entryActions}>
-        <EntryAction label="Edit" disabled={busy} onPress={onEdit} />
-        <EntryAction label="Repeat" disabled={busy} onPress={onRepeat} />
-        <EntryAction label="Resize" disabled={busy} onPress={onResize} />
-        {inGroup && onUngroup !== undefined ? (
-          <EntryAction label="Ungroup" disabled={busy} onPress={onUngroup} />
-        ) : null}
-        {!inGroup && onCopy !== undefined ? (
-          <EntryAction
-            label={busy ? "Working…" : "Copy to Today"}
+      {actionsOpen && !isGrouping ? (
+        <View style={styles.chipWrap}>
+          <Button
+            label="Edit"
+            variant="tinted"
+            size="small"
+            icon="edit"
+            accessibilityLabel="Edit meal"
             disabled={busy}
-            onPress={onCopy}
+            onPress={onEdit}
           />
-        ) : null}
-        <EntryAction
-          label="Delete"
-          disabled={busy}
-          destructive
-          onPress={onDelete}
-        />
-      </View>
+          {calcText !== null ? (
+            <Button
+              label="AI calculation"
+              variant="secondary"
+              size="small"
+              icon="sparkles"
+              accessibilityLabel="View AI calculation in edit"
+              onPress={onEdit}
+            />
+          ) : null}
+          <Button
+            label="Repeat"
+            variant="secondary"
+            size="small"
+            icon="repeat"
+            accessibilityLabel="Repeat meal"
+            disabled={busy}
+            onPress={onRepeat}
+          />
+          <Button
+            label={grams !== null ? `Resize · ${grams} g` : "Resize"}
+            variant="secondary"
+            size="small"
+            icon="scale"
+            accessibilityLabel="Resize meal"
+            accessibilityHint={
+              grams !== null
+                ? `Adjust ${entry.name} weight from ${grams} grams`
+                : undefined
+            }
+            disabled={busy}
+            onPress={onResize}
+          />
+          {inGroup && onUngroup !== undefined ? (
+            <Button
+              label="Ungroup"
+              variant="secondary"
+              size="small"
+              accessibilityLabel="Ungroup meal"
+              disabled={busy}
+              onPress={onUngroup}
+            />
+          ) : null}
+          {!inGroup && onCopy !== undefined ? (
+            <Button
+              label={busy ? "Working…" : "Copy to Today"}
+              variant="secondary"
+              size="small"
+              icon="calendar"
+              accessibilityLabel={busy ? "Working… meal" : "Copy to Today meal"}
+              loading={busy}
+              onPress={onCopy}
+            />
+          ) : null}
+          <Button
+            label="Delete"
+            variant="destructive"
+            size="small"
+            icon="trash"
+            accessibilityLabel="Delete meal"
+            disabled={busy}
+            onPress={onDelete}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -2109,7 +2034,7 @@ function AdjustPortionModal(props: {
   readonly portionTarget: PortionModalState;
   readonly onClose: () => void;
   readonly onSave: (grams: string) => void;
-  readonly theme: { backgroundElement: string; text: string };
+  readonly theme: ThemeColors;
 }) {
   const { portionTarget, onClose, onSave, theme } = props;
   const [currentGrams, setCurrentGrams] = useState(portionTarget.grams);
@@ -2166,7 +2091,10 @@ function AdjustPortionModal(props: {
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.modalKeyboardAvoidingView}
+        style={[
+          styles.modalKeyboardAvoidingView,
+          { backgroundColor: theme.overlay },
+        ]}
       >
         <ScrollView
           contentContainerStyle={styles.modalScrollableContent}
@@ -2181,153 +2109,95 @@ function AdjustPortionModal(props: {
               { backgroundColor: theme.backgroundElement },
             ]}
           >
-            <ThemedText type="subtitle">Adjust Portion (Grams)</ThemedText>
+            <ThemedText type="title3" accessibilityRole="header">
+              Adjust portion
+            </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {portionTarget.entry.name}
             </ThemedText>
             {portionTarget.baseGrams === null ? (
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="footnote" themeColor="textSecondary">
                 Enter the current total weight to set this meal's portion. Its
                 nutrition totals will stay unchanged.
               </ThemedText>
             ) : null}
-
             <View style={styles.gramsInputRow}>
               <TextInput
                 accessibilityLabel="Adjust portion weight in grams"
                 keyboardType="numeric"
-                style={[styles.modalInput, { flex: 1, color: theme.text }]}
+                style={[
+                  styles.modalInput,
+                  styles.flexGrow,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
                 value={currentGrams}
                 onChangeText={setCurrentGrams}
                 autoFocus
               />
-              <ThemedText type="smallBold" style={styles.gramsUnit}>
+              <ThemedText type="headline" themeColor="textSecondary">
                 grams
               </ThemedText>
             </View>
 
             {/* Stepper buttons */}
-            <View style={styles.chipsRow}>
-              <ChipButton label="-50g" onPress={() => adjustDelta(-50)} />
-              <ChipButton label="-10g" onPress={() => adjustDelta(-10)} />
-              <ChipButton label="+10g" onPress={() => adjustDelta(10)} />
-              <ChipButton label="+50g" onPress={() => adjustDelta(50)} />
-              <ChipButton label="0.5x" onPress={() => multiply(0.5)} />
-              <ChipButton label="1.5x" onPress={() => multiply(1.5)} />
-              <ChipButton label="2x" onPress={() => multiply(2)} />
+            <View style={styles.chipWrap}>
+              {(
+                [
+                  ["-50g", () => adjustDelta(-50)],
+                  ["-10g", () => adjustDelta(-10)],
+                  ["+10g", () => adjustDelta(10)],
+                  ["+50g", () => adjustDelta(50)],
+                  ["0.5x", () => multiply(0.5)],
+                  ["1.5x", () => multiply(1.5)],
+                  ["2x", () => multiply(2)],
+                ] as const
+              ).map(([label, onPress]) => (
+                <Button
+                  key={label}
+                  label={label}
+                  variant="tinted"
+                  size="small"
+                  accessibilityLabel={label}
+                  onPress={onPress}
+                />
+              ))}
             </View>
 
             {/* Dynamic live nutrition preview */}
-            <View style={styles.previewBox}>
-              <ThemedText type="smallBold" style={styles.previewTitle}>
-                Recalculated values:
+            <View
+              style={[
+                styles.previewBox,
+                { backgroundColor: theme.backgroundSelected },
+              ]}
+            >
+              <ThemedText type="footnote" themeColor="textSecondary">
+                New values
               </ThemedText>
-              <View style={styles.macroBadgesRow}>
-                {scaled.caloriesKcal !== null ? (
-                  <View style={styles.calorieBadge}>
-                    <ThemedText
-                      type="smallBold"
-                      style={styles.calorieBadgeText}
-                    >
-                      {scaled.caloriesKcal} kcal
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {scaled.proteinG !== null ? (
-                  <View style={styles.proteinBadge}>
-                    <ThemedText type="small" style={styles.proteinBadgeText}>
-                      {scaled.proteinG}g P
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {scaled.carbohydrateG !== null ? (
-                  <View style={styles.carbsBadge}>
-                    <ThemedText type="small" style={styles.carbsBadgeText}>
-                      {scaled.carbohydrateG}g C
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {scaled.fatG !== null ? (
-                  <View style={styles.fatBadge}>
-                    <ThemedText type="small" style={styles.fatBadgeText}>
-                      {scaled.fatG}g F
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
+              <MacroLine
+                caloriesKcal={scaled.caloriesKcal}
+                proteinG={scaled.proteinG}
+                carbohydrateG={scaled.carbohydrateG}
+                fatG={scaled.fatG}
+              />
             </View>
 
             <View style={styles.modalActionsRow}>
-              <Pressable onPress={onClose} style={styles.modalCancelButton}>
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Cancel
-                </ThemedText>
-              </Pressable>
-              <Pressable
+              <Button
+                label="Cancel"
+                variant="secondary"
+                size="small"
+                onPress={onClose}
+              />
+              <Button
+                label="Apply & save"
+                size="small"
                 onPress={() => onSave(currentGrams)}
-                style={styles.modalConfirmButton}
-              >
-                <ThemedText type="smallBold" style={styles.modalConfirmText}>
-                  Apply & Save
-                </ThemedText>
-              </Pressable>
+              />
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
-  );
-}
-
-function ChipButton(props: {
-  readonly label: string;
-  readonly onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={props.label}
-      onPress={props.onPress}
-      style={({ pressed }) => [styles.chipButton, pressed && styles.pressed]}
-    >
-      <ThemedText type="smallBold" style={styles.chipButtonText}>
-        {props.label}
-      </ThemedText>
-    </Pressable>
-  );
-}
-
-function EntryAction(props: {
-  readonly label: string;
-  readonly disabled: boolean;
-  readonly destructive?: boolean;
-  readonly groupAction?: boolean;
-  readonly onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${props.label} meal`}
-      accessibilityState={{ disabled: props.disabled }}
-      disabled={props.disabled}
-      onPress={props.onPress}
-      style={({ pressed }) => [
-        styles.entryAction,
-        props.groupAction === true && styles.entryGroupAction,
-        props.destructive === true && styles.entryActionDestructive,
-        (pressed || props.disabled) && styles.pressed,
-      ]}
-    >
-      <ThemedText
-        type="small"
-        style={[
-          styles.entryActionLabel,
-          props.destructive === true ? styles.destructiveText : undefined,
-        ]}
-      >
-        {props.label}
-      </ThemedText>
-    </Pressable>
   );
 }
 
@@ -2338,140 +2208,56 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    padding: Spacing.four,
+    paddingHorizontal: PageGutter,
     paddingBottom: BottomTabInset + Spacing.six,
+    gap: Spacing.four,
+  },
+  section: {
     gap: Spacing.three,
   },
-  header: {
+  flexGrow: { flex: 1 },
+  centered: { alignSelf: "center" },
+  centerText: { textAlign: "center" },
+  pressed: { opacity: 0.6 },
+  inlineWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.two,
+    columnGap: Spacing.three,
+    rowGap: Spacing.one,
   },
-  pageTitle: { fontSize: 28, lineHeight: 36, flexGrow: 1 },
-  logMealButton: {
-    minHeight: 48,
-    maxWidth: "100%",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logMealButtonText: { color: "#0B0F12" },
-  mealShortcuts: {
+  chipWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "center",
     gap: Spacing.two,
   },
-  mealShortcut: {
-    flexGrow: 1,
-    flexBasis: 150,
-    minWidth: 0,
-    minHeight: 72,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: Spacing.three,
+  toggleChip: {
+    minHeight: MinTouchTarget,
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.one,
-  },
-  shortcutTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  shortcutTitle: { flex: 1 },
-  nutrientDisclosure: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: 14,
     paddingVertical: Spacing.two,
-  },
-  disclosureBody: { flex: 1 },
-  section: {
-    gap: Spacing.two,
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-    justifyContent: "space-between",
-    alignItems: "center",
+    borderRadius: Radius.pill,
   },
   searchRow: {
-    minHeight: 48,
+    minHeight: MinTouchTarget,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  searchIcon: {
-    fontSize: 16,
+    paddingLeft: Spacing.three,
+    borderRadius: Radius.md,
   },
   searchInput: {
-    minHeight: 46,
+    minHeight: MinTouchTarget,
     flex: 1,
     paddingVertical: Spacing.two,
-    fontSize: 16,
+    fontSize: 17,
   },
-  clearSearchButton: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  messageCard: {
-    borderRadius: 16,
-    padding: Spacing.three,
+  groupList: { gap: Spacing.three },
+  dayCard: {
     gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
-  },
-  inlineButton: {
-    minHeight: 36,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  emptyCard: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-  },
-  emptyStateDesc: {
-    lineHeight: 19,
-  },
-  emptyAddButton: {
-    backgroundColor: "#10B981",
-    paddingVertical: 9,
-    paddingHorizontal: Spacing.three,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-    marginTop: Spacing.one,
-  },
-  emptyAddButtonText: {
-    color: "#ffffff",
-  },
-  groupList: { gap: Spacing.four },
-  dayGroupCard: {
-    borderRadius: 18,
-    padding: Spacing.three,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-  },
-  dayHeader: {
-    gap: Spacing.two,
-    paddingBottom: Spacing.two,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(148, 163, 184, 0.12)",
   },
   dayTitleRow: {
     flexDirection: "row",
@@ -2480,136 +2266,72 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   dayTitle: {
-    fontSize: 16,
-    lineHeight: 22,
     flexGrow: 1,
-    flexBasis: 180,
-    maxWidth: "100%",
+    flexShrink: 1,
   },
-  dayMetadata: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-  },
-  dayNutrition: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "baseline",
-    columnGap: Spacing.three,
-    rowGap: Spacing.one,
-  },
-  dayNutrient: {
-    fontSize: 13,
-    maxWidth: "100%",
-  },
-  dayCalories: {
-    width: "100%",
-  },
-  dayActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  dayAddButton: {
-    minHeight: 48,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: 12,
-    justifyContent: "center",
-    maxWidth: "100%",
-  },
-  eveningCatchUpBanner: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: Spacing.three,
-    marginBottom: Spacing.three,
-  },
-  eveningBannerHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.two,
-  },
-  eveningBannerIcon: {
-    fontSize: 20,
-    marginTop: 2,
-  },
-  eveningBannerContent: {
-    flex: 1,
-    gap: 2,
-  },
-  eveningSupportiveNote: {
-    fontStyle: "italic",
-    color: "#64748B",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  eveningBannerDismiss: {
-    padding: Spacing.half,
-  },
-  partialBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-  },
-  partialBadgeText: {
-    fontSize: 11,
-    color: "#D97706",
-    fontWeight: "700",
-  },
-  groupActionTrigger: {
-    minHeight: 48,
+  pill: {
     paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-    justifyContent: "center",
-    maxWidth: "100%",
+    paddingVertical: Spacing.half,
+    borderRadius: Radius.pill,
   },
   groupingToolbar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     flexWrap: "wrap",
     gap: Spacing.two,
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginTop: 2,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.md,
   },
-  groupingCountText: {
-    fontSize: 12,
+  dayEntries: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: Spacing.one,
   },
-  groupingToolbarActions: {
+  cluster: {
+    marginTop: Spacing.two,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.one,
+    gap: Spacing.one,
+  },
+  clusterHeader: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
+    gap: Spacing.two,
   },
-  groupConfirmBtn: {
-    minHeight: 48,
-    justifyContent: "center",
-    backgroundColor: "#047857",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+  entry: {
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  groupConfirmBtnText: {
-    color: "#ffffff",
-    fontSize: 12,
+  childEntry: {
+    paddingLeft: Spacing.one,
   },
-  groupCancelBtn: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+  entryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  disabledBtn: {
-    opacity: 0.4,
+  entryMain: {
+    flex: 1,
+    minHeight: MinTouchTarget,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  entryText: {
+    flex: 1,
+    gap: Spacing.half,
+  },
+  busyIndicator: { marginLeft: Spacing.two },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: Radius.pill,
+    borderWidth: 1.5,
   },
   paginationFooter: {
-    paddingVertical: Spacing.four,
+    paddingVertical: Spacing.three,
     alignItems: "center",
     gap: Spacing.two,
   },
@@ -2620,238 +2342,16 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingVertical: Spacing.two,
   },
-  partialCutoffNotice: {
-    textAlign: "center",
-    paddingHorizontal: Spacing.four,
-    color: "#D97706",
-  },
-  loadMoreButton: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-  },
-  loadMoreButtonText: {
-    color: "#10B981",
-    fontSize: 13,
-  },
-  historyEndNotice: {
-    fontSize: 12,
-    textAlign: "center",
-    paddingVertical: Spacing.two,
-  },
-  dayEntries: { gap: Spacing.two },
-  clusterContainer: {
-    borderRadius: 16,
-    padding: Spacing.three,
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
-    backgroundColor: "rgba(16, 185, 129, 0.04)",
-  },
-  clusterHeader: {
-    gap: Spacing.two,
-  },
-  clusterHeaderLeft: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    minWidth: 0,
-    gap: 6,
-  },
-  clusterIcon: {
-    fontSize: 16,
-  },
-  clusterTitle: {
-    fontSize: 15,
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 120,
-    minWidth: 0,
-  },
-  clusterCountBadge: {
-    flexShrink: 0,
-    maxWidth: "100%",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  clusterHeaderActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  clusterTotalsText: {
-    fontSize: 12,
-    color: "#10B981",
-    fontWeight: "600",
-  },
-  clusterChildrenList: {
-    gap: Spacing.two,
-    marginTop: 2,
-  },
-  childEntryCard: {
-    borderLeftWidth: 3,
-    borderLeftColor: "#10B981",
-    backgroundColor: "rgba(148, 163, 184, 0.06)",
-  },
-  entryCard: {
-    borderRadius: 14,
-    padding: Spacing.three,
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.12)",
-    backgroundColor: "rgba(148, 163, 184, 0.04)",
-  },
-  selectedEntryCard: {
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-  },
-  entryHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.two,
-  },
-  entryHeaderMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  checkboxContainer: {
-    paddingRight: 2,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: "#94A3B8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxChecked: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
-  },
-  checkboxCheckText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  entryName: { flex: 1, fontSize: 15 },
-  gramsBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  gramsBadgeText: {
-    fontSize: 11,
-    color: "#10B981",
-  },
-  macroBadgesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    alignItems: "center",
-  },
-  calorieBadge: {
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  calorieBadgeText: {
-    fontSize: 12,
-  },
-  proteinBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  proteinBadgeText: {
-    fontSize: 11,
-    color: "#10B981",
-    fontWeight: "700",
-  },
-  carbsBadge: {
-    backgroundColor: "rgba(245, 158, 11, 0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  carbsBadgeText: {
-    fontSize: 11,
-    color: "#F59E0B",
-    fontWeight: "700",
-  },
-  fatBadge: {
-    backgroundColor: "rgba(139, 92, 246, 0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  fatBadgeText: {
-    fontSize: 11,
-    color: "#8B5CF6",
-    fontWeight: "700",
-  },
-  aiCalcBadge: {
-    backgroundColor: "rgba(168, 85, 247, 0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  aiCalcBadgeText: {
-    fontSize: 11,
-    color: "#9333EA",
-    fontWeight: "700",
-  },
-  entryActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-    marginTop: 2,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(148, 163, 184, 0.1)",
-    paddingTop: Spacing.one,
-  },
-  entryAction: {
-    paddingVertical: 4,
-    paddingHorizontal: Spacing.two,
-    borderRadius: 8,
-    backgroundColor: "rgba(148, 163, 184, 0.1)",
-  },
-  entryGroupAction: {
-    minHeight: 44,
-    maxWidth: "100%",
-    flexShrink: 1,
-    justifyContent: "center",
-  },
-  entryActionDestructive: {
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-  },
-  entryActionLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  pressed: { opacity: 0.6 },
-  destructiveText: { color: "#EF4444" },
 
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.four,
   },
   modalKeyboardAvoidingView: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
   },
   modalScrollableContent: {
     flexGrow: 1,
@@ -2862,96 +2362,34 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 400,
-    borderRadius: 18,
+    borderRadius: Radius.xl,
     padding: Spacing.four,
     gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
-  },
-  modalPresetsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  presetChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-  },
-  presetChipActive: {
-    backgroundColor: "#10B981",
-  },
-  presetChipText: {
-    fontSize: 12,
-    color: "#64748B",
-  },
-  presetChipTextActive: {
-    fontSize: 12,
-    color: "#FFFFFF",
   },
   modalInput: {
+    minHeight: MinTouchTarget,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 16,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 12,
+    fontSize: 17,
   },
   gramsInputRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
   },
-  gramsUnit: {
-    fontSize: 16,
-    color: "#10B981",
-  },
-  chipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  chipButton: {
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 7,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  chipButtonText: {
-    fontSize: 11,
-    color: "#059669",
-  },
   previewBox: {
-    padding: Spacing.three,
-    borderRadius: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
-    gap: 6,
-  },
-  previewTitle: {
-    fontSize: 12,
-    color: "#059669",
+    padding: 12,
+    borderRadius: Radius.md,
+    gap: Spacing.one,
   },
   modalActionsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "flex-end",
     alignItems: "center",
     gap: Spacing.two,
     marginTop: Spacing.one,
-  },
-  modalCancelButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  modalConfirmButton: {
-    backgroundColor: "#10B981",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-  },
-  modalConfirmText: {
-    color: "#FFFFFF",
-    fontSize: 13,
   },
 });
