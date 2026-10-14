@@ -2224,7 +2224,7 @@
     {
       "id": "meal-recipes",
       "title": "Ingredient Meal Recipes and Macro Balance",
-      "summary": "REC-01–05 macro ranking, catalog/templates, guarded generation, photo review and shared Meals/Coach recipe flow with durable consumed-serving handoff; live recipes default disabled.",
+      "summary": "REC-01–05 macro ranking, catalog/templates, guarded generation, photo review and shared Meals/Coach recipe flow with durable consumed-serving handoff; live recipes enabled on Dev for founder/partner trials, Production default disabled.",
       "aliases": [
         "recipe",
         "recipes",
@@ -2408,7 +2408,7 @@
       ],
       "lastReviewedSha": "0135228778059dc25c1a4925738f0b6934ed4f0c",
       "lastReviewedDate": "2026-10-13",
-      "limitations": "REC-01–05 and REC-06 offline engineering automatically verified locally; independent High review and isolated full gate passed. Synthetic scoring is not model accuracy. Live recipes disabled; qualified nutrition/food-safety, supported-image/live provider cost/latency, Dev/native/accessibility/pilot and Production gates remain open."
+      "limitations": "REC-01–05 and REC-06 offline engineering automatically verified locally; independent High review and isolated full gate passed. Synthetic scoring is not model accuracy. Live recipes enabled on Dev by Adam 2026-10-14; qualified nutrition/food-safety, supported-image/live provider cost/latency, authenticated/native/accessibility/pilot and Production acceptance remain open."
     }
   ]
 }

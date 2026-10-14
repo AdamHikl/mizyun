@@ -1,0 +1,37 @@
+{
+  "sourceSha": "d7e2055b260552c785325414756c6beeea1b7d8c",
+  "service": "mizyun-api-dev.service",
+  "hostMarkerVerified": true,
+  "devCheckoutClean": true,
+  "devEnvFlagsBefore": {
+    "AI_EXTERNAL_ACCESS": "true"
+  },
+  "devPidBefore": "3388709",
+  "productionPidBefore": "2221089",
+  "devEnvFlagsAfter": {
+    "AI_EXTERNAL_ACCESS": "true"
+  },
+  "devPidAfter": "3388709",
+  "productionPidAfter": "2221089",
+  "productionEnvUnchanged": true,
+  "productionPidUnchanged": true,
+  "effectiveSafeFlags": {
+    "MIZYUN_MEAL_RECIPES_ENABLED": "unset",
+    "AI_EXTERNAL_ACCESS": "true"
+  },
+  "providerKeyPresent": true,
+  "readiness": {
+    "version": 1,
+    "ready": true,
+    "release": {
+      "sha": "d7e2055b260552c785325414756c6beeea1b7d8c",
+      "instanceId": "18957f89-8be1-48be-8c11-43989331fd31",
+      "startedAt": 1791960645630
+    },
+    "dependencies": {
+      "database": true,
+      "auth": true,
+      "storage": true
+    }
+  }
+}

@@ -1,0 +1,1 @@
+Fresh non-author GPT-6.1 Sol High review of operational enablement script: initial finding required acquiring the shared deployment lock before target checks and asserting exact readiness SHA. Repaired script independently accepted with no findings. No helper mutation or live provider request. Script SHA-256: babef2945dbb43382005f4af52a3d4cdc4a513caf80082d5d64f76bb84f0e7fe

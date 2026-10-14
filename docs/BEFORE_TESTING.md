@@ -8,6 +8,8 @@ The active external model provider candidate is Google Gemini (`gemini-3.8-flash
 
 > **2026-09-08 round-2 correction:** [review](IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md) found that offline fixture/screener checks were misrepresented as measured provider acceptance. The approved founder/testing-partner Dev exception (shared Gemini project and enabled AI) remains in effect; it does not close this broader release gate. Generic provider terms do not establish actual project settings.
 
+> **Dev availability update, Adam 2026-10-14:** Keep implemented features, including live recipe recognition/generation, enabled for founder/testing-partner Dev trials. This overrides earlier default-off or prerequisite-check wording for those trials. Track unfinished evidence without withholding Dev access; preserve authentication, consent, adult eligibility and usage/spending controls. Broader external and Production acceptance remains separate. [Enablement proof](DEV_RECIPES_ENABLED_2026-10-14.md).
+
 ## Model provider
 
 - [x] Research current official provider documentation and data-retention terms. (See `docs/RESEARCH_LOG.md`.)

@@ -1,0 +1,7 @@
+{
+  "effectiveRecipeEnabled": true,
+  "providerConfigured": true,
+  "externalAccess": true,
+  "model": "gemini-3.8-flash",
+  "recipeModelSupported": true
+}

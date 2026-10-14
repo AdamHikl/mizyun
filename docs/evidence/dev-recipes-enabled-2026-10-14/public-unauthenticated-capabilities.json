@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "A valid bearer token is required.",
+    "requestId": "req-3"
+  }
+}
