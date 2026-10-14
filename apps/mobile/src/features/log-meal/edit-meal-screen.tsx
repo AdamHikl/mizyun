@@ -1,12 +1,6 @@
 import { MealVisual } from "./meal-visual";
 import { useMealVisualCapability } from "./meal-visual-capability";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -18,14 +12,27 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  PageGutter,
+  Spacing,
+} from "@/constants/theme";
+import {
+  Button,
+  Card,
+  Chip,
+  FormField,
+  FormStatus,
+  FormTextInput,
+  Icon,
+} from "@/components/ui";
 import { useAuth } from "@/features/auth/auth-context";
 import {
   clearLoggingDraft,
   loadLoggingDraft,
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
-import { useTheme } from "@/hooks/use-theme";
 import { apiClient } from "@/composition/api-client";
 import {
   useAiConsentController,
@@ -151,7 +158,6 @@ export function EditMealScreen() {
     session?.accessToken,
   );
   const advancedCapability = useAdvancedNutritionCapability(userId);
-  const theme = useTheme();
   const [entry, setEntry] = useState<FoodEntry | null>(null);
   const [form, setForm] = useState<MealFormStrings>(EMPTY_FORM);
   const [grams, setGrams] = useState("");
@@ -634,6 +640,9 @@ export function EditMealScreen() {
     submitting,
   ]);
 
+  const refineBlocked =
+    refineInstruction.trim().length < 2 || refining || submitting;
+
   return (
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Edit meal" }} />
@@ -644,7 +653,6 @@ export function EditMealScreen() {
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
-          <ThemedText type="subtitle">Edit meal</ThemedText>
           {!loaded ? (
             <ThemedText type="small" themeColor="textSecondary">
               Loading meal…
@@ -660,41 +668,70 @@ export function EditMealScreen() {
                 hasPhoto={Boolean(entry.photoAssetId)}
                 editable
               />
-              <Field
-                label="Name"
-                value={form.name}
-                onChangeText={(value) => patchForm("name", value)}
-                inputColor={theme.text}
-                autoFocus
-              />
+              <Card>
+                <Field
+                  label="Name"
+                  value={form.name}
+                  onChangeText={(value) => patchForm("name", value)}
+                  autoFocus
+                />
+                <Field
+                  label="Calories (kcal)"
+                  value={form.calories}
+                  onChangeText={(value) => patchForm("calories", value)}
+                  keyboardType="numeric"
+                />
+                <View style={styles.macroRow}>
+                  <View style={styles.macroField}>
+                    <Field
+                      label="Protein (g)"
+                      value={form.protein}
+                      onChangeText={(value) => patchForm("protein", value)}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.macroField}>
+                    <Field
+                      label="Carbs (g)"
+                      value={form.carbs}
+                      onChangeText={(value) => patchForm("carbs", value)}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.macroField}>
+                    <Field
+                      label="Fat (g)"
+                      value={form.fat}
+                      onChangeText={(value) => patchForm("fat", value)}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+              </Card>
 
-              {/* Portion Weight / Grams Stepper Section */}
-              <View style={styles.gramsSection}>
-                <View style={styles.gramsHeaderRow}>
-                  <ThemedText type="smallBold">
+              {/* Portion weight / grams */}
+              <Card>
+                <View style={styles.cardHeader}>
+                  <ThemedText type="headline">
                     Portion weight (grams)
                   </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
+                  <ThemedText type="footnote" themeColor="textSecondary">
                     Updates calories & macros dynamically
                   </ThemedText>
                 </View>
-
-                <View style={styles.gramsInputRow}>
-                  <TextInput
+                <View style={styles.inputRow}>
+                  <FormTextInput
                     accessibilityLabel="Portion weight in grams"
                     keyboardType="numeric"
                     placeholder="e.g. 150"
-                    placeholderTextColor="#8A8D91"
-                    style={[styles.gramsInput, { color: theme.text }]}
+                    style={styles.flex}
                     value={grams}
                     onChangeText={handleGramsChange}
                   />
-                  <ThemedText type="smallBold" style={styles.gramsUnit}>
+                  <ThemedText type="headline" themeColor="textSecondary">
                     g
                   </ThemedText>
                 </View>
-
-                {/* Quick adjustments */}
                 <View style={styles.chipsRow}>
                   <ChipButton
                     label="-50g"
@@ -725,44 +762,7 @@ export function EditMealScreen() {
                     onPress={() => scaleGramsMultiplier(2)}
                   />
                 </View>
-              </View>
-
-              <Field
-                label="Calories (kcal)"
-                value={form.calories}
-                onChangeText={(value) => patchForm("calories", value)}
-                inputColor={theme.text}
-                keyboardType="numeric"
-              />
-              <View style={styles.macroRow}>
-                <View style={styles.macroField}>
-                  <Field
-                    label="Protein (g)"
-                    value={form.protein}
-                    onChangeText={(value) => patchForm("protein", value)}
-                    inputColor={theme.text}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <View style={styles.macroField}>
-                  <Field
-                    label="Carbs (g)"
-                    value={form.carbs}
-                    onChangeText={(value) => patchForm("carbs", value)}
-                    inputColor={theme.text}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <View style={styles.macroField}>
-                  <Field
-                    label="Fat (g)"
-                    value={form.fat}
-                    onChangeText={(value) => patchForm("fat", value)}
-                    inputColor={theme.text}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
+              </Card>
 
               <AdvancedNutrientFields
                 form={form}
@@ -783,12 +783,13 @@ export function EditMealScreen() {
                 onChange={patchForm}
               />
 
-              {/* AI Meal Calculation Breakdown */}
+              {/* AI meal calculation breakdown */}
               {calculationText !== null ? (
-                <View style={styles.calcSection}>
-                  <View style={styles.calcHeaderRow}>
-                    <ThemedText type="smallBold" style={styles.calcTitle}>
-                      ✨ AI Meal Calculation
+                <Card>
+                  <View style={styles.titleRow}>
+                    <Icon name="sparkles" size={16} color="primary" />
+                    <ThemedText type="headline" style={styles.flex}>
+                      AI meal calculation
                     </ThemedText>
                     {aiDraft?.confidence !== undefined ? (
                       <ThemedText type="small" themeColor="textSecondary">
@@ -796,11 +797,7 @@ export function EditMealScreen() {
                       </ThemedText>
                     ) : null}
                   </View>
-                  <ThemedText
-                    type="small"
-                    style={[styles.calcContent, { color: theme.text }]}
-                    selectable
-                  >
+                  <ThemedText type="small" selectable>
                     {calculationText}
                   </ThemedText>
                   {aiDraft?.assumptions && aiDraft.assumptions.length > 0 ? (
@@ -808,199 +805,117 @@ export function EditMealScreen() {
                       {aiDraft.assumptions.map((item, index) => (
                         <ThemedText
                           key={index}
-                          type="small"
+                          type="footnote"
                           themeColor="textSecondary"
-                          style={styles.assumptionItem}
                         >
                           • {item}
                         </ThemedText>
                       ))}
                     </View>
                   ) : null}
-                </View>
+                </Card>
               ) : null}
 
-              {/* Refine with AI Section */}
-              <View style={styles.refineSection}>
-                <View style={styles.refineHeader}>
-                  <ThemedText type="smallBold" style={styles.refineTitle}>
-                    ✨ Refine with AI
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
+              {/* Refine with AI */}
+              <Card>
+                <View style={styles.cardHeader}>
+                  <View style={styles.titleRow}>
+                    <Icon name="sparkles" size={16} color="primary" />
+                    <ThemedText type="headline">Refine with AI</ThemedText>
+                  </View>
+                  <ThemedText type="footnote" themeColor="textSecondary">
                     Adjust ingredients or ask to estimate missing nutrients.
                     Review estimates before saving.
                   </ThemedText>
                 </View>
-                <View style={styles.refineInputRow}>
-                  <TextInput
+                <View style={styles.inputRow}>
+                  <FormTextInput
                     accessibilityLabel="AI refine instruction"
                     placeholder="e.g. estimate fibre, sugars and sodium…"
-                    placeholderTextColor="#8A8D91"
-                    style={[styles.refineInput, { color: theme.text }]}
+                    style={styles.flex}
                     value={refineInstruction}
                     onChangeText={setRefineInstruction}
                     editable={!refining && !submitting}
                   />
-                  <Pressable
-                    accessibilityRole="button"
+                  <Button
+                    label={refining ? "Refining…" : "Refine"}
+                    variant="tinted"
+                    size="small"
                     accessibilityLabel="Refine meal with AI"
                     accessibilityState={{
-                      disabled:
-                        refineInstruction.trim().length < 2 ||
-                        refining ||
-                        submitting,
+                      disabled: refineBlocked,
                       busy: refining,
                     }}
-                    disabled={
-                      refineInstruction.trim().length < 2 ||
-                      refining ||
-                      submitting
-                    }
+                    disabled={refineBlocked}
                     onPress={() => void onRefinePress()}
-                    style={({ pressed }) => [
-                      styles.refineButton,
-                      (refineInstruction.trim().length < 2 ||
-                        refining ||
-                        submitting) &&
-                        styles.refineButtonDisabled,
-                      pressed &&
-                        refineInstruction.trim().length >= 2 &&
-                        !refining &&
-                        !submitting &&
-                        styles.pressed,
-                    ]}
-                  >
-                    <ThemedText
-                      type="smallBold"
-                      style={styles.refineButtonText}
-                    >
-                      {refining ? "Refining…" : "Refine"}
-                    </ThemedText>
-                  </Pressable>
+                  />
                 </View>
                 {refineMessage !== null ? (
-                  <ThemedText
-                    type="small"
-                    style={styles.refineMessageText}
-                    accessibilityRole="alert"
-                  >
-                    {refineMessage}
-                  </ThemedText>
+                  <FormStatus tone="neutral">{refineMessage}</FormStatus>
                 ) : null}
-              </View>
+              </Card>
 
-              {/* Meal Group Section */}
-              <View style={styles.groupSection}>
-                <ThemedText type="smallBold">Meal Group</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Group individual items into a bigger meal
-                </ThemedText>
+              {/* Meal group */}
+              <Card>
+                <View style={styles.cardHeader}>
+                  <ThemedText type="headline">Meal group</ThemedText>
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    Group individual items into a bigger meal
+                  </ThemedText>
+                </View>
                 <View style={styles.chipsRow}>
-                  <Pressable
-                    accessibilityRole="button"
+                  <Chip
+                    label="None"
                     accessibilityLabel="No meal group"
+                    selected={mealGroupName === ""}
                     onPress={() => {
                       setMealGroupName("");
                       setMealGroupId(null);
                       setCustomGroupActive(false);
                     }}
-                    style={[
-                      styles.groupChip,
-                      mealGroupName === "" && styles.groupChipActive,
-                    ]}
-                  >
-                    <ThemedText
-                      type="smallBold"
-                      style={
-                        mealGroupName === ""
-                          ? styles.groupChipTextActive
-                          : styles.groupChipText
+                  />
+                  {MEAL_GROUP_PRESETS.map((preset) => (
+                    <Chip
+                      key={preset}
+                      label={preset}
+                      accessibilityLabel={`Assign to ${preset}`}
+                      selected={
+                        mealGroupName.toLowerCase() === preset.toLowerCase()
                       }
-                    >
-                      None
-                    </ThemedText>
-                  </Pressable>
-
-                  {MEAL_GROUP_PRESETS.map((preset) => {
-                    const active =
-                      mealGroupName.toLowerCase() === preset.toLowerCase();
-                    return (
-                      <Pressable
-                        key={preset}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Assign to ${preset}`}
-                        onPress={() => {
-                          setMealGroupName(preset);
-                          setCustomGroupActive(false);
-                        }}
-                        style={[
-                          styles.groupChip,
-                          active && styles.groupChipActive,
-                        ]}
-                      >
-                        <ThemedText
-                          type="smallBold"
-                          style={
-                            active
-                              ? styles.groupChipTextActive
-                              : styles.groupChipText
-                          }
-                        >
-                          {preset}
-                        </ThemedText>
-                      </Pressable>
-                    );
-                  })}
-
-                  <Pressable
-                    accessibilityRole="button"
+                      onPress={() => {
+                        setMealGroupName(preset);
+                        setCustomGroupActive(false);
+                      }}
+                    />
+                  ))}
+                  <Chip
+                    label="Custom…"
                     accessibilityLabel="Custom meal group name"
+                    selected={customGroupActive}
                     onPress={() => setCustomGroupActive(true)}
-                    style={[
-                      styles.groupChip,
-                      customGroupActive && styles.groupChipActive,
-                    ]}
-                  >
-                    <ThemedText
-                      type="smallBold"
-                      style={
-                        customGroupActive
-                          ? styles.groupChipTextActive
-                          : styles.groupChipText
-                      }
-                    >
-                      Custom…
-                    </ThemedText>
-                  </Pressable>
+                  />
                 </View>
-
                 {customGroupActive ? (
-                  <TextInput
+                  <FormTextInput
                     accessibilityLabel="Custom meal group name"
                     placeholder="e.g. Post-workout meal"
-                    placeholderTextColor="#8A8D91"
-                    style={[styles.input, { color: theme.text, marginTop: 6 }]}
                     value={mealGroupName}
                     onChangeText={setMealGroupName}
                   />
                 ) : null}
-              </View>
+              </Card>
             </>
           ) : null}
 
           {message !== null ? (
-            <ThemedText
-              type="small"
-              themeColor="textSecondary"
-              accessibilityRole="alert"
-            >
-              {message}
-            </ThemedText>
+            <FormStatus tone="error">{message}</FormStatus>
           ) : null}
 
           {entry !== null ? (
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label={submitting ? "Saving…" : "Save changes"}
+              variant="primary"
+              block
               accessibilityLabel="Save meal changes"
               accessibilityState={{
                 disabled: submitting || refining,
@@ -1008,15 +923,7 @@ export function EditMealScreen() {
               }}
               disabled={submitting || refining}
               onPress={() => void save()}
-              style={({ pressed }) => [
-                styles.submit,
-                (pressed || submitting) && styles.pressed,
-              ]}
-            >
-              <ThemedText type="smallBold" style={styles.submitText}>
-                {submitting ? "Saving…" : "Save changes"}
-              </ThemedText>
-            </Pressable>
+            />
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -1045,43 +952,26 @@ function ChipButton(props: {
   readonly label: string;
   readonly onPress: () => void;
 }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={props.label}
-      onPress={props.onPress}
-      style={({ pressed }) => [styles.chipButton, pressed && styles.pressed]}
-    >
-      <ThemedText type="smallBold" style={styles.chipButtonText}>
-        {props.label}
-      </ThemedText>
-    </Pressable>
-  );
+  return <Chip label={props.label} onPress={props.onPress} />;
 }
 
 function Field(props: {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (value: string) => void;
-  readonly inputColor: string;
   readonly keyboardType?: "default" | "numeric";
   readonly autoFocus?: boolean;
 }) {
   return (
-    <View style={styles.field}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {props.label}
-      </ThemedText>
-      <TextInput
+    <FormField label={props.label}>
+      <FormTextInput
         accessibilityLabel={props.label}
         autoFocus={props.autoFocus === true}
         keyboardType={props.keyboardType ?? "default"}
         onChangeText={props.onChangeText}
-        placeholderTextColor="#8A8D91"
-        style={[styles.input, { color: props.inputColor }]}
         value={props.value}
       />
-    </View>
+    </FormField>
   );
 }
 
@@ -1092,182 +982,29 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.three,
   },
-  field: { gap: Spacing.one },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 16,
-  },
-  gramsSection: {
-    gap: Spacing.one,
-    padding: Spacing.three,
-    borderRadius: 14,
-    backgroundColor: "rgba(16, 185, 129, 0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-  },
-  gramsHeaderRow: {
-    gap: 2,
-    marginBottom: 4,
-  },
-  gramsInputRow: {
+  flex: { flex: 1 },
+  cardHeader: { gap: Spacing.one },
+  titleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
   },
-  gramsInput: {
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#10B981",
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  gramsUnit: {
-    fontSize: 16,
-    color: "#10B981",
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
   },
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    marginTop: 4,
-  },
-  chipButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  chipButtonText: {
-    fontSize: 12,
-    color: "#059669",
-  },
-  groupSection: {
-    gap: Spacing.one,
-    marginTop: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: 14,
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-  },
-  groupChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-  },
-  groupChipActive: {
-    backgroundColor: "#10B981",
-  },
-  groupChipText: {
-    fontSize: 12,
-    color: "#475569",
-  },
-  groupChipTextActive: {
-    fontSize: 12,
-    color: "#FFFFFF",
+    gap: Spacing.two,
   },
   macroRow: { flexDirection: "row", gap: Spacing.two },
   macroField: { flex: 1 },
-  calcSection: {
-    gap: Spacing.one,
-    padding: Spacing.three,
-    borderRadius: 14,
-    backgroundColor: "rgba(168, 85, 247, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(168, 85, 247, 0.25)",
-  },
-  calcHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  calcTitle: {
-    color: "#9333EA",
-    fontSize: 14,
-  },
-  calcContent: {
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  assumptionsList: {
-    marginTop: 6,
-    gap: 2,
-  },
-  assumptionItem: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  refineSection: {
-    gap: Spacing.one,
-    padding: Spacing.three,
-    borderRadius: 14,
-    backgroundColor: "rgba(59, 130, 246, 0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.2)",
-  },
-  refineHeader: {
-    gap: 2,
-    marginBottom: 4,
-  },
-  refineTitle: {
-    color: "#2563EB",
-    fontSize: 14,
-  },
-  refineInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  refineInput: {
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#3B82F6",
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 14,
-  },
-  refineButton: {
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    borderRadius: Spacing.two,
-    backgroundColor: "#2563EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  refineButtonDisabled: {
-    opacity: 0.45,
-  },
-  refineButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-  },
-  refineMessageText: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "#2563EB",
-  },
-  submit: {
-    minHeight: 48,
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#1F1F23",
-  },
-  submitText: {
-    color: "#FFFFFF",
-  },
-  pressed: { opacity: 0.6 },
+  assumptionsList: { gap: Spacing.half },
 });

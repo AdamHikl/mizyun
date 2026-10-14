@@ -21,13 +21,12 @@ vi.mock("react", async (original) => ({
     },
   ],
 }));
-vi.mock("react-native", () => ({ Text: "Text" }));
 vi.mock("expo-router", () => ({
   useFocusEffect: (fn: any) => {
     mocks.focus = fn;
   },
 }));
-vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+vi.mock("@/components/ui", () => ({ Notice: "Notice" }));
 vi.mock("./expansions/use-expansion-command", () => ({
   useExpansionCommand: (...args: any[]) => {
     mocks.command(...args);
@@ -46,6 +45,7 @@ vi.mock("./ui", () => ({
   CommunityButton: "CommunityButton",
   CommunityPage: "CommunityPage",
   CommunityRow: "CommunityRow",
+  CommunitySection: "CommunitySection",
   CommunityState: "CommunityState",
 }));
 import {

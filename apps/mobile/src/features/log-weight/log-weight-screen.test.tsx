@@ -67,7 +67,16 @@ vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  PageGutter: 20,
   Spacing: {},
+}));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  FormField: "FormField",
+  FormStatus: "FormStatus",
+  FormTextInput: "FormTextInput",
+  Notice: "Notice",
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "black" }) }));
 vi.mock("@/features/auth/auth-context", () => ({
@@ -107,8 +116,7 @@ const saveButton = (tree = render()) =>
   find(
     tree,
     (node) =>
-      node.type === "Pressable" &&
-      node.props.children?.props?.children !== "Retry draft recovery",
+      node.type === "Button" && node.props.label !== "Retry draft recovery",
   );
 const field = (tree: any, id: string) =>
   find(tree, (node) => node.props?.testID === id);
@@ -192,9 +200,7 @@ it("replays the screen's persisted command after server commit, lost response, a
   mocks.unitSystem = "imperial";
   const tree = await open();
   expect(field(tree, "body-weight-input").props.editable).toBe(false);
-  expect(saveButton(tree).props.children.props.children).toBe(
-    "Retry measurement",
-  );
+  expect(saveButton(tree).props.label).toBe("Retry measurement");
   mocks.dropResponse = false;
   saveButton(tree).props.onPress();
   await settle();
@@ -233,9 +239,7 @@ it("sends nothing when command persistence fails and reuses its identity on reco
   await settle();
   expect(mocks.request).not.toHaveBeenCalled();
   const tree = render();
-  expect(saveButton(tree).props.children.props.children).toBe(
-    "Retry measurement",
-  );
+  expect(saveButton(tree).props.label).toBe("Retry measurement");
   expect(field(tree, "body-weight-input").props.editable).toBe(false);
   mocks.failWrite = false;
   saveButton(tree).props.onPress();
@@ -267,8 +271,7 @@ it("blocks a fresh submission while recovery is unavailable or the saved identit
   find(
     tree,
     (node) =>
-      node.type === "Pressable" &&
-      node.props.children?.props?.children === "Retry draft recovery",
+      node.type === "Button" && node.props.label === "Retry draft recovery",
   ).props.onPress();
   render();
   await settle();

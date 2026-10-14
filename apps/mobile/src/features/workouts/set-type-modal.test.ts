@@ -15,6 +15,19 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  FormField: "FormField",
+  FormTextInput: "FormTextInput",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
+
 vi.mock("@/components/themed-text", () => ({
   ThemedText: "ThemedText",
 }));
@@ -39,15 +52,15 @@ describe("SET_TYPE_OPTIONS", () => {
 
     const warmup = SET_TYPE_OPTIONS.find((o) => o.type === "warmup");
     expect(warmup?.badge).toBe("W");
-    expect(warmup?.badgeColor).toBe("#F59E0B");
+    expect(warmup?.tone).toBe("warning");
 
     const failure = SET_TYPE_OPTIONS.find((o) => o.type === "failure");
     expect(failure?.badge).toBe("F");
-    expect(failure?.badgeColor).toBe("#EF4444");
+    expect(failure?.tone).toBe("danger");
 
     const drop = SET_TYPE_OPTIONS.find((o) => o.type === "drop");
     expect(drop?.badge).toBe("D");
-    expect(drop?.badgeColor).toBe("#8B5CF6");
+    expect(drop?.tone).toBe("fat");
   });
 });
 

@@ -1,10 +1,8 @@
 import {
   ActivityIndicator,
   Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 import { useCallback, useEffect, useState } from "react";
@@ -12,7 +10,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Spacing } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  Chip,
+  FormField,
+  FormTextInput,
+  Icon,
+  Notice,
+} from "@/components/ui";
+import { PageGutter, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -142,40 +149,27 @@ export function ExerciseProgressionModal({
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: theme.separator }]}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerTitleBlock}>
                 <ThemedText type="subtitle">{exerciseName}</ThemedText>
                 <View style={styles.badgesRow}>
                   {movementPattern ? (
-                    <View style={styles.badge}>
-                      <ThemedText type="small" style={styles.badgeText}>
-                        {movementPattern.replace("_", " ")}
-                      </ThemedText>
-                    </View>
+                    <Chip
+                      label={movementPattern.replace("_", " ")}
+                      tone="primary"
+                    />
                   ) : null}
-                  {category ? (
-                    <View style={styles.badgeSecondary}>
-                      <ThemedText
-                        type="small"
-                        style={styles.badgeSecondaryText}
-                      >
-                        {category}
-                      </ThemedText>
-                    </View>
-                  ) : null}
+                  {category ? <Chip label={category} /> : null}
                 </View>
               </View>
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Done"
                 accessibilityLabel="Close modal"
+                variant="plain"
+                size="small"
                 onPress={onClose}
-                style={styles.closeButton}
-              >
-                <ThemedText type="smallBold" themeColor="primary">
-                  Done
-                </ThemedText>
-              </Pressable>
+              />
             </View>
           </View>
 
@@ -193,231 +187,232 @@ export function ExerciseProgressionModal({
             ) : (
               <>
                 {errorMessage ? (
-                  <View style={styles.errorBanner} accessibilityRole="alert">
-                    <ThemedText style={styles.errorText}>
-                      {errorMessage}
-                    </ThemedText>
-                  </View>
+                  <Notice tone="danger" message={errorMessage} />
                 ) : null}
 
-                {/* 1. Target Load Card */}
-                <ThemedView type="backgroundElement" style={styles.targetCard}>
+                {/* 1. Target load card */}
+                <Card>
                   <View style={styles.targetHeaderRow}>
                     <View style={styles.targetHeaderCopy}>
-                      <ThemedText type="smallBold" style={styles.cardLabel}>
-                        TARGET LOAD TRACKER
+                      <ThemedText type="headline">
+                        Target load tracker
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
                         Your current target weight and rep goal
                       </ThemedText>
                     </View>
-                    <Pressable
-                      accessibilityRole="button"
+                    <Button
+                      label={isEditingTarget ? "Cancel" : "Set target"}
                       accessibilityLabel={
                         isEditingTarget
                           ? "Cancel editing target"
                           : "Edit target load"
                       }
+                      variant={isEditingTarget ? "plain" : "tinted"}
+                      size="small"
+                      icon={isEditingTarget ? undefined : "edit"}
                       onPress={() => {
                         setIsEditingTarget(!isEditingTarget);
                         setErrorMessage(null);
                       }}
-                      style={styles.editTargetButton}
-                    >
-                      <ThemedText
-                        type="smallBold"
-                        style={styles.editTargetText}
-                      >
-                        {isEditingTarget ? "Cancel" : "✏️ Set Target"}
-                      </ThemedText>
-                    </Pressable>
+                    />
                   </View>
 
                   {isEditingTarget ? (
                     <View style={styles.targetEditBlock}>
                       <View style={styles.targetInputRow}>
                         <View style={styles.targetInputField}>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            Target Load ({unit})
-                          </ThemedText>
-                          <TextInput
-                            style={[styles.input, { color: theme.text }]}
-                            placeholder={`e.g. 85`}
-                            placeholderTextColor="#8A8D91"
-                            value={targetLoadInput}
-                            onChangeText={setTargetLoadInput}
-                            keyboardType="decimal-pad"
-                            autoFocus
-                          />
+                          <FormField label={`Target load (${unit})`}>
+                            <FormTextInput
+                              placeholder={`e.g. 85`}
+                              value={targetLoadInput}
+                              onChangeText={setTargetLoadInput}
+                              keyboardType="decimal-pad"
+                              autoFocus
+                            />
+                          </FormField>
                         </View>
 
                         <View style={styles.targetInputField}>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            Target Reps (opt)
-                          </ThemedText>
-                          <TextInput
-                            style={[styles.input, { color: theme.text }]}
-                            placeholder="e.g. 8-10"
-                            placeholderTextColor="#8A8D91"
-                            value={targetRepsInput}
-                            onChangeText={setTargetRepsInput}
-                          />
+                          <FormField label="Target reps (optional)">
+                            <FormTextInput
+                              placeholder="e.g. 8-10"
+                              value={targetRepsInput}
+                              onChangeText={setTargetRepsInput}
+                            />
+                          </FormField>
                         </View>
                       </View>
 
-                      <Pressable
-                        accessibilityRole="button"
+                      <Button
+                        label={savingTarget ? "Saving…" : "Save target load"}
                         accessibilityLabel="Save target load"
+                        variant="primary"
+                        block
                         disabled={savingTarget}
                         onPress={handleSaveTargetLoad}
-                        style={styles.saveTargetButton}
-                      >
-                        <ThemedText
-                          type="smallBold"
-                          style={styles.saveTargetText}
-                        >
-                          {savingTarget ? "Saving…" : "Save Target Load"}
-                        </ThemedText>
-                      </Pressable>
+                      />
                     </View>
                   ) : (
                     <View style={styles.targetDisplayBlock}>
                       <View style={styles.targetMainRow}>
-                        <ThemedText
-                          type="title"
-                          style={styles.targetLoadNumber}
-                        >
+                        <ThemedText type="title">
                           {progression?.currentTargetLoadKg !== null &&
                           progression?.currentTargetLoadKg !== undefined
                             ? `${kilogramsToDisplayWeight(progression.currentTargetLoadKg, unitSystem)} ${unit}`
                             : "No target set"}
                         </ThemedText>
                         {progression?.currentTargetReps ? (
-                          <View style={styles.repsBadge}>
-                            <ThemedText
-                              type="smallBold"
-                              style={styles.repsBadgeText}
-                            >
-                              {progression.currentTargetReps} reps
-                            </ThemedText>
-                          </View>
+                          <Chip
+                            label={`${progression.currentTargetReps} reps`}
+                          />
                         ) : null}
                       </View>
 
-                      {/* Comparison Status */}
+                      {/* Comparison status */}
                       {progression?.currentTargetLoadKg !== null &&
                       progression?.currentTargetLoadKg !== undefined ? (
-                        <View style={styles.targetStatusBox}>
+                        <View style={styles.targetStatusRow}>
                           {progression.allTimeBestLoadKg !== null &&
                           progression.allTimeBestLoadKg >=
                             progression.currentTargetLoadKg ? (
-                            <ThemedText
-                              type="smallBold"
-                              style={styles.targetAchievedText}
-                            >
-                              🎯 Target achieved! Current PR:{" "}
-                              {progression.allTimeBestLoadDisplay}
-                            </ThemedText>
+                            <>
+                              <Icon
+                                name="checkCircle"
+                                size={16}
+                                color="primary"
+                              />
+                              <ThemedText
+                                type="smallBold"
+                                themeColor="primary"
+                                style={styles.statusText}
+                              >
+                                Target achieved! Current PR:{" "}
+                                {progression.allTimeBestLoadDisplay}
+                              </ThemedText>
+                            </>
                           ) : progression.allTimeBestLoadKg !== null ? (
-                            <ThemedText type="small" themeColor="textSecondary">
-                              📈 Best load is{" "}
-                              {progression.allTimeBestLoadDisplay} (
-                              {kilogramsToDisplayWeight(
-                                progression.currentTargetLoadKg -
-                                  progression.allTimeBestLoadKg,
-                                unitSystem,
-                              )}{" "}
-                              {unit} to goal)
-                            </ThemedText>
+                            <>
+                              <Icon
+                                name="chart"
+                                size={16}
+                                color="textSecondary"
+                              />
+                              <ThemedText
+                                type="small"
+                                themeColor="textSecondary"
+                                style={styles.statusText}
+                              >
+                                Best load is{" "}
+                                {progression.allTimeBestLoadDisplay} (
+                                {kilogramsToDisplayWeight(
+                                  progression.currentTargetLoadKg -
+                                    progression.allTimeBestLoadKg,
+                                  unitSystem,
+                                )}{" "}
+                                {unit} to goal)
+                              </ThemedText>
+                            </>
                           ) : (
-                            <ThemedText type="small" themeColor="textSecondary">
-                              🎯 Target configured for upcoming workouts
-                            </ThemedText>
+                            <>
+                              <Icon
+                                name="target"
+                                size={16}
+                                color="textSecondary"
+                              />
+                              <ThemedText
+                                type="small"
+                                themeColor="textSecondary"
+                                style={styles.statusText}
+                              >
+                                Target configured for upcoming workouts
+                              </ThemedText>
+                            </>
                           )}
                         </View>
                       ) : null}
                     </View>
                   )}
-                </ThemedView>
+                </Card>
 
-                {/* 2. Key Performance Metrics Grid */}
+                {/* 2. Key performance metrics */}
                 <View style={styles.statsGrid}>
-                  <ThemedView
-                    type="backgroundElement"
-                    style={styles.statMetricCard}
-                  >
-                    <ThemedText type="small" themeColor="textSecondary">
-                      🏆 All-Time PR
+                  <Card style={styles.statMetricCard}>
+                    <ThemedText type="footnote" themeColor="textSecondary">
+                      All-time PR
                     </ThemedText>
                     <ThemedText type="subtitle">
                       {progression?.allTimeBestLoadDisplay ?? "—"}
                     </ThemedText>
-                  </ThemedView>
+                  </Card>
 
-                  <ThemedView
-                    type="backgroundElement"
-                    style={styles.statMetricCard}
-                  >
-                    <ThemedText type="small" themeColor="textSecondary">
-                      ⚡ Estimated 1RM
+                  <Card style={styles.statMetricCard}>
+                    <ThemedText type="footnote" themeColor="textSecondary">
+                      Estimated 1RM
                     </ThemedText>
                     <ThemedText type="subtitle">
                       {progression?.allTimeBest1RMDisplay ?? "—"}
                     </ThemedText>
-                  </ThemedView>
+                  </Card>
 
-                  <ThemedView
-                    type="backgroundElement"
-                    style={styles.statMetricCard}
-                  >
-                    <ThemedText type="small" themeColor="textSecondary">
-                      📊 Logged Sessions
+                  <Card style={styles.statMetricCard}>
+                    <ThemedText type="footnote" themeColor="textSecondary">
+                      Logged sessions
                     </ThemedText>
                     <ThemedText type="subtitle">
                       {progression?.totalSessionsCount ?? 0}
                     </ThemedText>
-                  </ThemedView>
+                  </Card>
 
-                  <ThemedView
-                    type="backgroundElement"
-                    style={styles.statMetricCard}
-                  >
-                    <ThemedText type="small" themeColor="textSecondary">
-                      🏋️ Total Volume
+                  <Card style={styles.statMetricCard}>
+                    <ThemedText type="footnote" themeColor="textSecondary">
+                      Total volume
                     </ThemedText>
                     <ThemedText type="subtitle">
                       {progression?.totalVolumeDisplay ?? "—"}
                     </ThemedText>
-                  </ThemedView>
+                  </Card>
                 </View>
 
-                {/* 3. Load Progression Visual Chart */}
+                {/* 3. Load progression chart */}
                 {progression &&
                 progression.sessionsChronological.length >= 2 ? (
-                  <ThemedView
-                    type="backgroundElement"
-                    style={styles.progressionChartCard}
-                  >
+                  <Card>
                     <View style={styles.cardHeaderRow}>
-                      <ThemedText type="smallBold" style={styles.cardLabel}>
-                        LOAD PROGRESSION OVER TIME
+                      <ThemedText type="headline">
+                        Load progression over time
                       </ThemedText>
                       {progression.loadDeltaKg !== null && (
-                        <ThemedText
-                          type="smallBold"
-                          style={
-                            progression.loadDeltaKg >= 0
-                              ? styles.positiveDelta
-                              : styles.negativeDelta
-                          }
-                        >
-                          {progression.loadDeltaKg >= 0 ? "▲ +" : "▼ "}
-                          {kilogramsToDisplayWeight(
-                            Math.abs(progression.loadDeltaKg),
-                            unitSystem,
-                          )}{" "}
-                          {unit} ({progression.loadDeltaPercent}%)
-                        </ThemedText>
+                        <View style={styles.deltaRow}>
+                          <Icon
+                            name={
+                              progression.loadDeltaKg >= 0
+                                ? "chevronUp"
+                                : "chevronDown"
+                            }
+                            size={12}
+                            color={
+                              progression.loadDeltaKg >= 0
+                                ? "primary"
+                                : "danger"
+                            }
+                          />
+                          <ThemedText
+                            type="smallBold"
+                            themeColor={
+                              progression.loadDeltaKg >= 0
+                                ? "primary"
+                                : "danger"
+                            }
+                          >
+                            {progression.loadDeltaKg >= 0 ? "+" : ""}
+                            {kilogramsToDisplayWeight(
+                              Math.abs(progression.loadDeltaKg),
+                              unitSystem,
+                            )}{" "}
+                            {unit} ({progression.loadDeltaPercent}%)
+                          </ThemedText>
+                        </View>
                       )}
                     </View>
 
@@ -426,34 +421,27 @@ export function ExerciseProgressionModal({
                       targetLoadKg={progression.currentTargetLoadKg}
                       unitSystem={unitSystem}
                     />
-                  </ThemedView>
+                  </Card>
                 ) : null}
 
-                {/* 4. Session History List */}
+                {/* 4. Session history */}
                 <View style={styles.historySection}>
-                  <ThemedText type="smallBold" style={styles.cardLabel}>
-                    SESSION HISTORY ({progression?.totalSessionsCount ?? 0})
+                  <ThemedText type="headline" accessibilityRole="header">
+                    Session history ({progression?.totalSessionsCount ?? 0})
                   </ThemedText>
 
                   {!progression ||
                   progression.sessionsNewestFirst.length === 0 ? (
-                    <ThemedView
-                      type="backgroundElement"
-                      style={styles.emptyHistoryCard}
-                    >
+                    <Card>
                       <ThemedText type="smallBold">
                         No logged sets yet
                       </ThemedText>
-                      <ThemedText
-                        type="small"
-                        themeColor="textSecondary"
-                        style={styles.emptyHistoryDesc}
-                      >
+                      <ThemedText type="small" themeColor="textSecondary">
                         Sets logged for this exercise during workout sessions
                         will appear here with load, reps, and volume
                         progression.
                       </ThemedText>
-                    </ThemedView>
+                    </Card>
                   ) : (
                     progression.sessionsNewestFirst.map((session, index) => (
                       <SessionProgressionCard
@@ -479,6 +467,7 @@ function ProgressionChart(props: {
   readonly unitSystem: "metric" | "imperial";
 }) {
   const { sessions, unitSystem } = props;
+  const theme = useTheme();
   const recentSessions = sessions.slice(-10);
   const values = recentSessions
     .map((s) => s.peakLoadKg)
@@ -501,23 +490,40 @@ function ProgressionChart(props: {
           );
           const isTargetExceeded = s.targetStatus === "exceeded_target";
           const isTargetHit = s.targetStatus === "hit_target";
+          const barColor = isTargetExceeded
+            ? theme.warning
+            : isTargetHit
+              ? theme.primary
+              : theme.textTertiary;
 
           return (
             <View key={`${s.workoutId}-${idx}`} style={styles.chartBarCol}>
-              <ThemedText style={styles.chartBarValue}>
+              <ThemedText
+                type="caption"
+                themeColor="textTertiary"
+                style={styles.chartBarText}
+              >
                 {kilogramsToDisplayWeight(load, unitSystem)}
               </ThemedText>
-              <View style={styles.chartBarTrack}>
+              <View
+                style={[
+                  styles.chartBarTrack,
+                  { backgroundColor: theme.backgroundSelected },
+                ]}
+              >
                 <View
                   style={[
                     styles.chartBarFill,
-                    { height: `${heightPercent}%` },
-                    isTargetExceeded && styles.chartBarExceeded,
-                    isTargetHit && styles.chartBarHit,
+                    { height: `${heightPercent}%`, backgroundColor: barColor },
                   ]}
                 />
               </View>
-              <ThemedText style={styles.chartBarLabel} numberOfLines={1}>
+              <ThemedText
+                type="caption"
+                themeColor="textTertiary"
+                style={styles.chartBarText}
+                numberOfLines={1}
+              >
                 {s.displayDate.split(",")[0]}
               </ThemedText>
             </View>
@@ -533,10 +539,15 @@ function SessionProgressionCard(props: {
   readonly unitSystem: "metric" | "imperial";
 }) {
   const { session, unitSystem } = props;
+  const theme = useTheme();
   const unit = weightUnitLabel(unitSystem);
+  const pillStyle = [
+    styles.sessionStatPill,
+    { backgroundColor: theme.backgroundSelected },
+  ];
 
   return (
-    <ThemedView type="backgroundElement" style={styles.sessionCard}>
+    <Card>
       <View style={styles.sessionCardHeader}>
         <View style={styles.sessionTitleBlock}>
           <ThemedText type="smallBold">{session.workoutName}</ThemedText>
@@ -546,28 +557,20 @@ function SessionProgressionCard(props: {
         </View>
 
         {session.targetStatus === "exceeded_target" ? (
-          <View style={styles.targetBadgeExceeded}>
-            <ThemedText type="small" style={styles.targetBadgeExceededText}>
-              ★ Exceeded Target
-            </ThemedText>
-          </View>
+          <Chip label="Exceeded target" tone="warning" icon="arrowUp" />
         ) : session.targetStatus === "hit_target" ? (
-          <View style={styles.targetBadgeHit}>
-            <ThemedText type="small" style={styles.targetBadgeHitText}>
-              ✓ Hit Target
-            </ThemedText>
-          </View>
+          <Chip label="Hit target" tone="primary" icon="check" />
         ) : null}
       </View>
 
       <View style={styles.sessionStatsRow}>
-        <View style={styles.sessionStatPill}>
+        <View style={pillStyle}>
           <ThemedText type="small" themeColor="textSecondary">
             Peak:{" "}
           </ThemedText>
           <ThemedText type="smallBold">{session.peakLoadDisplay}</ThemedText>
         </View>
-        <View style={styles.sessionStatPill}>
+        <View style={pillStyle}>
           <ThemedText type="small" themeColor="textSecondary">
             1RM:{" "}
           </ThemedText>
@@ -575,7 +578,7 @@ function SessionProgressionCard(props: {
             {session.estimated1RMDisplay}
           </ThemedText>
         </View>
-        <View style={styles.sessionStatPill}>
+        <View style={pillStyle}>
           <ThemedText type="small" themeColor="textSecondary">
             Vol:{" "}
           </ThemedText>
@@ -584,13 +587,15 @@ function SessionProgressionCard(props: {
       </View>
 
       {/* Sets detail breakdown */}
-      <View style={styles.sessionSetsList}>
+      <View
+        style={[styles.sessionSetsList, { borderTopColor: theme.separator }]}
+      >
         {session.sets.map((set) => (
           <View key={set.id} style={styles.sessionSetRow}>
-            <ThemedText type="small" style={styles.setSequenceText}>
+            <ThemedText type="footnote" themeColor="textSecondary">
               Set {set.sequence}
             </ThemedText>
-            <ThemedText type="small" style={styles.setPerformanceText}>
+            <ThemedText type="footnote" style={styles.setPerformanceText}>
               {set.loadKg !== null
                 ? `${kilogramsToDisplayWeight(set.loadKg, unitSystem)} ${unit}`
                 : "Bodyweight"}
@@ -602,7 +607,7 @@ function SessionProgressionCard(props: {
           </View>
         ))}
       </View>
-    </ThemedView>
+    </Card>
   );
 }
 
@@ -614,14 +619,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingVertical: Spacing.three,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#8A8D91",
   },
   headerTitleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: Spacing.two,
   },
   headerTitleBlock: {
     flex: 1,
@@ -632,70 +638,21 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: Spacing.one,
   },
-  badge: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeText: {
-    fontSize: 11,
-    color: "#10B981",
-    fontWeight: "600",
-    textTransform: "capitalize",
-  },
-  badgeSecondary: {
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeSecondaryText: {
-    fontSize: 11,
-    textTransform: "capitalize",
-  },
-  closeButton: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-  },
   content: {
-    padding: Spacing.four,
-    gap: Spacing.four,
-    paddingBottom: Spacing.six * 2,
+    padding: PageGutter,
+    gap: Spacing.three,
+    paddingBottom: Spacing.six,
   },
   loadingContainer: {
     alignItems: "center",
     gap: Spacing.two,
     paddingVertical: Spacing.six,
   },
-  errorBanner: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "#EF4444",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: Spacing.three,
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 13,
-  },
-  targetCard: {
-    padding: Spacing.four,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-    backgroundColor: "rgba(16, 185, 129, 0.06)",
-    gap: Spacing.three,
-  },
-  cardLabel: {
-    fontSize: 11,
-    letterSpacing: 0.8,
-    color: "#64748B",
-  },
   cardHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: Spacing.two,
   },
   targetHeaderRow: {
     flexDirection: "row",
@@ -709,23 +666,6 @@ const styles = StyleSheet.create({
     flexBasis: 160,
     minWidth: 0,
   },
-  editTargetButton: {
-    flexShrink: 0,
-    maxWidth: "100%",
-    minWidth: 44,
-    minHeight: 44,
-    marginLeft: "auto",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  editTargetText: {
-    color: "#10B981",
-    fontSize: 12,
-  },
   targetDisplayBlock: {
     gap: Spacing.two,
   },
@@ -734,28 +674,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.two,
   },
-  targetLoadNumber: {
-    fontSize: 26,
+  targetStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
   },
-  repsBadge: {
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  repsBadgeText: {
-    fontSize: 12,
-  },
-  targetStatusBox: {
-    marginTop: 2,
-  },
-  targetAchievedText: {
-    color: "#10B981",
-    fontSize: 13,
+  statusText: {
+    flexShrink: 1,
   },
   targetEditBlock: {
-    gap: Spacing.two,
-    marginTop: Spacing.one,
+    gap: Spacing.three,
   },
   targetInputRow: {
     flexDirection: "row",
@@ -763,26 +691,6 @@ const styles = StyleSheet.create({
   },
   targetInputField: {
     flex: 1,
-    gap: 4,
-  },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: 8,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 8,
-    fontSize: 15,
-  },
-  saveTargetButton: {
-    backgroundColor: "#10B981",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  saveTargetText: {
-    color: "#ffffff",
-    fontSize: 13,
   },
   statsGrid: {
     flexDirection: "row",
@@ -792,26 +700,12 @@ const styles = StyleSheet.create({
   statMetricCard: {
     flex: 1,
     minWidth: "47%",
-    padding: Spacing.three,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    gap: 4,
+    gap: Spacing.one,
   },
-  progressionChartCard: {
-    padding: Spacing.four,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    gap: Spacing.three,
-  },
-  positiveDelta: {
-    color: "#10B981",
-    fontSize: 12,
-  },
-  negativeDelta: {
-    color: "#EF4444",
-    fontSize: 12,
+  deltaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
   },
   chartContainer: {
     height: 120,
@@ -821,122 +715,66 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 8,
+    gap: Spacing.two,
   },
   chartBarCol: {
     flex: 1,
     alignItems: "center",
-    gap: 4,
+    gap: Spacing.one,
     height: "100%",
     justifyContent: "flex-end",
   },
-  chartBarValue: {
+  chartBarText: {
     fontSize: 10,
-    color: "#8A8D91",
   },
   chartBarTrack: {
     width: "100%",
     height: 75,
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderRadius: 4,
+    borderRadius: Radius.sm / 2,
     justifyContent: "flex-end",
     overflow: "hidden",
   },
   chartBarFill: {
     width: "100%",
-    backgroundColor: "#18633d",
-    borderRadius: 4,
-  },
-  chartBarHit: {
-    backgroundColor: "#10B981",
-  },
-  chartBarExceeded: {
-    backgroundColor: "#F59E0B",
-  },
-  chartBarLabel: {
-    fontSize: 9,
-    color: "#8A8D91",
+    borderRadius: Radius.sm / 2,
   },
   historySection: {
-    gap: Spacing.two,
-  },
-  emptyHistoryCard: {
-    padding: Spacing.four,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    gap: Spacing.one,
-  },
-  emptyHistoryDesc: {
-    lineHeight: 18,
-  },
-  sessionCard: {
-    padding: Spacing.three,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
     gap: Spacing.two,
   },
   sessionCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: Spacing.two,
   },
   sessionTitleBlock: {
     flex: 1,
     gap: 2,
   },
-  targetBadgeHit: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  targetBadgeHitText: {
-    color: "#10B981",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  targetBadgeExceeded: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  targetBadgeExceededText: {
-    color: "#F59E0B",
-    fontSize: 11,
-    fontWeight: "600",
-  },
   sessionStatsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.two,
-    paddingVertical: 2,
   },
   sessionStatPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Radius.sm,
   },
   sessionSetsList: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(148, 163, 184, 0.15)",
-    paddingTop: 6,
-    gap: 4,
+    paddingTop: Spacing.two,
+    gap: Spacing.one,
   },
   sessionSetRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  setSequenceText: {
-    color: "#8A8D91",
-    fontSize: 12,
+    gap: Spacing.two,
   },
   setPerformanceText: {
-    fontSize: 12,
-    fontWeight: "500",
+    flexShrink: 1,
+    textAlign: "right",
   },
 });

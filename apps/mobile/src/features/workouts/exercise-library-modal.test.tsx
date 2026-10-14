@@ -30,10 +30,27 @@ vi.mock("react-native", () => ({
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  FormField: "FormField",
+  FormStatus: "FormStatus",
+  FormTextInput: "FormTextInput",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "black" }) }));
-vi.mock("@/constants/theme", () => ({ Spacing: {} }));
+vi.mock("@/constants/theme", () => ({
+  MinTouchTarget: 44,
+  Radius: {},
+  Spacing: {},
+}));
 vi.mock("./exercise-progression-modal", () => ({
   ExerciseProgressionModal: "ExerciseProgressionModal",
 }));

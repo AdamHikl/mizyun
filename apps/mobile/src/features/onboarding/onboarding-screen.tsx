@@ -1,25 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { OnboardingMeasurement } from "./onboarding-measurement";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { BetaProStatus } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
+import {
+  Button,
+  Card,
+  ChoiceChip,
+  ChoiceGroup,
+  FormField,
+  FormTextInput,
+  Icon,
+  IconButton,
+  ListGroup,
+  ListRow,
+  Notice,
+} from "@/components/ui";
 import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
-import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { MaxContentWidth, PageGutter, Spacing } from "@/constants/theme";
 import { useOptionalAuth } from "@/features/auth/auth-context";
 import {
   fetchBetaProStatus,
@@ -160,18 +164,13 @@ export function OnboardingScreen({
         >
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
-              <BrandWordmark suffix="SETUP" />
+              <BrandWordmark />
               {onExit ? (
-                <Pressable
-                  accessibilityRole="button"
+                <IconButton
+                  icon="close"
                   accessibilityLabel="Exit setup"
                   onPress={exitSetup}
-                  style={styles.exitButton}
-                >
-                  <ThemedText type="smallBold" style={styles.exitButtonText}>
-                    ✕ Exit / Explore
-                  </ThemedText>
-                </Pressable>
+                />
               ) : null}
             </View>
             <ThemedText type="subtitle">{titleFor(step)}</ThemedText>
@@ -191,51 +190,36 @@ export function OnboardingScreen({
             <AnalyticsConsentPrompt onConsentSaved={beginMeasurement} />
           ) : null}
 
-          {error ? (
-            <ThemedText style={styles.apiError}>{error}</ThemedText>
-          ) : null}
+          {error ? <Notice tone="danger" message={error} /> : null}
 
           <View style={styles.actions}>
             {step !== "welcome" ? (
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Back"
+                variant="secondary"
+                disabled={busy}
                 onPress={onBack}
-                disabled={busy}
-                style={styles.secondaryButton}
-              >
-                <ThemedText type="smallBold">Back</ThemedText>
-              </Pressable>
+                style={styles.secondaryAction}
+              />
             ) : onExit ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={exitSetup}
+              <Button
+                label="Explore first"
+                variant="secondary"
                 disabled={busy}
-                style={styles.secondaryButton}
-              >
-                <ThemedText type="smallBold">Explore First</ThemedText>
-              </Pressable>
+                onPress={exitSetup}
+                style={styles.secondaryAction}
+              />
             ) : null}
-            <Pressable
-              accessibilityRole="button"
+            <Button
               accessibilityLabel={isFinalStep(step) ? "Finish" : "Continue"}
+              label={isFinalStep(step) ? "Finish" : "Continue"}
+              loading={busy}
               disabled={!canContinue}
               onPress={() => {
                 void onAdvance();
               }}
-              style={[
-                styles.primaryButton,
-                step === "welcome" && styles.primaryButtonFullWidth,
-                !canContinue && styles.primaryButtonDisabled,
-              ]}
-            >
-              {busy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <ThemedText style={styles.primaryButtonText}>
-                  {isFinalStep(step) ? "Finish" : "Continue"}
-                </ThemedText>
-              )}
-            </Pressable>
+              style={styles.primaryAction}
+            />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -274,8 +258,8 @@ function AnalyticsConsentPrompt({
   );
 
   return (
-    <ThemedView type="backgroundElement" style={styles.analyticsPrompt}>
-      <ThemedText type="smallBold">Optional product analytics</ThemedText>
+    <Card style={styles.analyticsPrompt}>
+      <ThemedText type="headline">Optional product analytics</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         Help improve Mizyun by sharing which features and screens you use,
         whether actions succeed, and coarse time ranges. These optional events
@@ -285,30 +269,20 @@ function AnalyticsConsentPrompt({
         content. You can change this anytime in Account. Core features work the
         same either way.
       </ThemedText>
-      <View style={styles.analyticsChoiceRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ selected: consent === "granted" }}
+      <ChoiceGroup>
+        <ChoiceChip
+          label={consent === "granted" ? "Enabled" : "Enable"}
+          selected={consent === "granted"}
           disabled={consent === "loading"}
           onPress={() => void choose("granted")}
-          style={styles.analyticsChoice}
-        >
-          <ThemedText type="smallBold">
-            {consent === "granted" ? "✓ Enabled" : "Enable"}
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ selected: consent === "denied" }}
+        />
+        <ChoiceChip
+          label="Keep off"
+          selected={consent === "denied"}
           disabled={consent === "loading"}
           onPress={() => void choose("denied")}
-          style={styles.analyticsChoice}
-        >
-          <ThemedText type="smallBold">
-            {consent === "denied" ? "✓ Keep off" : "Keep off"}
-          </ThemedText>
-        </Pressable>
-      </View>
+        />
+      </ChoiceGroup>
       {message !== null ? (
         <ThemedText
           type="small"
@@ -318,7 +292,7 @@ function AnalyticsConsentPrompt({
           {message}
         </ThemedText>
       ) : null}
-    </ThemedView>
+    </Card>
   );
 }
 
@@ -424,15 +398,18 @@ function WelcomeBody() {
 
   return (
     <View style={styles.body}>
-      <ThemedText style={styles.paragraph}>
+      <ThemedText>
         Mizyun tracks your daily energy, training, and weight against a single
         primary goal so the math stays honest. Set up your starting point in
         five short steps.
       </ThemedText>
 
-      <ThemedView type="backgroundElement" style={styles.betaCard}>
+      <Card>
         <View style={styles.betaHeaderRow}>
-          <ThemedText style={styles.betaBadge}>✨ LAUNCH PRO PASS</ThemedText>
+          <Icon name="sparkles" size={15} color="primary" />
+          <ThemedText type="smallBold" themeColor="primary">
+            Launch Pro Pass
+          </ThemedText>
         </View>
         <ThemedText type="smallBold">
           Request free Pro access as an early Mizyun user.
@@ -445,50 +422,26 @@ function WelcomeBody() {
 
         <View style={styles.betaActionRow}>
           {isPaid || betaStatus === "approved" ? (
-            <View style={styles.approvedBadge}>
-              <ThemedText type="smallBold" style={styles.approvedBadgeText}>
-                ✨ Launch Pro Pass Active
-              </ThemedText>
-            </View>
+            <Notice tone="success" message="Launch Pro Pass active" />
           ) : betaStatus === "pending" ? (
-            <View style={styles.pendingBadge}>
-              <ThemedText type="smallBold" style={styles.pendingBadgeText}>
-                ⏳ Request Pending
-              </ThemedText>
-            </View>
+            <Notice tone="info" message="Request pending" />
           ) : (
-            <Pressable
-              accessibilityRole="button"
+            <Button
               accessibilityLabel="Request free Pro access with Launch Pro Pass"
-              accessibilityState={{
-                disabled: requesting || betaStatus === null,
-                busy: requesting,
-              }}
+              label={
+                betaStatus === null
+                  ? "Checking pass…"
+                  : "Request free Pro access"
+              }
+              variant="tinted"
+              block
+              loading={requesting}
               disabled={requesting || betaStatus === null}
               onPress={() => void requestBetaPro()}
-              style={({ pressed }) => [
-                styles.betaRequestButton,
-                pressed && styles.pressed,
-                (requesting || betaStatus === null) &&
-                  styles.betaRequestButtonDisabled,
-              ]}
-            >
-              {requesting ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <ThemedText
-                  type="smallBold"
-                  style={styles.betaRequestButtonText}
-                >
-                  {betaStatus === null
-                    ? "Checking Pass…"
-                    : "Request Free Pro Access"}
-                </ThemedText>
-              )}
-            </Pressable>
+            />
           )}
         </View>
-      </ThemedView>
+      </Card>
 
       <ThemedText type="small" themeColor="textSecondary">
         You can change any profile detail later from the Account tab.
@@ -506,16 +459,20 @@ interface DisplayNameBodyProps {
 function DisplayNameBody({ value, onChange, error }: DisplayNameBodyProps) {
   return (
     <View style={styles.body}>
-      <ThemedText style={styles.label}>Display name</ThemedText>
-      <TextInput
-        autoCapitalize="words"
-        autoCorrect={false}
-        value={value}
-        onChangeText={onChange}
-        style={styles.input}
-      />
+      <FormField label="Display name">
+        <FormTextInput
+          accessibilityLabel="Display name"
+          autoCapitalize="words"
+          autoCorrect={false}
+          textContentType="nickname"
+          value={value}
+          onChangeText={onChange}
+        />
+      </FormField>
       {error ? (
-        <ThemedText style={styles.fieldError}>{error}</ThemedText>
+        <ThemedText type="footnote" themeColor="danger">
+          {error}
+        </ThemedText>
       ) : null}
     </View>
   );
@@ -529,27 +486,22 @@ interface UnitsBodyProps {
 function UnitsBody({ value, onChange }: UnitsBodyProps) {
   return (
     <View style={styles.body}>
-      <ThemedText style={styles.label}>Units</ThemedText>
-      <ThemedText
-        type="small"
-        themeColor="textSecondary"
-        style={styles.paragraph}
-      >
+      <ThemedText type="small" themeColor="textSecondary">
         Mizyun stores weight in kilograms. Pick the unit for what you see in the
         app and what you enter at the scale.
       </ThemedText>
-      <View style={styles.choiceRow}>
-        <UnitChoice
+      <ListGroup>
+        <SelectRow
           label="Metric (kg, cm)"
           selected={value === "metric"}
           onPress={() => onChange("metric")}
         />
-        <UnitChoice
+        <SelectRow
           label="Imperial (lb, in)"
           selected={value === "imperial"}
           onPress={() => onChange("imperial")}
         />
-      </View>
+      </ListGroup>
     </View>
   );
 }
@@ -574,16 +526,20 @@ function WeightBody({
       <ThemedText type="small" themeColor="textSecondary">
         {supportingText}
       </ThemedText>
-      <ThemedText style={styles.label}>{label}</ThemedText>
-      <TextInput
-        accessibilityLabel={label}
-        keyboardType="decimal-pad"
-        value={value}
-        onChangeText={onChange}
-        style={styles.input}
-      />
+      <FormField label={label}>
+        <FormTextInput
+          accessibilityLabel={label}
+          keyboardType="decimal-pad"
+          value={value}
+          onChangeText={onChange}
+        />
+      </FormField>
       {error ? (
-        <ThemedText accessibilityRole="alert" style={styles.fieldError}>
+        <ThemedText
+          accessibilityRole="alert"
+          type="footnote"
+          themeColor="danger"
+        >
           {error}
         </ThemedText>
       ) : null}
@@ -603,39 +559,40 @@ function EnergyProfileBody(props: {
         These confirmed inputs are used only by the deterministic energy
         formula. They are not a diagnosis and can be changed later.
       </ThemedText>
-      <ThemedText style={styles.label}>
-        Height ({lengthUnitLabel(form.unitSystem)})
+      <FormField label={`Height (${lengthUnitLabel(form.unitSystem)})`}>
+        <FormTextInput
+          accessibilityLabel={`Height (${lengthUnitLabel(form.unitSystem)})`}
+          keyboardType="decimal-pad"
+          value={form.height}
+          onChangeText={(value) => onPatch({ field: "height", value })}
+        />
+      </FormField>
+      <FormField label="Birth year">
+        <FormTextInput
+          accessibilityLabel="Birth year"
+          keyboardType="number-pad"
+          value={form.birthYear}
+          onChangeText={(value) => onPatch({ field: "birthYear", value })}
+        />
+      </FormField>
+      <FormField label="Formula sex input">
+        <ChoiceGroup>
+          <ChoiceChip
+            label="Female"
+            selected={form.sexAtBirth === "female"}
+            onPress={() => onPatch({ field: "sexAtBirth", value: "female" })}
+          />
+          <ChoiceChip
+            label="Male"
+            selected={form.sexAtBirth === "male"}
+            onPress={() => onPatch({ field: "sexAtBirth", value: "male" })}
+          />
+        </ChoiceGroup>
+      </FormField>
+      <ThemedText type="footnote" themeColor="textSecondary">
+        Usual activity
       </ThemedText>
-      <TextInput
-        accessibilityLabel={`Height (${lengthUnitLabel(form.unitSystem)})`}
-        keyboardType="decimal-pad"
-        value={form.height}
-        onChangeText={(value) => onPatch({ field: "height", value })}
-        style={styles.input}
-      />
-      <ThemedText style={styles.label}>Birth year</ThemedText>
-      <TextInput
-        accessibilityLabel="Birth year"
-        keyboardType="number-pad"
-        value={form.birthYear}
-        onChangeText={(value) => onPatch({ field: "birthYear", value })}
-        style={styles.input}
-      />
-      <ThemedText style={styles.label}>Formula sex input</ThemedText>
-      <View style={styles.choiceRow}>
-        <KindChoice
-          label="Female"
-          selected={form.sexAtBirth === "female"}
-          onPress={() => onPatch({ field: "sexAtBirth", value: "female" })}
-        />
-        <KindChoice
-          label="Male"
-          selected={form.sexAtBirth === "male"}
-          onPress={() => onPatch({ field: "sexAtBirth", value: "male" })}
-        />
-      </View>
-      <ThemedText style={styles.label}>Usual activity</ThemedText>
-      <View style={styles.choiceColumn}>
+      <ListGroup>
         {(
           [
             ["Sedentary", "sedentary"],
@@ -645,16 +602,20 @@ function EnergyProfileBody(props: {
             ["Extra active", "extra_active"],
           ] as const
         ).map(([label, value]) => (
-          <KindChoice
+          <SelectRow
             key={value}
             label={label}
             selected={form.activityLevel === value}
             onPress={() => onPatch({ field: "activityLevel", value })}
           />
         ))}
-      </View>
+      </ListGroup>
       {error ? (
-        <ThemedText accessibilityRole="alert" style={styles.fieldError}>
+        <ThemedText
+          accessibilityRole="alert"
+          type="footnote"
+          themeColor="danger"
+        >
           {error}
         </ThemedText>
       ) : null}
@@ -662,21 +623,24 @@ function EnergyProfileBody(props: {
   );
 }
 
-interface UnitChoiceProps {
+interface SelectRowProps {
   readonly label: string;
   readonly selected: boolean;
   readonly onPress: () => void;
 }
 
-function UnitChoice({ label, selected, onPress }: UnitChoiceProps) {
+/** A single-select option in an inset grouped list, checked when selected. */
+function SelectRow({ label, selected, onPress }: SelectRowProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <ListRow
+      title={label}
+      chevron={false}
+      accessibilityState={{ selected }}
+      trailing={
+        selected ? <Icon name="check" size={17} color="primary" /> : null
+      }
       onPress={onPress}
-      style={[styles.choice, selected && styles.choiceSelected]}
-    >
-      <ThemedText type="smallBold">{label}</ThemedText>
-    </Pressable>
+    />
   );
 }
 
@@ -689,62 +653,43 @@ interface PrimaryGoalBodyProps {
 function PrimaryGoalBody({ form, onPatch, error }: PrimaryGoalBodyProps) {
   return (
     <View style={styles.body}>
-      <ThemedText style={styles.label}>Primary goal</ThemedText>
-      <View style={styles.choiceColumn}>
-        <KindChoice
+      <ListGroup>
+        <SelectRow
           label="Cut — lose body mass"
           selected={form.goalKind === "cut"}
           onPress={() => onPatch({ field: "goalKind", value: "cut" })}
         />
-        <KindChoice
+        <SelectRow
           label="Bulk — gain muscle mass"
           selected={form.goalKind === "bulk"}
           onPress={() => onPatch({ field: "goalKind", value: "bulk" })}
         />
-        <KindChoice
+        <SelectRow
           label="Recomp — redistribute mass"
           selected={form.goalKind === "recomp"}
           onPress={() => onPatch({ field: "goalKind", value: "recomp" })}
         />
-        <KindChoice
+        <SelectRow
           label="Maintain — hold current mass"
           selected={form.goalKind === "maintain"}
           onPress={() => onPatch({ field: "goalKind", value: "maintain" })}
         />
-      </View>
+      </ListGroup>
 
-      <ThemedText style={[styles.label, styles.labelGap]}>
-        Goal weight ({weightUnitLabel(form.unitSystem)})
-      </ThemedText>
-      <TextInput
-        accessibilityLabel={`Goal weight (${weightUnitLabel(form.unitSystem)})`}
-        keyboardType="decimal-pad"
-        value={form.goalWeight}
-        onChangeText={(value) => onPatch({ field: "goalWeight", value })}
-        style={styles.input}
-      />
+      <FormField label={`Goal weight (${weightUnitLabel(form.unitSystem)})`}>
+        <FormTextInput
+          accessibilityLabel={`Goal weight (${weightUnitLabel(form.unitSystem)})`}
+          keyboardType="decimal-pad"
+          value={form.goalWeight}
+          onChangeText={(value) => onPatch({ field: "goalWeight", value })}
+        />
+      </FormField>
       {error ? (
-        <ThemedText style={styles.fieldError}>{error}</ThemedText>
+        <ThemedText type="footnote" themeColor="danger">
+          {error}
+        </ThemedText>
       ) : null}
     </View>
-  );
-}
-
-interface KindChoiceProps {
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onPress: () => void;
-}
-
-function KindChoice({ label, selected, onPress }: KindChoiceProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={[styles.choice, selected && styles.choiceSelected]}
-    >
-      <ThemedText type="smallBold">{label}</ThemedText>
-    </Pressable>
   );
 }
 
@@ -791,162 +736,32 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     paddingBottom: Spacing.six,
-    gap: Spacing.five,
+    gap: Spacing.four,
   },
   header: { gap: Spacing.two },
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  exitButton: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: 8,
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
-  },
-  exitButtonText: {
-    color: "#8A8D91",
-    fontSize: 12,
+    minHeight: 48,
   },
   body: { gap: Spacing.three },
-  betaCard: {
-    borderRadius: 14,
-    padding: Spacing.four,
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
-  },
   betaHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.one,
   },
-  betaBadge: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#059669",
-    letterSpacing: 0.8,
-  },
-  analyticsPrompt: {
-    borderRadius: 14,
-    padding: Spacing.four,
-    gap: Spacing.three,
-  },
-  analyticsChoiceRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-  },
-  analyticsChoice: {
-    minHeight: 44,
-    borderRadius: 14,
-    paddingHorizontal: Spacing.four,
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-  },
-  paragraph: { fontSize: 16, lineHeight: 24 },
-  label: { fontSize: 14, fontWeight: "700", letterSpacing: 0.5 },
-  labelGap: { marginTop: Spacing.three },
-  input: {
-    backgroundColor: "#fff",
-    borderColor: "#d6ded8",
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 16,
-    fontSize: 16,
-  },
-  fieldError: { color: "#a13a25" },
-  apiError: { color: "#a13a25", lineHeight: 20 },
-  choiceColumn: { gap: Spacing.two },
-  choiceRow: { flexDirection: "row", gap: Spacing.two },
-  choice: {
-    minHeight: 52,
-    borderRadius: 14,
-    paddingHorizontal: Spacing.four,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-  },
-  choiceSelected: {
-    backgroundColor: "#18633d",
-    borderColor: "#18633d",
-  },
+  analyticsPrompt: { gap: Spacing.three },
+  betaActionRow: { marginTop: Spacing.two },
   actions: {
     flexDirection: "row",
     gap: Spacing.two,
     alignItems: "center",
-    marginTop: Spacing.four,
-  },
-  secondaryButton: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-  },
-  primaryButton: {
-    flex: 2,
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#18633d",
-  },
-  primaryButtonFullWidth: {
-    flex: 1,
-  },
-  primaryButtonDisabled: { opacity: 0.5 },
-  primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  betaActionRow: {
     marginTop: Spacing.two,
   },
-  betaRequestButton: {
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#10B981",
-  },
-  betaRequestButtonText: {
-    color: "#ffffff",
-    fontSize: 15,
-  },
-  betaRequestButtonDisabled: {
-    opacity: 0.6,
-  },
-  pendingBadge: {
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(234, 179, 8, 0.35)",
-    backgroundColor: "rgba(234, 179, 8, 0.08)",
-  },
-  pendingBadgeText: {
-    color: "#CA8A04",
-    fontSize: 13,
-  },
-  approvedBadge: {
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.35)",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-  },
-  approvedBadgeText: {
-    color: "#059669",
-    fontSize: 13,
-  },
-  pressed: {
-    opacity: 0.75,
-  },
+  secondaryAction: { flex: 1, alignSelf: "stretch" },
+  primaryAction: { flex: 2, alignSelf: "stretch" },
 });

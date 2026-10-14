@@ -20,6 +20,19 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  FormField: "FormField",
+  FormTextInput: "FormTextInput",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
+
 vi.mock("@/components/themed-text", () => ({
   ThemedText: (props: any) => ({ type: "ThemedText", props }),
 }));

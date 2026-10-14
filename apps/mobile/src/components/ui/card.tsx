@@ -126,6 +126,7 @@ export function ListRow({
       style={({ pressed }) => [
         styles.row,
         pressed && { backgroundColor: theme.backgroundSelected },
+        rest.disabled && styles.disabled,
         style,
       ]}
       {...rest}
@@ -156,6 +157,7 @@ export function SectionHeader({
 }
 
 const styles = StyleSheet.create({
+  disabled: { opacity: 0.5 },
   card: {
     borderRadius: Radius.lg,
     borderCurve: "continuous",

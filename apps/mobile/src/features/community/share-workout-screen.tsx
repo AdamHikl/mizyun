@@ -1,17 +1,17 @@
 import React, { useCallback, useState } from "react";
-import { Text } from "react-native";
 import { useFocusEffect, type Href } from "expo-router";
 import {
   workoutListResponseSchema,
   type WorkoutListResponse,
 } from "@mizyun/contracts";
-import { useTheme } from "@/hooks/use-theme";
+import { Notice } from "@/components/ui";
 import { useExpansionCommand } from "./expansions/use-expansion-command";
 import { ShareWorkoutModal } from "./share-workout-modal";
 import {
   CommunityButton,
   CommunityPage,
   CommunityRow,
+  CommunitySection,
   CommunityState,
 } from "./ui";
 
@@ -19,7 +19,6 @@ export { selectableSharedWorkouts } from "./share-workout-selection";
 import { selectableSharedWorkouts } from "./share-workout-selection";
 
 export function CommunityShareWorkoutScreen() {
-  const colors = useTheme();
   const { principal, data, run, busy, error, capture } =
     useExpansionCommand<WorkoutListResponse>(
       "/v1/workouts?kind=session&limit=200",
@@ -44,11 +43,7 @@ export function CommunityShareWorkoutScreen() {
       title="Share workout"
       description="Choose a saved completed workout. You will preview exactly what your approved followers can see."
     >
-      {error ? (
-        <Text accessibilityRole="alert" style={{ color: colors.text }}>
-          {error}
-        </Text>
-      ) : null}
+      {error ? <Notice tone="danger" message={error} /> : null}
       {busy ? (
         <CommunityState title="Checking saved workouts" busy />
       ) : !data ? (
@@ -71,26 +66,23 @@ export function CommunityShareWorkoutScreen() {
         />
       ) : (
         <>
-          <Text
-            style={{
-              color: colors.textSecondary,
-              fontSize: 15,
-              lineHeight: 22,
-            }}
+          <CommunitySection
+            title="Recent workouts"
+            description="Recent completed workouts from your latest 200 sessions. These names are private and are omitted from the shared card."
           >
-            Recent completed workouts from your latest 200 sessions. These names
-            are private and are omitted from the shared card.
-          </Text>
-          {workouts.map((workout) => (
-            <CommunityRow
-              key={workout.id}
-              title={workout.name ?? "Completed workout"}
-              description={new Date(workout.completedAt!).toLocaleDateString()}
-              onPress={() =>
-                setSelection({ id: workout.id, current: capture() })
-              }
-            />
-          ))}
+            {workouts.map((workout) => (
+              <CommunityRow
+                key={workout.id}
+                title={workout.name ?? "Completed workout"}
+                description={new Date(
+                  workout.completedAt!,
+                ).toLocaleDateString()}
+                onPress={() =>
+                  setSelection({ id: workout.id, current: capture() })
+                }
+              />
+            ))}
+          </CommunitySection>
           <CommunityButton
             label="Refresh workouts"
             onPress={() => void run({})}

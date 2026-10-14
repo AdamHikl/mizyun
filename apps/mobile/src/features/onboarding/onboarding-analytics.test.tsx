@@ -49,7 +49,24 @@ vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));
-vi.mock("@/constants/theme", () => ({ MaxContentWidth: 600, Spacing: {} }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  ChoiceChip: "ChoiceChip",
+  ChoiceGroup: "ChoiceGroup",
+  FormField: "FormField",
+  FormTextInput: "FormTextInput",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  Notice: "Notice",
+}));
+vi.mock("@/constants/theme", () => ({
+  MaxContentWidth: 600,
+  PageGutter: 20,
+  Spacing: {},
+}));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("@/features/auth/auth-context", () => ({
   useOptionalAuth: () => ({ session: { user: { id: state.owner } } }),

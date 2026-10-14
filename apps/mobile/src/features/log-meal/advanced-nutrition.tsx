@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router, type Href } from "expo-router";
 import {
   advancedNutritionCapabilityResponseSchema,
@@ -8,8 +8,9 @@ import {
 } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
+import { MinTouchTarget, Spacing } from "@/constants/theme";
 import { apiClient } from "@/composition/api-client";
-import { useTheme } from "@/hooks/use-theme";
+import { FormField, FormTextInput, Icon } from "@/components/ui";
 
 import type { MealFormStrings } from "./meal-form";
 import { parseOptionalNutritionNumber } from "./meal-form";
@@ -94,17 +95,27 @@ export function AdvancedNutrientFields({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [saltMode, setSaltMode] = useState(false);
-  const theme = useTheme();
   return (
-    <View style={{ gap: 10, marginVertical: 12 }}>
+    <View style={{ gap: Spacing.two, marginVertical: Spacing.three }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="More nutrients"
         accessibilityState={{ expanded }}
         onPress={() => setExpanded((current) => !current)}
+        style={{
+          minHeight: MinTouchTarget,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: Spacing.two,
+        }}
       >
+        <Icon
+          name={expanded ? "chevronDown" : "chevronRight"}
+          size={14}
+          color="textSecondary"
+        />
         <ThemedText type="smallBold">
-          {expanded ? "▾" : "▸"} More nutrients {enabled ? "" : "· Pro"}
+          More nutrients {enabled ? "" : "· Pro"}
         </ThemedText>
       </Pressable>
       {expanded ? (
@@ -118,12 +129,14 @@ export function AdvancedNutrientFields({
             {fields
               .filter(([key]) => enabled || editableWhenFree.includes(key))
               .map(([key, label]) => (
-                <View key={key} style={{ gap: 4 }}>
-                  <ThemedText type="smallBold">
-                    {key === "sodium" && saltMode ? "Salt (g)" : label}
-                    {per100g ? " per 100 g" : ""}
-                  </ThemedText>
-                  <TextInput
+                <FormField
+                  key={key}
+                  label={
+                    (key === "sodium" && saltMode ? "Salt (g)" : label) +
+                    (per100g ? " per 100 g" : "")
+                  }
+                >
+                  <FormTextInput
                     accessibilityLabel={
                       (key === "sodium" && saltMode ? "Salt in grams" : label) +
                       (per100g ? " per 100 g" : "")
@@ -131,7 +144,6 @@ export function AdvancedNutrientFields({
                     editable={editable}
                     keyboardType="decimal-pad"
                     placeholder="Not recorded"
-                    placeholderTextColor={theme.textSecondary}
                     value={
                       key === "sodium" && saltMode && form.sodium
                         ? Number.isFinite(Number(form.sodium.replace(",", ".")))
@@ -154,14 +166,6 @@ export function AdvancedNutrientFields({
                             : value,
                       );
                     }}
-                    style={{
-                      borderColor: theme.border,
-                      borderWidth: 1,
-                      borderRadius: 8,
-                      color: theme.text,
-                      padding: 12,
-                      minHeight: 44,
-                    }}
                   />
                   {key === "sodium" ? (
                     <Pressable
@@ -170,6 +174,10 @@ export function AdvancedNutrientFields({
                         saltMode ? "Enter sodium instead" : "Enter salt instead"
                       }
                       onPress={() => setSaltMode((current) => !current)}
+                      style={{
+                        minHeight: MinTouchTarget,
+                        justifyContent: "center",
+                      }}
                     >
                       <ThemedText type="small" themeColor="textSecondary">
                         Enter {saltMode ? "sodium (mg)" : "salt (g)"} instead ·
@@ -177,7 +185,7 @@ export function AdvancedNutrientFields({
                       </ThemedText>
                     </Pressable>
                   ) : null}
-                </View>
+                </FormField>
               ))}
           </>
         ) : (
@@ -190,8 +198,11 @@ export function AdvancedNutrientFields({
               accessibilityRole="link"
               accessibilityLabel="View Pro access in account settings"
               onPress={() => router.push("/account-settings/ai-usage" as Href)}
+              style={{ minHeight: MinTouchTarget, justifyContent: "center" }}
             >
-              <ThemedText type="smallBold">View Pro access</ThemedText>
+              <ThemedText type="smallBold" themeColor="primary">
+                View Pro access
+              </ThemedText>
             </Pressable>
           </>
         )

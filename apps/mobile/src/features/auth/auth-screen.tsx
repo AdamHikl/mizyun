@@ -6,27 +6,52 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
-  Platform,
+  type TextInput,
 } from "react-native";
 
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { GoogleIcon } from "@/components/google-icon";
+import { ThemedText } from "@/components/themed-text";
+import { Button, Card, FormTextInput, IconBadge } from "@/components/ui";
 import { authClient } from "@/composition/auth-client";
 import { getAppVariant } from "@/composition/app-variant";
 import { mobileConfigResult } from "@/composition/mobile-config";
+import {
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useTheme } from "@/hooks/use-theme";
 
 import { authErrorMessage } from "./auth-error-message";
 import { useAuth } from "./auth-context";
 
 WebBrowser.maybeCompleteAuthSession();
 
+/**
+ * Google Identity branding for the custom "Continue with Google" button
+ * (developers.google.com/identity/branding-guidelines). These vendor colours
+ * are required by Google's guidelines and intentionally are not app tokens.
+ */
+const GOOGLE_BUTTON_BRAND = {
+  light: { fill: "#FFFFFF", stroke: "#747775", text: "#1F1F1F" },
+  dark: { fill: "#131314", stroke: "#8E918F", text: "#E3E3E3" },
+} as const;
+
 export function AuthScreen() {
   const { explorePreview } = useAuth();
+  const theme = useTheme();
+  const scheme = useColorScheme();
+  const google = GOOGLE_BUTTON_BRAND[scheme];
   const passwordInput = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -173,57 +198,74 @@ export function AuthScreen() {
         contentContainerStyle={styles.content}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
-        style={styles.page}
+        style={[styles.page, { backgroundColor: theme.background }]}
       >
-        <Text style={styles.eyebrow}>EMAIL VERIFICATION</Text>
-        <Text style={styles.title}>Check your inbox</Text>
-
-        <View style={styles.confirmationCard}>
-          <Text style={styles.confirmationIcon}>✉️</Text>
-          <Text style={styles.confirmationHeading}>
-            We sent a verification link to:
-          </Text>
-          <Text style={styles.confirmationEmail}>
-            {pendingConfirmationEmail}
-          </Text>
-          <Text style={styles.confirmationBody}>
-            Click the link in the email to activate your account. Once verified,
-            you can sign in to your private fitness space.
-          </Text>
+        <View style={styles.hero}>
+          <BrandWordmark />
+          <ThemedText type="subtitle" style={styles.center}>
+            Check your inbox
+          </ThemedText>
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.center}
+          >
+            Email verification
+          </ThemedText>
         </View>
 
+        <Card style={styles.confirmationCard}>
+          <IconBadge name="envelope" size={44} />
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.center}
+          >
+            We sent a verification link to:
+          </ThemedText>
+          <ThemedText type="headline" style={styles.center}>
+            {pendingConfirmationEmail}
+          </ThemedText>
+          <ThemedText
+            type="footnote"
+            themeColor="textSecondary"
+            style={styles.center}
+          >
+            Click the link in the email to activate your account. Once verified,
+            you can sign in to your private fitness space.
+          </ThemedText>
+        </Card>
+
         {resendMessage ? (
-          <Text
+          <ThemedText
             accessibilityLiveRegion="polite"
             accessibilityRole="alert"
-            style={styles.resendSuccess}
+            type="smallBold"
+            themeColor="primary"
+            style={styles.center}
           >
             {resendMessage}
-          </Text>
+          </ThemedText>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label="Resend verification email"
+          block
+          loading={resendBusy}
           disabled={resendBusy}
           onPress={handleResend}
-          style={styles.primary}
-        >
-          {resendBusy ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.primaryText}>Resend verification email</Text>
-          )}
-        </Pressable>
+        />
 
-        <Pressable
+        <Button
+          label="Back to sign in"
+          variant="plain"
+          style={styles.centerAction}
           onPress={() => {
             setPendingConfirmationEmail(null);
             setResendMessage(null);
             setMode("sign-in");
           }}
-        >
-          <Text style={styles.switch}>Back to sign in</Text>
-        </Pressable>
+        />
       </ScrollView>
     );
   }
@@ -241,17 +283,35 @@ export function AuthScreen() {
       contentContainerStyle={styles.content}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
-      style={styles.page}
+      style={[styles.page, { backgroundColor: theme.background }]}
     >
-      <Text style={styles.eyebrow}>YOUR PRIVATE FITNESS SPACE</Text>
-      <Text style={styles.title}>{title}</Text>
+      <View style={styles.hero}>
+        <BrandWordmark />
+        <ThemedText type="subtitle" style={styles.center}>
+          {title}
+        </ThemedText>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          style={styles.center}
+        >
+          Your private fitness space
+        </ThemedText>
+      </View>
 
       {mode !== "forgot" && (isAppleAuthAvailable || Platform.OS !== "ios") ? (
         <>
           {isAppleAuthAvailable ? (
             appleBusy ? (
-              <View style={[styles.appleButton, styles.appleButtonLoading]}>
-                <ActivityIndicator color="#ffffff" />
+              <View
+                style={[
+                  styles.appleButton,
+                  styles.appleButtonLoading,
+                  // Mirrors the native Apple button's black/white style.
+                  { backgroundColor: theme.text },
+                ]}
+              >
+                <ActivityIndicator color={theme.background} />
               </View>
             ) : (
               <AppleAuthentication.AppleAuthenticationButton
@@ -259,9 +319,11 @@ export function AuthScreen() {
                   AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
                 }
                 buttonStyle={
-                  AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                  scheme === "dark"
+                    ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                    : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
                 }
-                cornerRadius={14}
+                cornerRadius={Radius.md}
                 style={styles.appleButton}
                 onPress={submitAppleAuth}
               />
@@ -281,17 +343,31 @@ export function AuthScreen() {
             disabled={busy}
             onPress={submitGoogleAuth}
             style={({ pressed }) => [
-              isAndroid ? styles.androidGoogleButton : styles.googleButton,
-              isAndroid && googleBusy && styles.androidGoogleButtonLoading,
-              pressed &&
-                (isAndroid
-                  ? styles.androidGoogleButtonPressed
-                  : styles.googleButtonPressed),
+              isAndroid
+                ? styles.androidGoogleButton
+                : [
+                    styles.googleButton,
+                    {
+                      backgroundColor: google.fill,
+                      borderColor: google.stroke,
+                    },
+                  ],
+              isAndroid &&
+                googleBusy && [
+                  styles.androidGoogleButtonLoading,
+                  {
+                    backgroundColor: GOOGLE_BUTTON_BRAND.light.fill,
+                    borderColor: GOOGLE_BUTTON_BRAND.light.stroke,
+                  },
+                ],
+              pressed && styles.googleButtonPressed,
               busy && !googleBusy && styles.googleButtonDisabled,
             ]}
           >
             {googleBusy ? (
-              <ActivityIndicator color="#1f1f1f" />
+              <ActivityIndicator
+                color={isAndroid ? GOOGLE_BUTTON_BRAND.light.text : google.text}
+              />
             ) : isAndroid ? (
               <Image
                 accessible={false}
@@ -302,169 +378,183 @@ export function AuthScreen() {
             ) : (
               <>
                 <GoogleIcon size={20} />
-                <Text style={styles.googleButtonText}>
+                <Text style={[styles.googleButtonText, { color: google.text }]}>
                   Continue with Google
                 </Text>
               </>
             )}
           </Pressable>
           <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with email</Text>
-            <View style={styles.dividerLine} />
+            <View
+              style={[styles.dividerLine, { backgroundColor: theme.separator }]}
+            />
+            <ThemedText type="footnote" themeColor="textSecondary">
+              or continue with email
+            </ThemedText>
+            <View
+              style={[styles.dividerLine, { backgroundColor: theme.separator }]}
+            />
           </View>
         </>
       ) : null}
 
-      <TextInput
-        autoCapitalize="none"
-        autoComplete="email"
-        keyboardType="email-address"
-        placeholder="Email"
-        placeholderTextColor="#8E8E93"
-        returnKeyType={mode === "forgot" ? "done" : "next"}
-        value={email}
-        onChangeText={setEmail}
-        onSubmitEditing={() => {
-          if (mode === "forgot" && email) void submit();
-          else passwordInput.current?.focus();
-        }}
-        style={styles.input}
-      />
-      {mode !== "forgot" ? (
-        <TextInput
+      <Card padded={false} style={styles.inputGroup}>
+        <FormTextInput
+          accessibilityLabel="Email"
           autoCapitalize="none"
-          autoComplete={
-            mode === "sign-in" ? "current-password" : "new-password"
-          }
-          placeholder="Password"
-          placeholderTextColor="#8E8E93"
-          ref={passwordInput}
-          returnKeyType="done"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
+          autoComplete="email"
+          keyboardType="email-address"
+          placeholder="Email"
+          returnKeyType={mode === "forgot" ? "done" : "next"}
+          textContentType="emailAddress"
+          value={email}
+          onChangeText={setEmail}
           onSubmitEditing={() => {
-            if (email && password.length >= 6) void submit();
+            if (mode === "forgot" && email) void submit();
+            else passwordInput.current?.focus();
           }}
-          style={styles.input}
+          style={styles.groupedInput}
         />
-      ) : null}
+        {mode !== "forgot" ? (
+          <>
+            <View
+              style={[
+                styles.inputSeparator,
+                { backgroundColor: theme.separator },
+              ]}
+            />
+            <FormTextInput
+              accessibilityLabel="Password"
+              autoCapitalize="none"
+              autoComplete={
+                mode === "sign-in" ? "current-password" : "new-password"
+              }
+              placeholder="Password"
+              ref={passwordInput}
+              returnKeyType="done"
+              secureTextEntry
+              textContentType={mode === "sign-in" ? "password" : "newPassword"}
+              value={password}
+              onChangeText={setPassword}
+              onSubmitEditing={() => {
+                if (email && password.length >= 6) void submit();
+              }}
+              style={styles.groupedInput}
+            />
+          </>
+        ) : null}
+      </Card>
       {message ? (
-        <Text
+        <ThemedText
           accessibilityLiveRegion="polite"
           accessibilityRole="alert"
-          style={styles.message}
+          type="small"
+          themeColor="warning"
         >
           {message}
-        </Text>
+        </ThemedText>
       ) : null}
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={
+          mode === "forgot"
+            ? "Send reset link"
+            : mode === "sign-in"
+              ? "Sign in"
+              : "Create account"
+        }
+        block
+        loading={emailBusy}
         disabled={busy || !email || (mode !== "forgot" && password.length < 6)}
         onPress={submit}
-        style={styles.primary}
-      >
-        {emailBusy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.primaryText}>
-            {mode === "forgot"
-              ? "Send reset link"
-              : mode === "sign-in"
-                ? "Sign in"
-                : "Create account"}
-          </Text>
-        )}
-      </Pressable>
-      {mode === "sign-in" ? (
-        <Pressable onPress={() => setMode("forgot")}>
-          <Text style={styles.switch}>Forgot password?</Text>
-        </Pressable>
-      ) : null}
-      <Pressable
-        onPress={() =>
-          setMode(
+      />
+      <View style={styles.links}>
+        {mode === "sign-in" ? (
+          <Button
+            label="Forgot password?"
+            variant="plain"
+            style={styles.centerAction}
+            onPress={() => setMode("forgot")}
+          />
+        ) : null}
+        <Button
+          label={
             mode === "sign-in"
-              ? "sign-up"
+              ? "New here? Create an account"
               : mode === "sign-up"
-                ? "sign-in"
-                : "sign-in",
-          )
-        }
-      >
-        <Text style={styles.switch}>
-          {mode === "sign-in"
-            ? "New here? Create an account"
-            : mode === "sign-up"
-              ? "Already have an account? Sign in"
-              : "Back to sign in"}
-        </Text>
-      </Pressable>
+                ? "Already have an account? Sign in"
+                : "Back to sign in"
+          }
+          variant="plain"
+          style={styles.centerAction}
+          onPress={() =>
+            setMode(
+              mode === "sign-in"
+                ? "sign-up"
+                : mode === "sign-up"
+                  ? "sign-in"
+                  : "sign-in",
+            )
+          }
+        />
+      </View>
 
       {getAppVariant() === "dev" ? (
-        <Pressable
+        <Button
           accessibilityLabel="Explore app in preview mode"
-          accessibilityRole="button"
+          label="Explore app preview"
+          variant="tinted"
+          icon="sparkles"
+          block
           onPress={explorePreview}
-          style={styles.previewButton}
-        >
-          <Text style={styles.previewText}>✨ Explore App Preview →</Text>
-        </Pressable>
+        />
       ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f7f8f4" },
+  page: { flex: 1 },
   content: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 28,
-    gap: 14,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
+    paddingVertical: Spacing.five,
+    gap: Spacing.three,
   },
-  eyebrow: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-    color: "#51705d",
+  hero: {
+    alignItems: "center",
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
   },
-  title: { fontSize: 34, fontWeight: "700", color: "#132019", marginBottom: 8 },
+  center: { textAlign: "center" },
+  centerAction: { alignSelf: "center" },
+  links: { gap: Spacing.half },
   appleButton: {
     width: "100%",
-    height: 52,
-    marginTop: 4,
+    height: 50,
   },
   appleButtonLoading: {
-    borderRadius: 14,
-    backgroundColor: "#000000",
+    borderRadius: Radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
   googleButton: {
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: "#ffffff",
+    minHeight: 50,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: "#747775",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
-    marginTop: 4,
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.three,
   },
-  googleButtonPressed: {
-    backgroundColor: "#f8f9fa",
-    borderColor: "#5e615f",
-  },
-  googleButtonDisabled: {
-    opacity: 0.55,
-  },
+  googleButtonPressed: { opacity: 0.82 },
+  googleButtonDisabled: { opacity: 0.55 },
   googleButtonText: {
-    color: "#1f1f1f",
-    fontWeight: "600",
+    fontWeight: "500",
     fontSize: 16,
     letterSpacing: 0.15,
   },
@@ -473,7 +563,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     height: 52,
     justifyContent: "center",
-    marginTop: 4,
     width: 234,
   },
   androidGoogleButtonImage: {
@@ -481,109 +570,33 @@ const styles = StyleSheet.create({
     width: 234,
   },
   androidGoogleButtonLoading: {
-    backgroundColor: "#ffffff",
-    borderColor: "#747775",
-    borderRadius: 26,
+    borderRadius: Radius.pill,
     borderWidth: 1,
-  },
-  androidGoogleButtonPressed: {
-    opacity: 0.82,
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginVertical: 4,
+    marginVertical: Spacing.one,
   },
   dividerLine: {
     flex: 1,
-    height: 1,
-    backgroundColor: "#e0e6e2",
+    height: StyleSheet.hairlineWidth,
   },
-  dividerText: {
-    fontSize: 13,
-    color: "#73887c",
-    fontWeight: "500",
+  inputGroup: { overflow: "hidden" },
+  groupedInput: {
+    minHeight: MinTouchTarget + 6,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    paddingHorizontal: Spacing.three,
   },
-  input: {
-    backgroundColor: "#fff",
-    borderColor: "#d6ded8",
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 16,
-    fontSize: 16,
-    color: "#132019",
-  },
-  message: { color: "#75531b", lineHeight: 20 },
-  primary: {
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#18633d",
-    marginTop: 4,
-  },
-  primaryText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  switch: {
-    textAlign: "center",
-    color: "#18633d",
-    padding: 8,
-    fontWeight: "600",
-  },
-  previewButton: {
-    marginTop: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: "rgba(24, 99, 61, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(24, 99, 61, 0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  previewText: {
-    color: "#18633d",
-    fontWeight: "700",
-    fontSize: 14,
+  inputSeparator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: Spacing.three,
   },
   confirmationCard: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e0e6e2",
-    borderRadius: 16,
-    padding: 24,
     alignItems: "center",
-    gap: 12,
-    marginVertical: 8,
-  },
-  confirmationIcon: {
-    fontSize: 42,
-    marginBottom: 4,
-  },
-  confirmationHeading: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#51705d",
-    textAlign: "center",
-  },
-  confirmationEmail: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#132019",
-    textAlign: "center",
-  },
-  confirmationBody: {
-    fontSize: 14,
-    color: "#73887c",
-    lineHeight: 20,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  resendSuccess: {
-    color: "#18633d",
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 20,
+    padding: Spacing.four,
+    gap: Spacing.two,
   },
 });

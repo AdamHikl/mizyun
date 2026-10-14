@@ -1,14 +1,17 @@
 import { useCallback, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-} from "react-native";
+import { ScrollView, StyleSheet, View, type TextInput } from "react-native";
 
+import { BrandWordmark } from "@/components/brand-wordmark";
+import { ThemedText } from "@/components/themed-text";
+import { Button, Card, FormStatus, FormTextInput } from "@/components/ui";
 import { authClient } from "@/composition/auth-client";
+import {
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Spacing,
+} from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "./auth-context";
 
 /**
@@ -20,6 +23,7 @@ import { useAuth } from "./auth-context";
  * that allows `updateUser({ password })` without re-authentication.
  */
 export function ResetPasswordScreen() {
+  const theme = useTheme();
   const confirmInput = useRef<TextInput>(null);
   const { clearRecoveryState, signOut } = useAuth();
   const [password, setPassword] = useState("");
@@ -66,103 +70,103 @@ export function ResetPasswordScreen() {
       contentContainerStyle={styles.content}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
-      style={styles.page}
+      style={[styles.page, { backgroundColor: theme.background }]}
     >
-      <Text style={styles.eyebrow}>RESET PASSWORD</Text>
-      <Text style={styles.title}>Choose a new password</Text>
-      <Text style={styles.body}>
-        Your account is verified. Set a new password to finish the reset.
-      </Text>
-      <TextInput
-        autoCapitalize="none"
-        autoComplete="new-password"
-        placeholder="New password"
-        placeholderTextColor="#8E8E93"
-        returnKeyType="next"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        onSubmitEditing={() => confirmInput.current?.focus()}
-        style={styles.input}
-      />
-      <TextInput
-        autoCapitalize="none"
-        autoComplete="new-password"
-        placeholder="Confirm new password"
-        placeholderTextColor="#8E8E93"
-        ref={confirmInput}
-        returnKeyType="done"
-        secureTextEntry
-        value={confirm}
-        onChangeText={setConfirm}
-        onSubmitEditing={() => {
-          if (ready) void submit();
-        }}
-        style={styles.input}
-      />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {message ? <Text style={styles.message}>{message}</Text> : null}
-      <Pressable
-        accessibilityRole="button"
+      <View style={styles.hero}>
+        <BrandWordmark />
+        <ThemedText type="subtitle" style={styles.center}>
+          Choose a new password
+        </ThemedText>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          style={styles.center}
+        >
+          Your account is verified. Set a new password to finish the reset.
+        </ThemedText>
+      </View>
+      <Card padded={false} style={styles.inputGroup}>
+        <FormTextInput
+          accessibilityLabel="New password"
+          autoCapitalize="none"
+          autoComplete="new-password"
+          placeholder="New password"
+          returnKeyType="next"
+          secureTextEntry
+          textContentType="newPassword"
+          value={password}
+          onChangeText={setPassword}
+          onSubmitEditing={() => confirmInput.current?.focus()}
+          style={styles.groupedInput}
+        />
+        <View
+          style={[styles.inputSeparator, { backgroundColor: theme.separator }]}
+        />
+        <FormTextInput
+          accessibilityLabel="Confirm new password"
+          autoCapitalize="none"
+          autoComplete="new-password"
+          placeholder="Confirm new password"
+          ref={confirmInput}
+          returnKeyType="done"
+          secureTextEntry
+          textContentType="newPassword"
+          value={confirm}
+          onChangeText={setConfirm}
+          onSubmitEditing={() => {
+            if (ready) void submit();
+          }}
+          style={styles.groupedInput}
+        />
+      </Card>
+      {error ? <FormStatus tone="error">{error}</FormStatus> : null}
+      {message ? <FormStatus tone="success">{message}</FormStatus> : null}
+      <Button
         accessibilityLabel="Save new password"
+        label="Save new password"
+        block
+        loading={busy}
         disabled={!ready}
         onPress={submit}
-        style={[styles.primary, !ready && styles.primaryDisabled]}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.primaryText}>Save new password</Text>
-        )}
-      </Pressable>
-      <Pressable accessibilityRole="button" onPress={cancel}>
-        <Text style={styles.cancel}>Cancel and sign out</Text>
-      </Pressable>
+      />
+      <Button
+        label="Cancel and sign out"
+        variant="plain"
+        style={styles.centerAction}
+        onPress={cancel}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f7f8f4" },
+  page: { flex: 1 },
   content: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 28,
-    gap: 14,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
+    paddingVertical: Spacing.five,
+    gap: Spacing.three,
   },
-  eyebrow: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-    color: "#51705d",
-  },
-  title: { fontSize: 30, fontWeight: "700", color: "#132019", marginBottom: 8 },
-  body: { fontSize: 16, lineHeight: 24, color: "#4d5c53" },
-  input: {
-    backgroundColor: "#fff",
-    borderColor: "#d6ded8",
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 16,
-    fontSize: 16,
-    color: "#132019",
-  },
-  error: { color: "#a13a25", lineHeight: 20 },
-  message: { color: "#18633d", lineHeight: 20 },
-  primary: {
-    minHeight: 52,
-    borderRadius: 14,
+  hero: {
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#18633d",
-    marginTop: 4,
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
   },
-  primaryDisabled: { opacity: 0.5 },
-  primaryText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  cancel: {
-    textAlign: "center",
-    color: "#18633d",
-    padding: 10,
-    fontWeight: "600",
+  center: { textAlign: "center" },
+  centerAction: { alignSelf: "center" },
+  inputGroup: { overflow: "hidden" },
+  groupedInput: {
+    minHeight: MinTouchTarget + 6,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    paddingHorizontal: Spacing.three,
+  },
+  inputSeparator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: Spacing.three,
   },
 });

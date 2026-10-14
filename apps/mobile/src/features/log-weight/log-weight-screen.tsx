@@ -1,10 +1,4 @@
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,9 +7,21 @@ import { useLoggingFlowMeasurement } from "@/features/analytics/flow-measurement
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  PageGutter,
+  Spacing,
+} from "@/constants/theme";
+import {
+  Button,
+  Card,
+  FormField,
+  FormStatus,
+  FormTextInput,
+  Notice,
+} from "@/components/ui";
 import { useAuth } from "@/features/auth/auth-context";
-import { useTheme } from "@/hooks/use-theme";
 import {
   classifyAnalyticsFailure,
   isRetryableAnalyticsFailure,
@@ -36,7 +42,6 @@ import {
 
 export function LogWeightScreen() {
   const { profile, session } = useAuth();
-  const theme = useTheme();
   const [weight, setWeight] = useState("");
   const [waist, setWaist] = useState("");
   const [chest, setChest] = useState("");
@@ -239,82 +244,77 @@ export function LogWeightScreen() {
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
-          <ThemedText type="subtitle">
-            {pending !== null && canSave
-              ? "Pending measurement."
-              : "Today's measurement."}
-          </ThemedText>
-          <ThemedText themeColor="textSecondary" type="small">
+          {pending !== null && canSave ? (
+            <Notice
+              tone="info"
+              title="Pending measurement"
+              message="A measurement save is pending. Retry the original values to confirm it before recording another measurement."
+            />
+          ) : null}
+
+          <Card>
+            <Field
+              testID="body-weight-input"
+              label={`Weight (${unitLabel})`}
+              value={canSave ? weight : ""}
+              editable={canEdit}
+              onChangeText={setWeight}
+              onFocus={() => measurement.current?.tap()}
+              placeholder="72.5"
+              keyboardType="numeric"
+              autoFocus
+            />
+
+            <Field
+              testID="body-waist-input"
+              label={`Waist (${lengthUnitLabel(unitSystem)}, optional)`}
+              value={canSave ? waist : ""}
+              editable={canEdit}
+              onChangeText={setWaist}
+              onFocus={() => measurement.current?.tap()}
+              placeholder="81"
+              keyboardType="numeric"
+            />
+
+            <Field
+              testID="body-chest-input"
+              label={`Chest (${lengthUnitLabel(unitSystem)}, optional)`}
+              value={canSave ? chest : ""}
+              editable={canEdit}
+              onChangeText={setChest}
+              onFocus={() => measurement.current?.tap()}
+              placeholder="100"
+              keyboardType="numeric"
+            />
+          </Card>
+
+          <ThemedText type="footnote" themeColor="textSecondary">
             Weight is optional when you only want to record a body measurement.
             Mizyun stores canonical metric values without changing what you see.
           </ThemedText>
 
-          <Field
-            testID="body-weight-input"
-            label={`Weight (${unitLabel})`}
-            value={canSave ? weight : ""}
-            editable={canEdit}
-            onChangeText={setWeight}
-            onFocus={() => measurement.current?.tap()}
-            placeholder="72.5"
-            keyboardType="numeric"
-            autoFocus
-            inputColor={theme.text}
-          />
-
-          <Field
-            testID="body-waist-input"
-            label={`Waist (${lengthUnitLabel(unitSystem)}, optional)`}
-            value={canSave ? waist : ""}
-            editable={canEdit}
-            onChangeText={setWaist}
-            onFocus={() => measurement.current?.tap()}
-            placeholder="81"
-            keyboardType="numeric"
-            inputColor={theme.text}
-          />
-
-          <Field
-            testID="body-chest-input"
-            label={`Chest (${lengthUnitLabel(unitSystem)}, optional)`}
-            value={canSave ? chest : ""}
-            editable={canEdit}
-            onChangeText={setChest}
-            onFocus={() => measurement.current?.tap()}
-            placeholder="100"
-            keyboardType="numeric"
-            inputColor={theme.text}
-          />
-
           {error !== null ? (
-            <ThemedText
-              type="small"
-              themeColor="textSecondary"
-              style={styles.errorText}
-              accessibilityRole="alert"
-            >
-              {error}
-            </ThemedText>
-          ) : null}
-
-          {pending !== null && canSave ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              A measurement save is pending. Retry the original values to
-              confirm it before recording another measurement.
-            </ThemedText>
+            <FormStatus tone="error">{error}</FormStatus>
           ) : null}
 
           {!canSave && error !== null ? (
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label="Retry draft recovery"
+              variant="tinted"
               onPress={() => setRecoveryAttempt((current) => current + 1)}
-            >
-              <ThemedText>Retry draft recovery</ThemedText>
-            </Pressable>
+            />
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={
+              submitting
+                ? "Saving…"
+                : pending !== null
+                  ? "Retry measurement"
+                  : "Save measurement"
+            }
+            variant="primary"
+            block
             disabled={submitting || !canSave}
             accessibilityState={{
               disabled: submitting || !canSave,
@@ -323,19 +323,7 @@ export function LogWeightScreen() {
             onPress={() => {
               void onSubmit();
             }}
-            style={({ pressed }) => [
-              styles.submit,
-              (pressed || submitting) && styles.submitPressed,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.submitText}>
-              {submitting
-                ? "Saving…"
-                : pending !== null
-                  ? "Retry measurement"
-                  : "Save measurement"}
-            </ThemedText>
-          </Pressable>
+          />
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -351,28 +339,22 @@ function Field(props: {
   readonly placeholder?: string;
   readonly autoFocus?: boolean;
   readonly keyboardType?: "default" | "numeric";
-  readonly inputColor: string;
   readonly editable: boolean;
 }) {
   return (
-    <View style={styles.field}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {props.label}
-      </ThemedText>
-      <TextInput
+    <FormField label={props.label}>
+      <FormTextInput
         testID={props.testID}
         value={props.value}
         editable={props.editable}
         onChangeText={props.onChangeText}
         onFocus={props.onFocus}
         placeholder={props.placeholder}
-        placeholderTextColor="#8A8D91"
         autoFocus={props.autoFocus === true}
         keyboardType={props.keyboardType ?? "default"}
         accessibilityLabel={props.label}
-        style={[styles.input, { color: props.inputColor }]}
       />
-    </View>
+    </FormField>
   );
 }
 
@@ -383,32 +365,11 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.three,
   },
-  field: { gap: Spacing.one },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 16,
-  },
-  submit: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F1F23",
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    alignItems: "center",
-    backgroundColor: "#1F1F23",
-  },
-  submitText: {
-    color: "#FFFFFF",
-  },
-  submitPressed: { opacity: 0.65 },
-  errorText: { marginTop: Spacing.one },
 });
 
 interface WeightDraft {

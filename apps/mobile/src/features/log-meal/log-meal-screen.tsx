@@ -1,10 +1,8 @@
 import {
-  ActivityIndicator,
   Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,11 +20,23 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
-  Colors,
   BottomTabInset,
   MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
   Spacing,
 } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  Chip,
+  FormStatus,
+  FormTextInput,
+  Icon,
+  IconButton,
+  SectionHeader,
+} from "@/components/ui";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -1536,15 +1546,18 @@ export function LogMealScreen() {
   const calorieHint =
     calories.trim().length > 0 ? "calories recorded" : "calories optional";
 
+  const inputsLocked = snapping || refining || submitting;
+  const photoActionsDisabled = snapping || submitting || refining;
+
   return (
     <ThemedView style={styles.page}>
       <Stack.Screen
         options={{
           title: "Log a meal",
           headerLeft: () => (
-            <Pressable
+            <IconButton
+              icon="close"
               testID="close-meal-header-button"
-              accessibilityRole="button"
               accessibilityLabel="Close meal entry"
               accessibilityHint="Keeps your meal draft for later."
               disabled={!draftLoaded || submitting || snapping || refining}
@@ -1555,18 +1568,14 @@ export function LogMealScreen() {
                 photoSelectionGeneration.current++;
                 router.back();
               }}
-              style={({ pressed }) => [
-                styles.headerSaveButton,
-                pressed && styles.snapPressed,
-              ]}
-            >
-              <ThemedText type="smallBold">Close</ThemedText>
-            </Pressable>
+            />
           ),
           headerRight: () => (
-            <Pressable
+            <Button
               testID="save-meal-header-button"
-              accessibilityRole="button"
+              variant="plain"
+              size="small"
+              label={submitting ? "Saving…" : "Save"}
               accessibilityLabel="Save meal"
               disabled={!draftLoaded || submitting || snapping || refining}
               accessibilityState={{
@@ -1576,15 +1585,7 @@ export function LogMealScreen() {
               onPress={() => {
                 void onSubmit();
               }}
-              style={({ pressed }) => [
-                styles.headerSaveButton,
-                pressed && styles.snapPressed,
-              ]}
-            >
-              <ThemedText type="smallBold">
-                {submitting ? "Saving…" : "Save"}
-              </ThemedText>
-            </Pressable>
+            />
           ),
         }}
       />
@@ -1596,626 +1597,575 @@ export function LogMealScreen() {
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
-          {params.date !== undefined || mealDate !== null ? (
-            <ThemedText testID="meal-selected-date" type="smallBold">
-              {invalidMealDate
-                ? "Invalid meal date. Return to Meals and choose a day."
-                : `Logging for ${new Date(consumedAt ?? mealTimestampForDate(mealDate ?? requestedDate!)).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`}
-            </ThemedText>
-          ) : null}
-          {recoveredDifferentDay ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              Recovered your existing draft on its original day. Use Clear to
-              start a meal on the selected day, or go back and finish this draft
-              first.
-            </ThemedText>
-          ) : null}
-          {error !== null ? (
-            <ThemedText
-              type="small"
-              themeColor="textSecondary"
-              style={styles.errorText}
-              accessibilityRole="alert"
-            >
-              {error}
-            </ThemedText>
+          {params.date !== undefined ||
+          mealDate !== null ||
+          recoveredDifferentDay ||
+          error !== null ? (
+            <View style={styles.messages}>
+              {params.date !== undefined || mealDate !== null ? (
+                <ThemedText
+                  testID="meal-selected-date"
+                  type="smallBold"
+                  themeColor={invalidMealDate ? "danger" : "text"}
+                >
+                  {invalidMealDate
+                    ? "Invalid meal date. Return to Meals and choose a day."
+                    : `Logging for ${new Date(consumedAt ?? mealTimestampForDate(mealDate ?? requestedDate!)).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`}
+                </ThemedText>
+              ) : null}
+              {recoveredDifferentDay ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Recovered your existing draft on its original day. Use Clear
+                  to start a meal on the selected day, or go back and finish
+                  this draft first.
+                </ThemedText>
+              ) : null}
+              {error !== null ? (
+                <FormStatus tone="error">{error}</FormStatus>
+              ) : null}
+            </View>
           ) : null}
 
-          <ThemedText type="subtitle">What did you eat?</ThemedText>
-          <ThemedText themeColor="textSecondary" type="small">
-            Choose a recent meal or enter a name. Nutrition values are optional.
-          </ThemedText>
-
-          {uniqueRecentMeals.length > 0 ? (
-            <View style={styles.recentMealsContainer}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                Quick meal reuse
-              </ThemedText>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.recentMealsScroll}
-              >
-                {uniqueRecentMeals.map((meal: FoodEntry) => (
-                  <Pressable
-                    key={meal.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Reuse meal ${meal.name}`}
-                    disabled={snapping || refining || submitting}
-                    onPress={() => onSelectRecentMeal(meal)}
-                    style={({ pressed }) => [
-                      styles.recentMealChip,
-                      pressed && styles.snapPressed,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor:
-                          theme.background === Colors.light.background
-                            ? "#FFFFFF"
-                            : "rgba(255, 255, 255, 0.05)",
-                      },
-                    ]}
+          <View style={styles.section}>
+            <SectionHeader title="What did you eat?" />
+            <ThemedText themeColor="textSecondary" type="small">
+              Choose a recent meal or enter a name. Nutrition values are
+              optional.
+            </ThemedText>
+            <Card style={styles.cardStack}>
+              {uniqueRecentMeals.length > 0 ? (
+                <View style={styles.recentMealsContainer}>
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    Quick meal reuse
+                  </ThemedText>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.recentMealsScroll}
                   >
-                    <ThemedText type="smallBold" numberOfLines={1}>
-                      {meal.name}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {meal.caloriesKcal != null
-                        ? `${meal.caloriesKcal} kcal`
-                        : "—"}
-                      {meal.proteinG != null ? ` · ${meal.proteinG}P` : ""}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          ) : null}
-
-          <Field
-            testID="meal-name-input"
-            label="Meal name (required)"
-            value={name}
-            onChangeText={setName}
-            onFocus={() => measurement.current?.tap()}
-            placeholder="e.g. Toast with butter"
-            autoFocus
-            inputColor={theme.text}
-            editable={!snapping && !refining && !submitting}
-          />
-
-          <ThemedText type="smallBold">Estimate nutrition with AI</ThemedText>
-          <ThemedText themeColor="textSecondary" type="small">
-            Optional: describe your meal or attach a photo. Your description and
-            photo are sent together for an estimate. Review before saving.
-          </ThemedText>
-
-          <TextInput
-            testID="meal-description-input"
-            accessibilityLabel="Describe meal for AI draft"
-            multiline
-            maxLength={1_000}
-            placeholder="Describe food and portions, e.g. two eggs, toast, and a teaspoon of butter"
-            placeholderTextColor="#8A8D91"
-            value={mealDescription}
-            onChangeText={setMealDescription}
-            style={[styles.input, styles.description, { color: theme.text }]}
-          />
-
-          {attachedPhotos.map((attachedPhoto, index) => (
-            <View key={attachedPhoto.uri} style={styles.attachedPhotoCard}>
-              <Image
-                source={attachedPhoto.uri}
-                style={styles.attachedPhotoImage}
-                contentFit="cover"
-                cachePolicy="none"
-                accessibilityLabel="Attached meal photo"
-              />
-              <View style={styles.attachedPhotoInfo}>
-                <ThemedText type="smallBold">
-                  📷 Photo {index + 1} of {attachedPhotos.length}
-                </ThemedText>
-                <ThemedText themeColor="textSecondary" type="small">
-                  {canKeepMealPhoto
-                    ? "Optional photo · AI processing is separate"
-                    : "Ready to process with your description"}
-                </ThemedText>
-              </View>
-              {canKeepMealPhoto && keepPhoto && attachedPhotos.length > 1 ? (
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{
-                    checked: selectedPhotoUri === attachedPhoto.uri,
-                  }}
-                  accessibilityLabel={`Keep photo ${index + 1} with this meal`}
-                  disabled={snapping || submitting || refining}
-                  onPress={() => setSelectedPhotoUri(attachedPhoto.uri)}
-                  style={styles.removePhotoButton}
-                >
-                  <ThemedText type="smallBold">
-                    {selectedPhotoUri === attachedPhoto.uri
-                      ? "Selected"
-                      : "Keep this"}
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove attached photo ${index + 1}`}
-                disabled={snapping || submitting || refining}
-                onPress={() => onRemovePhoto(index)}
-                style={({ pressed }) => [
-                  styles.removePhotoButton,
-                  pressed && styles.snapPressed,
-                ]}
-              >
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  ✕ Remove
-                </ThemedText>
-              </Pressable>
-            </View>
-          ))}
-          {canKeepMealPhoto && attachedPhotos.length > 0 ? (
-            <Pressable
-              testID="keep-meal-photo-toggle"
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: keepPhoto }}
-              disabled={submitting || snapping || refining}
-              onPress={() => setKeepPhoto((value) => !value)}
-              style={styles.keepPhotoChoice}
-            >
-              <ThemedText type="smallBold">
-                {keepPhoto ? "☑" : "☐"} Keep photo with meal
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                One compressed photo. You can remove it later. A failed upload
-                can be retried from Meals.
-              </ThemedText>
-            </Pressable>
-          ) : null}
-          <ThemedText type="small" themeColor="textSecondary">
-            {advancedCapability.enabled
-              ? "Up to 3 photos · multiple angles or separate meals. Describe which photos belong together."
-              : "1 photo per request · Pro supports up to 3."}
-          </ThemedText>
-          {pendingPhotoDrafts.length > 0 ? (
-            <ThemedText type="smallBold">
-              Review this meal, then {pendingPhotoDrafts.length} more. Each meal
-              needs its own Save.
-            </ThemedText>
-          ) : null}
-          {attachedPhotos.length > 0 &&
-          attachedPhotos.length < (advancedCapability.enabled ? 3 : 1) ? (
-            <View style={styles.photoRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add meal photos"
-                disabled={snapping || submitting || refining}
-                onPress={() => void onChoosePhoto()}
-                style={styles.snapButton}
-              >
-                <ThemedText type="smallBold">Add photos</ThemedText>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Take another meal photo"
-                disabled={snapping || submitting || refining}
-                onPress={() => void onTakePhoto()}
-                style={styles.snapButton}
-              >
-                <ThemedText type="smallBold">Take photo</ThemedText>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {attachedPhotos.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              testID="process-meal-photo-button"
-              accessibilityLabel="Process photo with AI"
-              accessibilityHint="Send the attached photo and your description to Mizyun to generate a meal draft with estimated portion weight, calories, and macros."
-              disabled={snapping || submitting || refining}
-              accessibilityState={{
-                busy: snapping,
-                disabled: snapping || submitting || refining,
-              }}
-              onPress={() => {
-                void onProcessPhoto();
-              }}
-              style={({ pressed }) => [
-                styles.processButton,
-                (pressed || snapping) && styles.processButtonPressed,
-              ]}
-            >
-              {snapping ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#FFFFFF"
-                  accessibilityLabel="Analysing photo"
-                />
-              ) : (
-                <ThemedText type="smallBold" style={styles.processButtonText}>
-                  ✨ Process {attachedPhotos.length > 1 ? "photos" : "photo"}{" "}
-                  with AI
-                </ThemedText>
-              )}
-            </Pressable>
-          ) : (
-            <>
-              {mealDescription.trim().length >= 2 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Draft from description"
-                  disabled={snapping || submitting || refining}
-                  accessibilityState={{
-                    busy: snapping,
-                    disabled: snapping || submitting || refining,
-                  }}
-                  onPress={() => void onTextDraft()}
-                  style={({ pressed }) => [
-                    styles.snap,
-                    (pressed || snapping) && styles.snapPressed,
-                  ]}
-                >
-                  {snapping ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={theme.text}
-                      accessibilityLabel="Analysing description"
-                    />
-                  ) : (
-                    <ThemedText type="smallBold">
-                      ✨ Draft from description
-                    </ThemedText>
-                  )}
-                </Pressable>
-              ) : null}
-
-              <View style={styles.photoRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  testID="take-meal-photo-button"
-                  accessibilityLabel="Take a meal photo"
-                  accessibilityHint="Open the camera to take a meal photo and attach it to this entry."
-                  disabled={snapping || submitting || refining}
-                  accessibilityState={{
-                    disabled: snapping || submitting || refining,
-                  }}
-                  onPress={() => {
-                    void onTakePhoto();
-                  }}
-                  style={({ pressed }) => [
-                    styles.snapButton,
-                    pressed && styles.snapPressed,
-                  ]}
-                >
-                  <ThemedText type="smallBold">📸 Take photo</ThemedText>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  testID="snap-meal-button"
-                  accessibilityLabel="Choose a meal photo"
-                  accessibilityHint="Open the photo library to pick a meal photo and attach it to this entry."
-                  disabled={snapping || submitting || refining}
-                  accessibilityState={{
-                    disabled: snapping || submitting || refining,
-                  }}
-                  onPress={() => {
-                    void onChoosePhoto();
-                  }}
-                  style={({ pressed }) => [
-                    styles.snapButton,
-                    pressed && styles.snapPressed,
-                  ]}
-                >
-                  <ThemedText type="smallBold">🖼️ Choose photo</ThemedText>
-                </Pressable>
-              </View>
-
-              {aiUsage !== null ? (
-                <View style={styles.quotaBadgeRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    📷 {aiUsage.photos.draftsRemaining} of{" "}
-                    {aiUsage.photos.dailyLimit} photo scans left today
-                    {aiUsage.planTier === "free" ? " (Free)" : " (Pro)"}
-                  </ThemedText>
+                    {uniqueRecentMeals.map((meal: FoodEntry) => (
+                      <Pressable
+                        key={meal.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Reuse meal ${meal.name}`}
+                        disabled={snapping || refining || submitting}
+                        onPress={() => onSelectRecentMeal(meal)}
+                        style={({ pressed }) => [
+                          styles.recentMealChip,
+                          { backgroundColor: theme.backgroundSelected },
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <ThemedText type="smallBold" numberOfLines={1}>
+                          {meal.name}
+                        </ThemedText>
+                        <ThemedText type="footnote" themeColor="textSecondary">
+                          {meal.caloriesKcal != null
+                            ? `${meal.caloriesKcal} kcal`
+                            : "—"}
+                          {meal.proteinG != null ? ` · ${meal.proteinG}P` : ""}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
                 </View>
               ) : null}
-            </>
-          )}
+
+              <Field
+                testID="meal-name-input"
+                label="Meal name (required)"
+                value={name}
+                onChangeText={setName}
+                onFocus={() => measurement.current?.tap()}
+                placeholder="e.g. Toast with butter"
+                autoFocus
+                editable={!inputsLocked}
+              />
+            </Card>
+          </View>
+
+          <View style={styles.section}>
+            <SectionHeader title="Estimate nutrition with AI" />
+            <ThemedText themeColor="textSecondary" type="small">
+              Optional: describe your meal or attach a photo. Your description
+              and photo are sent together for an estimate. Review before saving.
+            </ThemedText>
+            <Card style={styles.cardStack}>
+              <FormTextInput
+                testID="meal-description-input"
+                accessibilityLabel="Describe meal for AI draft"
+                multiline
+                maxLength={1_000}
+                placeholder="Describe food and portions, e.g. two eggs, toast, and a teaspoon of butter"
+                value={mealDescription}
+                onChangeText={setMealDescription}
+                style={styles.description}
+              />
+
+              {attachedPhotos.map((attachedPhoto, index) => (
+                <View
+                  key={attachedPhoto.uri}
+                  style={[
+                    styles.attachedPhotoCard,
+                    { backgroundColor: theme.backgroundSelected },
+                  ]}
+                >
+                  <Image
+                    source={attachedPhoto.uri}
+                    style={styles.attachedPhotoImage}
+                    contentFit="cover"
+                    cachePolicy="none"
+                    accessibilityLabel="Attached meal photo"
+                  />
+                  <View style={styles.attachedPhotoInfo}>
+                    <ThemedText type="smallBold">
+                      Photo {index + 1} of {attachedPhotos.length}
+                    </ThemedText>
+                    <ThemedText themeColor="textSecondary" type="footnote">
+                      {canKeepMealPhoto
+                        ? "Optional photo · AI processing is separate"
+                        : "Ready to process with your description"}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.attachedPhotoActions}>
+                    {canKeepMealPhoto &&
+                    keepPhoto &&
+                    attachedPhotos.length > 1 ? (
+                      <Chip
+                        accessibilityRole="radio"
+                        accessibilityState={{
+                          checked: selectedPhotoUri === attachedPhoto.uri,
+                        }}
+                        accessibilityLabel={`Keep photo ${index + 1} with this meal`}
+                        label={
+                          selectedPhotoUri === attachedPhoto.uri
+                            ? "Selected"
+                            : "Keep this"
+                        }
+                        selected={selectedPhotoUri === attachedPhoto.uri}
+                        disabled={photoActionsDisabled}
+                        onPress={() => setSelectedPhotoUri(attachedPhoto.uri)}
+                      />
+                    ) : null}
+                    <Button
+                      variant="plain"
+                      size="small"
+                      icon="close"
+                      label="Remove"
+                      accessibilityLabel={`Remove attached photo ${index + 1}`}
+                      disabled={photoActionsDisabled}
+                      onPress={() => onRemovePhoto(index)}
+                    />
+                  </View>
+                </View>
+              ))}
+              {canKeepMealPhoto && attachedPhotos.length > 0 ? (
+                <Pressable
+                  testID="keep-meal-photo-toggle"
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: keepPhoto }}
+                  disabled={submitting || snapping || refining}
+                  onPress={() => setKeepPhoto((value) => !value)}
+                  style={styles.keepPhotoChoice}
+                >
+                  {keepPhoto ? (
+                    <Icon name="checkCircle" size={24} color="primary" />
+                  ) : (
+                    <View
+                      style={[
+                        styles.checkOff,
+                        { borderColor: theme.textTertiary },
+                      ]}
+                    />
+                  )}
+                  <View style={styles.keepPhotoText}>
+                    <ThemedText type="smallBold">
+                      Keep photo with meal
+                    </ThemedText>
+                    <ThemedText type="footnote" themeColor="textSecondary">
+                      One compressed photo. You can remove it later. A failed
+                      upload can be retried from Meals.
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              ) : null}
+              <ThemedText type="footnote" themeColor="textSecondary">
+                {advancedCapability.enabled
+                  ? "Up to 3 photos · multiple angles or separate meals. Describe which photos belong together."
+                  : "1 photo per request · Pro supports up to 3."}
+              </ThemedText>
+              {pendingPhotoDrafts.length > 0 ? (
+                <ThemedText type="smallBold">
+                  Review this meal, then {pendingPhotoDrafts.length} more. Each
+                  meal needs its own Save.
+                </ThemedText>
+              ) : null}
+              {attachedPhotos.length > 0 &&
+              attachedPhotos.length < (advancedCapability.enabled ? 3 : 1) ? (
+                <View style={styles.photoRow}>
+                  <Button
+                    variant="secondary"
+                    icon="photo"
+                    label="Add photos"
+                    accessibilityLabel="Add meal photos"
+                    disabled={photoActionsDisabled}
+                    onPress={() => void onChoosePhoto()}
+                    style={styles.photoButton}
+                  />
+                  <Button
+                    variant="secondary"
+                    icon="camera"
+                    label="Take photo"
+                    accessibilityLabel="Take another meal photo"
+                    disabled={photoActionsDisabled}
+                    onPress={() => void onTakePhoto()}
+                    style={styles.photoButton}
+                  />
+                </View>
+              ) : null}
+
+              {attachedPhotos.length > 0 ? (
+                <Button
+                  variant="tinted"
+                  icon="sparkles"
+                  block
+                  testID="process-meal-photo-button"
+                  label={`Process ${attachedPhotos.length > 1 ? "photos" : "photo"} with AI`}
+                  accessibilityLabel="Process photo with AI"
+                  accessibilityHint="Send the attached photo and your description to Mizyun to generate a meal draft with estimated portion weight, calories, and macros."
+                  accessibilityValue={
+                    snapping ? { text: "Analysing photo" } : undefined
+                  }
+                  loading={snapping}
+                  disabled={snapping || submitting || refining}
+                  onPress={() => {
+                    void onProcessPhoto();
+                  }}
+                />
+              ) : (
+                <>
+                  {mealDescription.trim().length >= 2 ? (
+                    <Button
+                      variant="tinted"
+                      icon="sparkles"
+                      block
+                      label="Draft from description"
+                      accessibilityLabel="Draft from description"
+                      accessibilityValue={
+                        snapping ? { text: "Analysing description" } : undefined
+                      }
+                      loading={snapping}
+                      disabled={snapping || submitting || refining}
+                      onPress={() => void onTextDraft()}
+                    />
+                  ) : null}
+
+                  <View style={styles.photoRow}>
+                    <Button
+                      variant="secondary"
+                      icon="camera"
+                      testID="take-meal-photo-button"
+                      label="Take photo"
+                      accessibilityLabel="Take a meal photo"
+                      accessibilityHint="Open the camera to take a meal photo and attach it to this entry."
+                      disabled={photoActionsDisabled}
+                      onPress={() => {
+                        void onTakePhoto();
+                      }}
+                      style={styles.photoButton}
+                    />
+                    <Button
+                      variant="secondary"
+                      icon="photo"
+                      testID="snap-meal-button"
+                      label="Choose photo"
+                      accessibilityLabel="Choose a meal photo"
+                      accessibilityHint="Open the photo library to pick a meal photo and attach it to this entry."
+                      disabled={photoActionsDisabled}
+                      onPress={() => {
+                        void onChoosePhoto();
+                      }}
+                      style={styles.photoButton}
+                    />
+                  </View>
+
+                  {aiUsage !== null ? (
+                    <View style={styles.quotaBadgeRow}>
+                      <Icon name="camera" size={14} color="textSecondary" />
+                      <ThemedText type="footnote" themeColor="textSecondary">
+                        {aiUsage.photos.draftsRemaining} of{" "}
+                        {aiUsage.photos.dailyLimit} photo scans left today
+                        {aiUsage.planTier === "free" ? " (Free)" : " (Pro)"}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                </>
+              )}
+            </Card>
+          </View>
 
           {draftWarnings.length > 0 ? (
-            <ThemedView
-              type="backgroundElement"
-              style={styles.warnings}
-              accessibilityRole="alert"
-            >
+            <Card style={styles.warnings} accessibilityRole="alert">
               {draftWarnings.map((warning) => (
                 <ThemedText
                   key={warning}
                   type="small"
                   themeColor="textSecondary"
-                  style={{ marginVertical: 1 }}
                 >
                   {warning}
                 </ThemedText>
               ))}
-            </ThemedView>
+            </Card>
           ) : null}
 
-          {aiDraft === null ? (
-            <View style={styles.field}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Nutrition values
-              </ThemedText>
-              <View style={styles.basisRow}>
-                {(
-                  [
-                    ["total", "For this portion"],
-                    ["per100g", "Per 100 g"],
-                  ] as const
-                ).map(([basis, label]) => (
-                  <Pressable
-                    key={basis}
-                    testID={`meal-basis-${basis}`}
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    accessibilityHint={
-                      basis === "per100g"
-                        ? "Enter food label values per 100 grams and a food weight to calculate totals."
-                        : "Enter the totals for the portion you ate."
-                    }
-                    accessibilityState={{
-                      selected: nutritionBasis === basis,
-                      disabled:
-                        submitting || snapping || refining || !draftLoaded,
-                    }}
-                    disabled={
-                      submitting || snapping || refining || !draftLoaded
-                    }
-                    onPress={() => {
-                      measurement.current?.tap();
-                      setNutritionBasis(basis);
-                    }}
-                    style={[
-                      styles.basisButton,
-                      {
-                        borderColor:
-                          nutritionBasis === basis ? theme.text : theme.border,
-                      },
-                    ]}
-                  >
-                    <ThemedText type="smallBold">{label}</ThemedText>
-                  </Pressable>
-                ))}
+          <View style={styles.section}>
+            <SectionHeader title="Nutrition" />
+            <Card style={styles.cardStack}>
+              {aiDraft === null ? (
+                <View style={styles.field}>
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    Nutrition values
+                  </ThemedText>
+                  <View style={styles.basisRow}>
+                    {(
+                      [
+                        ["total", "For this portion"],
+                        ["per100g", "Per 100 g"],
+                      ] as const
+                    ).map(([basis, label]) => (
+                      <Chip
+                        key={basis}
+                        testID={`meal-basis-${basis}`}
+                        label={label}
+                        selected={nutritionBasis === basis}
+                        accessibilityLabel={label}
+                        accessibilityHint={
+                          basis === "per100g"
+                            ? "Enter food label values per 100 grams and a food weight to calculate totals."
+                            : "Enter the totals for the portion you ate."
+                        }
+                        accessibilityState={{
+                          selected: nutritionBasis === basis,
+                          disabled:
+                            submitting || snapping || refining || !draftLoaded,
+                        }}
+                        disabled={
+                          submitting || snapping || refining || !draftLoaded
+                        }
+                        onPress={() => {
+                          measurement.current?.tap();
+                          setNutritionBasis(basis);
+                        }}
+                        style={styles.basisChip}
+                      />
+                    ))}
+                  </View>
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    {per100g
+                      ? "Enter all nutrient values per 100 g from the food label. Totals = label values × food weight ÷ 100."
+                      : "Enter the nutrition totals for the portion you ate."}
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              <Field
+                testID="meal-portion-weight-input"
+                label={per100g ? "Food weight (g)" : "Portion weight (g)"}
+                value={portionGrams}
+                onChangeText={setPortionGrams}
+                onFocus={() => measurement.current?.tap()}
+                placeholder="e.g. 320"
+                keyboardType="decimal-pad"
+                helperText={
+                  per100g
+                    ? "required for values per 100 g"
+                    : aiDraft?.portionWeightG != null
+                      ? "AI estimate — review before saving"
+                      : "optional"
+                }
+                editable={!inputsLocked}
+              />
+
+              <Field
+                testID="meal-calories-input"
+                label={per100g ? "Calories (kcal / 100 g)" : "Calories (kcal)"}
+                value={calories}
+                onChangeText={setCalories}
+                onFocus={() => measurement.current?.tap()}
+                placeholder="0"
+                keyboardType="decimal-pad"
+                helperText={calorieHint}
+                editable={!inputsLocked}
+              />
+
+              <View style={styles.macroRow}>
+                <View style={styles.macroField}>
+                  <Field
+                    testID="meal-protein-input"
+                    label={per100g ? "Protein (g / 100 g)" : "Protein (g)"}
+                    accent="protein"
+                    value={protein}
+                    onChangeText={setProtein}
+                    onFocus={() => measurement.current?.tap()}
+                    placeholder="0"
+                    keyboardType="decimal-pad"
+                    editable={!inputsLocked}
+                  />
+                </View>
+                <View style={styles.macroField}>
+                  <Field
+                    testID="meal-carbs-input"
+                    label={per100g ? "Carbs (g / 100 g)" : "Carbs (g)"}
+                    accent="carbs"
+                    value={carbs}
+                    onChangeText={setCarbs}
+                    onFocus={() => measurement.current?.tap()}
+                    placeholder="0"
+                    keyboardType="decimal-pad"
+                    editable={!inputsLocked}
+                  />
+                </View>
+                <View style={styles.macroField}>
+                  <Field
+                    testID="meal-fat-input"
+                    label={per100g ? "Fat (g / 100 g)" : "Fat (g)"}
+                    accent="fat"
+                    value={fat}
+                    onChangeText={setFat}
+                    onFocus={() => measurement.current?.tap()}
+                    placeholder="0"
+                    keyboardType="decimal-pad"
+                    editable={!inputsLocked}
+                  />
+                </View>
               </View>
-              <ThemedText type="small" themeColor="textSecondary">
-                {per100g
-                  ? "Enter all nutrient values per 100 g from the food label. Totals = label values × food weight ÷ 100."
-                  : "Enter the nutrition totals for the portion you ate."}
-              </ThemedText>
-            </View>
-          ) : null}
 
-          <Field
-            testID="meal-portion-weight-input"
-            label={per100g ? "Food weight (g)" : "Portion weight (g)"}
-            value={portionGrams}
-            onChangeText={setPortionGrams}
-            onFocus={() => measurement.current?.tap()}
-            placeholder="e.g. 320"
-            keyboardType="decimal-pad"
-            helperText={
-              per100g
-                ? "required for values per 100 g"
-                : aiDraft?.portionWeightG != null
-                  ? "AI estimate — review before saving"
-                  : "optional"
-            }
-            inputColor={theme.text}
-            editable={!snapping && !refining && !submitting}
-          />
+              <AdvancedNutrientFields
+                form={advanced}
+                per100g={per100g}
+                enabled={advancedCapability.enabled}
+                editable={!inputsLocked}
+                onChange={(field, value) =>
+                  setAdvanced((current) => ({ ...current, [field]: value }))
+                }
+              />
 
-          <Field
-            testID="meal-calories-input"
-            label={per100g ? "Calories (kcal / 100 g)" : "Calories (kcal)"}
-            value={calories}
-            onChangeText={setCalories}
-            onFocus={() => measurement.current?.tap()}
-            placeholder="0"
-            keyboardType="decimal-pad"
-            helperText={calorieHint}
-            inputColor={theme.text}
-            editable={!snapping && !refining && !submitting}
-          />
-
-          <View style={styles.macroRow}>
-            <View style={styles.macroField}>
-              <Field
-                testID="meal-protein-input"
-                label={per100g ? "Protein (g / 100 g)" : "Protein (g)"}
-                value={protein}
-                onChangeText={setProtein}
-                onFocus={() => measurement.current?.tap()}
-                placeholder="0"
-                keyboardType="decimal-pad"
-                inputColor={theme.text}
-                editable={!snapping && !refining && !submitting}
-              />
-            </View>
-            <View style={styles.macroField}>
-              <Field
-                testID="meal-carbs-input"
-                label={per100g ? "Carbs (g / 100 g)" : "Carbs (g)"}
-                value={carbs}
-                onChangeText={setCarbs}
-                onFocus={() => measurement.current?.tap()}
-                placeholder="0"
-                keyboardType="decimal-pad"
-                inputColor={theme.text}
-                editable={!snapping && !refining && !submitting}
-              />
-            </View>
-            <View style={styles.macroField}>
-              <Field
-                testID="meal-fat-input"
-                label={per100g ? "Fat (g / 100 g)" : "Fat (g)"}
-                value={fat}
-                onChangeText={setFat}
-                onFocus={() => measurement.current?.tap()}
-                placeholder="0"
-                keyboardType="decimal-pad"
-                inputColor={theme.text}
-                editable={!snapping && !refining && !submitting}
-              />
-            </View>
+              {servingPreview !== null ? (
+                <View testID="meal-serving-preview" style={styles.field}>
+                  <ThemedText type="smallBold">
+                    Totals for this portion
+                  </ThemedText>
+                  {servingPreview.ok ? (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {[
+                        [
+                          "Calories",
+                          servingPreview.nutrition.caloriesKcal,
+                          "kcal",
+                        ],
+                        ["Protein", servingPreview.nutrition.proteinG, "g"],
+                        ["Carbs", servingPreview.nutrition.carbohydrateG, "g"],
+                        ["Fat", servingPreview.nutrition.fatG, "g"],
+                        ["Fibre", servingPreview.nutrition.fibreG, "g"],
+                        [
+                          "Saturated fat",
+                          servingPreview.nutrition.saturatedFatG,
+                          "g",
+                        ],
+                        [
+                          "Total sugars",
+                          servingPreview.nutrition.totalSugarsG,
+                          "g",
+                        ],
+                        ["Sodium", servingPreview.nutrition.sodiumMg, "mg"],
+                        [
+                          "Cholesterol",
+                          servingPreview.nutrition.cholesterolMg,
+                          "mg",
+                        ],
+                      ]
+                        .map(
+                          ([label, value, unit]) =>
+                            `${label}: ${value == null ? "unknown" : `${value} ${unit}`}`,
+                        )
+                        .join(" · ")}
+                    </ThemedText>
+                  ) : (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {servingPreview.message}
+                    </ThemedText>
+                  )}
+                </View>
+              ) : null}
+            </Card>
           </View>
 
-          <AdvancedNutrientFields
-            form={advanced}
-            per100g={per100g}
-            enabled={advancedCapability.enabled}
-            editable={!snapping && !refining && !submitting}
-            onChange={(field, value) =>
-              setAdvanced((current) => ({ ...current, [field]: value }))
-            }
-          />
-
-          {servingPreview !== null ? (
-            <View testID="meal-serving-preview" style={styles.field}>
-              <ThemedText type="smallBold">Totals for this portion</ThemedText>
-              {servingPreview.ok ? (
-                <ThemedText type="small" themeColor="textSecondary">
-                  {[
-                    ["Calories", servingPreview.nutrition.caloriesKcal, "kcal"],
-                    ["Protein", servingPreview.nutrition.proteinG, "g"],
-                    ["Carbs", servingPreview.nutrition.carbohydrateG, "g"],
-                    ["Fat", servingPreview.nutrition.fatG, "g"],
-                    ["Fibre", servingPreview.nutrition.fibreG, "g"],
-                    [
-                      "Saturated fat",
-                      servingPreview.nutrition.saturatedFatG,
-                      "g",
-                    ],
-                    [
-                      "Total sugars",
-                      servingPreview.nutrition.totalSugarsG,
-                      "g",
-                    ],
-                    ["Sodium", servingPreview.nutrition.sodiumMg, "mg"],
-                    [
-                      "Cholesterol",
-                      servingPreview.nutrition.cholesterolMg,
-                      "mg",
-                    ],
-                  ]
-                    .map(
-                      ([label, value, unit]) =>
-                        `${label}: ${value == null ? "unknown" : `${value} ${unit}`}`,
-                    )
-                    .join(" · ")}
-                </ThemedText>
-              ) : (
-                <ThemedText type="small" themeColor="textSecondary">
-                  {servingPreview.message}
-                </ThemedText>
-              )}
-            </View>
-          ) : null}
-
           {aiDraft !== null ? (
-            <View style={styles.refineBlock}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Refine with AI
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Tell the AI how to adjust the values above — for example “make
-                the chicken 200g instead of 100g”. The form will be re-filled
-                with the refined estimate. Review uncertain values before
-                saving.
-              </ThemedText>
-              <TextInput
-                testID="meal-refine-input"
-                accessibilityLabel="Refine AI meal draft"
-                placeholder="Make the chicken 200g instead of 100g"
-                placeholderTextColor="#8A8D91"
-                multiline
-                maxLength={1_000}
-                value={refineInstruction}
-                onChangeText={setRefineInstruction}
-                style={[
-                  styles.input,
-                  styles.refineInput,
-                  { color: theme.text },
-                ]}
-              />
-              <Pressable
-                accessibilityRole="button"
-                testID="meal-refine-button"
-                accessibilityLabel="Refine the AI draft"
-                accessibilityHint="Send the current draft and your instruction to Mizyun. The form will be re-filled with the refined estimate."
-                disabled={
-                  refining ||
-                  submitting ||
-                  snapping ||
-                  refineInstruction.trim().length < 2
-                }
-                accessibilityState={{
-                  busy: refining,
-                  disabled:
+            <View style={styles.section}>
+              <SectionHeader title="Refine with AI" />
+              <Card style={styles.cardStack}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Tell the AI how to adjust the values above — for example “make
+                  the chicken 200g instead of 100g”. The form will be re-filled
+                  with the refined estimate. Review uncertain values before
+                  saving.
+                </ThemedText>
+                <FormTextInput
+                  testID="meal-refine-input"
+                  accessibilityLabel="Refine AI meal draft"
+                  placeholder="Make the chicken 200g instead of 100g"
+                  multiline
+                  maxLength={1_000}
+                  value={refineInstruction}
+                  onChangeText={setRefineInstruction}
+                  style={styles.refineInput}
+                />
+                <Button
+                  variant="tinted"
+                  icon="sparkles"
+                  block
+                  testID="meal-refine-button"
+                  label="Refine"
+                  accessibilityLabel="Refine the AI draft"
+                  accessibilityHint="Send the current draft and your instruction to Mizyun. The form will be re-filled with the refined estimate."
+                  accessibilityValue={
+                    refining ? { text: "Refining draft" } : undefined
+                  }
+                  loading={refining}
+                  disabled={
                     refining ||
                     submitting ||
                     snapping ||
-                    refineInstruction.trim().length < 2,
-                }}
-                onPress={() => {
-                  void onRefineDraft();
-                }}
-                style={({ pressed }) => [
-                  styles.refineButton,
-                  (pressed || refining) && styles.refinePressed,
-                ]}
-              >
-                {refining ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={theme.text}
-                    accessibilityLabel="Refining draft"
-                  />
-                ) : (
-                  <ThemedText type="smallBold">✨ Refine</ThemedText>
-                )}
-              </Pressable>
+                    refineInstruction.trim().length < 2
+                  }
+                  onPress={() => {
+                    void onRefineDraft();
+                  }}
+                />
+              </Card>
             </View>
           ) : null}
 
           <View style={styles.actionsRow}>
             {hasContent ? (
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                variant="secondary"
                 testID="clear-meal-button"
+                label="Clear"
                 accessibilityLabel="Clear meal"
                 accessibilityHint="Clears all meal fields, photo, and draft"
                 disabled={submitting || snapping || refining}
-                accessibilityState={{
-                  disabled: submitting || snapping || refining,
-                }}
                 onPress={() => {
                   void onClear();
                 }}
-                style={({ pressed }) => [
-                  styles.clearButton,
-                  pressed && styles.snapPressed,
-                ]}
-              >
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Clear
-                </ThemedText>
-              </Pressable>
+              />
             ) : null}
 
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              variant="primary"
               testID="submit-meal-button"
+              label={submitting ? "Saving…" : "Save meal"}
+              loading={submitting}
               disabled={!draftLoaded || submitting || snapping || refining}
               accessibilityState={{
                 disabled: !draftLoaded || submitting || snapping || refining,
@@ -2224,16 +2174,8 @@ export function LogMealScreen() {
               onPress={() => {
                 void onSubmit();
               }}
-              style={({ pressed }) => [
-                styles.submit,
-                hasContent && styles.submitWithClear,
-                (pressed || submitting) && styles.submitPressed,
-              ]}
-            >
-              <ThemedText type="smallBold" style={styles.submitText}>
-                {submitting ? "Saving…" : "Save meal"}
-              </ThemedText>
-            </Pressable>
+              style={styles.submit}
+            />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -2275,29 +2217,40 @@ function Field(props: {
   readonly helperText?: string;
   readonly autoFocus?: boolean;
   readonly keyboardType?: "default" | "decimal-pad";
-  readonly inputColor: string;
   readonly editable?: boolean;
+  /** Macro token shown as a dot beside the label. */
+  readonly accent?: "protein" | "carbs" | "fat";
 }) {
+  const theme = useTheme();
   return (
     <View style={styles.field}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {props.label}
-      </ThemedText>
-      <TextInput
+      <View style={styles.fieldLabelRow}>
+        {props.accent !== undefined ? (
+          <View
+            style={[styles.accentDot, { backgroundColor: theme[props.accent] }]}
+          />
+        ) : null}
+        <ThemedText
+          type="footnote"
+          themeColor="textSecondary"
+          style={styles.fieldLabel}
+        >
+          {props.label}
+        </ThemedText>
+      </View>
+      <FormTextInput
         testID={props.testID}
         value={props.value}
         editable={props.editable}
         onChangeText={props.onChangeText}
         onFocus={props.onFocus}
         placeholder={props.placeholder}
-        placeholderTextColor="#8A8D91"
         autoFocus={props.autoFocus === true}
         keyboardType={props.keyboardType ?? "default"}
         accessibilityLabel={props.label}
-        style={[styles.input, { color: props.inputColor }]}
       />
       {props.helperText !== undefined ? (
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText type="footnote" themeColor="textTertiary">
           {props.helperText}
         </ThemedText>
       ) : null}
@@ -2312,28 +2265,24 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.six,
-    gap: Spacing.three,
+    gap: Spacing.four,
   },
-  basisRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  basisButton: {
-    minHeight: 48,
-    justifyContent: "center",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
+  messages: { gap: Spacing.two },
+  section: { gap: Spacing.two },
+  cardStack: { gap: Spacing.three },
+  basisRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
+  basisChip: { minHeight: MinTouchTarget },
   field: { gap: Spacing.one },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 16,
+  fieldLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one + Spacing.half,
   },
+  fieldLabel: { flexShrink: 1 },
+  accentDot: { width: 8, height: 8, borderRadius: Radius.pill },
   description: { minHeight: 76, textAlignVertical: "top" },
   macroRow: { flexDirection: "row", gap: Spacing.two },
   macroField: { flex: 1 },
@@ -2342,150 +2291,61 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     alignItems: "center",
   },
-  clearButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerSaveButton: {
-    minWidth: 48,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-  },
-  submit: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F1F23",
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    alignItems: "center",
-    backgroundColor: "#1F1F23",
-  },
-  submitWithClear: {
-    flex: 1,
-  },
-  submitText: {
-    color: "#FFFFFF",
-  },
-  submitPressed: { opacity: 0.65 },
-  errorText: { marginTop: Spacing.one },
-  snap: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: Spacing.two,
-  },
-  snapPressed: { opacity: 0.65 },
+  submit: { flex: 1 },
+  pressed: { opacity: 0.6 },
   photoRow: {
     flexDirection: "row",
     gap: Spacing.two,
   },
-  snapButton: {
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.two,
-    alignItems: "center",
+  photoButton: { flex: 1 },
+  quotaBadgeRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
     gap: Spacing.one,
-  },
-  quotaBadgeRow: {
-    alignItems: "center",
-    justifyContent: "center",
     paddingVertical: Spacing.one,
   },
-  warnings: {
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    gap: Spacing.one,
-  },
-  refineBlock: {
-    gap: Spacing.two,
-    paddingTop: Spacing.two,
-  },
+  warnings: { gap: Spacing.one },
   refineInput: {
     minHeight: 64,
     textAlignVertical: "top",
   },
-  refineButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F1F23",
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    alignItems: "center",
+  keepPhotoChoice: {
+    minHeight: MinTouchTarget,
     flexDirection: "row",
-    justifyContent: "center",
+    alignItems: "center",
     gap: Spacing.two,
   },
-  refinePressed: { opacity: 0.65 },
-  keepPhotoChoice: {
-    minHeight: 44,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.one,
+  keepPhotoText: { flex: 1, gap: Spacing.half },
+  checkOff: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.pill,
+    borderWidth: 1.5,
   },
   attachedPhotoCard: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.three,
+    borderRadius: Radius.md,
     padding: Spacing.two,
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   attachedPhotoImage: {
     width: 56,
     height: 56,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
   },
   attachedPhotoInfo: {
     flex: 1,
     minWidth: 110,
-    gap: 2,
+    gap: Spacing.half,
   },
-  removePhotoButton: {
-    minHeight: 44,
-    minWidth: 44,
-    justifyContent: "center",
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: Spacing.two,
-  },
-  processButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F1F23",
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    alignItems: "center",
+  attachedPhotoActions: {
     flexDirection: "row",
-    justifyContent: "center",
-    backgroundColor: "#1F1F23",
-    gap: Spacing.two,
-  },
-  processButtonPressed: {
-    opacity: 0.65,
-  },
-  processButtonText: {
-    color: "#FFFFFF",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: Spacing.one,
   },
   recentMealsContainer: {
     gap: Spacing.one,
@@ -2495,11 +2355,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.half,
   },
   recentMealChip: {
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
+    minHeight: MinTouchTarget,
     minWidth: 120,
-    gap: 2,
+    gap: Spacing.half,
   },
 });

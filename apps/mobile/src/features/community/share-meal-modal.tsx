@@ -6,14 +6,25 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TextInput,
   Modal,
-  Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
+import {
+  Button,
+  Card,
+  FormField,
+  FormTextInput,
+  Icon,
+  IconButton,
+  ListGroup,
+  ListRow,
+  Notice,
+  SectionHeader,
+} from "@/components/ui";
+import { PageGutter, Spacing } from "@/constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SharedMealDetails } from "./shared-meal-details";
 import { randomUUID } from "expo-crypto";
@@ -414,118 +425,105 @@ export function ShareMealModal({
         >
           <ScrollView
             style={styles.card}
-            contentContainerStyle={{ paddingBottom: 32 }}
+            contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
             {/* Header */}
             <View style={styles.headerRow}>
-              <Text style={styles.title}>Share meal</Text>
-              <Pressable
+              <ThemedText type="subtitle" accessibilityRole="header">
+                Share meal
+              </ThemedText>
+              <IconButton
+                icon="close"
                 onPress={onDismiss}
-                accessibilityRole="button"
                 accessibilityLabel="Close"
-                hitSlop={8}
-              >
-                <Text style={styles.closeBtn}>✕</Text>
-              </Pressable>
+              />
             </View>
 
             {!principalKey ? (
-              <View style={styles.centerBox}>
-                <Text style={styles.notEnrolledText}>
-                  Sign in to share a meal.
-                </Text>
-              </View>
+              <Notice tone="warning" message="Sign in to share a meal." />
             ) : !foreground.current ||
               loading ||
               profileStatus === "loading" ||
               profileStatus === "idle" ? (
               <View style={styles.centerBox}>
                 <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>
+                <ThemedText themeColor="textSecondary">
                   Preparing meal preview...
-                </Text>
+                </ThemedText>
               </View>
             ) : profileError ? (
-              <View style={styles.centerBox}>
-                <Text style={styles.errorText}>{profileError}</Text>
-                <Pressable
-                  style={styles.primaryBtn}
+              <View style={styles.stack}>
+                <Notice tone="danger" message={profileError} />
+                <Button
+                  block
+                  label="Check Community status"
                   onPress={() => void profileActions.load()}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.primaryBtnText}>
-                    Check Community status
-                  </Text>
-                </Pressable>
+                />
               </View>
             ) : !isEnrolled ? (
-              <View style={styles.centerBox}>
-                <Text style={styles.notEnrolledText}>
-                  Join Community to share meals with your approved followers.
-                </Text>
-                <Pressable
-                  style={styles.keepPrivateBtn}
+              <View style={styles.stack}>
+                <Notice
+                  tone="warning"
+                  message="Join Community to share meals with your approved followers."
+                />
+                <Button
+                  block
+                  variant="plain"
+                  label="Close"
                   onPress={onDismiss}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.keepPrivateText}>Close</Text>
-                </Pressable>
+                />
               </View>
             ) : error || !preview ? (
-              <View style={styles.centerBox}>
-                <Text style={styles.errorText}>
-                  {error ??
-                    "Reload the meal preview to check your current Community access."}
-                </Text>
+              <View style={styles.stack}>
+                <Notice
+                  tone="danger"
+                  message={
+                    error ??
+                    "Reload the meal preview to check your current Community access."
+                  }
+                />
                 {preview && (
-                  <Pressable
-                    style={styles.primaryBtn}
+                  <Button
+                    block
+                    label={
+                      failedAction === "revoke"
+                        ? "Retry unpublishing"
+                        : "Retry sharing"
+                    }
                     onPress={
                       failedAction === "revoke"
                         ? handleUnpublish
                         : handlePublish
                     }
                     disabled={submitting}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.primaryBtnText}>
-                      {failedAction === "revoke"
-                        ? "Retry unpublishing"
-                        : "Retry sharing"}
-                    </Text>
-                  </Pressable>
+                  />
                 )}
                 {!preview && (
-                  <Pressable
-                    style={styles.primaryBtn}
+                  <Button
+                    block
+                    label="Reload meal preview"
                     onPress={() =>
                       setForegroundRevision((revision) => revision + 1)
                     }
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.primaryBtnText}>
-                      Reload meal preview
-                    </Text>
-                  </Pressable>
+                  />
                 )}
-                <Pressable
-                  style={styles.keepPrivateBtn}
+                <Button
+                  block
+                  variant="plain"
+                  label="Dismiss"
                   onPress={onDismiss}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.keepPrivateText}>Dismiss</Text>
-                </Pressable>
+                />
               </View>
             ) : (
-              <>
-                <Text style={styles.subtitle}>Choose what to include</Text>
-                <Text style={styles.previewHeading}>
-                  Preview for your approved followers
-                </Text>
+              <View style={styles.stack}>
+                <ThemedText themeColor="textSecondary">
+                  Choose what to include
+                </ThemedText>
+                <SectionHeader title="Preview for your approved followers" />
 
                 {/* Shared Card Preview Box */}
-                <View style={styles.previewBox}>
+                <Card>
                   <View style={styles.authorRow}>
                     <InitialsAvatar
                       symbol={profile?.avatarSymbol ?? "ME"}
@@ -534,121 +532,108 @@ export function ShareMealModal({
                       size={38}
                     />
                     <View style={styles.authorTextCol}>
-                      <Text style={styles.authorName}>
+                      <ThemedText type="smallBold">
                         {profile?.displayName ?? "You"}
-                      </Text>
-                      <Text style={styles.authorHandle}>
+                      </ThemedText>
+                      <ThemedText type="footnote" themeColor="textSecondary">
                         @{profile?.handle ?? "handle"}
-                      </Text>
+                      </ThemedText>
                     </View>
                   </View>
 
                   {sharedDetails ? (
                     <SharedMealDetails details={sharedDetails} />
                   ) : null}
-                  <Text style={styles.metaText}>{preview?.sharedDay}</Text>
-                </View>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {preview?.sharedDay}
+                  </ThemedText>
+                </Card>
 
-                <Text style={styles.checkboxLabel}>Selected calendar day</Text>
-                <TextInput
-                  value={preview?.sharedDay ?? ""}
-                  accessibilityLabel="Shared calendar day YYYY-MM-DD"
-                  style={styles.metaText}
-                  placeholder="YYYY-MM-DD"
-                  editable={!submitting}
-                  onChangeText={(sharedDay) => {
-                    if (!selectionIsCurrent() || inFlight.current || !preview)
-                      return;
-                    publicationOperation.current = null;
-                    setPreview((current) =>
-                      current ? { ...current, sharedDay } : current,
-                    );
-                  }}
-                />
-                <Pressable
-                  style={styles.checkboxRow}
-                  disabled={submitting}
-                  onPress={() => {
-                    if (!selectionIsCurrent() || inFlight.current || !preview)
-                      return;
-                    publicationOperation.current = null;
-                    setIncludeNutrition((value) => !value);
-                  }}
-                  accessibilityRole="checkbox"
-                  accessibilityLabel="Include calories and macros"
-                  accessibilityState={{
-                    checked: includeNutrition,
-                    disabled: submitting,
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      includeNutrition && styles.checkboxActive,
-                    ]}
-                  >
-                    {includeNutrition ? (
-                      <Text style={styles.checkmark}>✓</Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.checkboxLabel}>
-                    Include calories and macros
-                  </Text>
-                </Pressable>
-                <Text style={styles.privacyBody}>
+                <FormField label="Selected calendar day">
+                  <FormTextInput
+                    value={preview?.sharedDay ?? ""}
+                    accessibilityLabel="Shared calendar day YYYY-MM-DD"
+                    placeholder="YYYY-MM-DD"
+                    editable={!submitting}
+                    onChangeText={(sharedDay) => {
+                      if (!selectionIsCurrent() || inFlight.current || !preview)
+                        return;
+                      publicationOperation.current = null;
+                      setPreview((current) =>
+                        current ? { ...current, sharedDay } : current,
+                      );
+                    }}
+                  />
+                </FormField>
+
+                <ListGroup>
+                  <ListRow
+                    title="Include calories and macros"
+                    chevron={false}
+                    disabled={submitting}
+                    onPress={() => {
+                      if (!selectionIsCurrent() || inFlight.current || !preview)
+                        return;
+                      publicationOperation.current = null;
+                      setIncludeNutrition((value) => !value);
+                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel="Include calories and macros"
+                    accessibilityState={{
+                      checked: includeNutrition,
+                      disabled: submitting,
+                    }}
+                    trailing={
+                      <Icon
+                        name={includeNutrition ? "checkCircle" : "circle"}
+                        size={22}
+                        color={includeNutrition ? "primary" : "textTertiary"}
+                      />
+                    }
+                  />
+                </ListGroup>
+                <ThemedText type="footnote" themeColor="textSecondary">
                   Check the meal name before sharing. Names can contain personal
                   information.
-                </Text>
+                </ThemedText>
                 {/* Sharing disclosure */}
-                <View style={styles.privacyNoticeBox}>
-                  <Text style={styles.privacyHeading}>
-                    Your sharing choices
-                  </Text>
-                  <Text style={styles.privacyBody}>
-                    Your meal name and selected day are shared. Calories and
-                    macros are shared only when selected above. Photos, notes,
-                    AI metadata, and unselected fields stay private. Updating
-                    clears encouragement reactions.
-                  </Text>
-                </View>
+                <Notice
+                  tone="info"
+                  title="Your sharing choices"
+                  message="Your meal name and selected day are shared. Calories and macros are shared only when selected above. Photos, notes, AI metadata, and unselected fields stay private. Updating clears encouragement reactions."
+                />
 
                 {/* Audience badge */}
-                <Text style={styles.audienceText}>
+                <ThemedText type="footnote" themeColor="textSecondary">
                   Audience: current and future approved followers.{" "}
                   {preview?.followerCount ?? 0} currently approved. Already
                   viewed or copied content cannot be recalled.
-                </Text>
+                </ThemedText>
 
                 {/* Action buttons */}
                 <View style={styles.btnCol}>
-                  <Pressable
-                    style={[
-                      styles.primaryBtn,
-                      submitting && styles.btnDisabled,
-                    ]}
+                  <Button
+                    block
+                    label={
+                      preview?.existingActivity?.revokedAt
+                        ? "Share again"
+                        : effectiveActivityId
+                          ? "Update shared meal"
+                          : "Publish meal"
+                    }
                     onPress={handlePublish}
+                    loading={submitting}
                     disabled={
                       submitting || !preview || preview.mealId !== mealId
                     }
-                    accessibilityRole="button"
-                  >
-                    {submitting ? (
-                      <ActivityIndicator color={colors.text} />
-                    ) : (
-                      <Text style={styles.primaryBtnText}>
-                        {preview?.existingActivity?.revokedAt
-                          ? "Share again"
-                          : effectiveActivityId
-                            ? "Update shared meal"
-                            : "Publish meal"}
-                      </Text>
-                    )}
-                  </Pressable>
+                  />
 
                   {effectiveActivityId &&
                     !preview?.existingActivity?.revokedAt && (
-                      <Pressable
-                        style={styles.unpublishBtn}
+                      <Button
+                        block
+                        variant="destructive"
+                        label="Unpublish meal"
                         onPress={() =>
                           Alert.alert(
                             "Unpublish this card?",
@@ -664,26 +649,18 @@ export function ShareMealModal({
                           )
                         }
                         disabled={submitting}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.unpublishBtnText}>
-                          Unpublish meal
-                        </Text>
-                      </Pressable>
+                      />
                     )}
 
-                  <Pressable
-                    style={styles.keepPrivateBtn}
+                  <Button
+                    block
+                    variant="plain"
+                    label={effectiveActivityId ? "Cancel" : "Keep private"}
                     onPress={onDismiss}
                     disabled={submitting}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.keepPrivateText}>
-                      {effectiveActivityId ? "Cancel" : "Keep private"}
-                    </Text>
-                  </Pressable>
+                  />
                 </View>
-              </>
+              </View>
             )}
           </ScrollView>
         </KeyboardAvoidingView>
@@ -701,187 +678,34 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
     },
     card: {
       backgroundColor: colors.background,
-
-      padding: 24,
       flex: 1,
+    },
+    content: {
+      paddingHorizontal: PageGutter,
+      paddingTop: Spacing.three,
+      paddingBottom: Spacing.five,
+      gap: Spacing.three,
     },
     headerRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 12,
     },
-    title: {
-      color: colors.text,
-      fontSize: 20,
-      fontWeight: "700",
-    },
-    closeBtn: {
-      color: colors.textSecondary,
-      fontSize: 20,
-      padding: 12,
-      minWidth: 48,
-      minHeight: 48,
-    },
-    subtitle: {
-      color: colors.textSecondary,
-      fontSize: 16,
-      fontWeight: "600",
-      marginBottom: 16,
-    },
-    previewHeading: {
-      color: colors.textSecondary,
-      fontSize: 17,
-      fontWeight: "600",
-      marginBottom: 8,
-    },
-    previewBox: {
-      backgroundColor: colors.backgroundElement,
-      borderRadius: 14,
-      padding: 16,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
+    stack: { gap: Spacing.three },
     authorRow: {
       flexDirection: "row",
       alignItems: "center",
-      marginBottom: 12,
     },
     authorTextCol: {
-      marginLeft: 12,
-    },
-    authorName: {
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    authorHandle: {
-      color: colors.textSecondary,
-      fontSize: 13,
-    },
-    activityDetails: {
-      paddingLeft: 4,
-    },
-    categoryText: {
-      color: colors.text,
-      fontSize: 17,
-      fontWeight: "600",
-      marginBottom: 4,
-    },
-    metaText: {
-      color: colors.textSecondary,
-      fontSize: 14,
-    },
-    checkboxRow: {
-      minHeight: 48,
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 16,
-    },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: 6,
-      borderWidth: 2,
-      borderColor: colors.textSecondary,
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 10,
-    },
-    checkboxActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    checkmark: {
-      color: "#FFFFFF",
-      fontSize: 14,
-      fontWeight: "700",
-    },
-    checkboxLabel: {
-      color: colors.text,
-      fontSize: 15,
-    },
-    privacyNoticeBox: {
-      paddingVertical: 12,
-      marginBottom: 14,
-    },
-    privacyHeading: {
-      color: colors.primary,
-      fontSize: 13,
-      fontWeight: "700",
-      marginBottom: 2,
-    },
-    privacyBody: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 21,
-    },
-    audienceText: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 21,
-      marginBottom: 16,
+      marginLeft: Spacing.three - 4,
     },
     btnCol: {
-      gap: 10,
-    },
-    primaryBtn: {
-      minHeight: 48,
-      backgroundColor: colors.primary,
-      borderRadius: 12,
-      paddingVertical: 14,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    primaryBtnText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    unpublishBtn: {
-      backgroundColor: "rgba(255,69,58,0.15)",
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: "center",
-    },
-    unpublishBtnText: {
-      color: "#FF453A",
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    keepPrivateBtn: {
-      minHeight: 48,
-      paddingVertical: 10,
-      alignItems: "center",
-    },
-    keepPrivateText: {
-      color: colors.textSecondary,
-      fontSize: 15,
+      gap: Spacing.two,
     },
     centerBox: {
-      padding: 30,
+      padding: Spacing.five,
+      gap: Spacing.three,
       alignItems: "center",
       justifyContent: "center",
-    },
-    loadingText: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      marginTop: 12,
-    },
-    notEnrolledText: {
-      color: "#FF9F0A",
-      fontSize: 15,
-      lineHeight: 21,
-      marginBottom: 16,
-    },
-    errorText: {
-      color: "#FF453A",
-      fontSize: 14,
-      lineHeight: 21,
-      marginBottom: 16,
-    },
-    btnDisabled: {
-      opacity: 0.6,
     },
   });

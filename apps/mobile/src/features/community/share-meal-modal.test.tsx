@@ -81,6 +81,24 @@ vi.mock("react-native", () => ({
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
+vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  FormField: "FormField",
+  FormTextInput: "FormTextInput",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
+vi.mock("@/constants/theme", () => ({
+  PageGutter: 20,
+  Spacing: { one: 4, two: 8, three: 16, four: 24, five: 32 },
+}));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
@@ -162,7 +180,11 @@ function text(node: any): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(text).join(" ");
-  return text(node.props?.children);
+  // Design-system primitives carry copy in props rather than children.
+  const { label, title, message } = node.props ?? {};
+  return [label, title, message, text(node.props?.children)]
+    .filter(Boolean)
+    .join(" ");
 }
 function find(node: any, predicate: (node: any) => boolean): any {
   if (!node || typeof node !== "object") return null;
@@ -174,7 +196,9 @@ function find(node: any, predicate: (node: any) => boolean): any {
 function button(tree: any, label: string): any {
   return find(
     tree,
-    (node) => node.type === "Pressable" && text(node).trim() === label,
+    (node) =>
+      (node.type === "Pressable" || node.props?.label === label) &&
+      text(node).trim() === label,
   );
 }
 function checkbox(tree: any): any {

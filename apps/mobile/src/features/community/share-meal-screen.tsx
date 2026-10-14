@@ -1,17 +1,17 @@
 import React, { useCallback, useState } from "react";
-import { Text } from "react-native";
 import { useFocusEffect, type Href } from "expo-router";
 import {
   foodEntryListResponseSchema,
   type FoodEntryListResponse,
 } from "@mizyun/contracts";
-import { useTheme } from "@/hooks/use-theme";
+import { Notice } from "@/components/ui";
 import { useExpansionCommand } from "./expansions/use-expansion-command";
 import { ShareMealModal } from "./share-meal-modal";
 import {
   CommunityButton,
   CommunityPage,
   CommunityRow,
+  CommunitySection,
   CommunityState,
 } from "./ui";
 
@@ -26,7 +26,6 @@ export function selectableSharedMeals(
 }
 
 export function CommunityShareMealScreen() {
-  const colors = useTheme();
   const { principal, data, run, busy, error, capture } =
     useExpansionCommand<FoodEntryListResponse>(
       "/v1/food-entries?limit=200",
@@ -51,11 +50,7 @@ export function CommunityShareMealScreen() {
       title="Share meal"
       description="Choose a saved confirmed meal. You will preview exactly what your approved followers can see."
     >
-      {error ? (
-        <Text accessibilityRole="alert" style={{ color: colors.text }}>
-          {error}
-        </Text>
-      ) : null}
+      {error ? <Notice tone="danger" message={error} /> : null}
       {busy ? (
         <CommunityState title="Checking saved meals" busy />
       ) : !data ? (
@@ -78,25 +73,21 @@ export function CommunityShareMealScreen() {
         />
       ) : (
         <>
-          <Text
-            style={{
-              color: colors.textSecondary,
-              fontSize: 15,
-              lineHeight: 22,
-            }}
+          <CommunitySection
+            title="Recent meals"
+            description="Recent confirmed meals from your latest 200 saved entries. The next preview shows the meal name and lets you choose whether to include nutrition."
           >
-            Recent confirmed meals from your latest 200 saved entries. The next
-            preview shows the meal name and lets you choose whether to include
-            nutrition.
-          </Text>
-          {meals.map((meal) => (
-            <CommunityRow
-              key={meal.id}
-              title={meal.name ?? "Saved meal"}
-              description={new Date(meal.consumedAt).toLocaleDateString()}
-              onPress={() => setSelection({ id: meal.id, current: capture() })}
-            />
-          ))}
+            {meals.map((meal) => (
+              <CommunityRow
+                key={meal.id}
+                title={meal.name ?? "Saved meal"}
+                description={new Date(meal.consumedAt).toLocaleDateString()}
+                onPress={() =>
+                  setSelection({ id: meal.id, current: capture() })
+                }
+              />
+            ))}
+          </CommunitySection>
           <CommunityButton label="Refresh meals" onPress={() => void run({})} />
         </>
       )}

@@ -27,6 +27,7 @@ export const IconNames = {
   arrowUp: { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward" },
   back: { ios: "chevron.left", android: "arrow_back", web: "arrow_back" },
   bell: { ios: "bell", android: "notifications", web: "notifications" },
+  book: { ios: "book", android: "menu_book", web: "menu_book" },
   calendar: {
     ios: "calendar",
     android: "calendar_today",
@@ -60,6 +61,11 @@ export const IconNames = {
     web: "chevron_right",
   },
   chevronUp: { ios: "chevron.up", android: "expand_less", web: "expand_less" },
+  circle: {
+    ios: "circle",
+    android: "radio_button_unchecked",
+    web: "radio_button_unchecked",
+  },
   close: { ios: "xmark", android: "close", web: "close" },
   cook: { ios: "frying.pan", android: "skillet", web: "skillet" },
   dumbbell: {
@@ -68,6 +74,7 @@ export const IconNames = {
     web: "fitness_center",
   },
   edit: { ios: "pencil", android: "edit", web: "edit" },
+  envelope: { ios: "envelope", android: "mail", web: "mail" },
   energy: {
     ios: "flame",
     android: "local_fire_department",
@@ -91,6 +98,7 @@ export const IconNames = {
     web: "history",
   },
   info: { ios: "info.circle", android: "info", web: "info" },
+  minus: { ios: "minus", android: "remove", web: "remove" },
   more: { ios: "ellipsis", android: "more_horiz", web: "more_horiz" },
   person: {
     ios: "person.crop.circle",
@@ -111,6 +119,8 @@ export const IconNames = {
   settings: { ios: "gearshape", android: "settings", web: "settings" },
   share: { ios: "square.and.arrow.up", android: "share", web: "share" },
   sparkles: { ios: "sparkles", android: "auto_awesome", web: "auto_awesome" },
+  star: { ios: "star", android: "star_outline", web: "star_outline" },
+  starFill: { ios: "star.fill", android: "star", web: "star" },
   steps: {
     ios: "figure.walk",
     android: "directions_walk",

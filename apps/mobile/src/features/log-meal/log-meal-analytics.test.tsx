@@ -74,7 +74,20 @@ vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  MinTouchTarget: 44,
+  PageGutter: 20,
+  Radius: {},
   Spacing: {},
+}));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  FormStatus: "FormStatus",
+  FormTextInput: "FormTextInput",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  SectionHeader: "SectionHeader",
 }));
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ text: "#000", border: "#888" }),

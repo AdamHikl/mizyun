@@ -7,7 +7,8 @@ import {
   View,
 } from "react-native";
 import { ThemedText } from "@/components/themed-text";
-import { Spacing } from "@/constants/theme";
+import { Button, IconButton, ListGroup } from "@/components/ui";
+import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 export interface ReorderExerciseItem {
@@ -73,39 +74,28 @@ export function ReorderExercisesModal({
       })}
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <Pressable
+        style={[styles.overlay, { backgroundColor: theme.overlay }]}
+        onPress={onClose}
+      >
         <Pressable
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.backgroundElement,
-              borderColor: theme.border,
-            },
-          ]}
+          style={[styles.sheet, { backgroundColor: theme.background }]}
           onPress={(e) => e.stopPropagation()}
         >
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTitleBlock}>
-              <ThemedText type="subtitle">Reorder Exercises</ThemedText>
+              <ThemedText type="subtitle">Reorder exercises</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 Change the exercise order for your active workout session.
               </ThemedText>
             </View>
-            <Pressable
-              accessibilityRole="button"
+            <IconButton
+              icon="close"
               accessibilityLabel="Close reorder exercises modal"
               onPress={onClose}
-              style={styles.closeButton}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                ✕
-              </ThemedText>
-            </Pressable>
+            />
           </View>
 
-          {/* List */}
           <ScrollView
             style={styles.scrollList}
             contentContainerStyle={styles.scrollContent}
@@ -122,148 +112,80 @@ export function ReorderExercisesModal({
                 </ThemedText>
               </View>
             ) : (
-              exercises.map((exercise, index) => {
-                const isFirst = index === 0;
-                const isLast = index === exercises.length - 1;
-                const summary = formatExerciseTargetSummary(exercise);
+              <ListGroup>
+                {exercises.map((exercise, index) => {
+                  const isFirst = index === 0;
+                  const isLast = index === exercises.length - 1;
+                  const summary = formatExerciseTargetSummary(exercise);
 
-                return (
-                  <View
-                    key={exercise.id}
-                    style={[
-                      styles.exerciseRow,
-                      {
-                        backgroundColor: theme.background,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    {/* Sequence Badge */}
-                    <View
-                      style={[
-                        styles.sequenceBadge,
-                        { backgroundColor: theme.backgroundSelected },
-                      ]}
-                    >
-                      <ThemedText
-                        type="smallBold"
-                        style={{ color: theme.text }}
+                  return (
+                    <View key={exercise.id} style={styles.exerciseRow}>
+                      <View
+                        style={[
+                          styles.sequenceBadge,
+                          { backgroundColor: theme.backgroundSelected },
+                        ]}
                       >
-                        {index + 1}
-                      </ThemedText>
-                    </View>
+                        <ThemedText type="smallBold">{index + 1}</ThemedText>
+                      </View>
 
-                    {/* Details */}
-                    <View style={styles.exerciseDetails}>
-                      <ThemedText
-                        type="default"
-                        style={styles.exerciseNameText}
-                        numberOfLines={1}
-                      >
-                        {exercise.name}
-                      </ThemedText>
-                      {summary ? (
+                      <View style={styles.exerciseDetails}>
                         <ThemedText
-                          type="small"
-                          themeColor="textSecondary"
+                          type="default"
+                          style={styles.exerciseNameText}
                           numberOfLines={1}
                         >
-                          {summary}
+                          {exercise.name}
                         </ThemedText>
-                      ) : null}
-                    </View>
+                        {summary ? (
+                          <ThemedText
+                            type="footnote"
+                            themeColor="textSecondary"
+                            numberOfLines={1}
+                          >
+                            {summary}
+                          </ThemedText>
+                        ) : null}
+                      </View>
 
-                    {/* Move Actions */}
-                    <View style={styles.actionButtons}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Move ${exercise.name} up`}
-                        accessibilityState={{ disabled: isFirst }}
-                        disabled={isFirst}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        onPress={() => {
-                          if (!isFirst) {
-                            onMoveExercise(index, index - 1);
-                          }
-                        }}
-                        style={[
-                          styles.reorderButton,
-                          {
-                            borderColor: theme.border,
-                            backgroundColor: isFirst
-                              ? "transparent"
-                              : theme.backgroundSelected,
-                          },
-                          isFirst && styles.reorderButtonDisabled,
-                        ]}
-                      >
-                        <ThemedText
-                          type="default"
-                          style={[
-                            styles.reorderButtonIcon,
-                            {
-                              color: isFirst ? theme.textSecondary : theme.text,
-                            },
-                            isFirst && styles.iconDisabled,
-                          ]}
-                        >
-                          ↑
-                        </ThemedText>
-                      </Pressable>
-
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Move ${exercise.name} down`}
-                        accessibilityState={{ disabled: isLast }}
-                        disabled={isLast}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        onPress={() => {
-                          if (!isLast) {
-                            onMoveExercise(index, index + 1);
-                          }
-                        }}
-                        style={[
-                          styles.reorderButton,
-                          {
-                            borderColor: theme.border,
-                            backgroundColor: isLast
-                              ? "transparent"
-                              : theme.backgroundSelected,
-                          },
-                          isLast && styles.reorderButtonDisabled,
-                        ]}
-                      >
-                        <ThemedText
-                          type="default"
-                          style={[
-                            styles.reorderButtonIcon,
-                            {
-                              color: isLast ? theme.textSecondary : theme.text,
-                            },
-                            isLast && styles.iconDisabled,
-                          ]}
-                        >
-                          ↓
-                        </ThemedText>
-                      </Pressable>
+                      <View style={styles.actionButtons}>
+                        <IconButton
+                          icon="chevronUp"
+                          accessibilityLabel={`Move ${exercise.name} up`}
+                          accessibilityState={{ disabled: isFirst }}
+                          disabled={isFirst}
+                          onPress={() => {
+                            if (!isFirst) {
+                              onMoveExercise(index, index - 1);
+                            }
+                          }}
+                        />
+                        <IconButton
+                          icon="chevronDown"
+                          accessibilityLabel={`Move ${exercise.name} down`}
+                          accessibilityState={{ disabled: isLast }}
+                          disabled={isLast}
+                          onPress={() => {
+                            if (!isLast) {
+                              onMoveExercise(index, index + 1);
+                            }
+                          }}
+                        />
+                      </View>
                     </View>
-                  </View>
-                );
-              })
+                  );
+                })}
+              </ListGroup>
             )}
           </ScrollView>
 
-          {/* Prominent Done Button */}
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label="Done"
             accessibilityLabel="Done"
+            variant="primary"
+            block
             onPress={onClose}
-            style={[styles.doneButton, { backgroundColor: theme.primary }]}
-          >
-            <ThemedText type="default" style={styles.doneButtonText}>
-              Done
-            </ThemedText>
-          </Pressable>
+          />
         </Pressable>
       </Pressable>
     </Modal>
@@ -273,7 +195,6 @@ export function ReorderExercisesModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.four,
@@ -282,31 +203,25 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 480,
     maxHeight: "85%",
-    borderRadius: Spacing.four,
-    borderWidth: 1,
-    padding: Spacing.four,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    padding: Spacing.three,
     gap: Spacing.three,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: Spacing.two,
   },
   headerTitleBlock: {
     flex: 1,
     gap: Spacing.half,
   },
-  closeButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   scrollList: {
     maxHeight: 400,
   },
   scrollContent: {
-    gap: Spacing.two,
     paddingVertical: Spacing.one,
   },
   emptyContainer: {
@@ -323,9 +238,7 @@ const styles = StyleSheet.create({
     minHeight: 60,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    gap: Spacing.three,
+    gap: 12,
   },
   sequenceBadge: {
     width: 32,
@@ -336,7 +249,7 @@ const styles = StyleSheet.create({
   },
   exerciseDetails: {
     flex: 1,
-    gap: 2,
+    gap: 1,
   },
   exerciseNameText: {
     fontWeight: "600",
@@ -344,39 +257,6 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.two,
-  },
-  reorderButton: {
-    width: 44,
-    height: 44,
-    minWidth: 44,
-    minHeight: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reorderButtonDisabled: {
-    opacity: 0.35,
-  },
-  reorderButtonIcon: {
-    fontSize: 18,
-    lineHeight: 22,
-    fontWeight: "700",
-  },
-  iconDisabled: {
-    opacity: 0.5,
-  },
-  doneButton: {
-    minHeight: 48,
-    borderRadius: Spacing.three,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.one,
-  },
-  doneButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+    gap: Spacing.one,
   },
 });

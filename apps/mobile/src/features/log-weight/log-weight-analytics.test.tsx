@@ -65,7 +65,16 @@ vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  PageGutter: 20,
   Spacing: {},
+}));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  FormField: "FormField",
+  FormStatus: "FormStatus",
+  FormTextInput: "FormTextInput",
+  Notice: "Notice",
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/features/auth/auth-context", () => ({
@@ -126,10 +135,7 @@ beforeEach(async () => {
   await settle();
 });
 function save() {
-  find(
-    render(),
-    (node) => node.props?.accessibilityRole === "button",
-  ).props.onPress();
+  find(render(), (node) => node.type === "Button").props.onPress();
 }
 
 it("emits one correlated record only on a successful measurement save, without measurements in telemetry", async () => {

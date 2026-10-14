@@ -1,18 +1,16 @@
 import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import {
+  Button,
+  Card,
+  FormStatus,
+  FormTextInput,
+  IconBadge,
+} from "@/components/ui";
 import { IosTimePicker } from "@/components/ui/ios-time-picker";
-import { Colors, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   applyFirstMealReminders,
@@ -85,22 +83,14 @@ export function FirstMealRoutineModal({
       visible={visible}
       onRequestClose={handleSkip}
     >
-      <View style={styles.overlay}>
-        <ThemedView
-          type="backgroundElement"
-          style={[
-            styles.card,
-            {
-              backgroundColor:
-                theme.background === Colors.light.background
-                  ? "#FFFFFF"
-                  : "#1E293B",
-            },
-          ]}
-        >
-          <ThemedText type="smallBold" style={styles.title}>
-            🌅 Build your first-meal routine
-          </ThemedText>
+      <View style={[styles.overlay, { backgroundColor: theme.overlay }]}>
+        <Card style={styles.card}>
+          <View style={styles.titleRow}>
+            <IconBadge name="sunrise" tone="warning" />
+            <ThemedText type="headline" style={styles.title}>
+              Build your first-meal routine
+            </ThemedText>
+          </View>
           <ThemedText
             type="small"
             themeColor="textSecondary"
@@ -114,13 +104,7 @@ export function FirstMealRoutineModal({
           <View
             style={[
               styles.pickerContainer,
-              {
-                backgroundColor:
-                  theme.background === Colors.light.background
-                    ? "rgba(0, 0, 0, 0.03)"
-                    : "rgba(255, 255, 255, 0.05)",
-                borderColor: theme.border,
-              },
+              { backgroundColor: theme.backgroundSelected },
             ]}
           >
             <IosTimePicker
@@ -134,62 +118,36 @@ export function FirstMealRoutineModal({
             />
           </View>
 
-          <TextInput
+          <FormTextInput
             accessibilityLabel="Routine context"
             placeholder="Routine context (e.g. morning coffee, after workout)"
-            placeholderTextColor="#8A8D91"
             value={routineLabel}
             onChangeText={setRoutineLabel}
             maxLength={60}
-            style={[
-              styles.routineInput,
-              {
-                color: theme.text,
-                borderColor: theme.border,
-                backgroundColor:
-                  theme.background === Colors.light.background
-                    ? "rgba(0, 0, 0, 0.03)"
-                    : "rgba(255, 255, 255, 0.05)",
-              },
-            ]}
           />
 
           {errorMessage ? (
-            <ThemedText type="small" style={styles.errorText}>
-              {errorMessage}
-            </ThemedText>
+            <FormStatus tone="error">{errorMessage}</FormStatus>
           ) : null}
 
           <View style={styles.buttonRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Not now"
+            <Button
+              label="Not now"
+              variant="plain"
               disabled={saving}
               onPress={handleSkip}
-              style={[styles.button, styles.skipButton]}
-            >
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                Not now
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Set reminder"
+              style={styles.button}
+            />
+            <Button
+              label="Set reminder"
+              variant="primary"
+              loading={saving}
               disabled={saving}
               onPress={() => void handleSave()}
-              style={[styles.button, styles.saveButton]}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <ThemedText type="smallBold" style={styles.saveButtonText}>
-                  Set reminder
-                </ThemedText>
-              )}
-            </Pressable>
+              style={styles.button}
+            />
           </View>
-        </ThemedView>
+        </Card>
       </View>
     </Modal>
   );
@@ -198,7 +156,6 @@ export function FirstMealRoutineModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.four,
@@ -206,43 +163,25 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 400,
-    borderRadius: 20,
+    borderRadius: Radius.xl,
     padding: Spacing.four,
     gap: Spacing.three,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-      default: {},
-    }),
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
   },
   title: {
-    fontSize: 18,
+    flex: 1,
   },
   description: {
     lineHeight: 20,
   },
   pickerContainer: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.half,
-  },
-  routineInput: {
-    height: 44,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
-    fontSize: 14,
-  },
-  errorText: {
-    color: "#EF4444",
   },
   buttonRow: {
     flexDirection: "row",
@@ -251,18 +190,5 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    height: 46,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  skipButton: {
-    backgroundColor: "transparent",
-  },
-  saveButton: {
-    backgroundColor: "#10B981",
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
   },
 });

@@ -1,6 +1,25 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  ChoiceChip,
+  ChoiceGroup,
+  FormField,
+  FormStatus,
+  FormTextInput,
+  Icon,
+  IconButton,
+  SectionHeader,
+} from "@/components/ui";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import type { FeedbackCategory, FeedbackItem } from "@mizyun/contracts";
 import * as ImagePicker from "expo-image-picker";
@@ -12,7 +31,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,27 +51,27 @@ interface CategoryOption {
 const CATEGORIES: readonly CategoryOption[] = [
   {
     key: "like",
-    label: "✨ What you like",
+    label: "What you like",
     placeholder: "What features or details are working really well for you?",
   },
   {
     key: "dislike",
-    label: "⚡ What you don't like",
+    label: "What you don't like",
     placeholder: "What feels annoying, confusing, or could be smoother?",
   },
   {
     key: "change",
-    label: "💡 Idea / Change",
+    label: "Idea / Change",
     placeholder: "What would you change, add, or improve next?",
   },
   {
     key: "bug",
-    label: "🐛 Bug / Issue",
+    label: "Bug / Issue",
     placeholder: "What went wrong, and what steps reproduced it?",
   },
   {
     key: "general",
-    label: "💬 General review",
+    label: "General review",
     placeholder: "Share any thoughts or overall review of your experience...",
   },
 ];
@@ -188,7 +206,7 @@ export function FeedbackScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <ThemedText type="subtitle">Help improve Mizyun</ThemedText>
+            <ThemedText type="title3">Help improve Mizyun</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               Your feedback goes directly to the founder. Let us know what you
               love, what feels clunky, or what features you would change.
@@ -196,76 +214,46 @@ export function FeedbackScreen() {
           </View>
 
           {submitted ? (
-            <ThemedView type="backgroundElement" style={styles.successCard}>
-              <ThemedText type="subtitle" style={styles.successTitle}>
-                Thank you! 🙌
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+            <Card style={styles.successCard}>
+              <Icon name="checkCircle" size={36} color="primary" />
+              <ThemedText type="title3">Thank you!</ThemedText>
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                style={styles.centered}
+              >
                 Your feedback and screenshots have been recorded and will help
                 shape upcoming updates and improvements.
               </ThemedText>
               <View style={styles.successActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={onReset}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                >
-                  <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                    Send more feedback
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
+                <Button label="Send more feedback" onPress={onReset} block />
+                <Button
+                  variant="plain"
+                  label="Done"
                   onPress={() => router.back()}
-                  style={({ pressed }) => [
-                    styles.secondaryButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                >
-                  <ThemedText type="smallBold">Done</ThemedText>
-                </Pressable>
+                  block
+                />
               </View>
-            </ThemedView>
+            </Card>
           ) : (
-            <ThemedView type="backgroundElement" style={styles.formCard}>
-              <ThemedText type="smallBold">Category</ThemedText>
-              <View style={styles.categoryChips}>
-                {CATEGORIES.map((cat) => {
-                  const selected = category === cat.key;
-                  return (
-                    <Pressable
+            <Card style={styles.formCard}>
+              <FormField label="Category">
+                <ChoiceGroup>
+                  {CATEGORIES.map((cat) => (
+                    <ChoiceChip
                       key={cat.key}
-                      accessibilityRole="button"
-                      accessibilityLabel={cat.label}
+                      label={cat.label}
+                      selected={category === cat.key}
                       onPress={() => {
                         setCategory(cat.key);
                         setError(null);
                       }}
-                      style={({ pressed }) => [
-                        styles.chip,
-                        selected && styles.chipSelected,
-                        pressed && styles.buttonPressed,
-                      ]}
-                    >
-                      <ThemedText
-                        type="small"
-                        style={[
-                          styles.chipText,
-                          selected && styles.chipTextSelected,
-                        ]}
-                      >
-                        {cat.label}
-                      </ThemedText>
-                    </Pressable>
-                  );
-                })}
-              </View>
+                    />
+                  ))}
+                </ChoiceGroup>
+              </FormField>
 
-              <View style={styles.ratingSection}>
-                <ThemedText type="smallBold">Rating (optional)</ThemedText>
+              <FormField label="Rating (optional)">
                 <View style={styles.starRow}>
                   {[1, 2, 3, 4, 5].map((star) => {
                     const filled = rating !== null && rating >= star;
@@ -274,188 +262,157 @@ export function FeedbackScreen() {
                         key={star}
                         accessibilityRole="button"
                         accessibilityLabel={`${star} stars`}
+                        accessibilityState={{ selected: filled }}
                         onPress={() => onSelectRating(star)}
                         style={({ pressed }) => [
-                          styles.starButton,
-                          pressed && styles.buttonPressed,
+                          styles.star,
+                          pressed && styles.starPressed,
                         ]}
                       >
-                        <ThemedText style={styles.starIcon}>
-                          {filled ? "★" : "☆"}
-                        </ThemedText>
+                        <Icon
+                          name={filled ? "starFill" : "star"}
+                          size={26}
+                          color={filled ? "warning" : "textTertiary"}
+                        />
                       </Pressable>
                     );
                   })}
                   {rating !== null ? (
-                    <Pressable
-                      accessibilityRole="button"
+                    <Button
+                      variant="plain"
+                      size="small"
+                      label="Clear"
                       accessibilityLabel="Clear rating"
                       onPress={() => setRating(null)}
-                      style={styles.clearRatingButton}
-                    >
-                      <ThemedText type="small" themeColor="textSecondary">
-                        Clear
-                      </ThemedText>
-                    </Pressable>
+                    />
                   ) : null}
                 </View>
-              </View>
+              </FormField>
 
-              <View style={styles.messageSection}>
-                <ThemedText type="smallBold">Your message</ThemedText>
-                <TextInput
+              <FormField label="Your message">
+                <FormTextInput
                   accessibilityLabel="Feedback message"
                   multiline
                   numberOfLines={4}
                   maxLength={4000}
                   placeholder={activeCategory.placeholder}
-                  placeholderTextColor="#8A8D91"
                   value={message}
                   onChangeText={(text) => {
                     setMessage(text);
                     if (error) setError(null);
                   }}
-                  style={[
-                    styles.textInput,
-                    { color: theme.text, borderColor: theme.border },
-                  ]}
+                  style={styles.textInput}
                   textAlignVertical="top"
                 />
-                <View style={styles.charCountRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {message.length} / 4000
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.attachmentSection}>
-                <ThemedText type="smallBold">
-                  Screenshots / Photos (optional, max 3)
+                <ThemedText
+                  type="footnote"
+                  themeColor="textSecondary"
+                  style={styles.charCount}
+                >
+                  {message.length} / 4000
                 </ThemedText>
-                {attachments.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.thumbnailRow}
-                  >
-                    {attachments.map((att, idx) => (
-                      <View key={att.uri} style={styles.thumbnailContainer}>
-                        <Image
-                          source={{ uri: att.uri }}
-                          style={styles.thumbnail}
-                          resizeMode="cover"
-                        />
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Remove photo"
-                          onPress={() => onRemoveAttachment(idx)}
-                          style={styles.removeThumbnailBadge}
-                        >
-                          <ThemedText style={styles.removeThumbnailText}>
-                            ✕
-                          </ThemedText>
-                        </Pressable>
-                      </View>
-                    ))}
-                  </ScrollView>
-                ) : null}
+              </FormField>
 
-                {attachments.length < 3 ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Attach photo or screenshot"
-                    onPress={() => void onPickImages()}
-                    style={({ pressed }) => [
-                      styles.attachButton,
-                      pressed && styles.buttonPressed,
-                    ]}
-                  >
-                    <ThemedText
-                      type="smallBold"
-                      style={styles.attachButtonText}
+              <FormField label="Screenshots / Photos (optional, max 3)">
+                <View style={styles.attachmentSection}>
+                  {attachments.length > 0 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.thumbnailRow}
                     >
-                      📷{" "}
-                      {attachments.length === 0
-                        ? "Attach screenshot or photo"
-                        : `Add another (${attachments.length}/3)`}
-                    </ThemedText>
-                  </Pressable>
-                ) : null}
-              </View>
+                      {attachments.map((att, idx) => (
+                        <View key={att.uri} style={styles.thumbnailContainer}>
+                          <Image
+                            source={{ uri: att.uri }}
+                            style={styles.thumbnail}
+                            resizeMode="cover"
+                          />
+                          <View style={styles.removeThumbnail}>
+                            <IconButton
+                              icon="close"
+                              accessibilityLabel="Remove photo"
+                              onPress={() => onRemoveAttachment(idx)}
+                            />
+                          </View>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  ) : null}
+
+                  {attachments.length < 3 ? (
+                    <Button
+                      variant="tinted"
+                      icon="camera"
+                      accessibilityLabel="Attach photo or screenshot"
+                      label={
+                        attachments.length === 0
+                          ? "Attach screenshot or photo"
+                          : `Add another (${attachments.length}/3)`
+                      }
+                      onPress={() => void onPickImages()}
+                    />
+                  ) : null}
+                </View>
+              </FormField>
 
               {error !== null ? (
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  style={styles.errorText}
-                  accessibilityRole="alert"
-                >
-                  {error}
-                </ThemedText>
+                <FormStatus tone="error">{error}</FormStatus>
               ) : null}
 
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label={
+                  submitting
+                    ? uploadingPhotos
+                      ? "Uploading screenshots..."
+                      : "Submitting..."
+                    : "Submit feedback"
+                }
+                loading={submitting}
                 disabled={submitting}
-                accessibilityState={{ disabled: submitting, busy: submitting }}
                 onPress={() => void onSubmit()}
-                style={({ pressed }) => [
-                  styles.submitButton,
-                  (pressed || submitting) && styles.buttonPressed,
-                  submitting && styles.buttonDisabled,
-                ]}
-              >
-                {submitting ? (
-                  <View style={styles.submittingRow}>
-                    <ActivityIndicator color="#000000" size="small" />
-                    <ThemedText
-                      type="smallBold"
-                      style={styles.primaryButtonText}
-                    >
-                      {uploadingPhotos
-                        ? "Uploading screenshots..."
-                        : "Submitting..."}
-                    </ThemedText>
-                  </View>
-                ) : (
-                  <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                    Submit feedback
-                  </ThemedText>
-                )}
-              </Pressable>
-            </ThemedView>
+              />
+            </Card>
           )}
 
           {pastFeedback.length > 0 ? (
-            <ThemedView type="backgroundElement" style={styles.historyCard}>
-              <ThemedText type="smallBold">Your previous feedback</ThemedText>
+            <View style={styles.history}>
+              <SectionHeader title="Your previous feedback" />
               {loadingHistory ? (
                 <ActivityIndicator style={{ paddingVertical: Spacing.two }} />
               ) : (
-                <View style={styles.historyList}>
-                  {pastFeedback.map((item) => (
-                    <View key={item.id} style={styles.historyItem}>
+                <Card style={styles.historyList}>
+                  {pastFeedback.map((item, index) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.historyItem,
+                        index > 0 && {
+                          borderTopWidth: StyleSheet.hairlineWidth,
+                          borderTopColor: theme.separator,
+                        },
+                      ]}
+                    >
                       <View style={styles.historyHeader}>
                         <ThemedText type="smallBold">
                           {formatCategoryLabel(item.category)}
                         </ThemedText>
                         {item.rating !== null ? (
-                          <ThemedText type="small" style={styles.ratingBadge}>
-                            {"★".repeat(item.rating)}
+                          <ThemedText type="footnote" themeColor="warning">
+                            {item.rating} / 5
                           </ThemedText>
                         ) : null}
                         {item.mediaAssetIds && item.mediaAssetIds.length > 0 ? (
                           <ThemedText
-                            type="small"
+                            type="footnote"
                             themeColor="textSecondary"
-                            style={styles.photoCountBadge}
                           >
-                            📎 {item.mediaAssetIds.length} photo
+                            {item.mediaAssetIds.length} photo
                             {item.mediaAssetIds.length > 1 ? "s" : ""}
                           </ThemedText>
                         ) : null}
                         <ThemedText
-                          type="small"
+                          type="footnote"
                           themeColor="textSecondary"
                           style={styles.historyDate}
                         >
@@ -467,9 +424,9 @@ export function FeedbackScreen() {
                       </ThemedText>
                     </View>
                   ))}
-                </View>
+                </Card>
               )}
-            </ThemedView>
+            </View>
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -480,15 +437,15 @@ export function FeedbackScreen() {
 function formatCategoryLabel(category: FeedbackCategory): string {
   switch (category) {
     case "like":
-      return "✨ Like";
+      return "Like";
     case "dislike":
-      return "⚡ Dislike";
+      return "Dislike";
     case "change":
-      return "💡 Idea / Change";
+      return "Idea / Change";
     case "bug":
-      return "🐛 Bug";
+      return "Bug";
     case "general":
-      return "💬 Review";
+      return "Review";
   }
 }
 
@@ -499,214 +456,52 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.four,
   },
   header: { gap: Spacing.one },
-  formCard: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
-  },
-  successCard: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "#10B981",
-    alignItems: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
-  },
-  successTitle: {
-    color: "#10B981",
-  },
-  successActions: {
-    flexDirection: "row",
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-    width: "100%",
-  },
-  categoryChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-  },
-  chip: {
-    borderRadius: 12,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    backgroundColor: "transparent",
-  },
-  chipSelected: {
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
-  chipText: {
-    fontSize: 13,
-  },
-  chipTextSelected: {
-    fontWeight: "700",
-    color: "#10B981",
-  },
-  ratingSection: {
-    gap: Spacing.one,
-  },
+  formCard: { gap: Spacing.three },
+  successCard: { alignItems: "center", gap: Spacing.two },
+  centered: { textAlign: "center" },
+  successActions: { gap: Spacing.one, marginTop: Spacing.two, width: "100%" },
   starRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: Spacing.two,
-  },
-  starButton: {
-    padding: Spacing.one,
-  },
-  starIcon: {
-    fontSize: 26,
-    color: "#F59E0B",
-  },
-  clearRatingButton: {
-    marginLeft: Spacing.two,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-  },
-  messageSection: {
     gap: Spacing.one,
   },
-  textInput: {
-    minHeight: 120,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: Spacing.three,
-    fontSize: 15,
+  star: {
+    minWidth: MinTouchTarget,
+    minHeight: MinTouchTarget,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  charCountRow: {
-    alignItems: "flex-end",
-  },
-  attachmentSection: {
-    gap: Spacing.two,
-  },
+  starPressed: { opacity: 0.6 },
+  textInput: { minHeight: 120, paddingTop: Spacing.two },
+  charCount: { textAlign: "right" },
+  attachmentSection: { gap: Spacing.two },
   thumbnailRow: {
     flexDirection: "row",
     gap: Spacing.two,
     paddingVertical: Spacing.one,
   },
   thumbnailContainer: {
-    position: "relative",
     width: 72,
     height: 72,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
   },
-  thumbnail: {
-    width: "100%",
-    height: "100%",
-  },
-  removeThumbnailBadge: {
-    position: "absolute",
-    top: 3,
-    right: 3,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  removeThumbnailText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 13,
-  },
-  attachButton: {
-    borderRadius: 12,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.4)",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-  },
-  attachButtonText: {
-    color: "#10B981",
-  },
-  errorText: {
-    color: "#EF4444",
-  },
-  submitButton: {
-    borderRadius: 12,
-    paddingVertical: Spacing.three,
-    alignItems: "center",
-    backgroundColor: "#10B981",
-    marginTop: Spacing.one,
-  },
-  submittingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  primaryButton: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: Spacing.three,
-    alignItems: "center",
-    backgroundColor: "#10B981",
-  },
-  secondaryButton: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: Spacing.three,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-  },
-  primaryButtonText: {
-    color: "#000000",
-    fontWeight: "700",
-  },
-  buttonPressed: {
-    opacity: 0.75,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  historyCard: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
-  },
-  historyList: {
-    gap: Spacing.three,
-  },
-  historyItem: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(148, 163, 184, 0.2)",
-    paddingBottom: Spacing.two,
-    gap: Spacing.half,
-  },
+  thumbnail: { width: "100%", height: "100%" },
+  removeThumbnail: { position: "absolute", top: -6, right: -6 },
+  history: { gap: Spacing.two },
+  historyList: { gap: 0, paddingVertical: Spacing.one },
+  historyItem: { paddingVertical: Spacing.two, gap: Spacing.half },
   historyHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
   },
-  ratingBadge: {
-    color: "#F59E0B",
-    fontSize: 13,
-  },
-  photoCountBadge: {
-    fontSize: 12,
-  },
-  historyDate: {
-    marginLeft: "auto",
-    fontSize: 12,
-  },
+  historyDate: { marginLeft: "auto" },
 });

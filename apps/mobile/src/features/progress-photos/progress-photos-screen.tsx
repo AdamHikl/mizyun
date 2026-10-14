@@ -19,7 +19,24 @@ import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Icon,
+  ListGroup,
+  ListRow,
+  Notice,
+  SectionHeader,
+} from "@/components/ui";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/features/auth/auth-context";
 import type {
   MediaCompareResponse,
@@ -76,6 +93,7 @@ const dateLabel = (iso: string): string =>
   }).format(new Date(`${iso}T12:00:00Z`));
 
 export function ProgressPhotosScreen() {
+  const theme = useTheme();
   const { session } = useAuth();
   const [timeline, setTimeline] = useState<MediaTimelineResponse | null>(null);
   const [selectedPhoto, setSelectedPhoto] =
@@ -304,44 +322,47 @@ export function ProgressPhotosScreen() {
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.card}>
-            <ThemedText type="subtitle">Private by default</ThemedText>
-            <ThemedText themeColor="textSecondary">
+          <Card style={styles.card}>
+            <ThemedText type="title3">Private by default</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
               Photos are sensitive. Mizyun uploads only the photo you choose,
               stores it in your private account folder, and never uses it as an
               authoritative body or nutrition measurement.
             </ThemedText>
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: consented }}
-              accessibilityLabel="Consent to upload a private progress photo"
-              onPress={() => setConsented((value) => !value)}
-              style={[styles.consent, consented && styles.selected]}
-            >
-              <ThemedText type="smallBold">
-                {consented ? "✓ " : "○ "}I choose to upload this photo to my
-                private timeline.
-              </ThemedText>
-            </Pressable>
-            <View style={styles.row}>
-              <Pressable
-                accessibilityRole="button"
+            <ListGroup style={{ backgroundColor: theme.backgroundSelected }}>
+              <ListRow
+                title="I choose to upload this photo to my private timeline."
+                chevron={false}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: consented }}
+                accessibilityLabel="Consent to upload a private progress photo"
+                onPress={() => setConsented((value) => !value)}
+                trailing={
+                  <Icon
+                    name={consented ? "checkCircle" : "circle"}
+                    size={22}
+                    color={consented ? "primary" : "textTertiary"}
+                  />
+                }
+              />
+            </ListGroup>
+            <View style={styles.stack}>
+              <Button
+                variant="tinted"
+                icon="camera"
+                label="Take photo"
                 onPress={() => void takePhoto()}
                 disabled={busy}
-                style={styles.primaryButton}
-              >
-                <ThemedText type="smallBold" style={styles.buttonText}>
-                  Take photo
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
+                block
+              />
+              <Button
+                variant="secondary"
+                icon="photo"
+                label="Choose photo"
                 onPress={() => void choosePhoto()}
                 disabled={busy}
-                style={styles.secondaryButton}
-              >
-                <ThemedText type="smallBold">Choose photo</ThemedText>
-              </Pressable>
+                block
+              />
             </View>
             {selectedPhoto ? (
               <View style={styles.previewBlock}>
@@ -351,97 +372,106 @@ export function ProgressPhotosScreen() {
                   contentFit="cover"
                   accessibilityLabel="Selected progress photo preview"
                 />
-                <ThemedText themeColor="textSecondary">
+                <ThemedText type="small" themeColor="textSecondary">
                   {selectedPhoto.width} × {selectedPhoto.height} ·{" "}
                   {Math.ceil(selectedPhoto.byteSize / 1024)} KB JPEG
                 </ThemedText>
-                <Pressable
-                  accessibilityRole="button"
+                <Button
+                  label="Upload privately"
                   onPress={() => void upload()}
                   disabled={busy}
-                  style={styles.primaryButton}
-                >
-                  <ThemedText type="smallBold" style={styles.buttonText}>
-                    Upload privately
-                  </ThemedText>
-                </Pressable>
+                />
               </View>
             ) : null}
-          </View>
+          </Card>
 
-          {error ? (
-            <ThemedText accessibilityRole="alert" style={styles.error}>
-              {error}
-            </ThemedText>
-          ) : null}
+          {error ? <Notice tone="danger" message={error} /> : null}
           {busy || loading ? (
             <ActivityIndicator accessibilityLabel="Loading photos" />
           ) : null}
 
-          <View style={styles.sectionHeader}>
-            <View>
-              <ThemedText type="subtitle">Timeline</ThemedText>
-              <ThemedText themeColor="textSecondary">
-                Select two photos to compare.
-              </ThemedText>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              disabled={selectedIds.length !== 2 || busy}
-              onPress={() => void compare()}
-              style={[
-                styles.secondaryButton,
-                selectedIds.length !== 2 && styles.disabled,
-              ]}
-            >
-              <ThemedText type="smallBold">Compare</ThemedText>
-            </Pressable>
-          </View>
+          <View style={styles.section}>
+            <SectionHeader
+              title="Timeline"
+              action={
+                <Button
+                  variant="plain"
+                  size="small"
+                  label="Compare"
+                  disabled={selectedIds.length !== 2 || busy}
+                  onPress={() => void compare()}
+                />
+              }
+            />
+            <ThemedText type="footnote" themeColor="textSecondary">
+              Select two photos to compare.
+            </ThemedText>
 
-          {entries.length === 0 && !loading ? (
-            <View style={styles.card}>
-              <ThemedText>No progress photos yet.</ThemedText>
-            </View>
-          ) : null}
+            {entries.length === 0 && !loading ? (
+              <Card>
+                <EmptyState icon="photo" title="No progress photos yet." />
+              </Card>
+            ) : null}
 
-          <View style={styles.grid}>
-            {entries.map((entry) => {
-              const selected = selectedIds.includes(entry.asset.id);
-              return (
-                <View key={entry.asset.id} style={styles.photoCard}>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected }}
-                    accessibilityLabel={`Progress photo from ${dateLabel(entry.asset.createdAt.slice(0, 10))}`}
-                    onPress={() => toggleSelected(entry.asset.id)}
-                    style={[styles.imageFrame, selected && styles.selected]}
-                  >
-                    <Image
-                      source={entry.signedUrl}
-                      style={styles.thumbnail}
-                      contentFit="cover"
-                      accessibilityIgnoresInvertColors
+            <View style={styles.grid}>
+              {entries.map((entry) => {
+                const selected = selectedIds.includes(entry.asset.id);
+                return (
+                  <View key={entry.asset.id} style={styles.photoCard}>
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      accessibilityLabel={`Progress photo from ${dateLabel(entry.asset.createdAt.slice(0, 10))}`}
+                      onPress={() => toggleSelected(entry.asset.id)}
+                      style={[
+                        styles.imageFrame,
+                        {
+                          borderColor: selected ? theme.primary : "transparent",
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={entry.signedUrl}
+                        style={styles.thumbnail}
+                        contentFit="cover"
+                        accessibilityIgnoresInvertColors
+                      />
+                      {selected ? (
+                        <View
+                          style={[
+                            styles.selectedBadge,
+                            { backgroundColor: theme.primary },
+                          ]}
+                        >
+                          <Icon
+                            name="check"
+                            size={14}
+                            tintColor={theme.onPrimary}
+                          />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                    <ThemedText type="smallBold">
+                      {dateLabel(entry.asset.createdAt.slice(0, 10))}
+                    </ThemedText>
+                    <Button
+                      variant="destructive"
+                      size="small"
+                      icon="trash"
+                      label="Delete"
+                      accessibilityLabel="Delete this progress photo"
+                      onPress={() => confirmDelete(entry.asset.id)}
                     />
-                  </Pressable>
-                  <ThemedText type="smallBold">
-                    {dateLabel(entry.asset.createdAt.slice(0, 10))}
-                  </ThemedText>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Delete this progress photo"
-                    onPress={() => confirmDelete(entry.asset.id)}
-                  >
-                    <ThemedText style={styles.deleteText}>Delete</ThemedText>
-                  </Pressable>
-                </View>
-              );
-            })}
+                  </View>
+                );
+              })}
+            </View>
           </View>
 
           {comparison ? (
-            <View style={styles.card}>
-              <ThemedText type="subtitle">Comparison</ThemedText>
-              <ThemedText themeColor="textSecondary">
+            <Card style={styles.card}>
+              <ThemedText type="title3">Comparison</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
                 {Math.abs(comparison.daysBetween)} days apart · visual reference
                 only
               </ThemedText>
@@ -456,7 +486,7 @@ export function ProgressPhotosScreen() {
                   />
                 ))}
               </View>
-            </View>
+            </Card>
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -471,55 +501,34 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    padding: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.four,
   },
-  card: {
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-  },
-  consent: {
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    borderRadius: 14,
-    padding: Spacing.three,
-  },
-  selected: { borderColor: "#10B981", borderWidth: 2 },
+  card: { gap: Spacing.three },
+  section: { gap: Spacing.two },
   row: { flexDirection: "row", gap: Spacing.two, alignItems: "center" },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: "#10B981",
-    borderRadius: 14,
-    padding: Spacing.three,
-    alignItems: "center",
-  },
-  secondaryButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    borderRadius: 14,
-    padding: Spacing.three,
-    alignItems: "center",
-  },
-  buttonText: { color: "#FFFFFF" },
-  disabled: { opacity: 0.45 },
+  stack: { gap: Spacing.two },
   previewBlock: { gap: Spacing.two },
-  preview: { width: "100%", aspectRatio: 3 / 4, borderRadius: 14 },
-  error: { color: "#EF4444" },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: Spacing.three,
-  },
+  preview: { width: "100%", aspectRatio: 3 / 4, borderRadius: Radius.md },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
-  photoCard: { width: "47%", gap: Spacing.one },
-  imageFrame: { borderRadius: 14, overflow: "hidden" },
+  photoCard: { width: "47%", gap: Spacing.two },
+  imageFrame: {
+    borderRadius: Radius.md,
+    borderWidth: 3,
+    overflow: "hidden",
+  },
   thumbnail: { width: "100%", aspectRatio: 3 / 4 },
-  deleteText: { color: "#EF4444" },
-  compareImage: { flex: 1, aspectRatio: 3 / 4, borderRadius: 14 },
+  selectedBadge: {
+    position: "absolute",
+    top: Spacing.two,
+    right: Spacing.two,
+    width: 24,
+    height: 24,
+    borderRadius: Radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compareImage: { flex: 1, aspectRatio: 3 / 4, borderRadius: Radius.md },
 });
