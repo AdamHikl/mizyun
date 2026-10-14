@@ -22,6 +22,9 @@ const hooks = vi.hoisted(() => ({
   effects: [] as (() => void)[],
   cleanups: new Map<number, () => void>(),
   focus: null as (() => void) | null,
+  // Focus cleanups stop real 60s polling timers that would otherwise fire
+  // after this file's environment is torn down.
+  focusCleanups: [] as (() => void)[],
 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -83,7 +86,12 @@ vi.mock("expo-router", () => ({
   Stack: { Screen: "StackScreen" },
   useLocalSearchParams: () => ({}),
   useFocusEffect: (callback: () => void) => {
-    hooks.focus = callback;
+    hooks.focus = () => {
+      const cleanup = (callback as () => unknown)();
+      if (typeof cleanup === "function")
+        hooks.focusCleanups.push(cleanup as () => void);
+      return cleanup as void;
+    };
   },
 }));
 vi.mock("react-native-safe-area-context", () => ({
@@ -404,6 +412,7 @@ describe("meal tab read lifecycle", () => {
 });
 
 afterEach(() => {
+  hooks.focusCleanups.splice(0).forEach((cleanup) => cleanup());
   hooks.cleanups.forEach((cleanup) => cleanup());
   hooks.cleanups.clear();
   vi.useRealTimers();
