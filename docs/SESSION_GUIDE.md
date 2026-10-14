@@ -47,7 +47,11 @@ Read each mandatory file separately so an aggregate tool-output limit does not t
 
 - Keep one active work package unless the user changes priority. Independent agent subtasks within that package are encouraged and required for substantive work under AGENTS.md; they do not create competing work packages.
 - The coordinator owns shared continuity documents, integration, commits, remote mutations and final verification. Assign disjoint helper write ownership; serialize operations on shared database and native-build resources. Preserve work from other active sessions.
+- Use GPT-6.1 Sol Medium for ordinary delegated tasks, with explicit runtime settings; retain the personal High exceptions for sensitive and ambiguous work unless the user overrides them. Start each distinct subtask with a fresh no-history packet containing only its objective, relevant instructions, baseline, owned paths, requirements and expected report. Do not reuse a reviewer carrying unrelated work history.
 - Get independent agent review for authentication, authorization, privacy lifecycle, migrations/RLS, AI access/budgets and deployment changes. Review findings must be resolved or recorded as open blockers, not hidden behind passing helper tests.
+- Final review starts after the implementation and focused checks on the reviewed paths settle. Supply the exact baseline and owned diff, current path hashes or immutable candidate, acceptance criteria, actual check results and explicit review boundary. Freeze those paths during review; the coordinator can prepare documentation or perform independent read-only work. Early exploration does not count as final review.
+- A reviewer reports findings and ends its turn; it does not remain active in repeated waits for repairs. The coordinator fixes blockers, reruns affected checks, and requests review of only the fixes and their affected callers/tests once they settle. A new full review is justified only by a material scope change or invalidated prior conclusions. Use a fresh compact packet when the prior agent has accumulated unrelated or oversized context.
+- Keep the work package bounded: failures of requested behavior, privacy/security defects and failed required checks block completion. Put adjacent nonblocking discoveries in separate GitHub Issues with evidence and continue the selected package. Do not append a general audit to a small fix. Report review time separately from waiting for fixes and gate/native execution when explaining delays; overlapping durations are not additive.
 - Prefer feature-vertical changes: contract/domain → port → adapter → API/UI → tests.
 - Keep bounded navigation calls separate from large output batches. Use `pnpm nav:read` for complete symbols, line ranges and document sections; expand callers/tests when needed. Instructions must be read in full. Use task-only `pnpm impact --path <file>` by default; add `--include-working-tree` explicitly to examine combined changes.
 - Use `pnpm navigation:bench --json` for repeatable cache/timing/output-size proxies. Parent-context isolation does not imply lower aggregate helper cost; actual model-token and accepted-task comparisons require client evidence under #54.
@@ -57,6 +61,7 @@ Read each mandatory file separately so an aggregate tool-output limit does not t
 - Use `pnpm check` once on the settled candidate; its local host/user lock serializes full gates across chats, worktrees and snapshots. Never run the internal `check:steps` command directly. The runner rejects changing inputs and unsafe/stale locks; read the owner information and follow the runner's recovery instructions rather than removing a live lock. Native builds/database/deploy operations still require coordinator scheduling.
 - Wait on the command session for 30–60 seconds at a time and give meaningful progress updates between waits. Read a compact completion result or the failure excerpt; do not poll `tail`/`ps` every few seconds. Do useful independent read-only work while a check runs; keep its inputs unchanged.
 - If concurrent sessions are still writing, use a stable isolated candidate with an exact baseline and owned overlays. Verify the actual source correspondence and report excluded concurrent scope; do not first run a doomed broad gate on known-changing inputs. Preserve shared work and never count another candidate's result as acceptance of it.
+- Before the isolated full gate, confirm the baseline resolves in its Git metadata, dependencies and required ignored native scaffolding are available, and all local document references resolve within the candidate. Include only selected overlays and their necessary dependencies. Finish owned source/test/document/format writes before the gate; record the candidate fingerprint and scope. Run another full gate only for changed inputs, material fixes, failures or newly established risks. Required fresh commit/deployment gates still apply.
 - When a discovered task is outside scope, add it as a GitHub issue (`gh issue create`) with priority/status/area labels and continue the active item.
 - When blocked, record the exact condition and evidence in `status.md`; do not mark an incomplete item done.
 - Never use real user health information, body photos, credentials, or model secrets in fixtures or documentation.
@@ -74,7 +79,7 @@ For each affected technology:
 
 ## End-of-session checklist
 
-1. Run the relevant focused suites and then:
+1. Finish owned source, tests, formatting, review fixes and the continuity updates listed below. Run the relevant focused suites and document checks on the final candidate, then:
 
    ```bash
    pnpm check
@@ -83,12 +88,13 @@ For each affected technology:
 
 2. Review `git diff` for secrets, generated artifacts, unrelated edits, and architecture violations.
    Inspect helper changes and evidence yourself after writes have settled. Record which work was delegated and any unresolved independent-review findings.
-3. Update:
+3. Prepare these updates before the final gate in step 1:
    - `status.md` with completed work, verification evidence, blockers, next exact action, latest commit;
-   - GitHub Issues statuses (close completed issues, update `status:*` labels) and newly discovered work;
+   - GitHub Issues draft updates and newly discovered work; finalize `status:done` and issue closure only after required checks and stated exit criteria pass;
    - `plan.md` only if phase/current-focus or sequencing changed;
    - `goals.md` only if the user changed product direction;
    - requirements/ADR/research log when behavior or decisions changed.
+     Keep live gate logs and the final result receipt outside fingerprinted source inputs. The final chat handoff reports the actual result and fingerprint. If an evidence record must be added after the gate, identify it as a post-check record and run its applicable document checks; do not claim the changed document was part of the tested input. Any required fresh pre-commit or deployment gate still applies to the actual candidate.
 4. Commit a coherent segment and push only after checks pass.
 5. Ensure the working tree is clean or document precisely why it is not.
 6. Provide a concise handoff using the template below.
