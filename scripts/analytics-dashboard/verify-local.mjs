@@ -44,12 +44,42 @@ const sql = (database, input, role = "metabase", fail = false) =>
     input,
     fail ? 1 : 0,
   );
-const capture = () =>
-  validateSnapshot({
-    ...JSON.parse(sql(db, SOURCE_SQL)),
-    environment: "synthetic",
-    sourceSha: "a".repeat(40),
-  });
+// Freeze only clock expressions for deterministic UTC-boundary regressions;
+// execute the production source query itself against real scratch tables.
+const clockSql = (query, instant) => {
+  const at = new Date(instant).toISOString();
+  return query
+    .replace(/\bnow\(\)/g, `TIMESTAMPTZ '${at}'`)
+    .replace(/\bcurrent_date\b/g, `DATE '${at.slice(0, 10)}'`);
+};
+const capture = (instant) =>
+  validateSnapshot(
+    {
+      ...JSON.parse(
+        sql(db, instant ? clockSql(SOURCE_SQL, instant) : SOURCE_SQL),
+      ),
+      environment: "synthetic",
+      sourceSha: "a".repeat(40),
+    },
+    instant ? Date.parse(instant) : Date.now(),
+  );
+const registrations = (v) =>
+  v.metrics.filter((row) => row.metric === "registrations");
+const checkRegistrationCalendar = (v) => {
+  const rows = registrations(v).sort((a, b) => a.day.localeCompare(b.day));
+  const last = Date.parse(v.generatedAt.slice(0, 10));
+  check(rows.length === 30);
+  check(
+    rows.every(
+      (row, index) =>
+        row.day ===
+          new Date(last - (29 - index) * 86400000).toISOString().slice(0, 10) &&
+        row.platform === "all" &&
+        row.dimension === "all",
+    ),
+  );
+  return rows;
+};
 const imports = (v) =>
   sql("mizyun_reporting", snapshotImportSql(v), "reporting_writer");
 try {
@@ -77,10 +107,10 @@ try {
     db,
     `
 CREATE SCHEMA auth;
-CREATE TABLE auth.users(id uuid PRIMARY KEY,created_at timestamptz NOT NULL);
+CREATE TABLE auth.users(id uuid PRIMARY KEY,created_at timestamptz NOT NULL,email_confirmed_at timestamptz);
 CREATE TABLE public.product_analytics_consents(user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,version text,granted boolean,epoch uuid);
 CREATE TABLE public.product_analytics_events(id uuid,user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,epoch uuid,version text,event_name text,session_id uuid,sequence integer,flow_id uuid,platform text,app_version text,build text,properties jsonb,recorded_at timestamptz,PRIMARY KEY(user_id,id));
-INSERT INTO auth.users SELECT ('00000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,now()-interval '10 days' FROM generate_series(1,3)n;
+INSERT INTO auth.users SELECT ('00000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,now()-interval '10 days',CASE WHEN n=1 THEN now() ELSE NULL END FROM generate_series(1,3)n;
 INSERT INTO public.product_analytics_consents SELECT id,'product-analytics-v2',id<>'00000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111' FROM auth.users;
 INSERT INTO public.product_analytics_events VALUES
 ('10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','product-analytics-v2','app_session_started','22222222-2222-4222-8222-222222222222',0,NULL,'ios','1.0.6','6','{"entryPoint":"cold_start"}',now()-interval '10 days'),
@@ -98,6 +128,31 @@ INSERT INTO public.product_analytics_events VALUES
   );
   const initial = capture();
   check(initial.totalAccounts === 3 && initial.consentingAccounts === 2);
+  const calendar = checkRegistrationCalendar(initial);
+  check(calendar.reduce((sum, row) => sum + row.value, 0) === 3);
+  check(calendar.filter((row) => row.value === 3).length === 1);
+  check(calendar[15].value === 0 && calendar.at(-1).value === 0);
+  // Both unconfirmed accounts count, including the account denying analytics.
+  check(
+    sql(
+      db,
+      "SELECT count(*) FROM auth.users WHERE email_confirmed_at IS NULL;",
+    ) === "2",
+  );
+  sql(
+    db,
+    "DELETE FROM public.product_analytics_consents WHERE user_id='00000000-0000-4000-8000-000000000003';",
+  );
+  const withoutConsent = capture();
+  check(withoutConsent.consentingAccounts === 1);
+  check(
+    registrations(withoutConsent).reduce((sum, row) => sum + row.value, 0) ===
+      3,
+  );
+  sql(
+    db,
+    "INSERT INTO public.product_analytics_consents VALUES ('00000000-0000-4000-8000-000000000003','product-analytics-v2',true,'11111111-1111-4111-8111-111111111111');",
+  );
   const today = initial.generatedAt.slice(0, 10);
   const metric = (v, name, dimension = "all", day = today) =>
     v.metrics.find(
@@ -239,6 +294,7 @@ INSERT INTO public.product_analytics_events SELECT '20000000-0000-4000-8000-0000
   );
   const rotated = capture();
   check(!rotated.metrics.some((r) => r.metric === "events"));
+  check(registrations(rotated).reduce((sum, row) => sum + row.value, 0) === 3);
   imports(rotated);
   check(
     sql(
@@ -254,6 +310,8 @@ INSERT INTO public.product_analytics_events SELECT '20000000-0000-4000-8000-0000
   const deleted = capture();
   check(deleted.totalAccounts === 2);
   check(deleted.consentingAccounts === 1);
+  checkRegistrationCalendar(deleted);
+  check(registrations(deleted).reduce((sum, row) => sum + row.value, 0) === 2);
   imports(deleted);
   sql(
     "mizyun_reporting",
@@ -267,6 +325,90 @@ INSERT INTO public.product_analytics_events SELECT '20000000-0000-4000-8000-0000
       "reporting_reader",
     ) === "0",
   );
+  // Empty account sources still provide explicit zero days. Exercise the real
+  // warehouse view in the scratch DB with a clock crossing UTC midnight.
+  sql(db, "DELETE FROM auth.users;");
+  const empty = capture();
+  check(empty.totalAccounts === 0 && empty.consentingAccounts === 0);
+  check(checkRegistrationCalendar(empty).every((row) => row.value === 0));
+  const beforeMidnight = `${today}T23:59:00.000Z`;
+  const afterMidnight = new Date(
+    Date.parse(beforeMidnight) + 120000,
+  ).toISOString();
+  const firstDay = new Date(Date.parse(beforeMidnight) - 29 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const precedingDay = new Date(Date.parse(beforeMidnight) - 30 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  sql(
+    db,
+    `INSERT INTO auth.users(id,created_at) VALUES
+('00000000-0000-4000-8000-000000000011','${firstDay}T00:00:00Z'),
+('00000000-0000-4000-8000-000000000012','${precedingDay}T23:59:59Z'),
+('00000000-0000-4000-8000-000000000013','${beforeMidnight}'),
+('00000000-0000-4000-8000-000000000014','${today}T23:59:01Z'),
+('00000000-0000-4000-8000-000000000015','${afterMidnight}');`,
+  );
+  const bounded = capture(beforeMidnight);
+  const boundedCalendar = checkRegistrationCalendar(bounded);
+  check(boundedCalendar[0].value === 1 && boundedCalendar.at(-1).value === 1);
+  check(boundedCalendar.reduce((sum, row) => sum + row.value, 0) === 2);
+  const nextCalendar = checkRegistrationCalendar(capture(afterMidnight));
+  check(nextCalendar.at(-1).day === afterMidnight.slice(0, 10));
+  check(nextCalendar.at(-1).value === 1);
+  check(nextCalendar.reduce((sum, row) => sum + row.value, 0) === 3);
+  sql(db, "DELETE FROM auth.users;");
+  const boundary = capture(beforeMidnight);
+  check(checkRegistrationCalendar(boundary).every((row) => row.value === 0));
+  sql(
+    db,
+    snapshotImportSql(boundary, Date.parse(beforeMidnight)),
+    "reporting_writer",
+  );
+  const readerView = sql(
+    db,
+    "SELECT pg_get_viewdef('reporting.metrics', true);",
+  );
+  const readRegistrationsAt = (instant) => {
+    sql(
+      db,
+      `CREATE OR REPLACE VIEW reporting.metrics AS ${clockSql(readerView, instant)};`,
+    );
+    return JSON.parse(
+      sql(
+        db,
+        `SET timezone='Pacific/Auckland';
+SELECT json_build_object('count',count(*),'lastDay',max(day),'total',coalesce(sum(value),0))
+FROM reporting.metrics WHERE metric='registrations';`,
+        "reporting_reader",
+      ),
+    );
+  };
+  const freshZeros = readRegistrationsAt(beforeMidnight);
+  check(
+    freshZeros.count === 30 &&
+      freshZeros.lastDay === today &&
+      freshZeros.total === 0,
+  );
+  const crossedBoundary = readRegistrationsAt(afterMidnight);
+  check(
+    crossedBoundary.count === 29 &&
+      crossedBoundary.lastDay === today &&
+      crossedBoundary.total === 0,
+  );
+  // A reader never generates an unobserved new day from a previous-day source.
+  check(crossedBoundary.lastDay < afterMidnight.slice(0, 10));
+  const expired = new Date(
+    Date.parse(beforeMidnight) + 3 * 3600000,
+  ).toISOString();
+  check(readRegistrationsAt(expired).count === 0);
+  sql(
+    db,
+    "DELETE FROM reporting.refreshes WHERE environment='synthetic';",
+    "reporting_writer",
+  );
+  check(readRegistrationsAt(beforeMidnight).count === 0);
   // Restore synthetic display data, leaving only aggregate fixture counts.
   const display = { ...initial, generatedAt: new Date().toISOString() };
   imports(display);

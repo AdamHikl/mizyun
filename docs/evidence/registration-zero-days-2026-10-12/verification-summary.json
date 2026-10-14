@@ -1,0 +1,59 @@
+{
+  "postCheckRecord": true,
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidateInputSha256": "8f8f8b4c893f32f9fe224cda48a8997d71dfc606d127d9c7039a124ea4257a78",
+  "commands": {
+    "pnpm analytics:dashboard:verify-db": "PASS64 real SQL assertions",
+    "pnpm test:analytics-dashboard": "PASS69 unit tests",
+    "pnpm check": "PASS2157 mobile/980 API tests;15 credential-gated API tests across3 suites skipped; iOS/Android bundles pass",
+    "pnpm analytics:dashboard": "Both Dev/Production local snapshots refreshed; readerVisible true"
+  },
+  "review": "Independent Sol High approved frozen2-file diff; no blockers",
+  "sourceCorrespondence": "Both owned hashes matched reviewed/gated candidate and shared source after live application",
+  "liveCard": {
+    "cardId": 41,
+    "environment": "prod",
+    "days": 30,
+    "firstDay": "2026-09-13",
+    "lastDay": "2026-10-12",
+    "latestDates": [
+      {
+        "day": "2026-10-06",
+        "count": 1
+      },
+      {
+        "day": "2026-10-07",
+        "count": 0
+      },
+      {
+        "day": "2026-10-08",
+        "count": 0
+      },
+      {
+        "day": "2026-10-09",
+        "count": 0
+      },
+      {
+        "day": "2026-10-10",
+        "count": 0
+      },
+      {
+        "day": "2026-10-11",
+        "count": 0
+      },
+      {
+        "day": "2026-10-12",
+        "count": 0
+      }
+    ],
+    "snapshot": {
+      "generatedAt": "2026-10-12T16:57:47.785+00:00",
+      "sourceSha": "9b0c41acbb7e4ee70592cab40b6148fc76a393ed"
+    }
+  },
+  "browser": "Authenticated in-app browser verified Production30-day dashboard and visible zero points through snapshot day; screenshot retained",
+  "sourceMutation": false,
+  "backendDeployment": false,
+  "nativeBuild": false,
+  "commitOrPush": false
+}

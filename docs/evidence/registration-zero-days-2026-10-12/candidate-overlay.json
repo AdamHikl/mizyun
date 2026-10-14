@@ -1,0 +1,17 @@
+{
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "source": {
+    "scripts/analytics-dashboard/source.sql": "e170fed0f2a1cc9b40ad540946956e411f4c2125d31929fa0df2db44f3681387",
+    "scripts/analytics-dashboard/verify-local.mjs": "37b1e7330a81f7b4c3e8e26e8290d4fcebdb9f7bc50f4e057b3f739ee3700dd2"
+  },
+  "excluded": "All pre-existing and concurrent work, including previous consent reminders; exact baseline plus two owned source files and this package docs only.",
+  "candidate": "/private/tmp/mizyun-registration-chart-candidate",
+  "dependencies": "Workspace links resolve inside candidate; third-party pnpm store reused.",
+  "nativeScaffolding": "Copied ignored iOS project/source, excluding Pods/build/local environment.",
+  "docs": {
+    "docs/RESEARCH_LOG.md": "719c9f1745f39cf6332ad78581085b283f21bfc5da9c483ba9aecc378c6d962a",
+    "docs/feature-map.json": "98ce992c343b33e3d18438dcb4e9588657a35d8a06709ce621de050f6d392d19",
+    "docs/ANALYTICS_REGISTRATION_ZERO_DAYS_2026-10-12.md": "70c93512e32b1c31d0d2d2cbcc0297bbe642afa067c5ec82f0e41e01e0e7e4f7",
+    "status.md": "116d77d1da861d2410dbfd94e405603cd8af39cb72101be45ba0904cf1cfa35b"
+  }
+}

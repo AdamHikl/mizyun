@@ -1,0 +1,5 @@
+
+> mizyun@0.1.0 analytics:dashboard /Users/adam/Documents/mizyun
+> node --import tsx scripts/analytics-dashboard/live.mjs
+
+{"dashboardId":2,"cardCount":19,"url":"http://127.0.0.1:3034/dashboard/2","status":"running","loginPath":"/Users/adam/Documents/mizyun/ops/analytics/.env.live-login","outcomes":[{"environment":"dev","status":"refreshed","generatedAt":"2026-10-12T16:57:46.073Z"},{"environment":"prod","status":"refreshed","generatedAt":"2026-10-12T16:57:47.785Z"}],"sources":[{"environment":"dev","generatedAt":"2026-10-12T16:57:46.073+00:00","readerVisible":true},{"environment":"prod","generatedAt":"2026-10-12T16:57:47.785+00:00","readerVisible":true}],"storeReports":0,"notice":"Real retained aggregate snapshots only. Mac-off catch-up is limited to the retained 30-day window; app charts hide after two hours without refresh. Store downloads remain unavailable until official reports are imported."}

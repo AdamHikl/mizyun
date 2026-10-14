@@ -1,0 +1,5 @@
+
+> mizyun@0.1.0 analytics:dashboard:verify-db /Users/adam/Documents/mizyun
+> node --import tsx scripts/analytics-dashboard/verify-local.mjs
+
+Isolated PostgreSQL17.6 dashboard verification PASS: 64 assertions; synthetic aggregate preview retained

@@ -1,0 +1,4 @@
+{
+  "scripts/analytics-dashboard/source.sql": "e170fed0f2a1cc9b40ad540946956e411f4c2125d31929fa0df2db44f3681387",
+  "scripts/analytics-dashboard/verify-local.mjs": "37b1e7330a81f7b4c3e8e26e8290d4fcebdb9f7bc50f4e057b3f739ee3700dd2"
+}

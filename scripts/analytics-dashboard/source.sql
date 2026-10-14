@@ -72,8 +72,14 @@ WITH retained AS MATERIALIZED (
   SELECT recorded_at::date,CASE WHEN grouping(platform)=1 THEN 'all' ELSE platform END,'sessions','all',count(DISTINCT (user_id,session_id))
   FROM retained WHERE event_name='app_session_started' GROUP BY GROUPING SETS ((recorded_at::date,platform),(recorded_at::date))
 ), registrations AS (
-  SELECT created_at::date AS day,'all'::text platform,'registrations'::text metric,'all'::text dimension,count(*) value
-  FROM auth.users WHERE created_at >= (current_date-29)::timestamptz AND created_at <= now() GROUP BY 1
+  -- Complete only the successfully observed Auth window. The calendar travels
+  -- with this snapshot; the reader never invents later days or unavailable zeros.
+  SELECT days.day,'all'::text platform,'registrations'::text metric,'all'::text dimension,coalesce(counts.value,0)::bigint value
+  FROM (SELECT current_date-offset_days AS day FROM generate_series(0,29) AS offsets(offset_days)) days
+  LEFT JOIN (
+    SELECT created_at::date AS day,count(*) value
+    FROM auth.users WHERE created_at >= (current_date-29)::timestamptz AND created_at <= now() GROUP BY 1
+  ) counts USING (day)
 ), ordered AS (
   SELECT recorded_at::date AS day, platform, properties->>'screen' from_screen,
     lead(properties->>'screen') OVER (PARTITION BY user_id,session_id ORDER BY sequence,recorded_at,id) to_screen
