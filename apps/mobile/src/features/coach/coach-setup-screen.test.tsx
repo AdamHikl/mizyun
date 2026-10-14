@@ -1305,7 +1305,49 @@ describe("Coach cached history and live generation authority", () => {
       "Keep my typed draft",
     );
   });
-  it.each(["account", "token"])(
+  it("keeps the same user's transcript through a token rotation without granting generation", () => {
+    mocks.peek.mockImplementation((session) =>
+      session?.accessToken === "synthetic-token"
+        ? {
+            conversations: [conversation],
+            conversation,
+            messages: [savedMessage],
+          }
+        : null,
+    );
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    expect(bubbles(render())).toHaveLength(1);
+    mocks.token = "rotated-token";
+    const first = render();
+    expect(bubbles(first)).toHaveLength(1);
+    expect(text(first, "Loading Coach…")).toBe(false);
+    expect(labelled(first, "Attach photos").props.disabled).toBe(true);
+    expect(labelled(first, "New conversation").props.disabled).toBe(true);
+    const settled = render();
+    expect(bubbles(settled)).toHaveLength(1);
+    expect(text(settled, "Loading Coach…")).toBe(false);
+  });
+  it("keeps loading when the token rotates before any history has loaded", () => {
+    mocks.peek.mockReturnValue(null);
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    expect(text(render(), "Loading Coach…")).toBe(true);
+    mocks.token = "rotated-token";
+    expect(text(render(), "Loading Coach…")).toBe(true);
+    expect(text(render(), "Loading Coach…")).toBe(true);
+  });
+  it("keeps a same-user empty history loaded through a token rotation", () => {
+    mocks.peek.mockImplementation((session) =>
+      session?.accessToken === "synthetic-token"
+        ? { conversations: [], conversation: null, messages: [] }
+        : null,
+    );
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    expect(text(render(), "Loading Coach…")).toBe(false);
+    mocks.token = "rotated-token";
+    expect(text(render(), "Loading Coach…")).toBe(false);
+    expect(text(render(), "Loading Coach…")).toBe(false);
+  });
+  it.each(["account"])(
     "does not show a stale warm transcript after %s changes",
     (change) => {
       mocks.peek.mockImplementation((session) =>

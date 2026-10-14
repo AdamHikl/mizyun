@@ -205,8 +205,16 @@ export function CoachSetupScreen() {
       : peekCoachHistory(session, undefined, activeConversationId.current);
   const historyStateOwner = useRef(ownerKey);
   const historyUser = useRef(userId);
+  // A same-user token rotation retires the read cache, but the history already
+  // on screen still belongs to this user. Keep it visible while it revalidates;
+  // readiness and generation actions are still re-checked for the new token.
+  const retainRotatedHistory =
+    historyStateOwner.current !== ownerKey &&
+    userId !== null &&
+    historyUser.current === userId &&
+    warmHistory === null;
   const useWarmHistory =
-    historyStateOwner.current !== ownerKey ||
+    (historyStateOwner.current !== ownerKey && !retainRotatedHistory) ||
     (completedHistoryOwner.current !== ownerKey && warmHistory !== null);
   const readGeneration = useRef(0);
   const [status, setStatus] = useState<CoachProviderStatus | null>(null);
@@ -240,6 +248,10 @@ export function CoachSetupScreen() {
   const [loadFailedState, setLoadFailed] = useState(false);
   const loadFailed = useWarmHistory ? false : loadFailedState;
   const historyOwner = useRef<string | null>(warmHistory ? ownerKey : null);
+  // Owner whose completed history read was empty; a refresh keeps it loaded.
+  const emptyHistoryOwner = useRef<string | null>(
+    warmHistory && !warmHistory.conversation ? ownerKey : null,
+  );
   const readyOwner = useRef<string | null>(null);
   const [sending, setSending] = useUserOwnedCoachState(
     userId,
@@ -331,7 +343,10 @@ export function CoachSetupScreen() {
     };
     readyOwner.current = null;
     setStatus(null);
-    setLoading(historyOwner.current !== ownerKey);
+    setLoading(
+      historyOwner.current !== ownerKey &&
+        emptyHistoryOwner.current !== ownerKey,
+    );
     setLoadFailed(false);
     setMessage("Checking Coach availability…");
     let historyShown = false;
@@ -361,11 +376,13 @@ export function CoachSetupScreen() {
           setMessage(thread.message);
           setLoadFailed(true);
           historyOwner.current = null;
+          emptyHistoryOwner.current = null;
           setActive(null);
           setMessages([]);
         }
       } else {
         historyOwner.current = null;
+        emptyHistoryOwner.current = ownerKey;
         activeConversationId.current = null;
         setActive(null);
         setMessages([]);
@@ -378,6 +395,7 @@ export function CoachSetupScreen() {
     if (!result.ok) {
       completedHistoryOwner.current = ownerKey;
       historyOwner.current = null;
+      emptyHistoryOwner.current = null;
       setActive(null);
       setMessages([]);
       setConversations([]);
@@ -439,13 +457,34 @@ export function CoachSetupScreen() {
 
   useEffect(() => {
     const sameUser = historyUser.current === userId;
+    const previousOwner = historyStateOwner.current;
     historyUser.current = userId;
     historyStateOwner.current = ownerKey;
+    if (sameUser && userId !== null && warmHistory === null) {
+      // Same-user token rotation: rebind the visible history to the new token
+      // without blanking it. Readiness stays unresolved until refresh settles.
+      if (historyOwner.current === previousOwner)
+        historyOwner.current = ownerKey;
+      if (emptyHistoryOwner.current === previousOwner)
+        emptyHistoryOwner.current = ownerKey;
+      completedHistoryOwner.current = null;
+      readyOwner.current = null;
+      setStatus(null);
+      // The refresh effect for the new token runs first; it must not blank
+      // history that was already shown, nor hide a read that never completed.
+      setLoading(
+        historyOwner.current !== ownerKey &&
+          emptyHistoryOwner.current !== ownerKey,
+      );
+      return;
+    }
     completedHistoryOwner.current = warmHistory ? ownerKey : null;
     activeConversationId.current =
       warmHistory?.conversation?.id ??
       (sameUser ? activeConversationId.current : null);
     historyOwner.current = warmHistory ? ownerKey : null;
+    emptyHistoryOwner.current =
+      warmHistory && !warmHistory.conversation ? ownerKey : null;
     readyOwner.current = null;
     setStatus(null);
     setConversations(warmHistory?.conversations ?? []);
@@ -519,6 +558,9 @@ export function CoachSetupScreen() {
 
   const historyAvailable =
     historyOwner.current === ownerKey ||
+    (retainRotatedHistory &&
+      historyOwner.current !== null &&
+      historyOwner.current === historyStateOwner.current) ||
     (useWarmHistory && warmHistory !== null);
   const historyVisible = historyAvailable && active !== null;
   const canUseCoach =
