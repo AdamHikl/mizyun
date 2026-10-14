@@ -39,7 +39,7 @@
 
 - **#234/#235:** Dev81.67%; Material1.14/resizable; build/gate/API36 rotation PASS; RN/older/device/Play open. [Evidence](docs/ANDROID_WINDOW_DEV_EVIDENCE_2026-10-11.md).
 
-- **#182:** first-render cache gatePASS; native next. [Evidence](docs/FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md).
+- **#182 (Oct14):** Coach history kept on token rotation; Community Feed stale read-only (Adam OK);0ee20191 gatePASS; device next. [Evidence](docs/FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md#oct14).
 
 - **#232/INT-07:** foreground Watch/Wear source/review/gatePASS; watch/phone compile. physical deferred by Adam; Health/privacy/Prod open. [Evidence](docs/WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md).
 

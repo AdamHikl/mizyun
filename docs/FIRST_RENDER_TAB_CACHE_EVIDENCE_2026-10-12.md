@@ -19,3 +19,25 @@ Two helpers authored disjoint Workouts/Coach and Community changes; a third inde
 The original isolated gate remained pending at the Oct12 handoff. The complete later source passed the [combined Oct14 gate](ALL_LOCAL_SEPARATE_COMMITS_2026-10-14.md), including the cache implementation and current integration repairs. The [Oct14 iPhone build/install](DEV_IPHONE_LOCAL_DELIVERY_2026-10-14.md) used its separately recorded snapshot; signed-in first-render/native acceptance is still open. The isolated scope is exact baseline0135228778059dc25c1a4925738f0b6934ed4f0c plus26 owned mobile files, this evidence document/baseline regression, and only the Oct12 research/status updates. Excluded: pre-existing Oct11 backend/iPhone receipts and concurrent AGENTS/session-guide edits. Current user-supplied instructions still govern execution. Third-party dependencies are reused with workspace imports redirected into the candidate; no new native configuration is required for these TypeScript changes. Final result receipts are post-check records, not tested source inputs. The current backend is the Oct11 source above; these changes are mobile presentation/cache only and require no new backend endpoint or migration. Preserve the pre-existing Oct11 delivery documents/status/research work in the shared tree.
 
 Next exact acceptance: current-candidate cold launch, wait on Home, then first visit to all tabs; restart/offline; account/token change; write/refresh; expired Community permission; light/dark/large text and VoiceOver. Automated first-render assertions are distinct from signed-in native acceptance.
+
+## Oct14
+
+Adam's iPhone showed the "Loading Coach…" spinner and the Community Feed skeleton on tab visits.
+
+**Coach** (`d50e7e59`). The read cache is keyed per token, so a same-user access-token rotation (for example on resume) blanked the history until a network round-trip finished. A refresh of an empty history also flashed the loader.
+
+- Same-user rotation now keeps the displayed history while it revalidates. Readiness and generation actions are re-checked for the new token, and account changes still blank immediately.
+- The independent review found a false empty state when the token rotated during an unfinished load. That is fixed and covered by a regression test.
+- The three new regression tests fail on the original code.
+
+**Community** (`aa12c2bb`; Adam approved stale-while-revalidate on 2026-10-14 and accepted brief stale visibility for a newly blocked user). The 10s authority lifetime was unchanged, but it had usually expired by the first visit.
+
+- A memory-only, single-user display snapshot of the active membership and the first page now renders read-only while membership and the feed revalidate.
+- Share, reactions, comments, details, author links, card options and pagination are disabled while the snapshot is stale.
+- The snapshot is cleared on principal change, sign-out, 401/403/session/blocked/ineligible/not-active responses, a membership/feed 503 (the kill switch fails closed), and Community or account writes.
+- An Opus helper authored it in an isolated worktree. A non-author Opus review found no cross-user leak; the live author link, kill-switch persistence and stored cursor findings were repaired and then re-reviewed.
+- The 7 screen regression tests fail on the original code.
+
+**Gate.** `pnpm check` on `0ee20191` passed (EXIT 0): mobile 214 files/2669 tests, API 1109 passed/15 skipped. Two earlier runs failed on 24 unhandled rejections from leaked Meals polling intervals. The harness was fixed in `0ee20191`, which closes #247.
+
+**Open.** Not pushed or installed. Next: install on the iPhone and accept cold launch, resume after more than one hour, a Coach first visit, a Community first visit after more than 10s, a blocked/withdrawn account, account switch, and VoiceOver.
