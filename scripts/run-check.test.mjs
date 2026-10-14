@@ -7,13 +7,19 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
-import { checkLockStatus, defaultLockDirectory } from "./run-check.mjs";
+import {
+  checkLockStatus,
+  defaultLockDirectory,
+  fingerprintInputs,
+} from "./run-check.mjs";
 
 const runnerUrl = new URL("./run-check.mjs", import.meta.url).href;
 
@@ -467,4 +473,56 @@ test("CLI rejects bypass options before running any gates", () => {
   );
   assert.equal(run.status, 1);
   assert.match(run.stderr, /no bypass options/);
+});
+
+test("fingerprints tracked in-repository directory links but rejects links leaving the tree", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "mizyun-check-symlink-test-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const cwd = join(root, "repo");
+  const outside = join(root, "outside");
+  mkdirSync(join(cwd, ".agents", "skills"), { recursive: true });
+  mkdirSync(join(cwd, "tools"));
+  mkdirSync(outside);
+  writeFileSync(join(cwd, ".agents", "skills", "SKILL.md"), "skill\n");
+  symlinkSync("../.agents/skills", join(cwd, "tools", "skills"));
+  const git = (...args) =>
+    assert.equal(spawnSync("git", args, { cwd }).status, 0, args.join(" "));
+  git("init", "-q");
+  git("add", ".");
+  git(
+    "-c",
+    "user.name=t",
+    "-c",
+    "user.email=t@example.test",
+    "commit",
+    "-qm",
+    "fixture",
+  );
+  const first = await fingerprintInputs(cwd);
+  writeFileSync(join(cwd, ".agents", "skills", "SKILL.md"), "changed\n");
+  assert.notDeepEqual(await fingerprintInputs(cwd), first);
+
+  const rejects = async (name, target, track = true) => {
+    symlinkSync(target, join(cwd, "tools", name));
+    if (track) git("add", `tools/${name}`);
+    await assert.rejects(
+      fingerprintInputs(cwd),
+      /unsupported directory symlink/,
+      name,
+    );
+    unlinkSync(join(cwd, "tools", name));
+    if (track) git("rm", "-q", "--cached", `tools/${name}`);
+  };
+  await rejects("untracked", "../.agents/skills", false);
+  await rejects("outside", outside);
+  await rejects("root", "..");
+  await rejects("ancestor", "../..");
+  mkdirSync(join(root, "repo2"));
+  await rejects("sibling", "../../repo2");
+  mkdirSync(join(cwd, "node_modules", "pkg"), { recursive: true });
+  await rejects("generated", "../node_modules/pkg");
+  symlinkSync(outside, join(cwd, "hop"));
+  await rejects("chain", "../hop");
+  unlinkSync(join(cwd, "hop"));
+  assert.ok(await fingerprintInputs(cwd));
 });

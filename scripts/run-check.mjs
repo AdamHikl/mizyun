@@ -9,6 +9,7 @@ import {
   readdir,
   readFile,
   readlink,
+  realpath,
   stat,
   unlink,
 } from "node:fs/promises";
@@ -90,6 +91,17 @@ export async function fingerprintInputs(cwd) {
       parent = dirname(parent);
     }
   }
+  const root = await realpath(cwd);
+  async function isTrackedInternalDirectoryLink(relative) {
+    if (!trackedPaths.has(relative)) return false;
+    const resolved = await realpath(join(cwd, relative));
+    // The target must itself be a fingerprinted (non-excluded) directory.
+    return (
+      resolved.startsWith(root + sep) &&
+      !excluded(resolved.slice(root.length + 1)) &&
+      (await stat(resolved)).isDirectory()
+    );
+  }
   async function visit(relativePath) {
     const absolutePath = join(cwd, relativePath);
     for (const entry of (
@@ -115,10 +127,18 @@ export async function fingerprintInputs(cwd) {
       if (entry.isSymbolicLink()) {
         hash.update(await readlink(join(cwd, relative)));
         const target = await stat(join(cwd, relative));
-        if (!target.isFile())
-          throw new Error(
-            "Check input contains an unsupported directory symlink.",
-          );
+        // A tracked directory link back into the repository (for example
+        // .claude/skills -> ../.agents/skills) adds no inputs: its contents
+        // are fingerprinted at their real path. Links leaving the tree stay
+        // unsupported.
+        if (!target.isFile()) {
+          if (!(await isTrackedInternalDirectoryLink(relative)))
+            throw new Error(
+              "Check input contains an unsupported directory symlink.",
+            );
+          files++;
+          continue;
+        }
       } else if (!entry.isFile()) {
         throw new Error("Check input contains an unsupported special file.");
       }
