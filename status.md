@@ -10,8 +10,8 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend (Oct14):**283bf05ef53ecdc00545c757e422378e6e8ce0ef via deploy:dev; driver gatePASS, DB up to date (72migrations), public health200 16:23Z. [Prior receipt](docs/DEV_LOCAL_DELIVERY_2026-10-14.md); recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
-- **iPhone Dev (Oct14):**installed d7e2055b JS; rebuild for 283bf05/#244 UI pending. [Receipt](docs/DEV_LOCAL_DELIVERY_2026-10-14.md). Native/provider/AX/watch open.
+- **Dev backend (Oct14):**56777345c23f2e6b2f898e58098c7562fb08253c (#244 phase3 branch) via deploy:dev; driver gatePASS, DB up to date, health200 18:47Z. No API/schema change. Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
+- **iPhone Dev (Oct14):**56777345 Release build installed/launched on Adam's iPhone 00008140-001114501A86801C 18:41Z (com.mizyun.development). Device UI/populated-data/VoiceOver acceptance open.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **AI:** Hetzner Dev/Prod; Pi encrypted recovery. Gemini-or-disabled; adult/consent/usage/kill switches; no email allowlist. Founder/partner shared-Gemini Dev exception; Qwen paused. `docs/BEFORE_TESTING.md`/live-provider gates retained.
 
