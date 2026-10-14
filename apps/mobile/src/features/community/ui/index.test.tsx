@@ -200,6 +200,20 @@ describe("Community route shell", () => {
       48,
     );
   });
+  it("renders a read-only identity without profile navigation", () => {
+    const identity = CommunityIdentityLink({
+      userId: "stable-user",
+      displayName: "Maya",
+      handle: "maya",
+      disabled: true,
+    });
+    expect(identity.type).toBe("View");
+    expect(nodes(identity, "Link")).toHaveLength(0);
+    expect(nodes(identity, "Pressable")).toHaveLength(0);
+    expect(identity.props.accessibilityRole).toBeUndefined();
+    expect(identity.props.accessibilityLabel).toBe("Maya, @maya");
+  });
+
   it("shows row separators only between rows of a section card", () => {
     const rows = CommunitySection({
       title: "Spaces",

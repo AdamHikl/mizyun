@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   cacheWakeups: 0,
   focusImmediately: true,
   userId: "account-a",
+  birthYear: 1990,
   navigationValid: false,
   deadline: undefined as number | undefined,
   epoch: 0,
@@ -161,7 +162,7 @@ vi.mock("@/features/auth/auth-context", () => ({
       session: mocks.signedOut
         ? null
         : { user: { id: mocks.userId }, accessToken: mocks.token },
-      profile: mocks.realCache ? { birthYear: 1990 } : {},
+      profile: mocks.realCache ? { birthYear: mocks.birthYear } : {},
     };
   },
 }));
@@ -236,6 +237,7 @@ vi.mock("../state/read-cache", async (original) => {
   };
 });
 import { FeedScreen } from "./feed-screen";
+import { clearCommunityDisplaySnapshot } from "../state/display-snapshot";
 
 // Inspect the actual render output; native layout/device acceptance is separate.
 function render(): any {
@@ -274,6 +276,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  clearCommunityDisplaySnapshot();
   mocks.enrollmentOpen = true;
   mocks.signedOut = false;
   mocks.realController = false;
@@ -281,6 +284,7 @@ beforeEach(() => {
   mocks.cacheWakeups = 0;
   mocks.focusImmediately = true;
   mocks.userId = "account-a";
+  mocks.birthYear = 1990;
   mocks.navigationValid = false;
   mocks.deadline = undefined;
   mocks.epoch = 0;
@@ -440,38 +444,243 @@ describe("Community home participation and navigation", () => {
     );
   });
 
-  it("does not adopt late startup snapshots after their original authority expires before first focus", async () => {
+  function staleReadOnly(tree: any): boolean {
+    const list = nodeOfType(tree, "FlatList");
+    const share = find(list?.props.ListHeaderComponent, "Share workout");
+    const card = list?.props.renderItem?.({ item: list.props.data?.[0] });
+    return (
+      share?.props.accessibilityState?.disabled === true &&
+      !!find(list?.props.ListHeaderComponent, "Refreshing Community feed") &&
+      (card === undefined ||
+        (card.props.readOnly === true &&
+          card.props.onPress === undefined &&
+          card.props.onOpenActions === undefined &&
+          card.props.scopedClient === undefined))
+    );
+  }
+
+  it("shows late startup snapshots only read-only after their original authority expires before first focus", async () => {
     mocks.focusImmediately = false;
     const { item } = await warmRealRoot("active", () => {
       render();
     });
     vi.advanceTimersByTime(10_000);
     const firstFocusFrame = render();
-    expect(
-      nodeOfType(firstFocusFrame, "FlatList")?.props.data ?? [],
-    ).not.toContainEqual(item);
-    expect(nodeOfType(firstFocusFrame, "ActivityIndicator")).toBeTruthy();
+    // Approved stale-while-revalidate: visible, but never action authority.
+    expect(nodeOfType(firstFocusFrame, "FlatList")?.props.data).toEqual([item]);
+    expect(staleReadOnly(firstFocusFrame)).toBe(true);
   });
 
-  it.each([
-    "expired",
-    "other-owner",
-    "rotated-token",
-    "background",
-    "withdrawn",
-    "invalidated",
-  ])(
-    "keeps %s warmed Community data out of the first frame while live refresh is unresolved",
-    async (reason) => {
-      const { cache, item } = await warmRealRoot(
-        reason === "withdrawn" ? "withdrawn" : "active",
+  describe("stale-while-revalidate display snapshot", () => {
+    const profileFor = (userId: string, status = "active") => ({
+      userId,
+      handle: "synthetic_viewer",
+      displayName: "Synthetic Viewer",
+      avatarSymbol: "SV",
+      bio: null,
+      isSearchable: false,
+      status,
+      generation: 1,
+      createdAt: "2026-10-01T08:00:00Z",
+      updatedAt: "2026-10-01T08:00:00Z",
+    });
+    function header(tree: any): any {
+      return nodeOfType(tree, "FlatList")?.props.ListHeaderComponent;
+    }
+    function actionDisabled(tree: any, label: string): boolean {
+      return !!find(header(tree), label)?.props.accessibilityState?.disabled;
+    }
+    function listData(tree: any): any[] {
+      return nodeOfType(tree, "FlatList")?.props.data ?? [];
+    }
+    function firstFrame(): any {
+      hooks.index = 0;
+      let tree = FeedScreen();
+      while (typeof tree.type === "function")
+        tree = (tree.type as any)(tree.props);
+      return tree;
+    }
+    async function cycles(count = 4): Promise<any> {
+      let tree = render();
+      for (let i = 0; i < count; i++) {
+        await flushAsync();
+        tree = render();
+      }
+      return tree;
+    }
+    const freshItem = (item: any) => ({
+      ...item,
+      id: "00000000-0000-4000-8000-000000000009",
+    });
+
+    it("shows the expired warm feed read-only on the first frame, then enables actions after revalidation", async () => {
+      const { item, request } = await warmRealRoot();
+      vi.advanceTimersByTime(10_001);
+      const first = firstFrame();
+      expect(listData(first)).toEqual([item]);
+      expect(nodeOfType(first, "ActivityIndicator")).toBeFalsy();
+      expect(find(first, "Checking shared activity")).toBeFalsy();
+      expect(find(first, "Checking Community membership")).toBeFalsy();
+      for (const label of ["Share workout", "Share meal", "Spaces"])
+        expect(actionDisabled(first, label)).toBe(true);
+      expect(find(header(first), "Refreshing Community feed")).toBeTruthy();
+      const staleCard = nodeOfType(first, "FlatList").props.renderItem({
+        item,
+      });
+      expect(staleCard.props.scopedClient).toBeUndefined();
+      expect(staleCard.props.onPress).toBeUndefined();
+      expect(staleCard.props.onOpenActions).toBeUndefined();
+
+      const next = freshItem(item);
+      request.mockImplementation(async (options: any) =>
+        options.path === "/v1/community/profile"
+          ? { ok: true, value: profileFor(mocks.userId) }
+          : { ok: true, value: { items: [next], nextCursor: null } },
       );
+      hooks.effects.splice(0).forEach((effect) => effect());
+      const settled = await cycles();
+      expect(listData(settled)).toEqual([next]);
+      for (const label of ["Share workout", "Share meal", "Spaces"])
+        expect(actionDisabled(settled, label)).toBe(false);
+      expect(find(header(settled), "Refreshing Community feed")).toBeFalsy();
+      const liveCard = nodeOfType(settled, "FlatList").props.renderItem({
+        item: next,
+      });
+      expect(liveCard.props.scopedClient).toBeDefined();
+      const { readCommunityDisplaySnapshot } =
+        await import("../state/display-snapshot");
+      expect(readCommunityDisplaySnapshot(mocks.userId, 1990)?.items).toEqual([
+        next,
+      ]);
+    });
+
+    it.each([
+      [
+        "403",
+        {
+          ok: false,
+          error: {
+            kind: "http_error",
+            status: 403,
+            code: "FORBIDDEN",
+            message: "Denied",
+          },
+        },
+      ],
+      ["withdrawn membership", "withdrawn"],
+    ])(
+      "hides and clears the snapshot when revalidation returns %s",
+      async (_label, outcome) => {
+        const { item, request } = await warmRealRoot();
+        vi.advanceTimersByTime(10_001);
+        expect(listData(firstFrame())).toEqual([item]);
+        request.mockImplementation(async (options: any) =>
+          options.path === "/v1/community/profile"
+            ? typeof outcome === "string"
+              ? { ok: true, value: profileFor(mocks.userId, outcome) }
+              : outcome
+            : { ok: true, value: { items: [item], nextCursor: null } },
+        );
+        hooks.effects.splice(0).forEach((effect) => effect());
+        const settled = await cycles();
+        expect(listData(settled)).not.toContainEqual(item);
+        const { readCommunityDisplaySnapshot } =
+          await import("../state/display-snapshot");
+        expect(
+          readCommunityDisplaySnapshot(mocks.userId, 1990),
+        ).toBeUndefined();
+      },
+    );
+
+    it("never shows account A's snapshot on account B's first frame and clears it on sign-out", async () => {
+      const { item } = await warmRealRoot();
+      const accountA = mocks.userId;
+      vi.advanceTimersByTime(10_001);
+      mocks.userId = "00000000-0000-4000-8000-000000000004";
+      const first = firstFrame();
+      expect(listData(first)).not.toContainEqual(item);
+      const { readCommunityDisplaySnapshot } =
+        await import("../state/display-snapshot");
+      expect(readCommunityDisplaySnapshot(accountA, 1990)).toBeDefined();
+      const { setCommunityReadPrincipal } = await import("../state/read-cache");
+      setCommunityReadPrincipal(null, null);
+      expect(readCommunityDisplaySnapshot(accountA, 1990)).toBeUndefined();
+      mocks.userId = accountA;
+      hooks.slots = [];
+      expect(listData(firstFrame())).not.toContainEqual(item);
+    });
+
+    it("keeps the snapshot across a same-user token rotation but hides it for an ineligible birth year", async () => {
+      const { cache, item } = await warmRealRoot();
+      vi.advanceTimersByTime(10_001);
+      mocks.token = "rotated-token";
+      cache.setPrincipal(mocks.userId, mocks.token);
+      const rotated = firstFrame();
+      expect(listData(rotated)).toEqual([item]);
+      expect(actionDisabled(rotated, "Share workout")).toBe(true);
+      mocks.birthYear = new Date().getUTCFullYear() - 10;
+      hooks.slots = [];
+      expect(listData(firstFrame())).not.toContainEqual(item);
+    });
+
+    it.each(["membership", "feed"])(
+      "keeps the read-only snapshot after a %s network failure",
+      async (failing) => {
+        const { item, request } = await warmRealRoot();
+        vi.advanceTimersByTime(10_001);
+        request.mockImplementation(async (options: any) =>
+          failing === "membership" || options.path !== "/v1/community/profile"
+            ? { ok: false, error: { kind: "network_error", cause: "offline" } }
+            : { ok: true, value: profileFor(mocks.userId) },
+        );
+        firstFrame();
+        hooks.effects.splice(0).forEach((effect) => effect());
+        const settled = await cycles();
+        expect(listData(settled)).toEqual([item]);
+        expect(actionDisabled(settled, "Share workout")).toBe(true);
+        expect(
+          find(
+            header(settled),
+            failing === "membership"
+              ? "Retry checking Community"
+              : "Retry loading feed",
+          ),
+        ).toBeTruthy();
+        const { readCommunityDisplaySnapshot } =
+          await import("../state/display-snapshot");
+        expect(readCommunityDisplaySnapshot(mocks.userId, 1990)).toBeDefined();
+      },
+    );
+  });
+
+  it.each(["expired", "rotated-token", "background", "invalidated"])(
+    "shows %s warmed Community data only read-only while live refresh is unresolved",
+    async (reason) => {
+      const { cache, item } = await warmRealRoot();
       if (reason === "expired") vi.advanceTimersByTime(10_000);
-      if (reason === "other-owner")
-        mocks.userId = "00000000-0000-4000-8000-000000000004";
       if (reason === "rotated-token") mocks.token = "rotated-token";
       if (reason === "background") cache.setForeground(false);
       if (reason === "invalidated") cache.clear();
+      const tree = render();
+      expect(nodeOfType(tree, "FlatList")?.props.data).toEqual([item]);
+      expect(staleReadOnly(tree)).toBe(true);
+      expect(
+        nodeOfType(tree, "FlatList").props.renderItem({ item }).props
+          .scopedClient,
+      ).toBeUndefined();
+      await flushAsync();
+      expect(staleReadOnly(render())).toBe(true);
+    },
+  );
+
+  it.each(["other-owner", "withdrawn"])(
+    "keeps %s warmed Community data out of the first frame while live refresh is unresolved",
+    async (reason) => {
+      const { item } = await warmRealRoot(
+        reason === "withdrawn" ? "withdrawn" : "active",
+      );
+      if (reason === "other-owner")
+        mocks.userId = "00000000-0000-4000-8000-000000000004";
       const tree = render();
       expect(nodeOfType(tree, "FlatList")?.props.data ?? []).not.toContainEqual(
         item,

@@ -50,6 +50,10 @@ import {
   getCommunityResponseEpoch,
   invalidateCommunityReads,
 } from "../state/read-cache";
+import {
+  readCommunityDisplaySnapshot,
+  subscribeCommunityDisplaySnapshot,
+} from "../state/display-snapshot";
 
 export function FeedScreen() {
   const { destination, list } = useLocalSearchParams<{
@@ -174,6 +178,12 @@ function FeedScreenContent({
   const state = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
+  );
+  // Presentation only: checked against the current user and birth year on
+  // every render, including the first, and never used as action authority.
+  const displaySnapshot = useSyncExternalStore(
+    subscribeCommunityDisplaySnapshot,
+    () => readCommunityDisplaySnapshot(principalKey, birthYear),
   );
 
   const [storedMembershipVerified, setMembershipVerified] =
@@ -426,10 +436,10 @@ function FeedScreenContent({
   }, [controller, membershipVerified]);
 
   const handleEndReached = useCallback(() => {
-    if (state.hasMore && state.status === "idle") {
+    if (state.hasMore && state.status === "idle" && membershipVerified) {
       void controller.loadMore();
     }
-  }, [controller, state.hasMore, state.status]);
+  }, [controller, state.hasMore, state.status, membershipVerified]);
 
   const feedGenerationMatches =
     !prefetchedFeed.current ||
@@ -473,6 +483,13 @@ function FeedScreenContent({
     ),
     [principalKey, router, scopedClient, controller, loadFeed],
   );
+  // Without fresh authority, cards are inert: no reactions, comments or details.
+  const renderStaleItem = useCallback(
+    ({ item }: { item: SharedActivityFeedItemDto }) => (
+      <ActivityCard item={item} viewerUserId={principalKey ?? ""} readOnly />
+    ),
+    [principalKey],
+  );
 
   // Opening Community never enrolls or shares on the user's behalf.
   const checkingMembership =
@@ -483,7 +500,33 @@ function FeedScreenContent({
     community.status === "loading" ||
     community.status === "idle";
   const showPublicHub = checkingMembership && hasShownHub.current;
-  if ((!membershipVerified || !community.isEnrolled) && !showPublicHub) {
+  const authoritativeFeed =
+    !checkingMembership &&
+    feedGenerationMatches &&
+    community.isEnrolled &&
+    (state.status === "idle" || state.status === "loading_more");
+  const membershipDenied =
+    !checkingMembership &&
+    community.status === "ready" &&
+    (!community.isEnrolled || !community.isAdultEligible);
+  // Stale-while-revalidate (Adam, 2026-10-14): show the last authorized first
+  // page read-only until membership and the feed are freshly rechecked.
+  const staleSnapshot =
+    displaySnapshot !== undefined &&
+    principalKey !== null &&
+    !authoritativeFeed &&
+    !membershipDenied
+      ? displaySnapshot
+      : undefined;
+  const membershipCheckFailed =
+    staleSnapshot !== undefined &&
+    !checkingMembership &&
+    community.status === "error";
+  if (
+    (!membershipVerified || !community.isEnrolled) &&
+    !showPublicHub &&
+    !staleSnapshot
+  ) {
     const checking = checkingMembership;
 
     return (
@@ -519,16 +562,53 @@ function FeedScreenContent({
         {/* Equal-weight quick actions as compact pills that wrap. */}
         <CommunityButton
           label="Share workout"
-          href={"/community/share" as Href}
+          href={staleSnapshot ? undefined : ("/community/share" as Href)}
+          disabled={!!staleSnapshot}
           size="small"
         />
         <CommunityButton
           label="Share meal"
-          href={"/community/share-meal" as Href}
+          href={staleSnapshot ? undefined : ("/community/share-meal" as Href)}
+          disabled={!!staleSnapshot}
           size="small"
         />
-        <CommunityButton label="Spaces" href="/community/more" size="small" />
+        <CommunityButton
+          label="Spaces"
+          href={staleSnapshot ? undefined : "/community/more"}
+          disabled={!!staleSnapshot}
+          size="small"
+        />
       </View>
+      {staleSnapshot && !membershipCheckFailed && !state.error ? (
+        <View
+          style={styles.refreshing}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel="Refreshing Community feed"
+          accessibilityState={{ busy: true }}
+          accessibilityLiveRegion="polite"
+        >
+          <ActivityIndicator size="small" color={colors.textSecondary} />
+          <ThemedText type="footnote" themeColor="textSecondary">
+            Refreshing…
+          </ThemedText>
+        </View>
+      ) : null}
+      {membershipCheckFailed ? (
+        <Notice
+          tone="danger"
+          message={
+            community.error ??
+            "Community membership could not be checked. Retry to refresh."
+          }
+          action={
+            <CommunityButton
+              label="Retry checking Community"
+              onPress={() => void revalidateMembership()}
+            />
+          }
+        />
+      ) : null}
       {state.error ? (
         <Notice
           tone="danger"
@@ -547,9 +627,10 @@ function FeedScreenContent({
   // A reset/unread feed is not an empty feed. Only a completed read can
   // establish the encouragement state, including the frame before refocus.
   const checkingActivity =
-    !feedGenerationMatches ||
-    checkingMembership ||
-    (state.status !== "idle" && state.status !== "error");
+    (!staleSnapshot && !feedGenerationMatches) ||
+    (!staleSnapshot &&
+      (checkingMembership ||
+        (state.status !== "idle" && state.status !== "error")));
   const emptyComponent =
     checkingActivity && !state.error ? (
       <Card
@@ -581,7 +662,7 @@ function FeedScreenContent({
               : "Meals and workouts people choose to share appear here after they approve your follow request."
           }
           action={
-            !state.error ? (
+            !state.error && !staleSnapshot ? (
               <CommunityButton
                 label="Find people"
                 href={"/community/people" as Href}
@@ -616,12 +697,16 @@ function FeedScreenContent({
       <CommunityRootHeader selected="feed" onLayout={onHeaderLayout} />
       <FlatList
         data={
-          (!checkingMembership && feedGenerationMatches && community.isEnrolled
-            ? state.items
-            : []) as SharedActivityFeedItemDto[]
+          (staleSnapshot
+            ? staleSnapshot.items
+            : !checkingMembership &&
+                feedGenerationMatches &&
+                community.isEnrolled
+              ? state.items
+              : []) as SharedActivityFeedItemDto[]
         }
         keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+        renderItem={staleSnapshot ? renderStaleItem : renderItem}
         ListHeaderComponent={headerComponent}
         ListEmptyComponent={emptyComponent}
         ListFooterComponent={footerComponent}
@@ -631,7 +716,11 @@ function FeedScreenContent({
           <RefreshControl
             progressViewOffset={headerHeight}
             refreshing={manualRefreshing && state.status === "refreshing"}
-            onRefresh={handleRefresh}
+            onRefresh={
+              membershipCheckFailed
+                ? () => void revalidateMembership()
+                : handleRefresh
+            }
             tintColor={colors.primary}
           />
         }
@@ -685,6 +774,11 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   centerText: { textAlign: "center" },
+  refreshing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
   centered: {
     flexGrow: 1,
     alignItems: "center",

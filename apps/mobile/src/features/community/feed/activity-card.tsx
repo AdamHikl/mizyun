@@ -27,6 +27,8 @@ export interface ActivityCardProps {
   readonly onPress?: () => void;
   readonly onOpenActions?: () => void;
   readonly onUnavailable?: () => void;
+  /** Stale display snapshot: no navigation or other actions until revalidated. */
+  readonly readOnly?: boolean;
   readonly onReactionChanged?: (
     newViewerReaction: CommunityReactionKind | null,
     newCounts: Record<CommunityReactionKind, number>,
@@ -41,6 +43,7 @@ export function ActivityCard({
   onOpenActions,
   onReactionChanged,
   onUnavailable,
+  readOnly = false,
 }: ActivityCardProps) {
   const colors = useTheme();
   const isMeal = item.activityKind === "meal";
@@ -64,6 +67,7 @@ export function ActivityCard({
             displayName={item.authorDisplayName}
             handle={item.authorHandle}
             avatarKey={item.authorAvatarSymbol}
+            disabled={readOnly}
           />
           {publishedAtLabel ? (
             <ThemedText type="footnote" themeColor="textSecondary">
@@ -71,7 +75,7 @@ export function ActivityCard({
             </ThemedText>
           ) : null}
         </View>
-        {onOpenActions && (
+        {onOpenActions && !readOnly && (
           <IconButton
             testID={`activity-actions-${item.id}`}
             icon="more"
@@ -87,11 +91,16 @@ export function ActivityCard({
 
       <Pressable
         style={({ pressed }) => [styles.content, pressed && styles.pressed]}
-        onPress={onPress}
-        accessibilityRole="button"
+        onPress={readOnly ? undefined : onPress}
+        disabled={readOnly}
+        accessibilityRole={readOnly ? undefined : "button"}
         accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${!isMeal && item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
         accessibilityHint={
-          isMeal ? "Open shared meal details" : "Open shared workout details"
+          readOnly
+            ? undefined
+            : isMeal
+              ? "Open shared meal details"
+              : "Open shared workout details"
         }
       >
         <ThemedText type="headline">{categoryLabel}</ThemedText>

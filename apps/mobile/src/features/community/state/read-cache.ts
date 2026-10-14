@@ -1,6 +1,13 @@
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import type { AuthSession } from "@mizyun/identity";
 import type { Result } from "@mizyun/core";
+import {
+  affectsCommunityDisplay,
+  clearCommunityDisplaySnapshot,
+  getCommunityDisplayGeneration,
+  observeCommunityDisplayRead,
+  setCommunityDisplayPrincipal,
+} from "./display-snapshot";
 
 export const COMMUNITY_READ_LIFETIME_MS = 10_000;
 const MAX_ENTRIES = 32;
@@ -36,6 +43,7 @@ export function setCommunityReadPrincipal(
   principal: string | null,
   token?: string | null,
 ): void {
+  setCommunityDisplayPrincipal(principal);
   for (const store of stores) store.setPrincipal(principal, token);
 }
 
@@ -219,6 +227,7 @@ export class CommunityReadCache implements ApiClient {
     this.foreground = value;
   }
   setPrincipal(value: string | null, token?: string | null): void {
+    setCommunityDisplayPrincipal(value);
     if (
       value !== this.principal ||
       value === null ||
@@ -272,7 +281,31 @@ export class CommunityReadCache implements ApiClient {
     return parsed.data as T;
   }
 
+  /** The display snapshot observes outcomes; it never answers a request. */
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
+    const write = !isRead(options);
+    const display = write && affectsCommunityDisplay(options);
+    if (display) clearCommunityDisplaySnapshot();
+    const displayGeneration = getCommunityDisplayGeneration();
+    try {
+      const result = await this.authorizedRequest<T>(options);
+      if (!write)
+        observeCommunityDisplayRead(
+          options,
+          this.principal,
+          result,
+          displayGeneration,
+        );
+      return result;
+    } finally {
+      // A committed or lost write may have changed membership or visibility.
+      if (display) clearCommunityDisplaySnapshot();
+    }
+  }
+
+  private async authorizedRequest<T>(
+    options: RequestOptions,
+  ): Promise<Result<T, ApiError>> {
     const current = () =>
       options.isCurrent?.() !== false && !options.signal?.aborted;
     if (!current()) return { ok: false, error: { kind: "context_changed" } };

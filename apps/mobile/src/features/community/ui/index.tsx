@@ -433,13 +433,49 @@ export function CommunityIdentityLink({
   handle,
   avatarKey,
   onPress,
+  disabled = false,
 }: {
   userId: string;
   displayName: string;
   handle?: string;
   avatarKey?: string;
   onPress?: () => void;
+  /** Read-only snapshots show identity without a profile navigation. */
+  disabled?: boolean;
 }) {
+  const content = (
+    <>
+      <View
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <InitialsAvatar
+          symbol={avatarKey ?? displayName.slice(0, 2)}
+          size={40}
+          seed={userId}
+        />
+      </View>
+      <View style={styles.rowCopy}>
+        <ThemedText type="headline">{displayName}</ThemedText>
+        {handle ? (
+          <ThemedText type="footnote" themeColor="textSecondary">
+            @{handle}
+          </ThemedText>
+        ) : null}
+      </View>
+    </>
+  );
+  if (disabled)
+    return (
+      <View
+        accessible
+        accessibilityLabel={handle ? `${displayName}, @${handle}` : displayName}
+        style={StyleSheet.flatten(styles.identity)}
+      >
+        {content}
+      </View>
+    );
   return (
     <Link
       href={
@@ -453,25 +489,7 @@ export function CommunityIdentityLink({
         onPress={onPress}
         style={StyleSheet.flatten(styles.identity)}
       >
-        <View
-          accessible={false}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          <InitialsAvatar
-            symbol={avatarKey ?? displayName.slice(0, 2)}
-            size={40}
-            seed={userId}
-          />
-        </View>
-        <View style={styles.rowCopy}>
-          <ThemedText type="headline">{displayName}</ThemedText>
-          {handle ? (
-            <ThemedText type="footnote" themeColor="textSecondary">
-              @{handle}
-            </ThemedText>
-          ) : null}
-        </View>
+        {content}
       </Pressable>
     </Link>
   );

@@ -145,6 +145,25 @@ describe("ActivityCard", () => {
       ActivityCard({ item: mockItem }).props.children[0].props.children[1],
     ).toBeFalsy();
   });
+  it("renders a stale read-only card without navigation, options or button semantics", () => {
+    const onPress = vi.fn();
+    const onOpenActions = vi.fn();
+    const element = ActivityCard({
+      item: mockItem,
+      onPress,
+      onOpenActions,
+      readOnly: true,
+    });
+    const header = element.props.children[0];
+    const identity = header.props.children[0].props.children[0];
+    expect(identity.props.disabled).toBe(true);
+    expect(header.props.children[1]).toBe(false);
+    const content = element.props.children[1];
+    expect(content.props.onPress).toBeUndefined();
+    expect(content.props.disabled).toBe(true);
+    expect(content.props.accessibilityRole).toBeUndefined();
+    expect(content.props.accessibilityHint).toBeUndefined();
+  });
   it("handles null duration gracefully", () => {
     const itemWithoutDuration = { ...mockItem, durationSeconds: null };
     const element = ActivityCard({
