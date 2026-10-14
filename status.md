@@ -23,7 +23,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#244 UI:** phases1+2 on main; phase3 (onboarding/auth/logging/modals) feat/244-phase3-design-system eadbd491: review/sim/gatePASS 2634/1109+15skips. Next: merge; auth/reorder visuals, device/AX.
+- **#244 UI:** phases1–3 merged (main075a7647); Adam checked iPhone build56777345 Oct14: looks good. Open: VoiceOver/Android/populated-edge checks.
 
 - **#239:** consent/reminders;289tests/review/gatePASS; Dev installed; native next. [Proof](docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md).
 
