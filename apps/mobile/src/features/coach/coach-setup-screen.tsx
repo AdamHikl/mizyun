@@ -1284,6 +1284,15 @@ export function CoachSetupScreen() {
                       <SectionHeader title="Suggested check-ins" />
                       <ListGroup>
                         <ListRow
+                          icon="sparkles"
+                          title="Ask Coach anything"
+                          subtitle="Insights, meal analysis and workout plans"
+                          accessibilityLabel="Ask AI Coach"
+                          onPress={() => {
+                            inputRef.current?.focus();
+                          }}
+                        />
+                        <ListRow
                           icon="dumbbell"
                           title="Workout routine"
                           subtitle="Design a specialised exercise plan"

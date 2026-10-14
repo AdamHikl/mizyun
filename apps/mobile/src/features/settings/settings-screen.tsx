@@ -408,8 +408,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   clearSearchButton: {
-    width: 32,
-    height: 32,
     margin: Spacing.one,
   },
   section: {

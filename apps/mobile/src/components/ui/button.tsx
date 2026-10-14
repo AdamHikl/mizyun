@@ -67,7 +67,7 @@ export function Button({
       accessibilityState={{
         ...accessibilityState,
         disabled: inactive,
-        busy: loading,
+        busy: loading || !!accessibilityState?.busy,
       }}
       style={({ pressed }) => [
         styles.base,
@@ -124,9 +124,14 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ ...accessibilityState, disabled: !!disabled }}
+      accessibilityState={{
+        ...accessibilityState,
+        disabled: !!disabled || !!accessibilityState?.disabled,
+        ...(selected ? { selected: true } : null),
+      }}
       disabled={disabled}
-      hitSlop={4}
+      // 36pt circle + 6pt slop on each side = 48pt touch target.
+      hitSlop={6}
       style={({ pressed }) => [
         styles.iconButton,
         variant === "filled" && { backgroundColor: theme.backgroundSelected },
@@ -184,7 +189,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    // 36pt visual circle inside a 48pt touch target.
+    // Keeps neighbouring 48pt touch areas from overlapping.
     margin: 6,
   },
   pressed: { opacity: 0.6 },

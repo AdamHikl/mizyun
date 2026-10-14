@@ -87,7 +87,7 @@ export function SettingsDetailScreen({
   if (!isSettingsDetailKey(settingKey)) {
     return (
       <ThemedView style={styles.page}>
-        <Stack.Screen options={{ title: "Setting Unavailable" }} />
+        <Stack.Screen options={{ title: "Setting unavailable" }} />
         <View style={styles.centerContainer}>
           <EmptyState
             icon="warning"

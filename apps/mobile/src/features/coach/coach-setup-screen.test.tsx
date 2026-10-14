@@ -784,6 +784,7 @@ describe("direct Coach entry", () => {
     const tree = await open();
     expect(text(tree, "Start a private check-in")).toBe(false);
     for (const label of [
+      "Ask AI Coach",
       "Suggest a workout routine",
       "Review nutrition targets",
       "Explain weight trend",
@@ -901,7 +902,7 @@ describe("direct Coach entry", () => {
       .onPress();
     await settle();
     expect(labelled(render(), "Message Coach")).toBeDefined();
-    expect(labelled(render(), "Suggest a workout routine")).toBeDefined();
+    expect(labelled(render(), "Ask AI Coach")).toBeDefined();
     expect(text(render(), "Start a private check-in")).toBe(false);
     expect(mocks.create).not.toHaveBeenCalled();
   });

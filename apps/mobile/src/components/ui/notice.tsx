@@ -41,6 +41,12 @@ export function Notice({
   }[tone];
   return (
     <View
+      // Without an action, read the notice as one element so its alert role
+      // is exposed; with an action, keep children separately focusable.
+      accessible={!action}
+      accessibilityLabel={
+        !action ? [title, message].filter(Boolean).join(". ") : undefined
+      }
       accessibilityRole={tone === "danger" ? "alert" : undefined}
       style={[styles.notice, { backgroundColor: fill }]}
     >

@@ -77,8 +77,37 @@ describe("Chip", () => {
     const chip = Chip({ label: "Strength", selected: true, onPress });
     expect(chip.props.accessibilityRole).toBe("button");
     expect(chip.props.accessibilityLabel).toBe("Strength");
-    expect(chip.props.accessibilityState).toEqual({ selected: true });
+    expect(chip.props.accessibilityState).toEqual({
+      selected: true,
+      disabled: false,
+    });
     chip.props.onPress();
     expect(onPress).toHaveBeenCalled();
+  });
+});
+
+describe("Chip touch target and disabled state", () => {
+  it("reaches 48pt with its slop and looks and reads disabled", () => {
+    const chip = Chip({ label: "Sent", onPress: () => {}, disabled: true });
+    expect(chip.props.hitSlop).toBe(8);
+    expect(chip.props.disabled).toBe(true);
+    expect(chip.props.accessibilityState).toEqual({
+      selected: false,
+      disabled: true,
+    });
+    const style = chip.props.style({ pressed: false }).flat();
+    expect(style).toContainEqual({ minHeight: 32 });
+    expect(style).toContainEqual({ opacity: 0.45 });
+  });
+
+  it("gives segments a 44pt minimum height", () => {
+    const [segment] = SegmentedControl({
+      options,
+      value: "all",
+      onChange: () => {},
+    }).props.children;
+    expect(segment.props.style.flat()).toContainEqual(
+      expect.objectContaining({ minHeight: 44 }),
+    );
   });
 });

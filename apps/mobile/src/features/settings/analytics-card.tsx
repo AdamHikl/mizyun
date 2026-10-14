@@ -78,6 +78,15 @@ export function AnalyticsCard() {
           Optional usage analytics · Separate from AI consent. Mizyun works the
           same either way.
         </ThemedText>
+        <ThemedText type="footnote" themeColor="textSecondary">
+          Help improve Mizyun’s UI and features by sharing coarse screen use,
+          flow completions, and failure stages. Events are sent to Mizyun’s
+          servers and linked to your account. They never include food names,
+          health values, photos, messages, tokens, or personal inputs. Retained
+          events cover up to 30 days. You can disable collection and clear your
+          data at any time.
+        </ThemedText>
+
         <ThemedText type="smallBold" accessibilityLiveRegion="polite">
           {consent === "loading"
             ? "Loading preference…"
@@ -90,13 +99,15 @@ export function AnalyticsCard() {
         <View style={styles.actions}>
           <Button
             label={enabled ? "Enabled" : "Allow usage analytics"}
+            // Consent choices are deliberately equal in weight (no nudge).
+            variant="secondary"
             size="small"
             disabled={consent === "loading" || enabled}
             onPress={() => void chooseConsent("granted")}
           />
           <Button
             label="Disable and clear"
-            variant="destructive"
+            variant="secondary"
             size="small"
             disabled={consent === "loading" || !enabled}
             onPress={() => void chooseConsent("denied")}
@@ -127,13 +138,6 @@ export function AnalyticsCard() {
           {message}
         </ThemedText>
       ) : null}
-      <ThemedText type="footnote" themeColor="textSecondary">
-        Help improve Mizyun’s UI and features by sharing coarse screen use, flow
-        completions, and failure stages. Events are sent to Mizyun’s servers and
-        linked to your account. They never include food names, health values,
-        photos, messages, tokens, or personal inputs. Retained events cover up
-        to 30 days. You can disable collection and clear your data at any time.
-      </ThemedText>
     </View>
   );
 }

@@ -99,6 +99,7 @@ export function Chip({
   tone = "neutral",
   style,
   onPress,
+  disabled,
   ...rest
 }: Omit<PressableProps, "children" | "style"> & {
   label: string;
@@ -134,14 +135,17 @@ export function Chip({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled: !!disabled }}
       onPress={onPress}
-      hitSlop={6}
+      disabled={disabled}
+      // 32pt pill + 8pt slop above and below = 48pt touch target.
+      hitSlop={8}
       style={({ pressed }) => [
         styles.chip,
         styles.pressableChip,
         { backgroundColor: palette.bg },
         pressed && styles.pressed,
+        disabled && styles.disabled,
         style,
       ]}
       {...rest}
@@ -161,8 +165,7 @@ const styles = StyleSheet.create({
   wrap: { flexWrap: "wrap" },
   segment: {
     flex: 1,
-    // 40pt segment + 2pt track padding = 44pt target.
-    minHeight: 40,
+    minHeight: 44,
     paddingHorizontal: Spacing.two,
     paddingVertical: 6,
     borderRadius: Radius.sm + 2,
@@ -189,4 +192,5 @@ const styles = StyleSheet.create({
   },
   pressableChip: { minHeight: 32 },
   pressed: { opacity: 0.6 },
+  disabled: { opacity: 0.45 },
 });
