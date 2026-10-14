@@ -1,0 +1,17 @@
+{
+  "baseline": "d7e2055b260552c785325414756c6beeea1b7d8c",
+  "ownedPaths": {
+    "apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-data.ts": "1eb16ed04b260146b0b5d350e977f839981d95dc56dcd10ee26b7e327dc31515",
+    "apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-hook.test.ts": "583df1827d6cab939ec0d702ebaa0852adb0198862d0a031b155b2fe74e36cc6"
+  },
+  "excluded": "All pre-existing dirty UI, recipes, delivery, policy and continuity work; no dependencies on these overlays",
+  "dependencies": "Installed third-party pnpm package store only; all workspace links are candidate-relative",
+  "fullGate": {
+    "result": "PASS",
+    "inputSha256": "e088eb59049a9e32e91ec2351026d3e8a092a797956a930998c08a683d9f42b7",
+    "mobilePassed": 2586,
+    "apiPassed": 1109,
+    "apiSkipped": 15,
+    "nativeAccepted": false
+  }
+}

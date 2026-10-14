@@ -86,6 +86,7 @@ vi.mock("./recurring-meal-data", () => ({
 }));
 import { useRecurringMealSuggestion } from "./recurring-meal-suggestion-data";
 import { setRecurringSuggestionOwner } from "./recurring-meal-suggestion-lifetime";
+import { publishSessionReadUpdate } from "@/composition/personal-read-events";
 let owner: string;
 let sequence = 90;
 const proposal = (zone: string) =>
@@ -242,3 +243,58 @@ it("cannot recreate active authority or dispatch stale mounted callbacks after o
   await model.retry();
   expect(mocks.requests).toHaveLength(requests);
 });
+it.each(["initial focus", "ongoing refresh"])(
+  "redetects a copied meal after %s overlaps live history updates",
+  async (stage) => {
+    if (stage === "ongoing refresh") {
+      mocks.list.mockResolvedValueOnce({
+        ok: true,
+        value: { enabled: true, suggestion: null },
+      });
+      render();
+      await settle();
+      render();
+    }
+    const priorGets = mocks.requests.filter(
+      (request) => request.method === "GET",
+    ).length;
+    let oldResponse!: (value: any) => void;
+    let freshStorage!: (value: any) => void;
+    mocks.load.mockResolvedValueOnce(null).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          freshStorage = resolve;
+        }),
+    );
+    mocks.list.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          oldResponse = resolve;
+        }),
+    );
+    const model = render();
+    if (stage === "ongoing refresh") void model.refresh();
+    await settle();
+    publishSessionReadUpdate("/v1/food-entries");
+    publishSessionReadUpdate("/v1/food-entries?limit=100");
+    oldResponse({ ok: true, value: { enabled: true, suggestion: null } });
+    await settle();
+    expect(freshStorage).toBeTypeOf("function");
+    const held = render();
+    expect(held.candidate).toBeNull();
+    await held.accept();
+    await held.retry();
+    expect(
+      mocks.requests.filter((request) => request.method === "GET"),
+    ).toHaveLength(priorGets + 1);
+    expect(mocks.requests.some((request) => request.method === "POST")).toBe(
+      false,
+    );
+    freshStorage(null);
+    await settle();
+    expect(render().candidate?.name).toBe("Yogurt 150 g");
+    expect(
+      mocks.requests.filter((request) => request.method === "GET"),
+    ).toHaveLength(priorGets + 2);
+  },
+);

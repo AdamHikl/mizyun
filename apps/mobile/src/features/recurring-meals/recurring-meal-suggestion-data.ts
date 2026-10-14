@@ -164,6 +164,14 @@ export class RecurringMealSuggestionController {
     if (pending) {
       await pending;
       if (!afterCurrent) return;
+      // Concurrent invalidations can share the same pending read. Join the
+      // trailing refresh already started by another waiter rather than return
+      // before its fresh evidence is available.
+      const trailing = this.refreshPending;
+      if (trailing && trailing !== pending) {
+        await trailing;
+        return;
+      }
     }
     if (!this.current() || this.busy) return;
     const task = this.refreshNow();
@@ -598,11 +606,29 @@ export function useRecurringMealSuggestion(
       }
       const unsubscribe = subscribeSessionReadUpdates((path) => {
         if (
-          actionable() &&
+          visible &&
+          focused.current &&
+          AppState.currentState === "active" &&
           (path.startsWith("/v1/food-entries") ||
             path.startsWith("/v1/recurring-meals"))
-        )
-          void controller?.refresh();
+        ) {
+          // A meal copy/save may complete while focus detection is still
+          // pending. Keep this invalidation even while actions are held.
+          const capturedUpdate = ++activation.current;
+          foregroundReady.current = false;
+          setAppEpoch((n) => n + 1);
+          void controller?.refresh(true).finally(() => {
+            if (
+              !mounted ||
+              capturedUpdate !== activation.current ||
+              AppState.currentState !== "active" ||
+              !controller.current()
+            )
+              return;
+            foregroundReady.current = true;
+            setAppEpoch((n) => n + 1);
+          });
+        }
       });
       return () => {
         mounted = false;

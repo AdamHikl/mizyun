@@ -1,0 +1,123 @@
+diff --git a/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-data.ts b/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-data.ts
+index b571423a..c642b778 100644
+--- a/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-data.ts
++++ b/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-data.ts
+@@ -164,6 +164,14 @@ export class RecurringMealSuggestionController {
+     if (pending) {
+       await pending;
+       if (!afterCurrent) return;
++      // Concurrent invalidations can share the same pending read. Join the
++      // trailing refresh already started by another waiter rather than return
++      // before its fresh evidence is available.
++      const trailing = this.refreshPending;
++      if (trailing && trailing !== pending) {
++        await trailing;
++        return;
++      }
+     }
+     if (!this.current() || this.busy) return;
+     const task = this.refreshNow();
+@@ -598,11 +606,29 @@ export function useRecurringMealSuggestion(
+       }
+       const unsubscribe = subscribeSessionReadUpdates((path) => {
+         if (
+-          actionable() &&
++          visible &&
++          focused.current &&
++          AppState.currentState === "active" &&
+           (path.startsWith("/v1/food-entries") ||
+             path.startsWith("/v1/recurring-meals"))
+-        )
+-          void controller?.refresh();
++        ) {
++          // A meal copy/save may complete while focus detection is still
++          // pending. Keep this invalidation even while actions are held.
++          const capturedUpdate = ++activation.current;
++          foregroundReady.current = false;
++          setAppEpoch((n) => n + 1);
++          void controller?.refresh(true).finally(() => {
++            if (
++              !mounted ||
++              capturedUpdate !== activation.current ||
++              AppState.currentState !== "active" ||
++              !controller.current()
++            )
++              return;
++            foregroundReady.current = true;
++            setAppEpoch((n) => n + 1);
++          });
++        }
+       });
+       return () => {
+         mounted = false;
+diff --git a/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-hook.test.ts b/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-hook.test.ts
+index bebcd2ce..596f95bc 100644
+--- a/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-hook.test.ts
++++ b/apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-hook.test.ts
+@@ -86,6 +86,7 @@ vi.mock("./recurring-meal-data", () => ({
+ }));
+ import { useRecurringMealSuggestion } from "./recurring-meal-suggestion-data";
+ import { setRecurringSuggestionOwner } from "./recurring-meal-suggestion-lifetime";
++import { publishSessionReadUpdate } from "@/composition/personal-read-events";
+ let owner: string;
+ let sequence = 90;
+ const proposal = (zone: string) =>
+@@ -242,3 +243,58 @@ it("cannot recreate active authority or dispatch stale mounted callbacks after o
+   await model.retry();
+   expect(mocks.requests).toHaveLength(requests);
+ });
++it.each(["initial focus", "ongoing refresh"])(
++  "redetects a copied meal after %s overlaps live history updates",
++  async (stage) => {
++    if (stage === "ongoing refresh") {
++      mocks.list.mockResolvedValueOnce({
++        ok: true,
++        value: { enabled: true, suggestion: null },
++      });
++      render();
++      await settle();
++      render();
++    }
++    const priorGets = mocks.requests.filter(
++      (request) => request.method === "GET",
++    ).length;
++    let oldResponse!: (value: any) => void;
++    let freshStorage!: (value: any) => void;
++    mocks.load.mockResolvedValueOnce(null).mockImplementationOnce(
++      () =>
++        new Promise((resolve) => {
++          freshStorage = resolve;
++        }),
++    );
++    mocks.list.mockImplementationOnce(
++      () =>
++        new Promise((resolve) => {
++          oldResponse = resolve;
++        }),
++    );
++    const model = render();
++    if (stage === "ongoing refresh") void model.refresh();
++    await settle();
++    publishSessionReadUpdate("/v1/food-entries");
++    publishSessionReadUpdate("/v1/food-entries?limit=100");
++    oldResponse({ ok: true, value: { enabled: true, suggestion: null } });
++    await settle();
++    expect(freshStorage).toBeTypeOf("function");
++    const held = render();
++    expect(held.candidate).toBeNull();
++    await held.accept();
++    await held.retry();
++    expect(
++      mocks.requests.filter((request) => request.method === "GET"),
++    ).toHaveLength(priorGets + 1);
++    expect(mocks.requests.some((request) => request.method === "POST")).toBe(
++      false,
++    );
++    freshStorage(null);
++    await settle();
++    expect(render().candidate?.name).toBe("Yogurt 150 g");
++    expect(
++      mocks.requests.filter((request) => request.method === "GET"),
++    ).toHaveLength(priorGets + 2);
++  },
++);
