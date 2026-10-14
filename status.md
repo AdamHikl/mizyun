@@ -23,7 +23,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#244 UI:** branch ui/design-system 4b0d20ed (tokens/components, tab headers, Home+Meals); reviewPASS, gatePASS 2613/1109+15skips. Next: Adam review/merge, phase2.
+- **#244 UI:** phase1 merged be84bf7e; phase2 branch ui/phase-2 cdeffa67 reviewed, gatePASS 2634/1109+15skips. Next: Adam merge, device checks.
 
 - **#239:** consent/reminders;289tests/review/gatePASS; Dev installed; native next. [Proof](docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md).
 
