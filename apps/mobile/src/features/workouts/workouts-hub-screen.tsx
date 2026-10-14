@@ -846,13 +846,13 @@ export function WorkoutsHubScreen() {
         />
       )}
       <ExerciseLibraryModal
-        key={owner}
+        key={`library:${owner}`}
         visible={ownsScreenState && libraryVisible}
         onClose={() => setLibraryVisible(false)}
       />
 
       <WorkoutEditorModal
-        key={owner}
+        key={`editor:${owner}`}
         visible={ownsScreenState && editorVisible}
         onClose={() => setEditorVisible(false)}
         workoutToEdit={ownsScreenState ? editingWorkout : null}
@@ -861,7 +861,7 @@ export function WorkoutsHubScreen() {
 
       {ownsScreenState && progressionExerciseName !== null ? (
         <ExerciseProgressionModal
-          key={owner}
+          key={`progression:${owner}`}
           visible={progressionExerciseName !== null}
           onClose={() => setProgressionExerciseName(null)}
           exerciseName={progressionExerciseName}

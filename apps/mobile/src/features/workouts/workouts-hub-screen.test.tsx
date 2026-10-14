@@ -433,6 +433,15 @@ it("keeps the common account bar outside scrolling tab content", () => {
   expect(find(scroll, (node) => node.type === "TabHeader")).toBeFalsy();
 });
 
+it("gives each account-scoped root modal a distinct sibling key", () => {
+  const children = [render().props.children].flat(Infinity);
+  const keys = children
+    .filter((child: any) => child && typeof child === "object" && child.key)
+    .map((child: any) => child.key);
+  expect(keys.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(keys).size).toBe(keys.length);
+});
+
 it("announces the selected workout filter after switching views", () => {
   const filter = (tree: any, label: string) =>
     find(tree, (node) => node.props?.accessibilityLabel === label);
