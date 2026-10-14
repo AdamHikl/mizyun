@@ -1,6 +1,6 @@
 # Mizyun status
 
-> Updated 2026-10-14. [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-14 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
@@ -8,10 +8,10 @@
 
 - **Issues:** #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
-- **All-local main (Oct14):**d7e2055b pushed; review/gatePASS. [Proof](docs/ALL_LOCAL_SEPARATE_COMMITS_2026-10-14.md). Dev delivered below; Prod/native exits open.
+- **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend (Oct14):**d7e2055b260552c785325414756c6beeea1b7d8c; gate2584mobile/1109API+15skips/clean/API4100/DB5433 readinessPASS;72migrations through20261013120000. [Receipt](docs/DEV_LOCAL_DELIVERY_2026-10-14.md). Recipes ON per Adam; [Proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
-- **iPhone Dev (Oct14):**matchingd7e2055b;1.0.9(9),build/sign/installPASS;launchLOCKED. [Receipt](docs/DEV_LOCAL_DELIVERY_2026-10-14.md). Unlock next; native/provider/AX/watch open.
+- **Dev backend (Oct14):**283bf05ef53ecdc00545c757e422378e6e8ce0ef via deploy:dev; driver gatePASS, DB up to date (72migrations), public health200 16:23Z. [Prior receipt](docs/DEV_LOCAL_DELIVERY_2026-10-14.md); recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
+- **iPhone Dev (Oct14):**installed d7e2055b JS; rebuild for 283bf05/#244 UI pending. [Receipt](docs/DEV_LOCAL_DELIVERY_2026-10-14.md). Native/provider/AX/watch open.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **AI:** Hetzner Dev/Prod; Pi encrypted recovery. Gemini-or-disabled; adult/consent/usage/kill switches; no email allowlist. Founder/partner shared-Gemini Dev exception; Qwen paused. `docs/BEFORE_TESTING.md`/live-provider gates retained.
 
@@ -23,7 +23,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#203 Meals:** compactUI/412tests/typecheck/review/fullgatePASS; Dev next. [Proof](docs/MEALS_UI_IA_EVIDENCE_2026-10-14.md). Dev/native open.
+- **#244 UI:** branch ui/design-system 4b0d20ed (tokens/components, tab headers, Home+Meals); reviewPASS, gatePASS 2613/1109+15skips. Next: Adam review/merge, phase2.
 
 - **#239:** consent/reminders;289tests/review/gatePASS; Dev installed; native next. [Proof](docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md).
 
@@ -31,7 +31,7 @@
 
 - **#237:** 438/review/gatePASS; native deferred. [Proof](docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md).
 
-- **Agents #236:** Sol Medium/High exceptions; bounded reviews/stable gates. [Rules](docs/SESSION_GUIDE.md); measure next.
+- **Agents #236:** Claude Code Sonnet/Opus routing; bounded reviews/stable gates. [Rules](.agents/rules/model-routing.md).
 
 - **#234/#235:** Dev81.67%; Material1.14/resizable; build/gate/API36 rotation PASS; RN/older/device/Play open. [Evidence](docs/ANDROID_WINDOW_DEV_EVIDENCE_2026-10-11.md).
 
@@ -53,7 +53,7 @@
 
 ## Earlier implemented packages with open exits
 
-- **#183 recurring:** Dev SQL; tick/reopen/totals, edit/delete/pause/resume/skip/stop; TZ/DST/network/two-account open. [Evidence](docs/RECURRING_MEALS_PLAN_2026-10-03.md). **#242:** Dev delivered; copy fix localPASS. [Fix](docs/MEAL_ROUTINE_COPY_REFRESH_2026-10-14.md); client/native next.
+- **#183 recurring:** Dev SQL; tick/reopen/totals, edit/delete/pause/resume/skip/stop; TZ/DST/network/two-account open. [Evidence](docs/RECURRING_MEALS_PLAN_2026-10-03.md). **#242:** copy fix in main283bf05. [Fix](docs/MEAL_ROUTINE_COPY_REFRESH_2026-10-14.md); client/native next.
 - **#184 Coach envelopes** — Verified fix source `17c6c49a0886b9b191b178d25e2c7bdbfa6ea9de` integrated. Accept historical and new replies on exact Dev/provider/device candidate. [Handoff][handoffs]
 - **#185 per100g nutrition** — Verified source `b57b5aa3022eeca7d94dbe839b81bdb957fa031a` integrated. Accept weight/decimal keyboard, preview/Save/reopen, advanced nutrients, draft/lost-response retry and large text. [Handoff][handoffs]
 - **#186/#192 analytics:** Mac3034 real/3033 synthetic; manual collector. #240 CLOSED: SQL64/unit69/review/gate/livePASS; reload next. [Evidence](docs/ANALYTICS_REGISTRATION_ZERO_DAYS_2026-10-12.md).
@@ -63,7 +63,7 @@
 - **#190 direct Coach entry** — Delivered to Dev; accept first text/photo, cancellation/consent, failed creation/retry, existing threads and last deletion on both devices. [Handoff][handoffs]
 - **#168/#169 CLOSED engineering (Oct11):** regressions/review/full gate met; original10s authority preserved. Device/offline/background/nested/AX exits separate. [Scope audit](docs/evidence/community-simulators-2026-10-10/closure-scope-audit-2026-10-11.md)
 - **#178/#179:** #178 closed per Adam (Oct8); nutrients Dev-delivered/installed; device/#29 live checks unrun; #179 skip defect/actual scans retained. [AI](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md). **#227 Home closed per Adam (Oct8):** refs/cards/bars installed;50focused/review/gatePASS; native checks unrun. [Home](docs/HOME_NUTRIENT_LABEL_REFERENCES_2026-10-08.md).
-- **#170/#171–176:** [plans](docs/PROACTIVE_COACH_PLAN_2026-10-02.md); PC-01 first, no rollout. **#241:** Dev recipesON; UI/precision review/gatePASS; rebuild/native next. [UI/REC06](docs/RECIPE_UI_EVIDENCE_2026-10-14.md); live/qualified open.
+- **#170/#171–176:** [plans](docs/PROACTIVE_COACH_PLAN_2026-10-02.md); PC-01 first, no rollout. **#241:** Dev recipesON; UI fix in main283bf05; rebuild/native next. [UI/REC06](docs/RECIPE_UI_EVIDENCE_2026-10-14.md); live/qualified open.
 - **#216 Running** — Manual logging/history/edit/delete/drafts source938efc5 preserved in Deva64a158; full gate/API proofPASS, iPhone launched. Next: native acceptance; imports/GPS staged.
 - **#198/#215/#219 Health** — Dev preview/selected exports; isolated full gatePASS. [Evidence](docs/HEALTH_EXPORT_EVIDENCE_2026-10-06.md). Native/device/privacy gates open; Production disabled. Next: both-phone write/read-back; INT-03 separate.
 - **#195/#199 CI** — Forward Community lint repair delivered; Linux43deployment fixtures and quality/navigation CI pass at9b0c41a; #199 closed. Hosted DB workflow #23 remains separate. [Delivery][handoffs]
