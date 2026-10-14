@@ -1,18 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import type { Goal, GoalKind, GoalPace } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { Button, Card } from "@/components/ui";
 import { apiClient } from "@/composition/api-client";
 import { Spacing } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
 import {
   displayWeightToKilograms,
   kilogramsToDisplayWeight,
@@ -27,6 +20,13 @@ import {
   validateGoalSettingsForm,
   type GoalSettingsForm,
 } from "./goal-settings-data";
+import {
+  ChoiceChip,
+  ChoiceGroup,
+  FormField,
+  FormStatus,
+  FormTextInput,
+} from "./settings-form";
 
 const GOAL_KINDS: ReadonlyArray<[string, GoalKind]> = [
   ["Cut — lose body mass", "cut"],
@@ -46,7 +46,6 @@ export function GoalSettingsCard({
 }: {
   readonly unitSystem: WeightUnitSystem;
 }) {
-  const theme = useTheme();
   const [activeGoal, setActiveGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<GoalSettingsForm>({
@@ -112,16 +111,10 @@ export function GoalSettingsCard({
   }, [activeGoal, form, unitSystem, validation]);
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <View style={styles.header}>
-        <ThemedText type="smallBold" themeColor="textSecondary">
-          PRIMARY GOAL
-        </ThemedText>
-        <ThemedText type="subtitle">Your active goal</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          Target weight and pace for your current cycle.
-        </ThemedText>
-      </View>
+    <View style={styles.section}>
+      <ThemedText type="footnote" themeColor="textSecondary">
+        Target weight and pace for your current cycle.
+      </ThemedText>
 
       {loading ? (
         <View style={styles.center}>
@@ -129,162 +122,69 @@ export function GoalSettingsCard({
         </View>
       ) : (
         <>
-          <View style={styles.field}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Goal kind
-            </ThemedText>
-            <View style={styles.choiceColumn}>
-              {GOAL_KINDS.map(([label, value]) => (
-                <ChoiceChip
-                  key={value}
-                  label={label}
-                  selected={form.kind === value}
-                  onPress={() => patch("kind", value)}
-                />
-              ))}
-            </View>
-          </View>
+          <Card style={styles.form}>
+            <FormField label="Goal kind">
+              <ChoiceGroup>
+                {GOAL_KINDS.map(([label, value]) => (
+                  <ChoiceChip
+                    key={value}
+                    label={label}
+                    selected={form.kind === value}
+                    onPress={() => patch("kind", value)}
+                  />
+                ))}
+              </ChoiceGroup>
+            </FormField>
 
-          <View style={styles.field}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Goal weight ({weightUnitLabel(unitSystem)})
-            </ThemedText>
-            <TextInput
-              accessibilityLabel={`Goal weight (${weightUnitLabel(unitSystem)})`}
-              keyboardType="decimal-pad"
-              value={form.targetWeight}
-              onChangeText={(value) => patch("targetWeight", value)}
-              style={[styles.input, { color: theme.text }]}
-            />
-          </View>
+            <FormField label={`Goal weight (${weightUnitLabel(unitSystem)})`}>
+              <FormTextInput
+                accessibilityLabel={`Goal weight (${weightUnitLabel(unitSystem)})`}
+                keyboardType="decimal-pad"
+                value={form.targetWeight}
+                onChangeText={(value) => patch("targetWeight", value)}
+              />
+            </FormField>
 
-          <View style={styles.field}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Pace
-            </ThemedText>
-            <View style={styles.choiceRow}>
-              {PACE_CHOICES.map(([label, value]) => (
-                <ChoiceChip
-                  key={value}
-                  label={label}
-                  selected={form.pace === value}
-                  onPress={() => patch("pace", value)}
-                />
-              ))}
-            </View>
-          </View>
+            <FormField label="Pace">
+              <ChoiceGroup>
+                {PACE_CHOICES.map(([label, value]) => (
+                  <ChoiceChip
+                    key={value}
+                    label={label}
+                    selected={form.pace === value}
+                    onPress={() => patch("pace", value)}
+                  />
+                ))}
+              </ChoiceGroup>
+            </FormField>
+          </Card>
 
           {!validation.ok && form.targetWeight.length > 0 ? (
-            <ThemedText accessibilityRole="alert" style={styles.errorText}>
-              {validation.message}
-            </ThemedText>
+            <FormStatus tone="error">{validation.message}</FormStatus>
           ) : null}
 
           {message !== null ? (
-            <ThemedText
-              accessibilityRole="alert"
-              style={isSuccess ? styles.successText : styles.errorText}
-            >
+            <FormStatus tone={isSuccess ? "success" : "error"}>
               {message}
-            </ThemedText>
+            </FormStatus>
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={saving ? "Saving…" : "Save goal"}
+            block
+            loading={saving}
+            disabled={!validation.ok}
             accessibilityLabel="Save goal"
-            accessibilityState={{
-              disabled: !validation.ok || saving,
-              busy: saving,
-            }}
-            disabled={!validation.ok || saving}
             onPress={() => void onSave()}
-            style={({ pressed }) => [
-              styles.saveButton,
-              pressed && styles.pressed,
-              (!validation.ok || saving) && styles.disabled,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.saveText}>
-              {saving ? "Saving…" : "Save goal"}
-            </ThemedText>
-          </Pressable>
+          />
         </>
       )}
-    </ThemedView>
-  );
-}
-
-function ChoiceChip({
-  label,
-  selected,
-  onPress,
-}: {
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.chip,
-        selected && styles.chipSelected,
-        pressed && styles.pressed,
-      ]}
-    >
-      <ThemedText type="smallBold">{label}</ThemedText>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-  },
-  header: { gap: Spacing.half },
+  section: { gap: Spacing.three },
   center: { paddingVertical: Spacing.four, alignItems: "center" },
-  field: { gap: Spacing.one },
-  input: {
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  choiceRow: { flexDirection: "row", gap: Spacing.two, flexWrap: "wrap" },
-  choiceColumn: { gap: Spacing.one },
-  chip: {
-    minHeight: 44,
-    justifyContent: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  chipSelected: {
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
-  saveButton: {
-    minHeight: 48,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.three,
-    marginTop: Spacing.one,
-  },
-  saveText: { color: "#000000" },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.45 },
-  errorText: { color: "#EF4444" },
-  successText: { color: "#10B981" },
+  form: { gap: Spacing.three },
 });

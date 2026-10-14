@@ -16,7 +16,14 @@ vi.mock("@/components/themed-text", () => ({
   ThemedText: "ThemedText",
 }));
 
+vi.mock("@/components/themed-view", () => ({
+  ThemedView: "ThemedView",
+}));
+
+vi.mock("@/components/ui", () => ({ Icon: "Icon" }));
+
 vi.mock("@/constants/theme", () => ({
+  Radius: { sm: 8, md: 12, lg: 16, xl: 22, pill: 999 },
   Spacing: { one: 4, two: 8, three: 12, four: 16, half: 2 },
 }));
 

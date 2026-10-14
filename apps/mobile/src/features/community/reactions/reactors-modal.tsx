@@ -2,10 +2,8 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import type { ReactorSummary } from "@mizyun/contracts";
@@ -15,8 +13,15 @@ import {
   humanizeCommunityError,
 } from "../community-client";
 import { CommunityIdentityLink } from "../ui";
+import { ThemedText } from "@/components/themed-text";
+import { IconButton } from "@/components/ui";
 import { useTheme } from "@/hooks/use-theme";
-import { MaxContentWidth } from "@/constants/theme";
+import {
+  MaxContentWidth,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import { REACTION_EMOJIS, REACTION_LABELS } from "./constants";
 
 export interface ReactorsModalProps {
@@ -120,41 +125,45 @@ export function ReactorsModal({
         <View style={styles.card}>
           {/* Header */}
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.title}>
+            <ThemedText
+              type="title3"
+              accessibilityRole="header"
+              style={styles.title}
+            >
               Reactions
-            </Text>
-            <Pressable
+            </ThemedText>
+            <IconButton
+              icon="close"
               onPress={onClose}
-              accessibilityRole="button"
               accessibilityLabel="Close reactions"
               testID="reactors-close-btn"
-              style={{
-                minWidth: 48,
-                minHeight: 48,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              hitSlop={8}
-            >
-              <Text style={styles.closeBtn}>✕</Text>
-            </Pressable>
+            />
           </View>
 
           {/* Content */}
           {loading ? (
             <View style={styles.centerBox} testID="reactors-loading">
               <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.statusText}>Loading reactions...</Text>
+              <ThemedText type="small" themeColor="textSecondary">
+                Loading reactions…
+              </ThemedText>
             </View>
           ) : error ? (
             <View style={styles.centerBox} testID="reactors-error">
-              <Text accessibilityRole="alert" style={styles.errorText}>
+              <ThemedText
+                type="small"
+                themeColor="danger"
+                accessibilityRole="alert"
+                style={styles.center}
+              >
                 {error}
-              </Text>
+              </ThemedText>
             </View>
           ) : reactors.length === 0 ? (
             <View style={styles.centerBox} testID="reactors-empty">
-              <Text style={styles.emptyText}>No reactions yet.</Text>
+              <ThemedText type="small" themeColor="textSecondary">
+                No reactions yet.
+              </ThemedText>
             </View>
           ) : (
             <ScrollView
@@ -185,13 +194,15 @@ export function ReactorsModal({
                         onPress={onClose}
                       />
                     </View>
-                    <Text
+                    <ThemedText
+                      type="footnote"
+                      themeColor="textSecondary"
                       style={styles.timeText}
                       accessibilityLabel={`Reacted with ${label}${timeStr ? `, ${timeStr}` : ""}`}
                     >
                       {emoji}
                       {timeStr ? ` · ${timeStr}` : ""}
-                    </Text>
+                    </ThemedText>
                   </View>
                 );
               })}
@@ -207,16 +218,16 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: "rgba(0, 0, 0, 0.55)",
+      backgroundColor: colors.overlay,
       justifyContent: "flex-end",
     },
     card: {
       backgroundColor: colors.backgroundElement,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      paddingHorizontal: 20,
-      paddingTop: 18,
-      paddingBottom: 32,
+      borderTopLeftRadius: Radius.xl,
+      borderTopRightRadius: Radius.xl,
+      paddingHorizontal: PageGutter,
+      paddingTop: Spacing.two,
+      paddingBottom: Spacing.five,
       maxHeight: "75%",
       minHeight: 220,
       width: "100%",
@@ -227,92 +238,44 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 16,
-      paddingBottom: 12,
+      marginBottom: Spacing.two,
+      paddingBottom: Spacing.one,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.separator,
     },
     title: {
-      color: colors.text,
-      fontSize: 18,
-      fontWeight: "700",
       flex: 1,
     },
-    closeBtn: {
-      color: colors.textSecondary,
-      fontSize: 18,
-      padding: 4,
-    },
     centerBox: {
-      paddingVertical: 36,
+      paddingVertical: Spacing.five,
       alignItems: "center",
       justifyContent: "center",
+      gap: Spacing.two,
     },
-    statusText: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      marginTop: 10,
-    },
-    emptyText: {
-      color: colors.textSecondary,
-      fontSize: 15,
-    },
-    errorText: {
-      color: "#FF453A",
-      fontSize: 14,
+    center: {
       textAlign: "center",
     },
     list: {
       flexGrow: 0,
     },
     listContent: {
-      paddingVertical: 4,
+      paddingVertical: Spacing.one,
       gap: 12,
     },
     reactorRow: {
       flexDirection: "row",
       alignItems: "center",
       flexWrap: "wrap",
-      rowGap: 8,
+      rowGap: Spacing.two,
       paddingVertical: 6,
-    },
-    avatarWrapper: {
-      position: "relative",
-      marginRight: 12,
-    },
-    reactionBadge: {
-      position: "absolute",
-      bottom: -4,
-      right: -4,
-      backgroundColor: colors.backgroundSelected,
-      borderRadius: 10,
-      paddingHorizontal: 3,
-      paddingVertical: 1,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    reactionBadgeEmoji: {
-      fontSize: 11,
     },
     infoCol: {
       flex: 1,
       minWidth: 120,
       justifyContent: "center",
     },
-    displayName: {
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    handle: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      marginTop: 1,
-    },
     timeText: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      marginLeft: 8,
+      marginLeft: Spacing.two,
       flexShrink: 1,
     },
   });

@@ -91,7 +91,19 @@ vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  MinTouchTarget: 44,
+  PageGutter: 20,
+  Radius: {},
   Spacing: {},
+}));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  EmptyState: "EmptyState",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  SectionHeader: "SectionHeader",
 }));
 vi.mock("@/hooks/use-color-scheme", () => ({
   useColorScheme: () => mocks.scheme,
@@ -1264,4 +1276,51 @@ it("reports unknown watch save results and prevents shared concurrent mutations"
   pending.resolve({ ok: false, message: "Response lost" });
   expect(await first).toBe("uncertain");
   expect(mocks.addSet).toHaveBeenCalledTimes(1);
+});
+
+it("keeps exercise history and move actions reachable behind the card's more button", async () => {
+  await openLibrary().props.onSelectExercises([
+    catalogExercise,
+    secondCatalogExercise,
+  ]);
+  await settle();
+  const renderFirstCard = () => {
+    const active = feed();
+    const card = find(
+      active.type(active.props),
+      (node) => node.type?.name === "LiveExerciseCard",
+    );
+    return card.type(card.props);
+  };
+  const byLabel = (tree: any, label: string) =>
+    find(tree, (node) => node.props?.accessibilityLabel === label);
+
+  let card = renderFirstCard();
+  const more = byLabel(card, "More actions for Squat");
+  expect(more.type).toBe("IconButton");
+  expect(more.props.icon).toBe("more");
+  expect(more.props.accessibilityState).toEqual({ expanded: false });
+  expect(byLabel(card, "View progression for Squat")).toBeFalsy();
+  expect(byLabel(card, "Move Squat down")).toBeFalsy();
+
+  more.props.onPress();
+  card = renderFirstCard();
+  expect(
+    byLabel(card, "More actions for Squat").props.accessibilityState,
+  ).toEqual({ expanded: true });
+  expect(byLabel(card, "Move Squat up")).toBeFalsy();
+
+  byLabel(card, "View progression for Squat").props.onPress();
+  expect(
+    find(render(), (node) => node.type === "ExerciseProgressionModal").props
+      .exerciseName,
+  ).toBe("Squat");
+
+  byLabel(renderFirstCard(), "More actions for Squat").props.onPress();
+  byLabel(renderFirstCard(), "Move Squat down").props.onPress();
+  await settle();
+  expect(mocks.persist).toHaveBeenCalledTimes(2);
+  expect(
+    mocks.persist.mock.lastCall?.[1].map((entry: any) => entry.name),
+  ).toEqual(["Barbell Row", "Squat"]);
 });

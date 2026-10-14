@@ -1,15 +1,18 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import type {
   CommunityReactionKind,
   SharedActivityFeedItemDto,
 } from "@mizyun/contracts";
+import { ThemedText } from "@/components/themed-text";
+import { Card, Icon, IconButton } from "@/components/ui";
+import { PageGutter, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import type { ScopedCommunityClient } from "../community-client";
 import { SharedMealDetails } from "../shared-meal-details";
 import { SharedWorkoutDetails } from "../shared-workout-details";
 import { CommunityIdentityLink } from "../ui";
-import { ReactionBar } from "../reactions";
+import { REACTION_EMOJIS, ReactionBar } from "../reactions";
 import {
   formatCategory,
   formatDuration,
@@ -30,14 +33,6 @@ export interface ActivityCardProps {
   ) => void;
 }
 
-const REACTION_EMOJIS: Record<string, string> = {
-  clap: "👏",
-  fire: "🔥",
-  high_five: "🙌",
-  fist_bump: "👊",
-  thumbs_up: "👍",
-};
-
 export function ActivityCard({
   item,
   viewerUserId,
@@ -57,60 +52,41 @@ export function ActivityCard({
     : formatCategory(item.category);
 
   return (
-    <View
+    <Card
       testID={`activity-card-${item.id}`}
-      style={[
-        styles.card,
-        {
-          backgroundColor: colors.background,
-          borderColor: colors.border,
-        },
-      ]}
+      style={styles.card}
       accessible={false}
     >
-      {/* Author Header */}
       <View style={styles.header}>
-        <View style={styles.authorRow}>
-          <View style={styles.authorDetails}>
-            <CommunityIdentityLink
-              userId={item.authorUserId}
-              displayName={item.authorDisplayName}
-              handle={item.authorHandle}
-              avatarKey={item.authorAvatarSymbol}
-            />
-            {publishedAtLabel ? (
-              <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
-                Shared {publishedAtLabel}
-              </Text>
-            ) : null}
-          </View>
+        <View style={styles.authorDetails}>
+          <CommunityIdentityLink
+            userId={item.authorUserId}
+            displayName={item.authorDisplayName}
+            handle={item.authorHandle}
+            avatarKey={item.authorAvatarSymbol}
+          />
+          {publishedAtLabel ? (
+            <ThemedText type="footnote" themeColor="textSecondary">
+              Shared {publishedAtLabel}
+            </ThemedText>
+          ) : null}
         </View>
-
         {onOpenActions && (
-          <Pressable
+          <IconButton
             testID={`activity-actions-${item.id}`}
-            style={({ pressed }) => [
-              styles.actionsButton,
-              { opacity: pressed ? 0.6 : 1 },
-            ]}
+            icon="more"
+            variant="plain"
+            accessibilityLabel="Card options"
             onPress={(e) => {
               e.stopPropagation();
               onOpenActions();
             }}
-            accessibilityRole="button"
-            accessibilityLabel="Card options"
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={[styles.actionsIcon, { color: colors.textSecondary }]}>
-              •••
-            </Text>
-          </Pressable>
+          />
         )}
       </View>
 
-      {/* Activity Content */}
       <Pressable
-        style={styles.content}
+        style={({ pressed }) => [styles.content, pressed && styles.pressed]}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${!isMeal && item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
@@ -118,24 +94,23 @@ export function ActivityCard({
           isMeal ? "Open shared meal details" : "Open shared workout details"
         }
       >
-        <Text style={[styles.categoryTitle, { color: colors.text }]}>
-          {categoryLabel}
-        </Text>
+        <ThemedText type="headline">{categoryLabel}</ThemedText>
         <View style={styles.metaRow}>
-          <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-            {sharedDayLabel}
-          </Text>
+          <View style={styles.metaItem}>
+            <Icon name="calendar" size={13} color="textSecondary" />
+            <ThemedText type="footnote" themeColor="textSecondary">
+              {sharedDayLabel}
+            </ThemedText>
+          </View>
           {duration ? (
             <View
-              style={[
-                styles.durationPill,
-                { backgroundColor: colors.backgroundSelected },
-              ]}
+              style={styles.metaItem}
               accessibilityLabel={`Duration: ${duration.accessible}`}
             >
-              <Text style={[styles.durationText, { color: colors.text }]}>
+              <Icon name="timer" size={13} color="textSecondary" />
+              <ThemedText type="footnote" themeColor="textSecondary">
                 {duration.text}
-              </Text>
+              </ThemedText>
             </View>
           ) : null}
         </View>
@@ -147,23 +122,33 @@ export function ActivityCard({
         ) : null}
       </Pressable>
 
-      {/* Reactions Bar */}
       {viewerUserId && scopedClient ? (
-        <ReactionBar
-          compact
-          activityId={item.id}
-          authorUserId={item.authorUserId}
-          viewerUserId={viewerUserId}
-          initialReactionCounts={item.reactionCounts}
-          initialViewerReaction={item.viewerReaction}
-          scopedClient={scopedClient}
-          onReactionChanged={onReactionChanged}
-          onUnavailable={onUnavailable}
-        />
+        <View style={[styles.reactions, { borderTopColor: colors.separator }]}>
+          <ReactionBar
+            compact
+            activityId={item.id}
+            authorUserId={item.authorUserId}
+            viewerUserId={viewerUserId}
+            initialReactionCounts={item.reactionCounts}
+            initialViewerReaction={item.viewerReaction}
+            scopedClient={scopedClient}
+            onReactionChanged={onReactionChanged}
+            onUnavailable={onUnavailable}
+          />
+        </View>
       ) : (
-        <View style={styles.reactionsBar}>
+        <View
+          style={[
+            styles.reactions,
+            styles.reactionsBar,
+            { borderTopColor: colors.separator },
+          ]}
+        >
           {Object.entries(item.reactionCounts).map(([kind, count]) => {
-            const emoji = REACTION_EMOJIS[kind] ?? kind;
+            // Reaction kinds are content (the same symbols as the live
+            // reaction bar), not interface affordances.
+            const symbol =
+              REACTION_EMOJIS[kind as CommunityReactionKind] ?? kind;
             const isSelected = item.viewerReaction === kind;
             return (
               <View
@@ -174,131 +159,74 @@ export function ActivityCard({
                     backgroundColor: isSelected
                       ? colors.primaryLight
                       : colors.backgroundSelected,
-                    borderColor: isSelected ? colors.primary : "transparent",
                   },
                 ]}
                 accessibilityLabel={`${count} ${kind.replace("_", " ")} reactions`}
               >
-                <Text style={styles.reactionEmoji}>{emoji}</Text>
-                <Text
-                  style={[
-                    styles.reactionCount,
-                    {
-                      color: isSelected ? colors.primary : colors.textSecondary,
-                      fontWeight: isSelected ? "600" : "400",
-                    },
-                  ]}
+                <ThemedText type="footnote">{symbol}</ThemedText>
+                <ThemedText
+                  type={isSelected ? "caption" : "footnote"}
+                  themeColor={isSelected ? "primary" : "textSecondary"}
                 >
                   {count}
-                </Text>
+                </ThemedText>
               </View>
             );
           })}
         </View>
       )}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 20,
-    marginHorizontal: 20,
+    marginHorizontal: PageGutter,
+    marginBottom: Spacing.three,
+    gap: Spacing.three,
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    gap: 12,
+    gap: Spacing.two,
   },
   authorDetails: {
     flex: 1,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  displayName: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  handle: {
-    fontSize: 13,
-  },
-  timestamp: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  actionsButton: {
-    minWidth: 48,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 4,
-  },
-  actionsIcon: {
-    fontSize: 16,
-    fontWeight: "bold",
-    letterSpacing: 2,
+    minWidth: 0,
+    gap: Spacing.half,
   },
   content: {
-    marginTop: 14,
-    marginBottom: 12,
+    gap: Spacing.two,
   },
-  categoryTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
+  pressed: { opacity: 0.6 },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
     flexWrap: "wrap",
+    gap: Spacing.three,
   },
-  metaText: {
-    fontSize: 13,
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
   },
-  durationPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  durationText: {
-    fontSize: 12,
-    fontWeight: "500",
+  reactions: {
+    paddingTop: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   reactionsBar: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
-    marginTop: 4,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(128,128,128,0.2)",
+    gap: Spacing.two,
   },
   reactionBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  reactionEmoji: {
-    fontSize: 13,
-  },
-  reactionCount: {
-    fontSize: 12,
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Radius.pill,
   },
 });

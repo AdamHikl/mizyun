@@ -3,11 +3,11 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import type { Profile } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { Icon, IconBadge, ListGroup } from "@/components/ui";
 import { CountryFlag } from "@/components/ui/country-flag";
 import { CountryPickerModal } from "@/components/ui/country-picker-modal";
 import { apiClient } from "@/composition/api-client";
-import { Spacing } from "@/constants/theme";
+import { MinTouchTarget, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 import {
@@ -71,100 +71,61 @@ export function RegionalFoodStandardsCard({
   );
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">Food & Portion Standards</ThemedText>
-      <ThemedText
-        type="small"
-        themeColor="textSecondary"
-        style={styles.description}
-      >
+    <View style={styles.section}>
+      <ListGroup>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            standardDisplay.isGlobal
+              ? "Regional food standard: Global standard (No regional calibration). Tap to change."
+              : `Regional food standard: ${standardDisplay.label}. Tap to change.`
+          }
+          accessibilityState={{ disabled: saving, busy: saving }}
+          disabled={saving}
+          onPress={() => setCountryPickerVisible(true)}
+          style={({ pressed }) => [
+            styles.countryRow,
+            pressed && { backgroundColor: theme.backgroundSelected },
+            saving && styles.disabled,
+          ]}
+        >
+          {standardDisplay.code ? (
+            <CountryFlag code={standardDisplay.code} size={24} />
+          ) : (
+            <IconBadge name="globe" tone="neutral" />
+          )}
+          <View style={styles.countryText}>
+            <ThemedText type="default">
+              {standardDisplay.code ? standardDisplay.label : "Global standard"}
+            </ThemedText>
+            <ThemedText type="footnote" themeColor="textSecondary">
+              {standardDisplay.code
+                ? "Regional nutrition & portion calibration active"
+                : "No regional calibration applied"}
+            </ThemedText>
+          </View>
+          {saving ? (
+            <ActivityIndicator size="small" color={theme.primary} />
+          ) : (
+            <ThemedText type="small" themeColor="textSecondary">
+              Change
+            </ThemedText>
+          )}
+          <Icon name="chevronRight" size={14} color="textTertiary" />
+        </Pressable>
+      </ListGroup>
+
+      <ThemedText type="footnote" themeColor="textSecondary">
         Calibrates food nutrition standards, portion sizing norms, and
         restaurant databases (e.g. EU vs US portion norms, regional branded
         menus).
       </ThemedText>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={
-          standardDisplay.isGlobal
-            ? "Regional food standard: Global standard (No regional calibration). Tap to change."
-            : `Regional food standard: ${standardDisplay.label}. Tap to change.`
-        }
-        accessibilityState={{ disabled: saving }}
-        disabled={saving}
-        onPress={() => setCountryPickerVisible(true)}
-        style={({ pressed }) => [
-          styles.countryTrigger,
-          pressed && styles.pressed,
-          saving && styles.disabled,
-        ]}
-      >
-        <View style={styles.countryTriggerLeft}>
-          {standardDisplay.code ? (
-            <>
-              <CountryFlag code={standardDisplay.code} size={24} />
-              <View style={styles.countryInfoCol}>
-                <ThemedText
-                  type="default"
-                  style={styles.countryTriggerText}
-                  numberOfLines={1}
-                >
-                  {standardDisplay.label}
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  numberOfLines={1}
-                >
-                  Regional nutrition & portion calibration active
-                </ThemedText>
-              </View>
-            </>
-          ) : (
-            <>
-              <ThemedText style={styles.globalIcon}>🌐</ThemedText>
-              <View style={styles.countryInfoCol}>
-                <ThemedText
-                  type="default"
-                  themeColor="textSecondary"
-                  style={styles.countryTriggerText}
-                  numberOfLines={1}
-                >
-                  Global standard
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  numberOfLines={1}
-                >
-                  No regional calibration applied
-                </ThemedText>
-              </View>
-            </>
-          )}
-        </View>
-
-        <View style={styles.countryTriggerRight}>
-          {saving ? (
-            <ActivityIndicator size="small" color={theme.primary} />
-          ) : (
-            <ThemedText
-              type="smallBold"
-              themeColor="primary"
-              style={styles.changeActionText}
-            >
-              Change ›
-            </ThemedText>
-          )}
-        </View>
-      </Pressable>
-
       {message !== null ? (
         <ThemedText
-          type="small"
+          type="footnote"
           accessibilityRole="alert"
-          themeColor={message.isError ? "textSecondary" : "primary"}
-          style={styles.feedbackMessage}
+          themeColor={message.isError ? "danger" : "primary"}
         >
           {message.text}
         </ThemedText>
@@ -176,60 +137,25 @@ export function RegionalFoodStandardsCard({
         onSelect={(code) => void handleSelectCountry(code)}
         onClose={() => setCountryPickerVisible(false)}
       />
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    padding: Spacing.four,
-    gap: Spacing.three,
+  section: {
+    gap: Spacing.two,
   },
-  description: {
-    lineHeight: 18,
-  },
-  countryTrigger: {
-    minHeight: 56,
+  countryRow: {
+    minHeight: MinTouchTarget + 8,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    backgroundColor: "rgba(22, 29, 34, 0.6)",
+    gap: 12,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    paddingVertical: 10,
   },
-  countryTriggerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
+  countryText: {
     flex: 1,
-    gap: Spacing.three,
-  },
-  countryInfoCol: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  countryTriggerText: {
-    fontSize: 15,
-  },
-  countryTriggerRight: {
-    marginLeft: Spacing.two,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  changeActionText: {
-    marginLeft: Spacing.two,
-  },
-  globalIcon: {
-    fontSize: 24,
-  },
-  feedbackMessage: {
-    marginTop: Spacing.one,
-  },
-  pressed: {
-    opacity: 0.8,
+    gap: 1,
   },
   disabled: {
     opacity: 0.5,

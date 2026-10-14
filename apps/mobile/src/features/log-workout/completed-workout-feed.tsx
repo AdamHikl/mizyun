@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { Exercise, Workout, WorkoutSet } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
+import { Button, Card, SectionHeader } from "@/components/ui";
+import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { calculateWorkoutVolume, formatStopwatch } from "@/features/workouts";
 import { kilogramsToDisplayWeight, weightUnitLabel } from "@/lib/weight-units";
@@ -67,61 +69,56 @@ export function CompletedWorkoutFeed(props: {
     }
     groups.get(set.exerciseId)!.sets.push(set);
   }
-  const cardStyle = [
-    styles.card,
-    {
-      backgroundColor: theme.backgroundElement,
-      borderColor: theme.border,
-    },
-  ];
-
   return (
     <View style={styles.feed} testID="completed-workout-review">
-      <View style={cardStyle}>
-        <ThemedText type="smallBold">Completed workout</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
+      <Card>
+        <ThemedText type="headline">Completed workout</ThemedText>
+        <ThemedText type="footnote" themeColor="textSecondary">
           {date}
         </ThemedText>
         <View style={styles.summaryRow}>
           <View style={styles.duration}>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="footnote" themeColor="textSecondary">
               Duration
             </ThemedText>
-            <ThemedText type="subtitle">{duration}</ThemedText>
+            <ThemedText type="subtitle" style={styles.tabular}>
+              {duration}
+            </ThemedText>
           </View>
           <View style={styles.totals}>
-            <ThemedText type="small">
+            <ThemedText type="smallBold">
               {props.savedSets.length} saved sets
             </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="footnote" themeColor="textSecondary">
               {volume} {unit} working-set volume
             </ThemedText>
           </View>
         </View>
-      </View>
+      </Card>
       {props.savedSets.length === 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
           No sets were recorded for this workout.
         </ThemedText>
       ) : null}
+      {groups.size > 0 ? <SectionHeader title="Exercises" /> : null}
       {Array.from(groups, ([id, group]) => (
-        <View key={id} style={cardStyle}>
+        <Card key={id} style={styles.exerciseCard}>
           <View style={styles.exerciseHeader}>
             <View style={styles.exerciseTitle}>
-              <ThemedText type="smallBold">{group.name}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="headline">{group.name}</ThemedText>
+              <ThemedText type="footnote" themeColor="textSecondary">
                 {group.sets.length} saved sets
               </ThemedText>
             </View>
             {group.hasHistory ? (
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="History"
+                variant="tinted"
+                size="small"
+                icon="chart"
                 accessibilityLabel={`View history for ${group.name}`}
                 onPress={() => props.onOpenHistory(group.name)}
-                style={[styles.history, { borderColor: theme.border }]}
-              >
-                <ThemedText type="smallBold">History →</ThemedText>
-              </Pressable>
+              />
             ) : null}
           </View>
           {group.sets.length === 0 ? (
@@ -129,28 +126,28 @@ export function CompletedWorkoutFeed(props: {
               No sets recorded.
             </ThemedText>
           ) : (
-            <>
+            <View>
               <View style={styles.setRow}>
                 <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
+                  type="caption"
+                  themeColor="textTertiary"
                   style={styles.setLabel}
                 >
-                  SET
+                  Set
                 </ThemedText>
                 <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
+                  type="caption"
+                  themeColor="textTertiary"
                   style={styles.value}
                 >
-                  {unit.toUpperCase()}
+                  {unit}
                 </ThemedText>
                 <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
+                  type="caption"
+                  themeColor="textTertiary"
                   style={styles.value}
                 >
-                  REPS
+                  Reps
                 </ThemedText>
               </View>
               {[...group.sets]
@@ -158,14 +155,30 @@ export function CompletedWorkoutFeed(props: {
                 .map((set, index) => (
                   <View
                     key={set.id}
-                    style={[styles.recordedSet, { borderColor: theme.border }]}
+                    style={[
+                      styles.recordedSet,
+                      { borderColor: theme.separator },
+                    ]}
                   >
                     <View style={styles.setRow}>
-                      <ThemedText type="small" style={styles.setLabel}>
-                        {index + 1}
-                        {set.setType !== "normal" ? ` · ${set.setType}` : ""}
-                      </ThemedText>
-                      <ThemedText type="smallBold" style={styles.value}>
+                      <View style={[styles.setLabel, styles.setLabelRow]}>
+                        <ThemedText type="small">{index + 1}</ThemedText>
+                        {set.setType !== "normal" ? (
+                          <ThemedText
+                            type="caption"
+                            style={[
+                              styles.setType,
+                              {
+                                backgroundColor: theme.backgroundSelected,
+                                color: theme.textSecondary,
+                              },
+                            ]}
+                          >
+                            {set.setType}
+                          </ThemedText>
+                        ) : null}
+                      </View>
+                      <ThemedText type="headline" style={styles.value}>
                         {set.loadKg === null
                           ? "—"
                           : kilogramsToDisplayWeight(
@@ -173,14 +186,14 @@ export function CompletedWorkoutFeed(props: {
                               props.unitSystem,
                             )}
                       </ThemedText>
-                      <ThemedText type="smallBold" style={styles.value}>
+                      <ThemedText type="headline" style={styles.value}>
                         {set.repetitions ?? "—"}
                       </ThemedText>
                     </View>
                     {set.durationSeconds !== null ||
                     set.distanceMeters !== null ||
                     set.perceivedExertion !== null ? (
-                      <ThemedText type="small" themeColor="textSecondary">
+                      <ThemedText type="footnote" themeColor="textSecondary">
                         {[
                           set.durationSeconds !== null
                             ? `${formatStopwatch(set.durationSeconds)} duration`
@@ -198,51 +211,74 @@ export function CompletedWorkoutFeed(props: {
                     ) : null}
                   </View>
                 ))}
-            </>
+            </View>
           )}
-        </View>
+        </Card>
       ))}
       {props.workout.notes?.trim() ? (
-        <View style={cardStyle}>
-          <ThemedText type="smallBold">Workout notes</ThemedText>
-          <ThemedText type="small">{props.workout.notes}</ThemedText>
-        </View>
+        <>
+          <SectionHeader title="Notes" />
+          <Card>
+            <ThemedText type="small">{props.workout.notes}</ThemedText>
+          </Card>
+        </>
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  feed: { gap: 16 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 12 },
+  feed: { gap: Spacing.three },
   summaryRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
+    gap: Spacing.three,
     alignItems: "center",
   },
-  duration: { gap: 4 },
-  totals: { flexGrow: 1, flexShrink: 1, flexBasis: 160, gap: 4 },
+  duration: { gap: Spacing.half },
+  tabular: { fontVariant: ["tabular-nums"] },
+  totals: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 160,
+    gap: Spacing.half,
+  },
+  exerciseCard: { gap: Spacing.three },
   exerciseHeader: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     gap: 12,
   },
-  exerciseTitle: { flexGrow: 1, flexShrink: 1, flexBasis: 160, gap: 4 },
-  history: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    justifyContent: "center",
+  exerciseTitle: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 160,
+    gap: Spacing.half,
   },
-  setRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  setRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
   setLabel: { flex: 2, flexShrink: 1 },
-  value: { flex: 1, textAlign: "right" },
+  setLabelRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  setType: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Radius.pill,
+    overflow: "hidden",
+  },
+  value: { flex: 1, textAlign: "right", fontVariant: ["tabular-nums"] },
   recordedSet: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 12,
-    gap: 8,
+    paddingVertical: 10,
+    marginTop: Spacing.two,
+    gap: Spacing.one,
   },
 });

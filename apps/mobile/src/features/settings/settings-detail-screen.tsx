@@ -1,7 +1,8 @@
 import { HealthExportCard } from "@/features/health-exports/ui";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { Button, Chip, EmptyState } from "@/components/ui";
+import { MaxContentWidth, PageGutter, Spacing } from "@/constants/theme";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { authConfiguration } from "@/composition/auth-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -10,7 +11,7 @@ import { HealthPreviewCard } from "@/features/health-connections";
 import { meResponseSchema, type AuthPrincipalWire } from "@mizyun/contracts";
 import { router, Stack } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -88,17 +89,19 @@ export function SettingsDetailScreen({
       <ThemedView style={styles.page}>
         <Stack.Screen options={{ title: "Setting Unavailable" }} />
         <View style={styles.centerContainer}>
-          <ThemedText type="subtitle">Setting Unavailable</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            This setting could not be found or is not available.
-          </ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <ThemedText type="smallBold">Go Back</ThemedText>
-          </Pressable>
+          <EmptyState
+            icon="warning"
+            title="Setting unavailable"
+            message="This setting could not be found or is not available."
+            action={
+              <Button
+                label="Go back"
+                variant="tinted"
+                size="small"
+                onPress={() => router.back()}
+              />
+            }
+          />
         </View>
       </ThemedView>
     );
@@ -107,8 +110,7 @@ export function SettingsDetailScreen({
   const detailKey: SettingsDetailKey = settingKey;
   const config = SETTINGS_DETAIL_CONFIGS[detailKey];
 
-  const topPadding = Math.max(insets.top, 16) + Spacing.two;
-  const bottomPadding = BottomTabInset + insets.bottom + Spacing.six;
+  const bottomPadding = insets.bottom + Spacing.six;
 
   const renderContent = () => {
     switch (detailKey) {
@@ -116,7 +118,7 @@ export function SettingsDetailScreen({
         return profile !== null ? (
           <ProfileSettingsCard profile={profile} onSaved={refreshProfile} />
         ) : (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Profile details are not available.
           </ThemedText>
         );
@@ -125,7 +127,7 @@ export function SettingsDetailScreen({
         return profile !== null ? (
           <GoalSettingsCard unitSystem={profile.unitSystem} />
         ) : (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Goal settings are not available.
           </ThemedText>
         );
@@ -137,7 +139,7 @@ export function SettingsDetailScreen({
             onSaved={refreshProfile}
           />
         ) : (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Food standards are not available.
           </ThemedText>
         );
@@ -153,7 +155,7 @@ export function SettingsDetailScreen({
             <EveningCatchUpRemindersCard userId={session.user.id} />
           </View>
         ) : (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Please sign in to configure reminders.
           </ThemedText>
         );
@@ -165,7 +167,7 @@ export function SettingsDetailScreen({
         return session !== null ? (
           <HealthStepsSettingsCard userId={session.user.id} />
         ) : (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Please sign in to configure Health steps.
           </ThemedText>
         );
@@ -181,7 +183,7 @@ export function SettingsDetailScreen({
             unitSystem={profile?.unitSystem ?? "metric"}
           />
         ) : (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Health previews are unavailable in this build or account.
           </ThemedText>
         );
@@ -190,7 +192,7 @@ export function SettingsDetailScreen({
         return profile !== null ? (
           <CoachPreferencesCard profile={profile} onSaved={refreshProfile} />
         ) : (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Coach preferences are not available.
           </ThemedText>
         );
@@ -227,20 +229,11 @@ export function SettingsDetailScreen({
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          {
-            paddingTop: topPadding,
-            paddingBottom: bottomPadding,
-          },
+          { paddingBottom: bottomPadding },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {anchor ? (
-          <View style={styles.anchorNotice}>
-            <ThemedText type="small" style={styles.anchorNoticeText}>
-              Viewing: {anchor}
-            </ThemedText>
-          </View>
-        ) : null}
+        {anchor ? <Chip label={`Viewing: ${anchor}`} tone="primary" /> : null}
         {renderContent()}
       </ScrollView>
     </ThemedView>
@@ -253,35 +246,17 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    padding: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     gap: Spacing.four,
   },
   cardGroup: {
-    gap: Spacing.four,
-  },
-  anchorNotice: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    alignSelf: "flex-start",
-  },
-  anchorNoticeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#10B981",
+    gap: Spacing.five,
   },
   centerContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.four,
-    gap: Spacing.three,
-  },
-  backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: "rgba(128, 128, 128, 0.15)",
   },
 });

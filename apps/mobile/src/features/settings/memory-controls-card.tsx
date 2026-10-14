@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import {
   coachMemoryListResponseSchema,
   coachMemoryResponseSchema,
@@ -12,8 +12,20 @@ import {
 
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Colors, Spacing } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  SectionHeader,
+  type ButtonVariant,
+} from "@/components/ui";
+import { Spacing } from "@/constants/theme";
+
+import {
+  ChoiceChip,
+  ChoiceGroup,
+  FormStatus,
+  FormTextInput,
+} from "./settings-form";
 
 const kinds: readonly [CoachMemoryKind, string][] = [
   ["preference", "Preference"],
@@ -157,78 +169,76 @@ export function MemoryControlsCard() {
   };
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">Coach memory</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
+    <View style={styles.page}>
+      <ThemedText type="footnote" themeColor="textSecondary">
         Mizyun recalls only confirmed active memories. Deactivated items,
         low-confidence items, and expired items stay out of the Coach prompt.
       </ThemedText>
 
-      <View style={styles.section}>
-        <ThemedText type="smallBold" themeColor="textSecondary">
-          Add a memory
-        </ThemedText>
-        <View style={styles.chips}>
+      <SectionHeader title="Add a memory" />
+      <Card style={styles.section}>
+        <ChoiceGroup>
           {kinds.map(([value, label]) => (
-            <Chip
+            <ChoiceChip
               key={value}
               label={label}
               selected={newKind === value}
               onPress={() => setNewKind(value)}
             />
           ))}
-        </View>
-        <TextInput
+        </ChoiceGroup>
+        <FormTextInput
           accessibilityLabel="New Coach memory"
           maxLength={4_000}
           multiline
           placeholder="Something you explicitly want Coach to remember…"
-          placeholderTextColor={Colors.dark.textSecondary}
           value={newContent}
           onChangeText={setNewContent}
           style={styles.input}
         />
-        <View style={styles.chips}>
+        <ChoiceGroup>
           {expiryChoices.map(([days, label]) => (
-            <Chip
+            <ChoiceChip
               key={label}
               label={label}
               selected={newExpiryDays === days}
               onPress={() => setNewExpiryDays(days)}
             />
           ))}
-        </View>
+        </ChoiceGroup>
         <ActionButton
           label={busyId === "new" ? "Saving…" : "Save memory"}
           disabled={busyId !== null || newContent.trim().length === 0}
-          primary
+          variant="primary"
           onPress={() => void create()}
         />
-      </View>
+      </Card>
 
+      <SectionHeader title="Saved memories" />
       <View style={styles.section}>
-        <ThemedText type="smallBold" themeColor="textSecondary">
-          Saved memories
-        </ThemedText>
         {loading ? (
-          <ThemedText type="small">Loading…</ThemedText>
-        ) : memories.length === 0 ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            No Coach memories yet.
+          <ThemedText type="footnote" themeColor="textSecondary">
+            Loading…
           </ThemedText>
+        ) : memories.length === 0 ? (
+          <Card>
+            <ThemedText type="footnote" themeColor="textSecondary">
+              No Coach memories yet.
+            </ThemedText>
+          </Card>
         ) : (
           memories.map((memory) => (
-            <View key={memory.id} style={styles.memory}>
+            <Card key={memory.id} style={styles.memory}>
               <View style={styles.memoryHeading}>
                 <ThemedText type="smallBold">
                   {memory.kind} · {memory.status}
                 </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
+                <ThemedText type="footnote" themeColor="textSecondary">
                   importance {memory.importance}
                 </ThemedText>
               </View>
-              <ThemedText type="small">{memory.preview}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="default">{memory.preview}</ThemedText>
+              <ThemedText type="footnote" themeColor="textSecondary">
                 {memory.expiresAt === null
                   ? "No expiry"
                   : `Expires ${memory.expiresAt.slice(0, 10)}`}
@@ -293,19 +303,19 @@ export function MemoryControlsCard() {
                 <ActionButton
                   label="Delete"
                   disabled={busyId !== null}
-                  destructive
+                  variant="destructive"
                   onPress={() => remove(memory)}
                 />
               </View>
-            </View>
+            </Card>
           ))
         )}
       </View>
 
       {editing !== null ? (
-        <View style={styles.editor}>
-          <ThemedText type="smallBold">Correct memory</ThemedText>
-          <TextInput
+        <Card style={styles.section}>
+          <ThemedText type="headline">Correct memory</ThemedText>
+          <FormTextInput
             accessibilityLabel="Correct Coach memory"
             maxLength={4_000}
             multiline
@@ -317,7 +327,7 @@ export function MemoryControlsCard() {
             <ActionButton
               label="Save correction"
               disabled={busyId !== null || editContent.trim().length === 0}
-              primary
+              variant="tinted"
               onPress={() =>
                 void patch(
                   editing.id,
@@ -332,131 +342,51 @@ export function MemoryControlsCard() {
               onPress={() => setEditing(null)}
             />
           </View>
-        </View>
+        </Card>
       ) : null}
 
       {message !== null ? (
-        <ThemedText type="small" accessibilityRole="alert">
-          {message}
-        </ThemedText>
+        <FormStatus tone="neutral">{message}</FormStatus>
       ) : null}
-    </ThemedView>
-  );
-}
-
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[styles.chip, selected && styles.chipSelected]}
-    >
-      <ThemedText type="smallBold">{label}</ThemedText>
-    </Pressable>
+    </View>
   );
 }
 
 function ActionButton({
   label,
   disabled,
-  primary = false,
-  destructive = false,
+  variant = "secondary",
   onPress,
 }: {
   readonly label: string;
   readonly disabled: boolean;
-  readonly primary?: boolean;
-  readonly destructive?: boolean;
+  readonly variant?: ButtonVariant;
   readonly onPress: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
+    <Button
+      label={label}
+      variant={variant}
+      size="small"
       disabled={disabled}
       onPress={onPress}
-      style={[
-        styles.action,
-        primary && styles.actionPrimary,
-        destructive && styles.actionDestructive,
-        disabled && styles.disabled,
-      ]}
-    >
-      <ThemedText type="smallBold">{label}</ThemedText>
-    </Pressable>
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.four,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-  },
-  section: { gap: Spacing.two },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.one },
-  chip: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: Spacing.three,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-  },
-  chipSelected: {
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
+  page: { gap: Spacing.two },
+  section: { gap: Spacing.three },
   input: {
-    minHeight: 76,
-    color: Colors.dark.text,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: Spacing.three,
+    minHeight: 88,
     textAlignVertical: "top",
   },
-  memory: {
-    gap: Spacing.two,
-    paddingVertical: Spacing.three,
-    borderTopWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.18)",
-  },
+  memory: { gap: Spacing.two },
   memoryHeading: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     gap: Spacing.two,
   },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.one },
-  action: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: Spacing.three,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-  },
-  actionPrimary: {
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
-  actionDestructive: { borderColor: "#EF4444" },
-  disabled: { opacity: 0.45 },
-  editor: {
-    gap: Spacing.two,
-    borderTopWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.18)",
-    paddingTop: Spacing.three,
-  },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
 });

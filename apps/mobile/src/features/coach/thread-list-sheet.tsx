@@ -5,17 +5,17 @@
  * thread. Tapping the header title opens this sheet to switch
  * threads or start a new one. The sheet renders each
  * conversation as a tappable row with title + preview + relative
- * timestamp. The active row is marked with a high-contrast
- * border so the user always knows which thread they're in.
+ * timestamp. The active row carries a checkmark and the selected
+ * accessibility state so the user always knows which thread they're in.
  */
 
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { Colors, Spacing } from "@/constants/theme";
+import { Button, Icon, ListGroup, ListRow } from "@/components/ui";
+import { MaxContentWidth, PageGutter, Spacing } from "@/constants/theme";
 
 import { previewFor, relativeLabel } from "./coach-data";
 
@@ -56,175 +56,120 @@ export function ThreadListSheet({
   return (
     <ThemedView
       type="background"
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 10,
-      }}
+      style={styles.overlay}
       accessibilityViewIsModal
     >
       <SafeAreaView
-        style={{ flex: 1 }}
+        style={styles.safeArea}
         edges={["top", "bottom", "left", "right"]}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingHorizontal: Spacing.four,
-            paddingVertical: Spacing.three,
-            borderBottomColor: "rgba(148, 163, 184, 0.15)",
-            borderBottomWidth: 1,
-          }}
-        >
-          <View style={{ gap: 2 }}>
-            <BrandWordmark />
-            <ThemedText type="subtitle">Conversations</ThemedText>
-          </View>
-          <Pressable
-            accessibilityRole="button"
+        <View style={styles.header}>
+          <ThemedText
+            type="subtitle"
+            accessibilityRole="header"
+            style={styles.title}
+          >
+            Conversations
+          </ThemedText>
+          <Button
+            label="Close"
+            variant="plain"
+            size="small"
             accessibilityLabel="Close thread list"
             onPress={onClose}
-            hitSlop={8}
-            style={{
-              minHeight: 36,
-              paddingHorizontal: Spacing.three,
-              paddingVertical: Spacing.one,
-              borderRadius: 10,
-              backgroundColor: "rgba(148, 163, 184, 0.12)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <ThemedText type="smallBold">Close</ThemedText>
-          </Pressable>
+          />
         </View>
-        <ScrollView
-          contentContainerStyle={{
-            padding: Spacing.four,
-            gap: Spacing.two,
-          }}
-        >
+        <ScrollView contentContainerStyle={styles.content}>
           {conversations.length === 0 ? (
             <ThemedText
               type="small"
               themeColor="textSecondary"
-              style={{ paddingVertical: Spacing.four }}
+              style={styles.empty}
             >
               No conversations yet. Start one below.
             </ThemedText>
           ) : (
-            conversations.map((conversation) => {
-              const isActive = conversation.id === activeId;
-              const preview = formatPreviewWindow(
-                conversation,
-                messagesByConversation,
-              );
-              const timestamp = relativeLabel(conversation.updatedAt, now);
-              return (
-                <Pressable
-                  key={conversation.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open ${conversation.title ?? "Coach check-in"}, last activity ${timestamp}`}
-                  accessibilityState={{ selected: isActive }}
-                  onPress={() => onSelect(conversation.id)}
-                  style={({ pressed }) => [
-                    {
-                      borderRadius: 16,
-                      padding: Spacing.three,
-                      borderWidth: isActive ? 1.5 : 1,
-                      borderColor: isActive
-                        ? "#10B981"
-                        : "rgba(148, 163, 184, 0.2)",
-                      backgroundColor: isActive
-                        ? "rgba(16, 185, 129, 0.08)"
-                        : "rgba(148, 163, 184, 0.06)",
-                      gap: Spacing.half,
-                      minHeight: 64,
-                    },
-                    pressed && { opacity: 0.8 },
-                  ]}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <ThemedText type="smallBold">
-                      {conversation.title ?? "Coach check-in"}
-                    </ThemedText>
-                    {isActive ? (
-                      <View
-                        style={{
-                          backgroundColor: "rgba(16, 185, 129, 0.15)",
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          borderRadius: 6,
-                        }}
-                      >
-                        <ThemedText
-                          type="smallBold"
-                          style={{ color: "#10B981", fontSize: 11 }}
-                        >
-                          Active
-                        </ThemedText>
-                      </View>
-                    ) : null}
-                  </View>
-                  <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    numberOfLines={2}
-                  >
-                    {preview}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {timestamp}
-                  </ThemedText>
-                </Pressable>
-              );
-            })
+            <ListGroup>
+              {conversations.map((conversation) => {
+                const isActive = conversation.id === activeId;
+                const title = conversation.title ?? "Coach check-in";
+                const preview = formatPreviewWindow(
+                  conversation,
+                  messagesByConversation,
+                );
+                const timestamp = relativeLabel(conversation.updatedAt, now);
+                return (
+                  <ListRow
+                    key={conversation.id}
+                    title={title}
+                    subtitle={preview === title ? undefined : preview}
+                    value={timestamp}
+                    trailing={
+                      isActive ? (
+                        <Icon name="check" size={17} color="primary" />
+                      ) : undefined
+                    }
+                    accessibilityLabel={`Open ${title}, last activity ${timestamp}`}
+                    accessibilityState={{ selected: isActive }}
+                    onPress={() => onSelect(conversation.id)}
+                  />
+                );
+              })}
+            </ListGroup>
           )}
         </ScrollView>
-        <View
-          style={{
-            padding: Spacing.four,
-            borderTopColor: "rgba(148, 163, 184, 0.15)",
-            borderTopWidth: 1,
-          }}
-        >
-          <Pressable
-            accessibilityRole="button"
+        <View style={styles.footer}>
+          <Button
+            label="New conversation"
+            icon="add"
+            block
             accessibilityLabel="Start a new conversation"
             onPress={onNew}
-            style={({ pressed }) => [
-              {
-                minHeight: 48,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 14,
-                backgroundColor: "#10B981",
-              },
-              pressed && { opacity: 0.8 },
-            ]}
-          >
-            <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
-              ＋ New conversation
-            </ThemedText>
-          </Pressable>
+          />
         </View>
       </SafeAreaView>
     </ThemedView>
   );
 }
 
-// React Native ships StyleSheet.hairlineWidth() at module scope;
-// importing it would change the file's import order. The numeric
-// default of 0.5 matches the platform default and is fine for our
-// two-state active/inactive chip.
+const styles = StyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+  },
+  safeArea: { flex: 1 },
+  header: {
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
+  title: { flexShrink: 1 },
+  content: {
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
+    paddingVertical: Spacing.two,
+    gap: Spacing.two,
+  },
+  empty: { paddingVertical: Spacing.four },
+  footer: {
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
+    paddingVertical: Spacing.three,
+  },
+});

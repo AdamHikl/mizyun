@@ -6,12 +6,14 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Alert, AppState, StyleSheet, Text, View } from "react-native";
+import { Alert, AppState, StyleSheet, View } from "react-native";
 import { useFocusEffect, type Href } from "expo-router";
 import type { CommunityProfileViewDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
-import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
+import { Card } from "@/components/ui";
+import { Spacing } from "@/constants/theme";
 import { InitialsAvatar } from "../initials-avatar";
 import {
   CommunityPage,
@@ -69,7 +71,6 @@ function PersonProfile({
   own: boolean;
   isLifetimeCurrent: () => boolean;
 }) {
-  const colors = useTheme();
   const alive = useRef(false);
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
@@ -201,44 +202,50 @@ function PersonProfile({
       ) : null}
       {state.error && !state.loading && !state.pending && (
         <View style={styles.failure}>
-          <Text accessibilityRole="alert" style={{ color: colors.text }}>
+          <ThemedText type="small" accessibilityRole="alert">
             {state.error}
-          </Text>
+          </ThemedText>
           <CommunityButton label="Try again" onPress={reload} />
         </View>
       )}
       {state.notice && (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
+        <ThemedText type="small" accessibilityLiveRegion="polite">
           {state.notice}
-        </Text>
+        </ThemedText>
       )}
       {profile && (
         <>
-          <View style={styles.identity}>
-            <InitialsAvatar
-              symbol={profile.avatarSymbol}
-              seed={profile.handle}
-              size={64}
-            />
-            <View style={styles.identityCopy}>
-              <Text
-                accessibilityRole="header"
-                style={[styles.name, { color: colors.text }]}
-              >
-                {profile.displayName}
-              </Text>
-              <Text style={{ color: colors.textSecondary }}>
-                @{profile.handle}
-              </Text>
+          <Card style={styles.summary}>
+            <View style={styles.identity}>
+              <InitialsAvatar
+                symbol={profile.avatarSymbol}
+                seed={profile.handle}
+                size={64}
+              />
+              <View style={styles.identityCopy}>
+                <ThemedText type="title3" accessibilityRole="header">
+                  {profile.displayName}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  @{profile.handle}
+                </ThemedText>
+              </View>
             </View>
-          </View>
-          {profile.bio && (
-            <Text style={[styles.bio, { color: colors.text }]}>
-              {profile.bio}
-            </Text>
-          )}
-          {isSelf ? (
-            <>
+            {profile.bio && <ThemedText type="small">{profile.bio}</ThemedText>}
+            {!isSelf && (
+              <ThemedText type="footnote" themeColor="textSecondary">
+                {outgoing?.status === "approved"
+                  ? incoming?.status === "approved"
+                    ? "You follow each other"
+                    : "Following"
+                  : outgoing?.status === "pending"
+                    ? "Request sent · waiting for approval"
+                    : incoming?.status === "approved"
+                      ? "Follows you"
+                      : "Approval is required to see shared meals and workouts"}
+              </ThemedText>
+            )}
+            {isSelf ? (
               <View style={styles.actions}>
                 <CommunityButton
                   label="Edit profile"
@@ -249,40 +256,7 @@ function PersonProfile({
                   href={"/community/invite" as Href}
                 />
               </View>
-              <CommunityRow
-                title="Following"
-                href={"/(tabs)/community/people?list=following" as Href}
-              />
-              <CommunityRow
-                title="Followers"
-                href={"/(tabs)/community/people?list=followers" as Href}
-              />
-              <CommunityRow
-                title="Share a completed workout"
-                href="/community/share"
-              />
-              <CommunityRow
-                title="Share a saved meal"
-                href={"/community/share-meal" as Href}
-              />
-              <CommunityRow
-                title="Shared routines and photos"
-                href="/community/more"
-              />
-            </>
-          ) : (
-            <>
-              <Text style={{ color: colors.textSecondary }}>
-                {outgoing?.status === "approved"
-                  ? incoming?.status === "approved"
-                    ? "You follow each other"
-                    : "Following"
-                  : outgoing?.status === "pending"
-                    ? "Request sent · waiting for approval"
-                    : incoming?.status === "approved"
-                      ? "Follows you"
-                      : "Approval is required to see shared meals and workouts"}
-              </Text>
+            ) : (
               <View style={styles.actions}>
                 {!outgoing && (
                   <CommunityButton
@@ -305,7 +279,6 @@ function PersonProfile({
                   <CommunityButton
                     label="Message"
                     href={`/community/conversation/${profile.userId}` as Href}
-                    tone="primary"
                   />
                 )}
                 <CommunityButton
@@ -313,6 +286,42 @@ function PersonProfile({
                   onPress={() => setOptions(!options)}
                 />
               </View>
+            )}
+          </Card>
+          {isSelf ? (
+            <>
+              <CommunitySection title="People">
+                <CommunityRow
+                  title="Following"
+                  icon="person"
+                  href={"/(tabs)/community/people?list=following" as Href}
+                />
+                <CommunityRow
+                  title="Followers"
+                  icon="person"
+                  href={"/(tabs)/community/people?list=followers" as Href}
+                />
+              </CommunitySection>
+              <CommunitySection title="Sharing">
+                <CommunityRow
+                  title="Share a completed workout"
+                  icon="dumbbell"
+                  href="/community/share"
+                />
+                <CommunityRow
+                  title="Share a saved meal"
+                  icon="fork"
+                  href={"/community/share-meal" as Href}
+                />
+                <CommunityRow
+                  title="Shared routines and photos"
+                  icon="photo"
+                  href="/community/more"
+                />
+              </CommunitySection>
+            </>
+          ) : (
+            <>
               {incoming?.status === "pending" && (
                 <CommunitySection
                   title="They requested to follow you"
@@ -332,38 +341,38 @@ function PersonProfile({
                 </CommunitySection>
               )}
               {!state.canMessage && (
-                <Text style={{ color: colors.textSecondary }}>
+                <ThemedText type="footnote" themeColor="textSecondary">
                   Messages need mutual following, both people's opt-in and
                   current access.
-                </Text>
+                </ThemedText>
               )}
               {options && (
                 <CommunitySection title="Profile options">
                   {outgoing?.status === "approved" && (
-                    <>
-                      <CommunityButton
-                        label="Unfollow"
-                        onPress={() => act("unfollow")}
-                      />
-                      <CommunityButton
-                        label="Mute in feed"
-                        onPress={() => act("mute")}
-                      />
-                    </>
+                    <CommunityRow
+                      title="Unfollow"
+                      onPress={() => act("unfollow")}
+                    />
+                  )}
+                  {outgoing?.status === "approved" && (
+                    <CommunityRow
+                      title="Mute in feed"
+                      onPress={() => act("mute")}
+                    />
                   )}
                   {incoming?.status === "approved" && (
-                    <CommunityButton
-                      label="Remove follower"
+                    <CommunityRow
+                      title="Remove follower"
                       onPress={() => act("remove")}
                     />
                   )}
-                  <CommunityButton
-                    label="Report profile or handle"
+                  <CommunityRow
+                    title="Report profile or handle"
                     onPress={() => void openReport()}
                   />
-                  <CommunityButton
-                    label="Block person"
-                    tone="danger"
+                  <CommunityRow
+                    title="Block person"
+                    danger
                     onPress={() => act("block")}
                   />
                 </CommunitySection>
@@ -434,16 +443,18 @@ function PersonProfile({
         </>
       )}
       {(own || isSelf) && (
-        <View>
+        <CommunitySection title="Settings">
           <CommunityRow
             title="Privacy, preferences and account"
+            icon="settings"
             href={"/community/settings" as Href}
           />
           <CommunityRow
             title="Reports, appeals and safety contact"
+            icon="privacy"
             href={"/community/safety" as Href}
           />
-        </View>
+        </CommunitySection>
       )}
       {profile &&
         !state.error &&
@@ -462,10 +473,9 @@ function PersonProfile({
   );
 }
 const styles = StyleSheet.create({
-  failure: { gap: 12 },
-  identity: { flexDirection: "row", gap: 16, alignItems: "center" },
-  identityCopy: { flex: 1, gap: 6 },
-  name: { fontSize: 25, fontWeight: "700" },
-  bio: { fontSize: 16, lineHeight: 24 },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  failure: { gap: Spacing.two },
+  summary: { gap: 12 },
+  identity: { flexDirection: "row", gap: Spacing.three, alignItems: "center" },
+  identityCopy: { flex: 1, gap: Spacing.half },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
 });

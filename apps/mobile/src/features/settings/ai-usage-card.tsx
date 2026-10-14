@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Spacing } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  Chip,
+  Icon,
+  Notice,
+  type IconName,
+} from "@/components/ui";
+import { Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { apiClient } from "@/composition/api-client";
 
 import {
@@ -116,38 +118,36 @@ export function AiUsageCard() {
 
   if (state.kind === "loading") {
     return (
-      <ThemedView type="backgroundElement" style={styles.card}>
+      <Card>
         <View style={styles.center}>
           <ActivityIndicator />
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Loading AI usage…
           </ThemedText>
         </View>
-      </ThemedView>
+      </Card>
     );
   }
 
   if (state.kind === "error") {
     return (
-      <ThemedView type="backgroundElement" style={styles.card}>
-        <ThemedText type="small" themeColor="textSecondary">
-          {state.message}
-        </ThemedText>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retry loading AI usage"
-          onPress={() => {
-            setState({ kind: "loading" });
-            void refresh();
-          }}
-          style={({ pressed }) => [
-            styles.retryButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <ThemedText type="smallBold">Retry</ThemedText>
-        </Pressable>
-      </ThemedView>
+      <Notice
+        tone="warning"
+        message={state.message}
+        action={
+          <Button
+            label="Retry"
+            variant="plain"
+            size="small"
+            icon="repeat"
+            accessibilityLabel="Retry loading AI usage"
+            onPress={() => {
+              setState({ kind: "loading" });
+              void refresh();
+            }}
+          />
+        }
+      />
     );
   }
 
@@ -172,147 +172,116 @@ export function AiUsageCard() {
         )
       : 0;
 
+  const hasPro = isPaid || betaPro.status === "approved";
+
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      {/* Header */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerIconBox}>
-          <ThemedText style={styles.headerIcon}>📊</ThemedText>
-        </View>
-        <View style={styles.headerTextBlock}>
-          <ThemedText type="smallBold" style={styles.headerTitle}>
-            AI Usage & Limits
+    <View style={styles.page}>
+      <Card style={styles.usageCard}>
+        <View style={styles.headerRow}>
+          <ThemedText type="headline" style={styles.flex}>
+            Daily AI usage
           </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Daily budget consumption
-          </ThemedText>
-        </View>
-      </View>
-
-      {/* Tier Badge */}
-      <View style={styles.tierRow}>
-        {isPaid || betaPro.status === "approved" ? (
-          <View style={[styles.tierBadge, styles.tierBadgePro]}>
-            <ThemedText type="smallBold" style={styles.tierBadgeProText}>
-              ✨ Launch Pro Pass
-            </ThemedText>
-          </View>
-        ) : (
-          <View style={[styles.tierBadge, styles.tierBadgeFree]}>
-            <ThemedText type="smallBold" style={styles.tierBadgeFreeText}>
-              Free Plan
-            </ThemedText>
-          </View>
-        )}
-      </View>
-
-      {/* Coach Chat Usage */}
-      <View style={styles.usageSection}>
-        <View style={styles.usageLabelRow}>
-          <ThemedText type="smallBold">💬 Coach Chat</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {coachPercent}%
-          </ThemedText>
-        </View>
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              {
-                width: `${coachPercent}%` as `${number}%`,
-              },
-              coachPercent >= 90 && styles.progressBarFillDanger,
-            ]}
+          <Chip
+            label={hasPro ? "Launch Pro Pass" : "Free Plan"}
+            icon={hasPro ? "sparkles" : undefined}
+            tone={hasPro ? "primary" : "neutral"}
           />
         </View>
-        <ThemedText type="small" themeColor="textSecondary">
-          {usage.coach.tokensUsed.toLocaleString()} /{" "}
-          {usage.coach.dailyTokenBudget.toLocaleString()} tokens
-        </ThemedText>
-      </View>
 
-      {/* Photo Drafts Usage */}
-      <View style={styles.usageSection}>
-        <View style={styles.usageLabelRow}>
-          <ThemedText type="smallBold">📷 Photo Drafts</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {photosPercent}%
-          </ThemedText>
-        </View>
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              {
-                width: `${photosPercent}%` as `${number}%`,
-              },
-              photosPercent >= 90 && styles.progressBarFillDanger,
-            ]}
-          />
-        </View>
-        <ThemedText type="small" themeColor="textSecondary">
-          {usage.photos.draftsUsed} / {usage.photos.dailyLimit} scans
-        </ThemedText>
-      </View>
-
-      {/* Reset Note */}
-      <ThemedText
-        type="small"
-        themeColor="textSecondary"
-        style={styles.resetNote}
-      >
+        <UsageMeter
+          icon="chat"
+          title="Coach Chat"
+          percent={coachPercent}
+          detail={`${usage.coach.tokensUsed.toLocaleString()} / ${usage.coach.dailyTokenBudget.toLocaleString()} tokens`}
+        />
+        <UsageMeter
+          icon="camera"
+          title="Photo Drafts"
+          percent={photosPercent}
+          detail={`${usage.photos.draftsUsed} / ${usage.photos.dailyLimit} scans`}
+        />
+      </Card>
+      <ThemedText type="footnote" themeColor="textSecondary">
         Resets at midnight UTC
       </ThemedText>
 
-      {/* Beta Pro CTA */}
       {!isPaid && betaPro.status === "none" ? (
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label="Request Free Pro Access"
+          icon="sparkles"
+          block
+          loading={requesting}
           accessibilityLabel="Request free Pro access with Launch Pro Pass"
-          accessibilityState={{ disabled: requesting, busy: requesting }}
-          disabled={requesting}
           onPress={() => void requestBetaPro()}
-          style={({ pressed }) => [
-            styles.requestButton,
-            pressed && styles.pressed,
-            requesting && styles.requestButtonDisabled,
-          ]}
-        >
-          {requesting ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <ThemedText type="smallBold" style={styles.requestButtonText}>
-              Request Free Pro Access
-            </ThemedText>
-          )}
-        </Pressable>
+        />
       ) : null}
 
       {!isPaid && betaPro.status === "pending" ? (
-        <View style={styles.pendingBadge}>
-          <ThemedText type="smallBold" style={styles.pendingBadgeText}>
-            ⏳ Request Pending
-          </ThemedText>
-        </View>
+        <Notice tone="warning" message="Launch Pro Pass request pending" />
       ) : null}
 
       {betaPro.status === "approved" && !isPaid ? (
-        <View style={styles.approvedBadge}>
-          <ThemedText type="smallBold" style={styles.approvedBadgeText}>
-            ✨ Launch Pro Pass Active
-          </ThemedText>
-        </View>
+        <Notice tone="success" message="Launch Pro Pass active" />
       ) : null}
-    </ThemedView>
+    </View>
+  );
+}
+
+function UsageMeter({
+  icon,
+  title,
+  percent,
+  detail,
+}: {
+  readonly icon: IconName;
+  readonly title: string;
+  readonly percent: number;
+  readonly detail: string;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      style={styles.usageSection}
+      accessible
+      accessibilityLabel={`${title}, ${percent}% used, ${detail}`}
+    >
+      <View style={styles.usageLabelRow}>
+        <Icon name={icon} size={16} color="textSecondary" />
+        <ThemedText type="smallBold" style={styles.flex}>
+          {title}
+        </ThemedText>
+        <ThemedText type="footnote" themeColor="textSecondary">
+          {percent}%
+        </ThemedText>
+      </View>
+      <View
+        style={[
+          styles.progressBarTrack,
+          { backgroundColor: theme.backgroundSelected },
+        ]}
+      >
+        <View
+          style={[
+            styles.progressBarFill,
+            {
+              width: `${percent}%` as `${number}%`,
+              backgroundColor: percent >= 90 ? theme.danger : theme.primary,
+            },
+          ]}
+        />
+      </View>
+      <ThemedText type="footnote" themeColor="textSecondary">
+        {detail}
+      </ThemedText>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
+  page: {
+    gap: Spacing.two,
+  },
+  usageCard: {
     gap: Spacing.three,
   },
   center: {
@@ -322,120 +291,27 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
-  headerIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerIcon: {
-    fontSize: 18,
-  },
-  headerTextBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  headerTitle: {
-    fontSize: 15,
-  },
-  tierRow: {
-    flexDirection: "row",
-  },
-  tierBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  tierBadgePro: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.35)",
-  },
-  tierBadgeProText: {
-    color: "#059669",
-    fontSize: 12,
-  },
-  tierBadgeFree: {
-    backgroundColor: "rgba(148, 163, 184, 0.1)",
-  },
-  tierBadgeFreeText: {
-    fontSize: 12,
-  },
+  flex: { flex: 1 },
   usageSection: {
     gap: Spacing.one,
   },
   usageLabelRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: Spacing.two,
   },
   progressBarTrack: {
     height: 8,
-    borderRadius: 4,
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    borderRadius: Radius.pill,
     overflow: "hidden",
   },
   progressBarFill: {
     height: 8,
-    borderRadius: 4,
-    backgroundColor: "#10B981",
+    borderRadius: Radius.pill,
     minWidth: 2,
   },
-  progressBarFillDanger: {
-    backgroundColor: "#EF4444",
-  },
-  resetNote: {
-    textAlign: "center",
-    fontStyle: "italic",
-  },
-  requestButton: {
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-    backgroundColor: "#10B981",
-  },
-  requestButtonText: {
-    color: "#ffffff",
-  },
-  requestButtonDisabled: {
-    opacity: 0.6,
-  },
-  pendingBadge: {
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(234, 179, 8, 0.35)",
-    backgroundColor: "rgba(234, 179, 8, 0.08)",
-  },
-  pendingBadgeText: {
-    color: "#CA8A04",
-    fontSize: 13,
-  },
-  approvedBadge: {
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.35)",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-  },
-  approvedBadgeText: {
-    color: "#059669",
-    fontSize: 13,
-  },
-  retryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.25)",
-    alignSelf: "center",
-  },
-  pressed: { opacity: 0.75 },
 });

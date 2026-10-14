@@ -36,7 +36,22 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
+import {
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  Icon,
+  IconButton,
+} from "@/components/ui";
 import { ShareWorkoutModal, useCommunityProfile } from "@/features/community";
 import { useAuth } from "@/features/auth/auth-context";
 import {
@@ -45,7 +60,6 @@ import {
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
 import { useTheme } from "@/hooks/use-theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
   displayWeightToKilograms,
   kilogramsToDisplayWeight,
@@ -1679,8 +1693,10 @@ export function LogWorkoutScreen() {
 
   const finishHeaderButton =
     workspace.workout !== null ? (
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={isCompletedWorkout ? "Close" : "Finish"}
+        variant={isCompletedWorkout ? "tinted" : "primary"}
+        size="small"
         accessibilityLabel={
           isCompletedWorkout ? "Close workout" : "Finish Workout"
         }
@@ -1694,16 +1710,8 @@ export function LogWorkoutScreen() {
         onPress={
           isCompletedWorkout ? () => router.back() : () => void handleFinish()
         }
-        style={({ pressed }) => [
-          styles.headerFinishButton,
-          pressed && styles.headerFinishButtonPressed,
-          busy && styles.actionDisabled,
-        ]}
-      >
-        <ThemedText type="smallBold" style={styles.headerFinishText}>
-          {isCompletedWorkout ? "Close" : "Finish"}
-        </ThemedText>
-      </Pressable>
+        style={styles.headerFinishButton}
+      />
     ) : null;
 
   return (
@@ -1714,18 +1722,14 @@ export function LogWorkoutScreen() {
             workspace.workout?.name || (workoutId ? "Workout" : "Live Workout"),
           headerLeft: () =>
             isCompletedWorkout ? null : (
-              <Pressable
-                accessibilityRole="button"
+              <IconButton
+                icon={isActiveSession ? "chevronDown" : "close"}
+                variant="plain"
                 accessibilityLabel={
                   isActiveSession ? "Minimize workout" : "Close workout"
                 }
                 onPress={() => router.back()}
-                style={styles.headerMinimizeButton}
-              >
-                <ThemedText type="smallBold" style={styles.headerMinimizeText}>
-                  ✕
-                </ThemedText>
-              </Pressable>
+              />
             ),
           headerRight: () => finishHeaderButton,
           // iOS otherwise adds a second glass capsule around the green button.
@@ -1770,14 +1774,28 @@ export function LogWorkoutScreen() {
             ) : workspace.workout === null ? (
               workoutId ? (
                 <View style={styles.center}>
-                  <ThemedText type="small" themeColor="textSecondary">
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.centerText}
+                  >
                     This workout could not be loaded. Try again or close this
                     view.
                   </ThemedText>
-                  <Button label="Close" onPress={() => router.back()} />
-                  {message === null ? (
-                    <Button label="Retry" onPress={() => void refresh()} />
-                  ) : null}
+                  <View style={styles.centerActions}>
+                    {message === null ? (
+                      <Button
+                        label="Retry"
+                        variant="tinted"
+                        onPress={() => void refresh()}
+                      />
+                    ) : null}
+                    <Button
+                      label="Close"
+                      variant="secondary"
+                      onPress={() => router.back()}
+                    />
+                  </View>
                 </View>
               ) : (
                 <StartSection
@@ -1837,10 +1855,20 @@ export function LogWorkoutScreen() {
             ) : null}
 
             {message !== null ? (
-              <View style={styles.message} accessibilityRole="alert">
-                <ThemedText>{message}</ThemedText>
+              <View
+                style={[styles.message, { backgroundColor: theme.dangerLight }]}
+                accessibilityRole="alert"
+              >
+                <View style={styles.messageRow}>
+                  <Icon name="warning" size={18} color="danger" />
+                  <ThemedText type="small" style={styles.flexText}>
+                    {message}
+                  </ThemedText>
+                </View>
                 <Button
                   label="Retry"
+                  variant="secondary"
+                  size="small"
                   onPress={() => {
                     measurement.current?.tap();
                     measurement.current?.retry();
@@ -2036,50 +2064,47 @@ function StartSection(props: {
 }) {
   return (
     <View style={styles.section}>
-      <ThemedText type="subtitle">Start a workout session.</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        Track sets, weight, and reps live. Sets are securely saved to your
-        account in real time.
-      </ThemedText>
-      <Field
-        testID="workout-name-input"
-        label="Workout name"
-        value={props.draft.name}
-        onChangeText={(name) => props.onPatch({ name })}
-        onFocus={props.onInteraction}
-        placeholder="Upper Body A"
-        inputColor={props.inputColor}
-      />
+      <Card style={styles.formCard}>
+        <Field
+          testID="workout-name-input"
+          label="Workout name"
+          value={props.draft.name}
+          onChangeText={(name) => props.onPatch({ name })}
+          onFocus={props.onInteraction}
+          placeholder="Upper Body A"
+          inputColor={props.inputColor}
+        />
+        <Field
+          testID="workout-notes-input"
+          label="Notes (optional)"
+          value={props.draft.notes}
+          onChangeText={(notes) => props.onPatch({ notes })}
+          onFocus={props.onInteraction}
+          placeholder="Focus on controlled eccentrics"
+          inputColor={props.inputColor}
+        />
+      </Card>
       {props.draft.workoutProposal !== undefined ? (
-        <View style={styles.planCard}>
-          <ThemedText type="smallBold">Coach Workout Proposal</ThemedText>
+        <Card>
+          <ThemedText type="headline">Coach workout proposal</ThemedText>
           {props.draft.workoutProposal.session.exercises.map((exercise) => (
             <View key={exercise.catalogId} style={styles.planExercise}>
-              <View style={styles.setCopy}>
-                <ThemedText type="smallBold">{exercise.name}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {exercise.sets} sets ·{" "}
-                  {exercise.repsMin === null
-                    ? `${exercise.durationMinutes} min`
-                    : `${exercise.repsMin}–${exercise.repsMax} reps`}{" "}
-                  · {exercise.restSeconds}s rest
-                </ThemedText>
-              </View>
+              <ThemedText type="smallBold">{exercise.name}</ThemedText>
+              <ThemedText type="footnote" themeColor="textSecondary">
+                {exercise.sets} sets ·{" "}
+                {exercise.repsMin === null
+                  ? `${exercise.durationMinutes} min`
+                  : `${exercise.repsMin}–${exercise.repsMax} reps`}{" "}
+                · {exercise.restSeconds}s rest
+              </ThemedText>
             </View>
           ))}
-        </View>
+        </Card>
       ) : null}
-      <Field
-        testID="workout-notes-input"
-        label="Notes (optional)"
-        value={props.draft.notes}
-        onChangeText={(notes) => props.onPatch({ notes })}
-        onFocus={props.onInteraction}
-        placeholder="Focus on controlled eccentrics"
-        inputColor={props.inputColor}
-      />
       <Button
-        label={props.busy ? "Starting…" : "Start Workout"}
+        label={props.busy ? "Starting…" : "Start workout"}
+        icon="dumbbell"
+        block
         disabled={props.busy}
         onPress={props.onStart}
       />
@@ -2088,7 +2113,7 @@ function StartSection(props: {
 }
 
 // ==========================================
-// Active Workout Feed (Hevy/Strong Card Design)
+// Active Workout Feed
 // ==========================================
 function ActiveWorkoutFeed(props: {
   readonly oneTime: boolean;
@@ -2120,9 +2145,6 @@ function ActiveWorkoutFeed(props: {
   readonly onInteraction: () => void;
 }) {
   const theme = useTheme();
-  const scheme = useColorScheme();
-  const actionColor = scheme === "light" ? "#047857" : "#34D399";
-  const discardColor = scheme === "light" ? "#B91C1C" : "#F87171";
   const unit = weightUnitLabel(props.unitSystem);
   const totalSets = props.savedSets.length;
   const totalVolumeKg = useMemo(() => {
@@ -2145,37 +2167,30 @@ function ActiveWorkoutFeed(props: {
 
   return (
     <View style={styles.feedContainer}>
-      {/* Live Header Bar */}
-      <View style={styles.liveHeader}>
-        <View style={styles.liveHeaderTop}>
-          <View style={styles.liveStopwatchRow}>
-            <View style={styles.livePulseDot} />
-            <ThemedText type="subtitle">
-              {formatStopwatch(props.elapsedSeconds)}
-            </ThemedText>
-          </View>
-          <View style={styles.liveHeaderRight}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {totalSets} sets · {displayVolume} {unit} volume
-            </ThemedText>
-          </View>
+      {/* Live session summary */}
+      <Card style={styles.liveHeader}>
+        <View style={styles.liveStopwatchRow}>
+          <View
+            style={[styles.livePulseDot, { backgroundColor: theme.success }]}
+          />
+          <ThemedText type="subtitle" style={styles.tabularNumbers}>
+            {formatStopwatch(props.elapsedSeconds)}
+          </ThemedText>
         </View>
-      </View>
+        <ThemedText type="footnote" themeColor="textSecondary">
+          {totalSets} sets · {displayVolume} {unit} volume
+        </ThemedText>
+      </Card>
 
       {/* Exercise Cards */}
       {props.exercises.length === 0 ? (
-        <View style={styles.emptyExercisesCard}>
-          <ThemedText type="smallBold" style={styles.emptyExercisesText}>
-            No exercises in this workout yet.
-          </ThemedText>
-          <ThemedText
-            type="small"
-            themeColor="textSecondary"
-            style={styles.emptyExercisesText}
-          >
-            Add an exercise, then log each set as you go.
-          </ThemedText>
-        </View>
+        <Card>
+          <EmptyState
+            icon="dumbbell"
+            title="No exercises yet"
+            message="Add an exercise, then log each set as you go."
+          />
+        </Card>
       ) : (
         props.exercises.map((entry, index) => {
           const matchingDbExercise = props.allExercises.find(
@@ -2236,8 +2251,11 @@ function ActiveWorkoutFeed(props: {
 
       {/* Session editing is separate from the destructive action. */}
       <View style={styles.bottomControls}>
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label="Add exercise"
+          variant="tinted"
+          icon="add"
+          block
           accessibilityLabel="Add Exercise to Workout"
           accessibilityHint="Open the exercise library."
           accessibilityState={{ disabled: props.busy }}
@@ -2247,23 +2265,12 @@ function ActiveWorkoutFeed(props: {
             props.onInteraction();
             props.onOpenLibrary();
           }}
-          style={({ pressed }) => [
-            styles.addExerciseButton,
-            { backgroundColor: theme.primaryLight, borderColor: actionColor },
-            pressed && styles.actionPressed,
-            props.busy && styles.actionDisabled,
-          ]}
-        >
-          <ThemedText
-            type="smallBold"
-            style={[styles.actionText, { color: actionColor }]}
-          >
-            + Add Exercise
-          </ThemedText>
-        </Pressable>
+        />
         {props.exercises.length > 1 ? (
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label="Reorder exercises"
+            variant="plain"
+            icon="reorder"
             accessibilityLabel="Reorder exercises"
             accessibilityState={{ disabled: props.busy }}
             disabled={props.busy}
@@ -2272,72 +2279,48 @@ function ActiveWorkoutFeed(props: {
               props.onInteraction();
               props.onOpenReorderModal();
             }}
-            style={({ pressed }) => [
-              styles.reorderAllButton,
-              {
-                backgroundColor: theme.backgroundElement,
-                borderColor: theme.border,
-              },
-              pressed && styles.actionPressed,
-              props.busy && styles.actionDisabled,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.actionText}>
-              ⇅ Reorder
-            </ThemedText>
-          </Pressable>
+            style={styles.centeredAction}
+          />
         ) : null}
-        <View style={[styles.discardSection, { borderColor: theme.border }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Discard Session"
-            accessibilityHint="Confirm deletion of this session and its logged sets."
-            accessibilityState={{ disabled: props.busy }}
-            disabled={props.busy}
-            onPress={props.onAbandon}
-            style={({ pressed }) => [
-              styles.discardButton,
-              pressed && styles.actionPressed,
-              props.busy && styles.actionDisabled,
-            ]}
-          >
-            <ThemedText
-              type="smallBold"
-              style={[styles.actionText, { color: discardColor }]}
-            >
-              Discard Session
-            </ThemedText>
-          </Pressable>
-        </View>
+        <Button
+          label="Discard session"
+          variant="destructive"
+          icon="trash"
+          block
+          accessibilityLabel="Discard Session"
+          accessibilityHint="Confirm deletion of this session and its logged sets."
+          accessibilityState={{ disabled: props.busy }}
+          disabled={props.busy}
+          onPress={props.onAbandon}
+          style={styles.discardButton}
+        />
       </View>
     </View>
   );
 }
 
+const SET_TYPE_BADGES: Partial<
+  Record<
+    WorkoutSetType,
+    { label: string; tone: "warning" | "danger" | "neutral" }
+  >
+> = {
+  warmup: { label: "W", tone: "warning" },
+  failure: { label: "F", tone: "danger" },
+  drop: { label: "D", tone: "neutral" },
+};
+
 function renderSetBadge(setType: WorkoutSetType | undefined, sequence: number) {
-  if (setType === "warmup") {
-    return (
-      <View style={[styles.badgeBase, styles.warmupBadge]}>
-        <ThemedText style={styles.warmupBadgeText}>W</ThemedText>
-      </View>
-    );
-  }
-  if (setType === "failure") {
-    return (
-      <View style={[styles.badgeBase, styles.failureBadge]}>
-        <ThemedText style={styles.failureBadgeText}>F</ThemedText>
-      </View>
-    );
-  }
-  if (setType === "drop") {
-    return (
-      <View style={[styles.badgeBase, styles.dropBadge]}>
-        <ThemedText style={styles.dropBadgeText}>D</ThemedText>
-      </View>
-    );
+  const badge = setType === undefined ? undefined : SET_TYPE_BADGES[setType];
+  if (badge !== undefined) {
+    return <Chip label={badge.label} tone={badge.tone} />;
   }
   return (
-    <ThemedText type="smallBold" style={styles.colSet}>
+    <ThemedText
+      type="smallBold"
+      themeColor="textSecondary"
+      style={styles.colSet}
+    >
       {sequence}
     </ThemedText>
   );
@@ -2367,10 +2350,14 @@ function LiveExerciseCard(props: {
   readonly onInteraction: () => void;
 }) {
   const theme = useTheme();
+  const [actionsOpen, setActionsOpen] = useState(false);
   const unit = weightUnitLabel(props.unitSystem);
   const nextSetSequence = props.completedSets.length + 1;
   const pendingType = props.pendingInput.setType ?? "normal";
   const pendingTypeLabel = pendingType[0]!.toUpperCase() + pendingType.slice(1);
+  const canMoveUp = props.totalExercises > 1 && props.index > 0;
+  const canMoveDown =
+    props.totalExercises > 1 && props.index < props.totalExercises - 1;
 
   const targetLoadDisplay = props.entry.targetLoad
     ? parseTargetLoadToDisplay(props.entry.targetLoad, props.unitSystem)
@@ -2404,15 +2391,18 @@ function LiveExerciseCard(props: {
             ? "—"
             : "10";
 
+  const inputStyle = [
+    styles.tableInput,
+    { color: props.inputColor, backgroundColor: theme.backgroundSelected },
+  ];
+
   return (
-    <View style={styles.exerciseCard}>
+    <Card style={styles.exerciseCard}>
       {/* Exercise Card Header */}
       <View style={styles.exerciseCardHeader}>
         <View style={styles.exerciseTitleBlock}>
-          <ThemedText type="default" style={styles.exerciseNameText}>
-            {props.entry.name}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="headline">{props.entry.name}</ThemedText>
+          <ThemedText type="footnote" themeColor="textSecondary">
             {props.oneTime ? (
               `${props.completedSets.length} sets logged · ${props.entry.restSeconds}s rest`
             ) : (
@@ -2431,74 +2421,93 @@ function LiveExerciseCard(props: {
             )}
           </ThemedText>
         </View>
-
-        <View style={styles.exerciseHeaderRight}>
-          {props.totalExercises > 1 ? (
-            <View style={styles.cardReorderButtons}>
-              {props.index > 0 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Move ${props.entry.name} up`}
-                  onPress={() => {
-                    props.onInteraction();
-                    props.onMoveUp?.();
-                  }}
-                  style={styles.cardReorderBtn}
-                  hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
-                >
-                  <ThemedText style={styles.cardReorderBtnText}>↑</ThemedText>
-                </Pressable>
-              ) : null}
-              {props.index < props.totalExercises - 1 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Move ${props.entry.name} down`}
-                  onPress={() => {
-                    props.onInteraction();
-                    props.onMoveDown?.();
-                  }}
-                  style={styles.cardReorderBtn}
-                  hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
-                >
-                  <ThemedText style={styles.cardReorderBtnText}>↓</ThemedText>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`View progression for ${props.entry.name}`}
-            onPress={props.onOpenProgression}
-            style={styles.progressionBadge}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <ThemedText type="smallBold" style={styles.progressionBadgeText}>
-              📈 History →
-            </ThemedText>
-          </Pressable>
-        </View>
+        <IconButton
+          icon="more"
+          testID={`exercise-actions-${props.entry.id}`}
+          accessibilityLabel={`More actions for ${props.entry.name}`}
+          accessibilityState={{ expanded: actionsOpen }}
+          onPress={() => setActionsOpen((open) => !open)}
+          style={styles.moreButton}
+        />
       </View>
+
+      {actionsOpen ? (
+        <View style={styles.exerciseActions}>
+          <Button
+            label="History"
+            variant="secondary"
+            size="small"
+            icon="chart"
+            accessibilityLabel={`View progression for ${props.entry.name}`}
+            onPress={() => {
+              setActionsOpen(false);
+              props.onOpenProgression();
+            }}
+          />
+          {canMoveUp ? (
+            <Button
+              label="Move up"
+              variant="secondary"
+              size="small"
+              icon="chevronUp"
+              accessibilityLabel={`Move ${props.entry.name} up`}
+              onPress={() => {
+                props.onInteraction();
+                props.onMoveUp?.();
+              }}
+            />
+          ) : null}
+          {canMoveDown ? (
+            <Button
+              label="Move down"
+              variant="secondary"
+              size="small"
+              icon="chevronDown"
+              accessibilityLabel={`Move ${props.entry.name} down`}
+              onPress={() => {
+                props.onInteraction();
+                props.onMoveDown?.();
+              }}
+            />
+          ) : null}
+        </View>
+      ) : null}
 
       {/* Set Table */}
       <View style={styles.setTable}>
         {/* Table Header */}
         <View style={styles.setTableHeaderRow}>
-          <ThemedText type="small" style={styles.colSetHeader}>
-            SET
+          <ThemedText
+            type="caption"
+            themeColor="textTertiary"
+            style={styles.colSetHeader}
+          >
+            Set
           </ThemedText>
-          <ThemedText type="small" style={styles.colPrevHeader}>
-            PREVIOUS
+          <ThemedText
+            type="caption"
+            themeColor="textTertiary"
+            style={styles.colPrev}
+          >
+            Previous
           </ThemedText>
-          <ThemedText type="small" style={styles.colInputHeader}>
-            {unit.toUpperCase()}
+          <ThemedText
+            type="caption"
+            themeColor="textTertiary"
+            style={styles.colInputHeader}
+          >
+            {unit}
           </ThemedText>
-          <ThemedText type="small" style={styles.colInputHeader}>
-            REPS
+          <ThemedText
+            type="caption"
+            themeColor="textTertiary"
+            style={styles.colInputHeader}
+          >
+            Reps
           </ThemedText>
-          <ThemedText type="small" style={styles.colCheckHeader}>
-            ✓
-          </ThemedText>
+          <View style={styles.colCheckHeader}>
+            <Icon name="check" size={13} color="textTertiary" />
+          </View>
         </View>
 
         {/* Completed Sets */}
@@ -2510,25 +2519,28 @@ function LiveExerciseCard(props: {
           const repsStr = set.repetitions !== null ? `${set.repetitions}` : "—";
 
           return (
-            <View key={set.id} style={styles.completedSetRow}>
+            <View
+              key={set.id}
+              style={[styles.setRow, { backgroundColor: theme.successLight }]}
+            >
               <View style={styles.colSetWrapper}>
                 {renderSetBadge(set.setType, i + 1)}
               </View>
               <ThemedText
-                type="small"
+                type="footnote"
                 themeColor="textSecondary"
                 style={styles.colPrev}
               >
                 {loadStr} {unit} × {repsStr}
               </ThemedText>
               <ThemedText
-                type="smallBold"
+                type="headline"
                 style={[styles.colInputDone, { color: theme.text }]}
               >
                 {loadStr}
               </ThemedText>
               <ThemedText
-                type="smallBold"
+                type="headline"
                 style={[styles.colInputDone, { color: theme.text }]}
               >
                 {repsStr}
@@ -2537,18 +2549,26 @@ function LiveExerciseCard(props: {
                 accessibilityRole="button"
                 accessibilityLabel={`Delete completed set ${i + 1}`}
                 onPress={() => props.onRemoveSet(set)}
-                style={styles.checkedCircle}
+                style={({ pressed }) => [
+                  styles.checkCell,
+                  pressed && styles.actionPressed,
+                ]}
               >
-                <ThemedText type="smallBold" style={styles.checkIconText}>
-                  ✓
-                </ThemedText>
+                <View
+                  style={[
+                    styles.checkCircle,
+                    { backgroundColor: theme.success },
+                  ]}
+                >
+                  <Icon name="check" size={15} tintColor={theme.onPrimary} />
+                </View>
               </Pressable>
             </View>
           );
         })}
 
         {/* Active / Pending Set Row */}
-        <View style={styles.activeSetRow}>
+        <View style={styles.setRow}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Set ${nextSetSequence} type: ${props.pendingInput.setType ?? "normal"}. Tap to change set type.`}
@@ -2562,7 +2582,7 @@ function LiveExerciseCard(props: {
           </Pressable>
 
           <ThemedText
-            type="small"
+            type="footnote"
             themeColor="textSecondary"
             style={styles.colPrev}
             numberOfLines={1}
@@ -2585,9 +2605,9 @@ function LiveExerciseCard(props: {
               placeholder={
                 smartPlaceholderLoad !== "—" ? smartPlaceholderLoad : "0"
               }
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={theme.textTertiary}
               keyboardType="decimal-pad"
-              style={[styles.tableInput, { color: props.inputColor }]}
+              style={inputStyle}
             />
           </View>
 
@@ -2598,9 +2618,9 @@ function LiveExerciseCard(props: {
               onChangeText={(reps) => props.onUpdatePendingInput({ reps })}
               onFocus={props.onInteraction}
               placeholder={smartPlaceholderReps}
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={theme.textTertiary}
               keyboardType="decimal-pad"
-              style={[styles.tableInput, { color: props.inputColor }]}
+              style={inputStyle}
             />
           </View>
 
@@ -2609,11 +2629,20 @@ function LiveExerciseCard(props: {
             accessibilityLabel={`Log set ${nextSetSequence} for ${props.entry.name}`}
             disabled={props.busy}
             onPress={props.onLogSet}
-            style={styles.checkButton}
+            style={({ pressed }) => [
+              styles.checkCell,
+              (pressed || props.busy) && styles.actionPressed,
+            ]}
           >
-            <ThemedText type="smallBold" style={styles.checkButtonText}>
-              ✓
-            </ThemedText>
+            <View
+              style={[
+                styles.checkCircle,
+                styles.checkCircleOutline,
+                { borderColor: theme.success },
+              ]}
+            >
+              <Icon name="check" size={15} color="success" />
+            </View>
           </Pressable>
         </View>
       </View>
@@ -2628,41 +2657,32 @@ function LiveExerciseCard(props: {
         onPress={props.onOpenSetTypeModal}
         style={({ pressed }) => [
           styles.pendingSetTypeControl,
-          {
-            borderColor: theme.border,
-            backgroundColor: theme.backgroundElement,
-          },
-          (pressed || props.busy) && { opacity: 0.6 },
+          { backgroundColor: theme.backgroundSelected },
+          (pressed || props.busy) && styles.actionPressed,
         ]}
       >
-        <View style={styles.pendingSetTypeLabel}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Set {nextSetSequence} type
-          </ThemedText>
-          <ThemedText type="smallBold">{pendingTypeLabel}</ThemedText>
-        </View>
         <ThemedText
-          style={styles.pendingSetTypeChevron}
-          accessible={false}
-          importantForAccessibility="no"
+          type="small"
+          themeColor="textSecondary"
+          style={styles.pendingSetTypeLabel}
         >
-          ▾
+          Set {nextSetSequence} type
         </ThemedText>
+        <ThemedText type="smallBold">{pendingTypeLabel}</ThemedText>
+        <Icon name="chevronDown" size={13} color="textSecondary" />
       </Pressable>
 
       {/* Log Set Footer */}
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={`Log set ${nextSetSequence}`}
+        variant="tinted"
+        icon="check"
+        block
         accessibilityLabel={`Log set ${nextSetSequence} for ${props.entry.name}`}
         disabled={props.busy}
         onPress={props.onLogSet}
-        style={styles.logSetFooterRow}
-      >
-        <ThemedText type="smallBold" style={styles.logSetFooterText}>
-          ✓ Log Set {nextSetSequence}
-        </ThemedText>
-      </Pressable>
-    </View>
+      />
+    </Card>
   );
 }
 
@@ -2675,6 +2695,7 @@ function FloatingRestTimer(props: {
   readonly onAdjust: (delta: number) => void;
   readonly onSkip: () => void;
 }) {
+  const theme = useTheme();
   const showNextAction = Platform.OS === "ios";
   const nextAction = showNextAction
     ? restTimerNextAction(props.rest, props.current)
@@ -2689,71 +2710,89 @@ function FloatingRestTimer(props: {
   );
 
   return (
-    <View style={styles.floatingTimerContainer}>
+    <View
+      style={[
+        styles.floatingTimerContainer,
+        {
+          backgroundColor: theme.backgroundElement,
+          shadowColor: theme.overlay,
+        },
+      ]}
+    >
       <View style={styles.floatingTimerBar}>
         <View style={styles.timerInfoBlock}>
           <ThemedText
-            type="small"
+            type="footnote"
             themeColor="textSecondary"
             numberOfLines={nextAction ? 2 : 1}
           >
-            ⏱ {nextAction?.title ?? `Rest (${props.rest.exerciseName})`}
+            {nextAction?.title ?? `Rest (${props.rest.exerciseName})`}
           </ThemedText>
           {nextAction?.detail ? (
             <ThemedText
-              type="small"
+              type="footnote"
               themeColor="textSecondary"
               numberOfLines={1}
             >
               {nextAction.detail}
             </ThemedText>
           ) : null}
-          <ThemedText type="subtitle" style={styles.timerCountdown}>
-            {formatStopwatch(remaining)}
-          </ThemedText>
+          <View style={styles.timerValueRow}>
+            <Icon name="timer" size={20} color="primary" />
+            <ThemedText
+              type="subtitle"
+              themeColor="primary"
+              style={styles.tabularNumbers}
+            >
+              {formatStopwatch(remaining)}
+            </ThemedText>
+          </View>
         </View>
 
         <View style={styles.timerActions}>
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label="-15s"
+            variant="secondary"
+            size="small"
             accessibilityLabel="Subtract 15 seconds"
             onPress={() => props.onAdjust(-15)}
-            style={styles.timerAdjustButton}
-          >
-            <ThemedText type="smallBold">-15s</ThemedText>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
+          />
+          <Button
+            label="+15s"
+            variant="secondary"
+            size="small"
             accessibilityLabel="Add 15 seconds"
             onPress={() => props.onAdjust(15)}
-            style={styles.timerAdjustButton}
-          >
-            <ThemedText type="smallBold">+15s</ThemedText>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
+          />
+          <Button
+            label="Skip"
+            variant="plain"
+            size="small"
             accessibilityLabel="Skip rest timer"
             onPress={props.onSkip}
-            style={styles.timerSkipButton}
-          >
-            <ThemedText type="smallBold" style={styles.timerSkipText}>
-              Skip
-            </ThemedText>
-          </Pressable>
+          />
         </View>
       </View>
       {/* Progress line */}
-      <View style={styles.timerProgressTrack}>
-        <View style={[styles.timerProgressFill, { width: `${percent}%` }]} />
+      <View
+        style={[
+          styles.timerProgressTrack,
+          { backgroundColor: theme.backgroundSelected },
+        ]}
+      >
+        <View
+          style={[
+            styles.timerProgressFill,
+            { width: `${percent}%`, backgroundColor: theme.primary },
+          ]}
+        />
       </View>
     </View>
   );
 }
 
 // ==========================================
-// Form & Button Helpers
+// Form Helpers
 // ==========================================
 function Field(props: {
   readonly testID?: string;
@@ -2765,9 +2804,10 @@ function Field(props: {
   readonly keyboardType?: "default" | "decimal-pad" | "number-pad";
   readonly inputColor: string;
 }) {
+  const theme = useTheme();
   return (
     <View style={styles.field}>
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="footnote" themeColor="textSecondary">
         {props.label}
       </ThemedText>
       <TextInput
@@ -2776,35 +2816,18 @@ function Field(props: {
         onChangeText={props.onChangeText}
         onFocus={props.onFocus}
         placeholder={props.placeholder}
-        placeholderTextColor="#8A8D91"
+        placeholderTextColor={theme.textTertiary}
         keyboardType={props.keyboardType ?? "default"}
         accessibilityLabel={props.label}
-        style={[styles.input, { color: props.inputColor }]}
+        style={[
+          styles.input,
+          {
+            color: props.inputColor,
+            backgroundColor: theme.backgroundSelected,
+          },
+        ]}
       />
     </View>
-  );
-}
-
-function Button(props: {
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly disabled?: boolean;
-  readonly destructive?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled: props.disabled === true }}
-      disabled={props.disabled === true}
-      onPress={props.onPress}
-      style={({ pressed }) => [
-        styles.button,
-        props.destructive === true && styles.buttonDestructive,
-        (pressed || props.disabled === true) && styles.buttonPressed,
-      ]}
-    >
-      <ThemedText type="smallBold">{props.label}</ThemedText>
-    </Pressable>
   );
 }
 
@@ -2838,7 +2861,12 @@ const isStoredWorkoutDraft = (value: unknown): value is StoredWorkoutDraft => {
 // ==========================================
 // Styles
 // ==========================================
+const COL_SET = 36;
+const COL_INPUT = 64;
+const COL_CHECK = 48;
+
 const styles = StyleSheet.create({
+  timerValueRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   page: { flex: 1 },
   safeArea: { flex: 1 },
   keyboardContainer: { flex: 1 },
@@ -2846,63 +2874,41 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: PageGutter,
     paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.four,
   },
   contentWithRestTimer: {
-    paddingBottom: BottomTabInset + Spacing.six + 90,
+    paddingBottom: BottomTabInset + Spacing.six + 120,
   },
   center: {
     alignItems: "center",
-    gap: Spacing.two,
+    gap: Spacing.three,
     paddingVertical: Spacing.six,
   },
-  section: { gap: Spacing.three },
+  centerText: { textAlign: "center" },
+  centerActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: Spacing.two,
+  },
+  section: { gap: Spacing.four },
+  formCard: { gap: Spacing.three },
   feedContainer: {
     gap: Spacing.four,
   },
-  headerMinimizeButton: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 6,
-    borderRadius: Spacing.two,
-    marginLeft: Spacing.two,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerMinimizeText: {
-    fontSize: 16,
-  },
   headerFinishButton: {
-    backgroundColor: "#047857",
-    minHeight: 44,
     minWidth: 80,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 10,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
   },
-  headerFinishButtonPressed: {
-    backgroundColor: "#065F46",
-  },
-  headerFinishText: {
-    color: "#FFFFFF",
-  },
+  tabularNumbers: { fontVariant: ["tabular-nums"] },
+  flexText: { flex: 1 },
   liveHeader: {
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  liveHeaderTop: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: Spacing.two,
   },
   liveStopwatchRow: {
     flexDirection: "row",
@@ -2912,73 +2918,30 @@ const styles = StyleSheet.create({
   livePulseDot: {
     width: 10,
     height: 10,
-    borderRadius: 5,
-    backgroundColor: "#10B981",
+    borderRadius: Radius.pill,
   },
-  liveHeaderRight: {
-    maxWidth: "100%",
-  },
-  emptyExercisesCard: {
-    padding: Spacing.four,
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  emptyExercisesText: { textAlign: "center" },
   exerciseCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    padding: Spacing.three,
     gap: Spacing.three,
   },
   exerciseCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: Spacing.two,
   },
   exerciseTitleBlock: {
     flex: 1,
-    gap: 2,
+    gap: Spacing.half,
   },
-  exerciseNameText: {
-    fontSize: 17,
-    fontWeight: "700",
+  moreButton: {
+    // Keep the 48pt target while aligning the visual circle with the card edge.
+    marginTop: -Spacing.one,
+    marginRight: -Spacing.one,
   },
-  exerciseHeaderRight: {
+  exerciseActions: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  cardReorderButtons: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  cardReorderBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardReorderBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  progressionBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  progressionBadgeText: {
-    color: "#10B981",
-    fontSize: 12,
+    flexWrap: "wrap",
+    gap: Spacing.two,
   },
   setTable: {
     gap: Spacing.one,
@@ -2986,338 +2949,156 @@ const styles = StyleSheet.create({
   setTableHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.two,
-    paddingBottom: Spacing.one,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: Spacing.one,
   },
   colSetHeader: {
-    width: 36,
-    color: "#8A8D91",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  colPrevHeader: {
-    flex: 1,
-    color: "#8A8D91",
-    fontSize: 11,
-    fontWeight: "700",
+    width: COL_SET,
+    textAlign: "center",
   },
   colInputHeader: {
-    width: 64,
+    width: COL_INPUT,
     textAlign: "center",
-    color: "#8A8D91",
-    fontSize: 11,
-    fontWeight: "700",
   },
   colCheckHeader: {
-    width: 44,
-    textAlign: "center",
-    color: "#8A8D91",
-    fontSize: 11,
-    fontWeight: "700",
+    width: COL_CHECK,
+    alignItems: "center",
   },
-  completedSetRow: {
+  setRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-  },
-  activeSetRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 6,
-    borderRadius: Spacing.two,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    minHeight: MinTouchTarget + Spacing.one,
+    paddingHorizontal: Spacing.one,
+    borderRadius: Radius.sm,
   },
   colSet: {
-    width: 36,
-    color: "#8A8D91",
+    width: COL_SET,
     textAlign: "center",
   },
   colSetWrapper: {
-    width: 36,
+    width: COL_SET,
     alignItems: "center",
     justifyContent: "center",
   },
   colSetPressable: {
-    width: 36,
-    minHeight: 44,
+    width: COL_SET,
+    minHeight: MinTouchTarget,
     alignItems: "center",
     justifyContent: "center",
-  },
-  badgeBase: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-  warmupBadge: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    borderColor: "#F59E0B",
-  },
-  warmupBadgeText: {
-    color: "#F59E0B",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  failureBadge: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "#EF4444",
-  },
-  failureBadgeText: {
-    color: "#EF4444",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  dropBadge: {
-    backgroundColor: "rgba(139, 92, 246, 0.15)",
-    borderColor: "#8B5CF6",
-  },
-  dropBadgeText: {
-    color: "#8B5CF6",
-    fontSize: 12,
-    fontWeight: "700",
   },
   colPrev: {
     flex: 1,
-    paddingRight: Spacing.one,
-    fontSize: 12,
+    paddingHorizontal: Spacing.one,
   },
   colInputDone: {
-    width: 64,
+    width: COL_INPUT,
     textAlign: "center",
+    fontVariant: ["tabular-nums"],
   },
   colInputCell: {
-    width: 64,
-    paddingHorizontal: 3,
+    width: COL_INPUT,
+    paddingHorizontal: Spacing.half,
   },
   tableInput: {
-    height: 38,
-    borderRadius: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    minHeight: MinTouchTarget - Spacing.one,
+    borderRadius: Radius.sm,
     textAlign: "center",
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "600",
+    fontVariant: ["tabular-nums"],
   },
-  checkedCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#10B981",
+  checkCell: {
+    width: COL_CHECK,
+    minHeight: MinTouchTarget,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 6,
   },
-  checkIconText: {
-    color: "#FFFFFF",
-    fontSize: 16,
+  checkCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  checkButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  checkCircleOutline: {
     borderWidth: 2,
-    borderColor: "#10B981",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 6,
-  },
-  checkButtonText: {
-    color: "#10B981",
-    fontSize: 16,
-  },
-  addSetRow: {
-    paddingVertical: Spacing.two,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Spacing.two,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-  },
-  addSetText: {
-    color: "#10B981",
-  },
-  logSetFooterRow: {
-    paddingVertical: Spacing.two,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Spacing.two,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
   },
   pendingSetTypeControl: {
-    minHeight: 56,
-    borderWidth: 1,
-    borderRadius: Spacing.two,
+    minHeight: MinTouchTarget,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: Spacing.two,
   },
   pendingSetTypeLabel: {
     flex: 1,
-    minWidth: 0,
-    gap: Spacing.one,
-  },
-  pendingSetTypeChevron: {
-    flexShrink: 0,
-  },
-  logSetFooterText: {
-    color: "#10B981",
-    fontSize: 14,
-    fontWeight: "700",
   },
   bottomControls: {
     gap: Spacing.three,
     marginTop: Spacing.two,
   },
-  addExerciseButton: {
-    width: "100%",
-    minHeight: 52,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionText: {
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: "center",
-    flexShrink: 1,
-  },
-  actionPressed: { opacity: 0.75 },
-  actionDisabled: { opacity: 0.5 },
-  reorderAllButton: {
-    alignSelf: "center",
-    maxWidth: "100%",
-    minHeight: 48,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderWidth: 1,
-    borderRadius: Spacing.three,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  discardSection: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: Spacing.two,
-  },
-  discardButton: {
-    minHeight: 48,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Spacing.two,
-  },
-  planCard: {
-    gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#18633d",
-  },
-  planExercise: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  setCopy: { flex: 1, gap: Spacing.one },
-  field: { flex: 1, minWidth: 140, gap: Spacing.one },
+  actionPressed: { opacity: 0.6 },
+  centeredAction: { alignSelf: "center" },
+  discardButton: { marginTop: Spacing.three },
+  planExercise: { gap: Spacing.half },
+  field: { gap: Spacing.one },
   input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 16,
-  },
-  button: {
-    minHeight: 50,
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F1F23",
+    minHeight: MinTouchTarget,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 12,
+    fontSize: 17,
   },
-  buttonDestructive: { borderColor: "#A13A25" },
-  buttonPressed: { opacity: 0.6 },
   message: {
     gap: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#A13A25",
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
+    borderRadius: Radius.md,
+    padding: 12,
+  },
+  messageRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
   },
   floatingTimerContainer: {
     position: "absolute",
     bottom: Spacing.four + BottomTabInset,
-    left: Spacing.four,
-    right: Spacing.four,
-    backgroundColor: "#18181B",
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(16, 185, 129, 0.4)",
-    shadowColor: "#000",
+    left: PageGutter,
+    right: PageGutter,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    shadowOpacity: 1,
+    shadowRadius: 12,
     elevation: 8,
     overflow: "hidden",
   },
   floatingTimerBar: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: Spacing.two,
     padding: Spacing.three,
   },
   timerInfoBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  timerCountdown: {
-    color: "#10B981",
-    fontWeight: "700",
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 120,
+    gap: Spacing.half,
   },
   timerActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: Spacing.two,
   },
-  timerAdjustButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-  },
-  timerSkipButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-  },
-  timerSkipText: {
-    color: "#EF4444",
-  },
   timerProgressTrack: {
     height: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
     width: "100%",
   },
   timerProgressFill: {
     height: "100%",
-    backgroundColor: "#10B981",
   },
 });

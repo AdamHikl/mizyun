@@ -62,6 +62,7 @@ vi.mock("../initials-avatar", () => ({
   }),
 }));
 vi.mock("../ui", () => ({ CommunityIdentityLink: "CommunityIdentityLink" }));
+vi.mock("@/components/ui", () => ({ IconButton: "IconButton" }));
 
 describe("COMM-08 Reversible encouragement reactions", () => {
   describe("constants and definitions", () => {
@@ -744,6 +745,24 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       );
     });
 
+    it("labels the compact encouragement control in words, not a glyph", () => {
+      const element = ReactionBar({
+        activityId: "act-1",
+        authorUserId: "author-1",
+        viewerUserId: "viewer-2",
+        initialReactionCounts: defaultReactionCounts(),
+        initialViewerReaction: null,
+        compact: true,
+      });
+      const [opener] =
+        element.props.children[0].props.children[0].props.children;
+      expect(opener.props.testID).toBe("open-reaction-picker");
+      expect(opener.props.accessibilityLabel).toBe(
+        "Choose an encouragement reaction",
+      );
+      expect(opener.props.children.props.children).toBe("Encourage");
+    });
+
     it("disables reaction buttons for author when 0 reactions exist", () => {
       const element = ReactionBar({
         activityId: "act-1",
@@ -824,6 +843,9 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       expect(header.props.children[0].props.children).toBe("Reactions");
       const closeBtn = header.props.children[1];
       expect(closeBtn.props.testID).toBe("reactors-close-btn");
+      expect(closeBtn.type).toBe("IconButton");
+      expect(closeBtn.props.icon).toBe("close");
+      expect(closeBtn.props.accessibilityLabel).toBe("Close reactions");
       closeBtn.props.onPress();
       expect(onClose).toHaveBeenCalled();
 

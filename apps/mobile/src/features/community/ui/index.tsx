@@ -1,21 +1,35 @@
-import React, { type ReactNode } from "react";
+import React, { Children, isValidElement, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
+  type LayoutChangeEvent,
 } from "react-native";
 import { Link, useRouter, type Href } from "expo-router";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { SymbolView } from "expo-symbols";
 import { TabHeader } from "@/components/tab-header";
-import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
+import { ThemedText } from "@/components/themed-text";
+import {
+  Card,
+  Icon,
+  IconBadge,
+  SectionHeader,
+  type IconName,
+} from "@/components/ui";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { InitialsAvatar } from "../initials-avatar";
 
@@ -35,6 +49,14 @@ const destinations: readonly {
   { key: "me", label: "Me", href: "/(tabs)/community/me" as Href },
 ];
 
+/** Track inset around the segments (keeps 4 x 25% exactly inside the track). */
+const trackInset = 2;
+
+/**
+ * Segmented switch between the four Community destinations. Each segment is a
+ * router link exposed as a tab; segments wrap into rows at large text sizes so
+ * labels are never truncated.
+ */
 export function CommunityNavigation({
   selected,
 }: {
@@ -44,89 +66,106 @@ export function CommunityNavigation({
   const { fontScale, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const navigationWidth =
-    Math.min(width - insets.left - insets.right, MaxContentWidth) - 40;
+    Math.min(width - insets.left - insets.right, MaxContentWidth) -
+    PageGutter * 2 -
+    trackInset * 2;
   // Leave room for the longest label at the user's chosen text size.
-  const labelWidth = 88 * fontScale;
+  const labelWidth = 80 * fontScale;
+  // Bases leave room for the track gap; flexGrow fills each row exactly,
+  // so four, two or one segments sit on a row without overflowing.
   const destinationWidth =
     navigationWidth >= labelWidth * 4
-      ? "25%"
+      ? "23%"
       : navigationWidth >= labelWidth * 2
-        ? "50%"
+        ? "48%"
         : "100%";
   return (
     <View
       accessibilityRole="tablist"
-      style={[styles.navigation, { borderBottomColor: colors.border }]}
+      accessibilityLabel="Community sections"
+      style={[
+        styles.navigation,
+        // Four columns stay on one row; percentage bases alone can round
+        // past the row width and wrap.
+        destinationWidth === "23%" && styles.navigationSingleRow,
+        { backgroundColor: colors.backgroundSelected },
+      ]}
     >
-      {destinations.map(({ key, label, href }) => (
-        <Link key={key} href={href} asChild>
-          <Pressable
-            accessibilityRole="tab"
-            accessibilityLabel={label}
-            accessibilityState={{ selected: key === selected }}
-            style={StyleSheet.flatten([
-              styles.destination,
-              { flexBasis: destinationWidth },
-              {
-                borderBottomColor:
-                  key === selected ? colors.primary : "transparent",
-              },
-            ])}
-          >
-            <Text
-              style={[
-                styles.destinationText,
-                {
-                  color:
-                    key === selected ? colors.primary : colors.textSecondary,
-                },
-              ]}
+      {destinations.map(({ key, label, href }) => {
+        const current = key === selected;
+        return (
+          <Link key={key} href={href} asChild>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: current }}
+              // Router links need one flat style object.
+              style={StyleSheet.flatten([
+                styles.destination,
+                { flexBasis: destinationWidth },
+                current
+                  ? {
+                      backgroundColor: colors.backgroundElement,
+                      shadowColor: colors.text,
+                    }
+                  : styles.destinationIdle,
+              ])}
             >
-              {label}
-            </Text>
-          </Pressable>
-        </Link>
-      ))}
+              <ThemedText
+                type="smallBold"
+                themeColor={current ? "text" : "textSecondary"}
+                style={styles.destinationText}
+              >
+                {label}
+              </ThemedText>
+            </Pressable>
+          </Link>
+        );
+      })}
     </View>
   );
 }
 
+/**
+ * Header for the four root Community destinations: the shared tab header with
+ * the Community title, the updates bell and the destination switch.
+ */
 export function CommunityRootHeader({
   selected,
+  onLayout,
 }: {
   selected: CommunityDestination;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const colors = useTheme();
   return (
-    <View style={styles.rootHeader}>
-      <View style={styles.titleRow}>
-        <Text
-          accessibilityRole="header"
-          style={[styles.title, { color: colors.text }]}
-        >
-          Community
-        </Text>
+    <TabHeader
+      title="Community"
+      onLayout={onLayout}
+      actions={
         <Link href="/community/inbox" asChild>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Community updates"
             style={StyleSheet.flatten(styles.iconButton)}
           >
-            <SymbolView
-              name={{
-                ios: "bell",
-                android: "notifications",
-                web: "notifications",
-              }}
-              size={23}
-              tintColor={colors.text}
+            <View
               accessible={false}
-            />
+              style={[
+                styles.iconCircle,
+                { backgroundColor: colors.backgroundSelected },
+              ]}
+            >
+              <Icon name="bell" size={19} color="text" />
+            </View>
           </Pressable>
         </Link>
+      }
+    >
+      <View style={styles.navigationBar}>
+        <CommunityNavigation selected={selected} />
       </View>
-      <CommunityNavigation selected={selected} />
-    </View>
+    </TabHeader>
   );
 }
 
@@ -149,29 +188,37 @@ export function CommunityPage({
 }) {
   const colors = useTheme();
   const router = useRouter();
+  // Community stack screens hide the native header, so pushed screens get a
+  // clean back + title header here; root destinations get the tab header.
   const heading = destination ? (
     <CommunityRootHeader selected={destination} />
   ) : (
     <View style={styles.pageHeader}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        style={styles.back}
-        onPress={() =>
-          router.canGoBack() ? router.back() : router.replace(backHref)
-        }
-      >
-        <Text style={[styles.backText, { color: colors.primary }]}>‹ Back</Text>
-      </Pressable>
-      <View style={styles.titleRow}>
-        <Text
-          accessibilityRole="header"
-          style={[styles.title, { color: colors.text }]}
+      <View style={styles.barRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={StyleSheet.flatten(styles.back)}
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace(backHref)
+          }
         >
-          {title}
-        </Text>
-        {headerRight}
+          <Icon name="back" size={17} color="primary" />
+          <ThemedText type="default" themeColor="primary">
+            Back
+          </ThemedText>
+        </Pressable>
+        {headerRight ? (
+          <View style={styles.headerRight}>{headerRight}</View>
+        ) : null}
       </View>
+      <ThemedText
+        type="subtitle"
+        accessibilityRole="header"
+        style={styles.pageTitle}
+      >
+        {title}
+      </ThemedText>
     </View>
   );
   return (
@@ -179,38 +226,31 @@ export function CommunityPage({
       edges={["top", "left", "right"]}
       style={[styles.page, { backgroundColor: colors.background }]}
     >
-      <TabHeader />
+      {heading}
       {scroll ? (
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.content}
         >
-          {heading}
-          {destination && title !== "Community" ? (
-            <Text
-              accessibilityRole="header"
-              style={[styles.sectionTitle, { color: colors.text }]}
-            >
-              {title}
-            </Text>
-          ) : null}
           {description ? (
-            <Text style={[styles.body, { color: colors.textSecondary }]}>
+            <ThemedText type="small" themeColor="textSecondary">
               {description}
-            </Text>
+            </ThemedText>
           ) : null}
           {children}
         </ScrollView>
       ) : (
-        <View style={styles.fixedContent}>
-          {heading}
-          {children}
-        </View>
+        <View style={styles.fixedContent}>{children}</View>
       )}
     </SafeAreaView>
   );
 }
 
+/**
+ * Section header above one grouped card of rows or content. A card of rows
+ * reads like an inset grouped list: rows sit flush and the last row's
+ * hairline is clipped, so separators appear only between rows.
+ */
 export function CommunitySection({
   title,
   description,
@@ -220,31 +260,37 @@ export function CommunitySection({
   description?: string;
   children: ReactNode;
 }) {
-  const colors = useTheme();
+  const items = Children.toArray(children);
+  const rowsOnly =
+    items.length > 0 &&
+    items.every((item) => isValidElement(item) && item.type === CommunityRow);
   return (
     <View style={styles.section}>
-      <Text
-        accessibilityRole="header"
-        style={[styles.sectionTitle, { color: colors.text }]}
-      >
-        {title}
-      </Text>
+      <SectionHeader title={title} />
       {description ? (
-        <Text style={[styles.body, { color: colors.textSecondary }]}>
+        <ThemedText type="footnote" themeColor="textSecondary">
           {description}
-        </Text>
+        </ThemedText>
       ) : null}
-      <View>{children}</View>
+      {rowsOnly ? (
+        <Card style={[styles.sectionCard, styles.rowsCard]}>
+          <View style={styles.clipLastSeparator}>{children}</View>
+        </Card>
+      ) : (
+        <Card style={styles.sectionCard}>{children}</Card>
+      )}
     </View>
   );
 }
 
+/** One grouped-list row: navigation, setting or action. */
 export function CommunityRow({
   title,
   description,
   href,
   onPress,
   trailing,
+  icon,
   danger = false,
   disabled = false,
 }: {
@@ -253,38 +299,36 @@ export function CommunityRow({
   href?: Href;
   onPress?: () => void;
   trailing?: ReactNode;
+  /** Optional leading icon badge. */
+  icon?: IconName;
   danger?: boolean;
   disabled?: boolean;
 }) {
   const colors = useTheme();
   const content = (
     <>
+      {icon ? (
+        <IconBadge name={icon} tone={danger ? "danger" : "primary"} />
+      ) : null}
       <View style={styles.rowCopy}>
-        <Text
-          style={[styles.rowTitle, { color: danger ? "#DC2626" : colors.text }]}
-        >
+        <ThemedText type="default" themeColor={danger ? "danger" : "text"}>
           {title}
-        </Text>
+        </ThemedText>
         {description ? (
-          <Text style={[styles.body, { color: colors.textSecondary }]}>
+          <ThemedText type="footnote" themeColor="textSecondary">
             {description}
-          </Text>
+          </ThemedText>
         ) : null}
       </View>
       {trailing ??
         (href || onPress ? (
-          <Text
-            accessible={false}
-            style={[styles.chevron, { color: colors.textSecondary }]}
-          >
-            ›
-          </Text>
+          <Icon name="chevronRight" size={14} color="textTertiary" />
         ) : null)}
     </>
   );
   const rowStyle = StyleSheet.flatten([
     styles.row,
-    { borderBottomColor: colors.border, opacity: disabled ? 0.5 : 1 },
+    { borderBottomColor: colors.separator, opacity: disabled ? 0.45 : 1 },
   ]);
   if (href)
     return (
@@ -316,6 +360,12 @@ export function CommunityRow({
   return <View style={rowStyle}>{content}</View>;
 }
 
+/**
+ * Community action button. Tones map onto the design-system `Button`
+ * variants: `primary` is primary, `secondary` is tinted and `danger` is
+ * destructive. Kept as a flat-styled Pressable so it can sit inside router
+ * links.
+ */
 export function CommunityButton({
   label,
   onPress,
@@ -323,6 +373,7 @@ export function CommunityButton({
   disabled = false,
   busy = false,
   tone = "secondary",
+  size = "regular",
 }: {
   label: string;
   onPress?: () => void;
@@ -330,23 +381,32 @@ export function CommunityButton({
   disabled?: boolean;
   busy?: boolean;
   tone?: "primary" | "secondary" | "danger";
+  /** Compact pill for rows of equal-weight actions. */
+  size?: "regular" | "small";
 }) {
   const colors = useTheme();
-  const primary = tone === "primary";
-  const ink =
-    tone === "danger" ? "#DC2626" : primary ? "#FFFFFF" : colors.primary;
+  const palette = {
+    primary: { bg: colors.primary, fg: colors.onPrimary },
+    secondary: { bg: colors.primaryLight, fg: colors.primary },
+    danger: { bg: colors.dangerLight, fg: colors.danger },
+  }[tone];
   const style = StyleSheet.flatten([
     styles.button,
+    size === "small" && styles.buttonSmall,
     {
-      backgroundColor: primary ? "#047857" : colors.backgroundElement,
-      borderColor: primary ? "#047857" : colors.border,
-      opacity: disabled || busy ? 0.5 : 1,
+      backgroundColor: palette.bg,
+      opacity: disabled || busy ? 0.45 : 1,
     },
   ]);
   const content = (
     <>
-      {busy ? <ActivityIndicator color={ink} /> : null}
-      <Text style={[styles.buttonText, { color: ink }]}>{label}</Text>
+      {busy ? <ActivityIndicator size="small" color={palette.fg} /> : null}
+      <ThemedText
+        type={size === "small" ? "smallBold" : "headline"}
+        style={[styles.buttonText, { color: palette.fg }]}
+      >
+        {label}
+      </ThemedText>
     </>
   );
   const props = {
@@ -380,7 +440,6 @@ export function CommunityIdentityLink({
   avatarKey?: string;
   onPress?: () => void;
 }) {
-  const colors = useTheme();
   return (
     <Link
       href={
@@ -406,13 +465,11 @@ export function CommunityIdentityLink({
           />
         </View>
         <View style={styles.rowCopy}>
-          <Text style={[styles.rowTitle, { color: colors.text }]}>
-            {displayName}
-          </Text>
+          <ThemedText type="headline">{displayName}</ThemedText>
           {handle ? (
-            <Text style={[styles.body, { color: colors.textSecondary }]}>
+            <ThemedText type="footnote" themeColor="textSecondary">
               @{handle}
-            </Text>
+            </ThemedText>
           ) : null}
         </View>
       </Pressable>
@@ -420,6 +477,7 @@ export function CommunityIdentityLink({
   );
 }
 
+/** Loading, empty, unavailable or signed-out state (EmptyState look). */
 export function CommunityState({
   title,
   description,
@@ -433,18 +491,23 @@ export function CommunityState({
 }) {
   const colors = useTheme();
   return (
-    <View style={styles.state}>
+    <View style={styles.state} accessibilityState={{ busy }}>
       {busy ? <ActivityIndicator color={colors.primary} /> : null}
-      <Text
+      <ThemedText
+        type="headline"
         accessibilityRole="header"
-        style={[styles.sectionTitle, { color: colors.text }]}
+        style={styles.center}
       >
         {title}
-      </Text>
+      </ThemedText>
       {description ? (
-        <Text style={[styles.body, { color: colors.textSecondary }]}>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          style={styles.center}
+        >
           {description}
-        </Text>
+        </ThemedText>
       ) : null}
       {action}
     </View>
@@ -457,87 +520,127 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingBottom: BottomTabInset + 24,
-    gap: 16,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.two,
+    paddingBottom: BottomTabInset + Spacing.four,
+    gap: Spacing.three,
   },
   fixedContent: {
     flex: 1,
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: PageGutter,
   },
-  rootHeader: { gap: 2 },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  title: { flex: 1, fontSize: 28, lineHeight: 36, fontWeight: "700" },
   iconButton: {
     minWidth: 48,
     minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
   },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navigationBar: {
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.one,
+    paddingBottom: Spacing.two,
+  },
   navigation: {
     flexDirection: "row",
     flexWrap: "wrap",
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.md,
+    padding: trackInset,
   },
+  navigationSingleRow: { flexWrap: "nowrap" },
   destination: {
     flexGrow: 1,
-    flexBasis: "25%",
+    flexShrink: 1,
+    flexBasis: "23%",
     minHeight: 48,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 4,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
+    paddingHorizontal: Spacing.one,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.sm + 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
-  destinationText: { fontSize: 15, fontWeight: "600", textAlign: "center" },
-  pageHeader: { gap: 4 },
+  destinationIdle: {
+    backgroundColor: "transparent",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  destinationText: { textAlign: "center" },
+  pageHeader: {
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
+    paddingBottom: Spacing.two,
+  },
+  barRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
   back: {
     minHeight: 48,
-    alignSelf: "flex-start",
-    justifyContent: "center",
-    paddingRight: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+    paddingRight: Spacing.three,
+    marginLeft: -Spacing.one,
   },
-  backText: { fontSize: 16, fontWeight: "600" },
-  section: { gap: 8 },
-  sectionTitle: { fontSize: 20, lineHeight: 28, fontWeight: "600" },
-  body: { fontSize: 15, lineHeight: 22 },
+  headerRight: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  pageTitle: { marginTop: Spacing.half },
+  section: { gap: Spacing.two },
+  sectionCard: { paddingVertical: Spacing.two },
+  rowsCard: { paddingVertical: 0, overflow: "hidden" },
+  // Pull the content up under the card's clipped bottom edge so the last
+  // row's bottom hairline is hidden.
+  clipLastSeparator: { marginBottom: -StyleSheet.hairlineWidth },
   row: {
-    minHeight: 64,
-    paddingVertical: 14,
+    minHeight: MinTouchTarget + 8,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  rowCopy: { flex: 1, minWidth: 0, gap: 3 },
-  rowTitle: { fontSize: 16, lineHeight: 23, fontWeight: "600" },
-  chevron: { fontSize: 24 },
+  rowCopy: { flex: 1, minWidth: 0, gap: Spacing.half },
   button: {
     minHeight: 48,
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.three,
     paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.md,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: Spacing.two,
   },
-  buttonText: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 1,
+  buttonSmall: {
+    paddingHorizontal: 14,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.pill,
   },
+  buttonText: { textAlign: "center", flexShrink: 1 },
   identity: {
     minHeight: 48,
     flexDirection: "row",
@@ -545,5 +648,11 @@ const styles = StyleSheet.create({
     gap: 10,
     flexShrink: 1,
   },
-  state: { paddingVertical: 24, gap: 12 },
+  state: {
+    alignItems: "center",
+    paddingVertical: Spacing.four,
+    paddingHorizontal: Spacing.three,
+    gap: Spacing.two,
+  },
+  center: { textAlign: "center" },
 });

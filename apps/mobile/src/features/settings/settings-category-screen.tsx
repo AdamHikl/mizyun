@@ -1,14 +1,14 @@
-import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { Button, EmptyState, ListGroup, ListRow } from "@/components/ui";
+import { MaxContentWidth, PageGutter, Spacing } from "@/constants/theme";
 import {
   getAppVariant,
   isProgressPhotosEnabled,
 } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getSettingsForCategory,
@@ -53,81 +53,49 @@ export function SettingsCategoryScreen({
   if (!categoryDef) {
     return (
       <ThemedView style={styles.page}>
+        <Stack.Screen options={{ title: "Settings" }} />
         <View style={styles.centerContainer}>
-          <ThemedText type="subtitle">Category Not Found</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            This category is not available or has moved.
-          </ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <ThemedText type="smallBold">Go Back</ThemedText>
-          </Pressable>
+          <EmptyState
+            icon="warning"
+            title="Category not found"
+            message="This category is not available or has moved."
+            action={
+              <Button
+                label="Go back"
+                variant="tinted"
+                size="small"
+                onPress={() => router.back()}
+              />
+            }
+          />
         </View>
       </ThemedView>
     );
   }
 
-  const topPadding = Math.max(insets.top, 16) + Spacing.two;
-  const bottomPadding = BottomTabInset + insets.bottom + Spacing.six;
+  const bottomPadding = insets.bottom + Spacing.six;
 
   return (
     <ThemedView style={styles.page}>
+      <Stack.Screen options={{ title: categoryDef.title }} />
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          {
-            paddingTop: topPadding,
-            paddingBottom: bottomPadding,
-          },
+          { paddingBottom: bottomPadding },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Category Header */}
-        <View style={styles.header}>
-          <View style={styles.iconBox}>
-            <ThemedText style={styles.icon}>{categoryDef.icon}</ThemedText>
-          </View>
-          <View style={styles.headerText}>
-            <ThemedText type="subtitle">{categoryDef.title}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {categoryDef.shortDescription}
-            </ThemedText>
-          </View>
-        </View>
-
-        {/* List of Settings in this Category */}
-        <View style={styles.itemsList}>
+        <ListGroup>
           {items.map((item) => (
-            <Pressable
+            <ListRow
               key={item.id}
-              accessibilityRole="button"
+              title={item.label}
+              subtitle={item.description}
               accessibilityLabel={`${item.label}, ${item.description}`}
               onPress={() => navigateToSetting(item)}
-              style={({ pressed }) => [
-                styles.itemRow,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.itemTextContent}>
-                <ThemedText type="smallBold" style={styles.itemLabel}>
-                  {item.label}
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  numberOfLines={2}
-                  style={styles.itemDescription}
-                >
-                  {item.description}
-                </ThemedText>
-              </View>
-              <ThemedText style={styles.itemArrow}>›</ThemedText>
-            </Pressable>
+            />
           ))}
-        </View>
+        </ListGroup>
       </ScrollView>
     </ThemedView>
   );
@@ -139,72 +107,14 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    padding: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
     gap: Spacing.four,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(128, 128, 128, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  icon: {
-    fontSize: 24,
-  },
-  headerText: {
-    flex: 1,
-    gap: 2,
-  },
-  itemsList: {
-    gap: Spacing.two,
-  },
-  itemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.four,
-    borderRadius: 14,
-    backgroundColor: "rgba(128, 128, 128, 0.08)",
-    minHeight: 56,
-  },
-  itemTextContent: {
-    flex: 1,
-    gap: 4,
-    paddingRight: Spacing.two,
-  },
-  itemLabel: {
-    fontSize: 15,
-  },
-  itemDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  itemArrow: {
-    fontSize: 22,
-    opacity: 0.4,
   },
   centerContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.four,
-    gap: Spacing.three,
-  },
-  backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: "rgba(128, 128, 128, 0.15)",
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });

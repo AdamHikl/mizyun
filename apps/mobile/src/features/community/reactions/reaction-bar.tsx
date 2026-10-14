@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import type { CommunityReactionKind } from "@mizyun/contracts";
 import type { ScopedCommunityClient } from "../community-client";
+import { ThemedText } from "@/components/themed-text";
+import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   REACTION_EMOJIS,
@@ -110,19 +112,17 @@ export function ReactionBar(props: ReactionBarProps) {
               }
               style={styles.viewReactorsBtn}
             >
-              <Text
-                style={[styles.viewReactorsText, { color: colors.primary }]}
-              >
+              <ThemedText type="smallBold" themeColor="primary">
                 {isAuthor
-                  ? "👏 Encouragement"
+                  ? "Encouragement"
                   : viewerReaction
                     ? `${REACTION_EMOJIS[viewerReaction]} ${REACTION_LABELS[viewerReaction]}`
-                    : "👏 Encourage"}
-              </Text>
+                    : "Encourage"}
+              </ThemedText>
             </Pressable>
-            <Text style={[styles.count, { color: colors.textSecondary }]}>
+            <ThemedText type="footnote" themeColor="textSecondary">
               {totalReactions} {totalReactions === 1 ? "reaction" : "reactions"}
-            </Text>
+            </ThemedText>
           </>
         ) : null}
         {(!props.compact || pickerOpen) &&
@@ -165,11 +165,9 @@ export function ReactionBar(props: ReactionBarProps) {
                   styles.button,
                   {
                     backgroundColor: isSelected
-                      ? (colors?.primaryLight ?? "#D1FAE5")
-                      : (colors?.backgroundSelected ?? "#222D35"),
-                    borderColor: isSelected
-                      ? (colors?.primary ?? "#059669")
-                      : "transparent",
+                      ? colors.primaryLight
+                      : colors.backgroundSelected,
+                    borderColor: isSelected ? colors.primary : "transparent",
                     opacity: pressed
                       ? 0.75
                       : isButtonDisabled && isAuthor
@@ -179,20 +177,13 @@ export function ReactionBar(props: ReactionBarProps) {
                 ]}
                 hitSlop={4}
               >
-                <Text style={styles.emoji}>{emoji}</Text>
-                <Text
-                  style={[
-                    styles.count,
-                    {
-                      color: isSelected
-                        ? (colors?.primary ?? "#059669")
-                        : (colors?.textSecondary ?? "#8E8E93"),
-                      fontWeight: isSelected ? "700" : "500",
-                    },
-                  ]}
+                <ThemedText type="small">{emoji}</ThemedText>
+                <ThemedText
+                  type={isSelected ? "smallBold" : "small"}
+                  themeColor={isSelected ? "primary" : "textSecondary"}
                 >
                   {count}
-                </Text>
+                </ThemedText>
               </Pressable>
             );
           })}
@@ -209,14 +200,9 @@ export function ReactionBar(props: ReactionBarProps) {
               { opacity: pressed ? 0.7 : 1 },
             ]}
           >
-            <Text
-              style={[
-                styles.viewReactorsText,
-                { color: colors?.primary ?? "#059669" },
-              ]}
-            >
+            <ThemedText type="smallBold" themeColor="primary">
               Who reacted ({totalReactions})
-            </Text>
+            </ThemedText>
           </Pressable>
         ) : null}
       </View>
@@ -224,9 +210,13 @@ export function ReactionBar(props: ReactionBarProps) {
       {/* Error message if rollback occurred */}
       {error ? (
         <View style={styles.errorBox} testID="reaction-bar-error">
-          <Text accessibilityRole="alert" style={styles.errorText}>
+          <ThemedText
+            type="footnote"
+            themeColor="danger"
+            accessibilityRole="alert"
+          >
             {error}
-          </Text>
+          </ThemedText>
         </View>
       ) : null}
 
@@ -250,41 +240,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
+    gap: Spacing.two,
   },
   button: {
     minHeight: 48,
     minWidth: 48,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 14,
+    justifyContent: "center",
+    gap: Spacing.one,
+    paddingHorizontal: 10,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.pill,
     borderWidth: 1.5,
-  },
-  emoji: {
-    fontSize: 14,
-  },
-  count: {
-    fontSize: 12,
   },
   viewReactorsBtn: {
     minHeight: 48,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
     justifyContent: "center",
-  },
-  viewReactorsText: {
-    fontSize: 12,
-    fontWeight: "600",
   },
   errorBox: {
     marginTop: 6,
-    paddingHorizontal: 4,
-  },
-  errorText: {
-    color: "#FF453A",
-    fontSize: 12,
+    paddingHorizontal: Spacing.one,
   },
 });

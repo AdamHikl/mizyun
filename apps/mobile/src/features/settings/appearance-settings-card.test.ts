@@ -35,6 +35,12 @@ vi.mock("@/components/themed-view", () => ({
   ThemedView: "ThemedView",
 }));
 
+vi.mock("@/components/ui", () => ({
+  Icon: "Icon",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+}));
+
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({
     background: "#F8FAF9",
@@ -67,13 +73,13 @@ describe("AppearanceSettingsCard", () => {
   it("renders without error", () => {
     const element = AppearanceSettingsCard();
     expect(element).toBeDefined();
-    expect(element.type).toBe("ThemedView");
+    expect(element.type).toBe("View");
   });
 
   it("includes all 3 theme options: auto, light, dark", () => {
     const element = AppearanceSettingsCard();
     const children = element.props.children;
-    const optionsListView = children[1];
+    const optionsListView = children[0];
     expect(optionsListView).toBeDefined();
     const options = optionsListView.props.children;
     expect(options).toHaveLength(3);
@@ -85,7 +91,7 @@ describe("AppearanceSettingsCard", () => {
   it("marks the active option as selected", () => {
     mockThemePreference = "dark";
     const element = AppearanceSettingsCard();
-    const optionsListView = element.props.children[1];
+    const optionsListView = element.props.children[0];
     const options = optionsListView.props.children;
 
     const darkOption = options.find((opt: any) => opt.key === "dark");
@@ -100,7 +106,7 @@ describe("AppearanceSettingsCard", () => {
 
   it("calls setPreference when an option is pressed", async () => {
     const element = AppearanceSettingsCard();
-    const optionsListView = element.props.children[1];
+    const optionsListView = element.props.children[0];
     const options = optionsListView.props.children;
 
     const lightOption = options.find((opt: any) => opt.key === "light");

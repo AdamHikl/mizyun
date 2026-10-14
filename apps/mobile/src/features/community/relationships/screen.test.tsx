@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
+  onHeaderLayout: () => undefined,
   enrolled: true,
   membershipStatus: "ready",
   membershipError: null as string | null,
@@ -130,7 +131,28 @@ vi.mock("../safety", () => ({ ReportModal: "ReportModal" }));
 vi.mock("../safety/safety-api", () => ({
   captureSafetyReceipt: mocks.receipt,
 }));
-vi.mock("../ui", () => ({ CommunityRootHeader: "CommunityRootHeader" }));
+vi.mock("../ui", () => ({
+  CommunityButton: "CommunityButton",
+  CommunityRootHeader: "CommunityRootHeader",
+  CommunityRow: "CommunityRow",
+}));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  EmptyState: "EmptyState",
+  Icon: "Icon",
+  IconButton: "IconButton",
+  ListRow: "ListRow",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
+vi.mock("@/components/tab-header", () => ({
+  useTabHeaderLayout: () => ({
+    headerHeight: 140,
+    onHeaderLayout: mocks.onHeaderLayout,
+  }),
+}));
 vi.mock("../initials-avatar", () => ({ InitialsAvatar: "InitialsAvatar" }));
 vi.mock("./controller", () => ({
   RelationshipsController: class {
@@ -170,17 +192,35 @@ async function settleMembership() {
 function nodes(node: any): any[] {
   if (!node) return [];
   if (Array.isArray(node)) return node.flatMap(nodes);
-  return typeof node === "object" ? [node, ...nodes(node.props?.children)] : [];
+  // Also walk `action` slots (SectionHeader, EmptyState, Notice).
+  return typeof node === "object"
+    ? [node, ...nodes(node.props?.action), ...nodes(node.props?.children)]
+    : [];
 }
 function text(node: any): string {
   if (Array.isArray(node)) return node.map(text).join("");
   if (typeof node === "string") return node;
-  return node?.props ? text(node.props.children) : "";
+  if (!node?.props) return "";
+  // Design-system primitives carry their copy in props rather than children.
+  const { label, title, message } = node.props;
+  return [label, title, message]
+    .filter((value) => typeof value === "string")
+    .concat(text(node.props.children))
+    .join("");
 }
 function control(tree: any, label: string): any {
   return nodes(tree).find(
     (n) =>
-      ["Pressable", "Link"].includes(n.type) &&
+      [
+        "Pressable",
+        "Link",
+        "Button",
+        "Chip",
+        "IconButton",
+        "ListRow",
+        "CommunityButton",
+        "CommunityRow",
+      ].includes(n.type) &&
       (n.props.accessibilityLabel === label || text(n) === label),
   );
 }
@@ -215,11 +255,22 @@ describe("friends navigation and actions", () => {
     });
     let scroll = nodes(tree).find((node) => node.type === "ScrollView");
     expect(scroll.props.contentContainerStyle[1].paddingBottom).toBe(124);
+    // The tab header stays fixed above the scroller; content scrolls beneath.
+    const header = tree.props.children.find(
+      (node: any) => node?.type === "CommunityRootHeader",
+    );
+    expect(header.props.selected).toBe("people");
+    expect(header.props.onLayout).toBe(mocks.onHeaderLayout);
     expect(
-      scroll.props.children.some(
-        (node: any) => node?.type === "CommunityRootHeader",
-      ),
+      tree.props.children.indexOf(header) < tree.props.children.indexOf(scroll),
     ).toBe(true);
+    expect(
+      nodes(scroll).some((node: any) => node?.type === "CommunityRootHeader"),
+    ).toBe(false);
+    expect(scroll.props.style.marginTop).toBe(-140);
+    expect(scroll.props.contentContainerStyle[1].paddingTop).toBeGreaterThan(
+      140,
+    );
     mocks.insets = { top: 0, bottom: 21, left: 62, right: 62 };
     tree = render();
     expect(tree.props.style).toMatchObject({
@@ -243,6 +294,15 @@ describe("friends navigation and actions", () => {
     control(tree, "Following").props.onPress();
     expect(mocks.load).toHaveBeenCalledWith("following");
   });
+  it("keeps Find friends in the empty state and the find action disabled until a handle is typed", () => {
+    const tree = render();
+    expect(control(tree, "Find friends").props.href).toBe("/community/invite");
+    const find = control(tree, "Find exact handle");
+    expect(find.type).toBe("Button");
+    expect(find.props.disabled).toBe(true);
+    const empty = nodes(tree).find((node) => node.type === "EmptyState");
+    expect(empty.props.title).toBe("No follow requests");
+  });
   it("uses one compact main navigation row and a smaller Requests-only direction filter with 48-point controls", () => {
     let tree = render();
     const tablists = nodes(tree).filter(
@@ -261,10 +321,12 @@ describe("friends navigation and actions", () => {
       flexGrow: 1,
     });
     const received = control(tree, "Received");
+    expect(received.type).toBe("Chip");
     expect(received.props.accessibilityRole).toBe("button");
-    expect(received.props.style[0]).toMatchObject({
-      minHeight: 48,
-      borderRadius: 24,
+    expect(received.props.selected).toBe(true);
+    expect(received.props.accessibilityState).toMatchObject({
+      selected: true,
+      disabled: false,
     });
     control(tree, "Sent").props.onPress();
     expect(mocks.load).toHaveBeenCalledWith("outgoing");
@@ -290,29 +352,29 @@ describe("friends navigation and actions", () => {
     expect(control(tree, "Invite a friend").props.href).toBe(
       "/community/invite",
     );
-    expect(
-      all.indexOf(control(tree, "Safety & preferences +")),
-    ).toBeGreaterThan(all.indexOf(control(tree, "Try again")));
-    control(tree, "Safety & preferences +").props.onPress();
+    expect(all.indexOf(control(tree, "Safety & preferences"))).toBeGreaterThan(
+      all.indexOf(control(tree, "Try again")),
+    );
+    control(tree, "Safety & preferences").props.onPress();
     tree = render();
     expect(control(tree, "Blocked").props.disabled).toBe(false);
     expect(control(tree, "Muted").props.disabled).toBe(false);
-    expect(
-      control(tree, "Reports, appeals & safety contact →").props.href,
-    ).toBe("/community/safety");
+    expect(control(tree, "Reports, appeals & safety contact").props.href).toBe(
+      "/community/safety",
+    );
     expect(text(tree)).not.toContain("No follow requests");
   });
   it("keeps blocked/muted and safety contact available after leaving", () => {
     mocks.enrolled = false;
     let tree = render();
     expect(control(tree, "Requests").props.disabled).toBe(true);
-    control(tree, "Safety & preferences +").props.onPress();
+    control(tree, "Safety & preferences").props.onPress();
     tree = render();
     expect(control(tree, "Blocked").props.disabled).toBe(false);
     expect(control(tree, "Muted").props.disabled).toBe(false);
-    expect(
-      control(tree, "Reports, appeals & safety contact →").props.href,
-    ).toBe("/community/safety");
+    expect(control(tree, "Reports, appeals & safety contact").props.href).toBe(
+      "/community/safety",
+    );
   });
   it("shows Retry rather than a misleading empty list on errors, and refresh rechecks membership", async () => {
     mocks.error = "Offline";
@@ -450,7 +512,7 @@ describe("friends navigation and actions", () => {
     mocks.focus!();
     let tree = render();
     expect(control(tree, "Requests").props.disabled).toBe(true);
-    control(tree, "Safety & preferences +").props.onPress();
+    control(tree, "Safety & preferences").props.onPress();
     tree = render();
     expect(control(tree, "Blocked").props.disabled).toBe(false);
     control(tree, "Blocked").props.onPress();

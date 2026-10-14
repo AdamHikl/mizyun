@@ -38,6 +38,7 @@ import {
 import { registerDevicePushToken } from "@/features/beta-pro/beta-pro-client";
 import { ThemePreferenceProvider } from "@/features/theme/theme-context";
 import { ActiveWorkoutProvider } from "@/features/workouts";
+import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 SplashScreen.preventAutoHideAsync();
@@ -284,8 +285,21 @@ export default function TabLayout() {
 
 function TabLayoutContent() {
   const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme];
+  const base = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const navigationTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.background,
+      text: colors.text,
+      border: colors.separator,
+    },
+  };
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navigationTheme}>
       <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
       <AnimatedSplashOverlay />
       <AnalyticsSessionBridge />
@@ -304,7 +318,13 @@ function TabLayoutContent() {
           <MealNotificationBridge />
           <ActiveWorkoutProvider>
             <AnalyticsConsentReminderBridge />
-            <Stack screenOptions={{ headerBackTitle: "Back" }}>
+            <Stack
+              screenOptions={{
+                headerBackTitle: "Back",
+                headerShadowVisible: false,
+                headerTitleStyle: { fontWeight: "600" },
+              }}
+            >
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen
                 name="meal-recipes"
@@ -325,7 +345,7 @@ function TabLayoutContent() {
               <Stack.Screen name="run/[id]" options={{ title: "Run" }} />
               <Stack.Screen
                 name="log-weight"
-                options={{ title: "Add weight", presentation: "modal" }}
+                options={{ title: "Log weight", presentation: "modal" }}
               />
               <Stack.Screen
                 name="edit-meal"
@@ -333,7 +353,7 @@ function TabLayoutContent() {
               />
               <Stack.Screen
                 name="feedback"
-                options={{ title: "Feedback & Reviews", presentation: "modal" }}
+                options={{ title: "Feedback", presentation: "modal" }}
               />
               <Stack.Screen name="body" options={{ title: "Body progress" }} />
               <Stack.Screen

@@ -14,7 +14,9 @@ import {
 } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { Spacing } from "@/constants/theme";
+import { ThemedView } from "@/components/themed-view";
+import { Icon, type IconName } from "@/components/ui";
+import { Radius, Spacing } from "@/constants/theme";
 
 if (
   Platform.OS === "android" &&
@@ -25,58 +27,58 @@ if (
 
 interface EvidenceMeta {
   readonly label: string;
-  readonly icon: string;
+  readonly icon: IconName;
   readonly description: string;
 }
 
 const EVIDENCE_META: Readonly<Record<string, EvidenceMeta>> = {
   profile: {
     label: "Profile & Setup",
-    icon: "👤",
+    icon: "person",
     description:
       "Your confirmed experience, available equipment, schedule, and preferences.",
   },
   goal: {
     label: "Active Goal",
-    icon: "🎯",
+    icon: "target",
     description: "Your active goal target, pace preference, and timeframe.",
   },
   training: {
     label: "Workout History",
-    icon: "🏋️",
+    icon: "dumbbell",
     description:
       "Your completed workouts, sets, and exercise performance from the last 28 days.",
   },
   body: {
     label: "Body & Weight Trend",
-    icon: "📈",
+    icon: "scale",
     description: "Your confirmed weight measurements and smoothed body trends.",
   },
   nutrition: {
     label: "Nutrition Log",
-    icon: "🥗",
+    icon: "fork",
     description:
       "Your confirmed food entries and daily calorie/macronutrient totals.",
   },
   energy: {
     label: "Energy Model",
-    icon: "🔥",
+    icon: "energy",
     description:
       "Deterministic BMR/TDEE calculation and surplus/deficit targets.",
   },
   plan: {
     label: "Prescription Engine",
-    icon: "⚡",
+    icon: "calendar",
     description: "Deterministic exercise prescription and volume rules.",
   },
   memory: {
     label: "Recalled Context",
-    icon: "🧠",
+    icon: "history",
     description: "Context retrieved from your personal memory store.",
   },
   tool: {
     label: "Live Tool",
-    icon: "🛠️",
+    icon: "search",
     description: "Read-only live context queried by Coach.",
   },
 };
@@ -84,7 +86,7 @@ const EVIDENCE_META: Readonly<Record<string, EvidenceMeta>> = {
 export const resolveMeta = (kind: string): EvidenceMeta =>
   EVIDENCE_META[kind] ?? {
     label: kind.charAt(0).toUpperCase() + kind.slice(1),
-    icon: "📋",
+    icon: "info",
     description: `Verified ${kind} records.`,
   };
 
@@ -122,37 +124,30 @@ export function EvidenceChips({ kinds }: EvidenceChipsProps) {
         accessibilityLabel={`Sources used: ${labels.join(", ")}`}
         accessibilityState={{ expanded }}
         onPress={toggle}
-        style={styles.toggleRow}
+        hitSlop={6}
+        style={({ pressed }) => [styles.toggleRow, pressed && styles.pressed]}
       >
-        <ThemedText style={styles.badgeIcon}>⚡</ThemedText>
-        <ThemedText
-          type="small"
-          themeColor="textSecondary"
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          style={styles.toggleLabel}
-        >
-          Based on {summaryText}
-        </ThemedText>
-        <ThemedText
-          type="small"
-          themeColor="textSecondary"
-          style={styles.chevron}
-        >
-          {expanded ? "▲" : "▼"}
-        </ThemedText>
+        <ThemedView type="backgroundSelected" style={styles.togglePill}>
+          <Icon name="checkCircle" size={13} color="primary" />
+          <ThemedText
+            type="footnote"
+            themeColor="textSecondary"
+            style={styles.toggleLabel}
+          >
+            Based on {summaryText}
+          </ThemedText>
+          <Icon
+            name={expanded ? "chevronUp" : "chevronDown"}
+            size={11}
+            color="textSecondary"
+          />
+        </ThemedView>
       </Pressable>
 
       {expanded ? (
-        <View style={styles.detailCard}>
-          <ThemedText type="smallBold" style={styles.cardHeading}>
-            Verified Data Sources
-          </ThemedText>
-          <ThemedText
-            type="small"
-            themeColor="textSecondary"
-            style={styles.cardSubheading}
-          >
+        <ThemedView type="backgroundSelected" style={styles.detailCard}>
+          <ThemedText type="smallBold">Verified data sources</ThemedText>
+          <ThemedText type="footnote" themeColor="textSecondary">
             Coach referenced your confirmed account data to build this response:
           </ThemedText>
           <View style={styles.sourcesList}>
@@ -160,14 +155,15 @@ export function EvidenceChips({ kinds }: EvidenceChipsProps) {
               const meta = resolveMeta(kind);
               return (
                 <View key={kind} style={styles.sourceItem}>
-                  <ThemedText style={styles.sourceIcon}>{meta.icon}</ThemedText>
+                  <Icon
+                    name={meta.icon}
+                    size={16}
+                    color="textSecondary"
+                    style={styles.sourceIcon}
+                  />
                   <View style={styles.sourceContent}>
                     <ThemedText type="smallBold">{meta.label}</ThemedText>
-                    <ThemedText
-                      type="small"
-                      themeColor="textSecondary"
-                      style={styles.sourceDescription}
-                    >
+                    <ThemedText type="footnote" themeColor="textSecondary">
                       {meta.description}
                     </ThemedText>
                   </View>
@@ -175,7 +171,7 @@ export function EvidenceChips({ kinds }: EvidenceChipsProps) {
               );
             })}
           </View>
-        </View>
+        </ThemedView>
       ) : null}
     </View>
   );
@@ -183,53 +179,36 @@ export function EvidenceChips({ kinds }: EvidenceChipsProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: Spacing.two,
+    marginTop: Spacing.one,
     maxWidth: "100%",
   },
   toggleRow: {
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    minHeight: 32,
+    justifyContent: "center",
+  },
+  togglePill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 5,
+    paddingVertical: Spacing.one,
     paddingHorizontal: 10,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-    borderRadius: 8,
-    alignSelf: "flex-start",
+    borderRadius: Radius.pill,
     maxWidth: "100%",
     gap: 6,
   },
-  badgeIcon: {
-    fontSize: 12,
-  },
   toggleLabel: {
-    fontSize: 12,
     flexShrink: 1,
   },
-  chevron: {
-    fontSize: 10,
-    marginLeft: 2,
-  },
   detailCard: {
-    marginTop: Spacing.one,
+    marginTop: Spacing.two,
     padding: Spacing.three,
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.18)",
+    borderRadius: Radius.md,
     gap: Spacing.two,
     maxWidth: "100%",
   },
-  cardHeading: {
-    fontSize: 13,
-  },
-  cardSubheading: {
-    fontSize: 12,
-    marginTop: -Spacing.one,
-  },
   sourcesList: {
     gap: Spacing.two,
-    marginTop: 2,
   },
   sourceItem: {
     flexDirection: "row",
@@ -237,15 +216,11 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   sourceIcon: {
-    fontSize: 16,
     marginTop: 1,
   },
   sourceContent: {
     flex: 1,
-    gap: 2,
+    gap: Spacing.half,
   },
-  sourceDescription: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
+  pressed: { opacity: 0.6 },
 });

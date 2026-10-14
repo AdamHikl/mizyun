@@ -35,6 +35,14 @@ vi.mock("@/constants/theme", () => ({ Spacing: {} }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  SectionHeader: "SectionHeader",
+}));
 vi.mock("@/features/workouts/workout-preferences", async (original) => ({
   ...(await original<typeof import("../workouts/workout-preferences")>()),
   saveWorkoutPreferences: mocks.save,
@@ -49,9 +57,9 @@ function find(node: any, label: string): any {
   if (Array.isArray(node))
     return node.map((child) => find(child, label)).find(Boolean) ?? null;
   if (!node || typeof node !== "object") return null;
-  return node.props?.accessibilityLabel === label
-    ? node
-    : find(node.props?.children, label);
+  if (node.props?.accessibilityLabel === label) return node;
+  // Switches render in a ListRow's `trailing` slot.
+  return find(node.props?.children, label) ?? find(node.props?.trailing, label);
 }
 function render() {
   mocks.index = 0;

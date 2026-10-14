@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import {
   coachMemoryResponseSchema,
   profileResponseSchema,
@@ -10,9 +10,17 @@ import {
 
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { Button, Card, SectionHeader } from "@/components/ui";
 import { Slider } from "@/components/slider";
-import { Colors, Spacing } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
+
+import {
+  ChoiceChip,
+  ChoiceGroup,
+  FormField,
+  FormStatus,
+  FormTextInput,
+} from "./settings-form";
 
 const experienceOptions = [
   ["beginner", "Beginner"],
@@ -158,169 +166,160 @@ export function CoachPreferencesCard({
   };
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">AI Coach personalization</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
+    <View style={styles.page}>
+      <ThemedText type="footnote" themeColor="textSecondary">
         These explicit choices guide future workout and nutrition suggestions.
         They are not medical diagnoses, and you can change them at any time.
       </ThemedText>
 
-      <ChoiceSection title="Experience">
-        {experienceOptions.map(([value, label]) => (
-          <ChoiceChip
-            key={value}
-            label={label}
-            selected={draft.experienceLevel === value}
-            onPress={() =>
-              setDraft({
-                ...draft,
-                experienceLevel: draft.experienceLevel === value ? null : value,
-              })
-            }
-          />
-        ))}
-      </ChoiceSection>
+      <SectionHeader title="Training" />
+      <Card style={styles.form}>
+        <ChoiceSection title="Experience">
+          {experienceOptions.map(([value, label]) => (
+            <ChoiceChip
+              key={value}
+              label={label}
+              selected={draft.experienceLevel === value}
+              onPress={() =>
+                setDraft({
+                  ...draft,
+                  experienceLevel:
+                    draft.experienceLevel === value ? null : value,
+                })
+              }
+            />
+          ))}
+        </ChoiceSection>
 
-      <ChoiceSection title="Training focus">
-        {focusOptions.map(([value, label]) => (
-          <ChoiceChip
-            key={value}
-            label={label}
-            selected={draft.trainingFocus === value}
-            onPress={() =>
-              setDraft({
-                ...draft,
-                trainingFocus: draft.trainingFocus === value ? null : value,
-              })
-            }
-          />
-        ))}
-      </ChoiceSection>
+        <ChoiceSection title="Training focus">
+          {focusOptions.map(([value, label]) => (
+            <ChoiceChip
+              key={value}
+              label={label}
+              selected={draft.trainingFocus === value}
+              onPress={() =>
+                setDraft({
+                  ...draft,
+                  trainingFocus: draft.trainingFocus === value ? null : value,
+                })
+              }
+            />
+          ))}
+        </ChoiceSection>
 
-      <Slider
-        label="Training days per week"
-        min={1}
-        max={7}
-        step={1}
-        value={draft.trainingDaysPerWeek ?? 3}
-        formatValue={(v) => `${v} day${v === 1 ? "" : "s"} / week`}
-        onChange={(value) =>
-          setDraft((prev) => ({ ...prev, trainingDaysPerWeek: value }))
-        }
-      />
-
-      <Slider
-        label="Session length"
-        min={15}
-        max={180}
-        step={5}
-        value={draft.sessionDurationMinutes ?? 45}
-        formatValue={(v) => `${v} minutes / session`}
-        onChange={(value) =>
-          setDraft((prev) => ({ ...prev, sessionDurationMinutes: value }))
-        }
-      />
-
-      <ChoiceSection title="Available equipment">
-        {equipmentOptions.map(([value, label]) => (
-          <ChoiceChip
-            key={value}
-            label={label}
-            selected={draft.availableEquipment?.includes(value) ?? false}
-            onPress={() =>
-              setDraft({
-                ...draft,
-                availableEquipment: toggle(
-                  draft.availableEquipment ?? [],
-                  value,
-                ),
-              })
-            }
-          />
-        ))}
-      </ChoiceSection>
-
-      <ChoiceSection title="Food preferences">
-        {dietOptions.map(([value, label]) => (
-          <ChoiceChip
-            key={value}
-            label={label}
-            selected={draft.dietaryPreferences?.includes(value) ?? false}
-            onPress={() =>
-              setDraft({
-                ...draft,
-                dietaryPreferences: toggleDiet(
-                  draft.dietaryPreferences ?? [],
-                  value,
-                ),
-              })
-            }
-          />
-        ))}
-      </ChoiceSection>
-
-      <ChoiceSection title="Movement constraints">
-        {limitationOptions.map(([value, label]) => (
-          <ChoiceChip
-            key={value}
-            label={label}
-            selected={draft.trainingLimitations?.includes(value) ?? false}
-            onPress={() =>
-              setDraft({
-                ...draft,
-                trainingLimitations: toggle(
-                  draft.trainingLimitations ?? [],
-                  value,
-                ),
-              })
-            }
-          />
-        ))}
-      </ChoiceSection>
-
-      <View style={styles.section}>
-        <ThemedText type="smallBold" themeColor="textSecondary">
-          Custom equipment, food & injury notes
-        </ThemedText>
-        <TextInput
-          accessibilityLabel="Custom Coach notes and preferences"
-          maxLength={500}
-          multiline
-          placeholder="e.g. I have 2x20kg kettlebells & TRX, allergic to peanuts, left shoulder stiffness..."
-          placeholderTextColor={Colors.dark.textSecondary}
-          value={customNoteText}
-          onChangeText={setCustomNoteText}
-          style={styles.customNoteInput}
+        <Slider
+          label="Training days per week"
+          min={1}
+          max={7}
+          step={1}
+          value={draft.trainingDaysPerWeek ?? 3}
+          formatValue={(v) => `${v} day${v === 1 ? "" : "s"} / week`}
+          onChange={(value) =>
+            setDraft((prev) => ({ ...prev, trainingDaysPerWeek: value }))
+          }
         />
-      </View>
 
-      <ThemedText type="small" themeColor="textSecondary">
+        <Slider
+          label="Session length"
+          min={15}
+          max={180}
+          step={5}
+          value={draft.sessionDurationMinutes ?? 45}
+          formatValue={(v) => `${v} minutes / session`}
+          onChange={(value) =>
+            setDraft((prev) => ({ ...prev, sessionDurationMinutes: value }))
+          }
+        />
+      </Card>
+
+      <SectionHeader title="Equipment & food" />
+      <Card style={styles.form}>
+        <ChoiceSection title="Available equipment">
+          {equipmentOptions.map(([value, label]) => (
+            <ChoiceChip
+              key={value}
+              label={label}
+              selected={draft.availableEquipment?.includes(value) ?? false}
+              onPress={() =>
+                setDraft({
+                  ...draft,
+                  availableEquipment: toggle(
+                    draft.availableEquipment ?? [],
+                    value,
+                  ),
+                })
+              }
+            />
+          ))}
+        </ChoiceSection>
+
+        <ChoiceSection title="Food preferences">
+          {dietOptions.map(([value, label]) => (
+            <ChoiceChip
+              key={value}
+              label={label}
+              selected={draft.dietaryPreferences?.includes(value) ?? false}
+              onPress={() =>
+                setDraft({
+                  ...draft,
+                  dietaryPreferences: toggleDiet(
+                    draft.dietaryPreferences ?? [],
+                    value,
+                  ),
+                })
+              }
+            />
+          ))}
+        </ChoiceSection>
+
+        <ChoiceSection title="Movement constraints">
+          {limitationOptions.map(([value, label]) => (
+            <ChoiceChip
+              key={value}
+              label={label}
+              selected={draft.trainingLimitations?.includes(value) ?? false}
+              onPress={() =>
+                setDraft({
+                  ...draft,
+                  trainingLimitations: toggle(
+                    draft.trainingLimitations ?? [],
+                    value,
+                  ),
+                })
+              }
+            />
+          ))}
+        </ChoiceSection>
+
+        <FormField label="Custom equipment, food & injury notes">
+          <FormTextInput
+            accessibilityLabel="Custom Coach notes and preferences"
+            maxLength={500}
+            multiline
+            placeholder="e.g. I have 2x20kg kettlebells & TRX, allergic to peanuts, left shoulder stiffness..."
+            value={customNoteText}
+            onChangeText={setCustomNoteText}
+            style={styles.customNoteInput}
+          />
+        </FormField>
+      </Card>
+
+      <ThemedText type="footnote" themeColor="textSecondary">
         For pain, injury, or a medical restriction, use guidance from a
         qualified professional. Mizyun will not interpret a diagnosis.
       </ThemedText>
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={saving ? "Saving…" : "Save Coach preferences"}
+        block
+        loading={saving}
         accessibilityLabel="Save AI Coach preferences"
-        accessibilityState={{ disabled: saving }}
-        disabled={saving}
         onPress={() => void save()}
-        style={({ pressed }) => [
-          styles.saveButton,
-          pressed && styles.pressed,
-          saving && styles.disabled,
-        ]}
-      >
-        <ThemedText type="smallBold" style={styles.saveText}>
-          {saving ? "Saving…" : "Save Coach preferences"}
-        </ThemedText>
-      </Pressable>
+      />
       {message !== null ? (
-        <ThemedText type="small" accessibilityRole="alert">
-          {message}
-        </ThemedText>
+        <FormStatus tone="neutral">{message}</FormStatus>
       ) : null}
-    </ThemedView>
+    </View>
   );
 }
 
@@ -332,91 +331,17 @@ function ChoiceSection({
   readonly children: ReactNode;
 }) {
   return (
-    <View style={styles.section}>
-      <ThemedText type="smallBold" themeColor="textSecondary">
-        {title}
-      </ThemedText>
-      <View style={styles.chips}>{children}</View>
-    </View>
-  );
-}
-
-function ChoiceChip({
-  label,
-  selected,
-  onPress,
-}: {
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.chip,
-        selected && styles.chipSelected,
-        pressed && styles.pressed,
-      ]}
-    >
-      <ThemedText type="smallBold">{label}</ThemedText>
-    </Pressable>
+    <FormField label={title}>
+      <ChoiceGroup>{children}</ChoiceGroup>
+    </FormField>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-  },
-  section: { gap: Spacing.one },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.one },
-  chip: {
-    minHeight: 44,
-    justifyContent: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  chipSelected: {
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
-  saveButton: {
-    minHeight: 48,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.three,
-  },
-  saveText: { color: "#000000" },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.45 },
-  customNumberInput: {
-    minHeight: 44,
-    minWidth: 150,
-    color: Colors.dark.text,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
+  page: { gap: Spacing.three },
+  form: { gap: Spacing.three },
   customNoteInput: {
-    minHeight: 76,
-    color: Colors.dark.text,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
-    padding: Spacing.three,
+    minHeight: 88,
     textAlignVertical: "top",
   },
 });

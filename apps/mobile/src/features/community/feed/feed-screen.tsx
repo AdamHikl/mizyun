@@ -10,15 +10,12 @@ import {
   ActivityIndicator,
   AppState,
   FlatList,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import {
-  Link,
   type Href,
   useFocusEffect,
   useRouter,
@@ -26,8 +23,16 @@ import {
   Redirect,
 } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
+import { ThemedText } from "@/components/themed-text";
+import { Card, EmptyState, Icon, Notice } from "@/components/ui";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { COMMUNITY_ENROLLMENT_OPEN } from "@/composition/community-admission";
@@ -71,41 +76,34 @@ function CommunityComingSoonScreen() {
       edges={["top", "left", "right"]}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <TabHeader onLayout={onHeaderLayout} />
+      <TabHeader title="Community" onLayout={onHeaderLayout} />
       <ScrollView
         style={{ marginTop: -headerHeight }}
         contentContainerStyle={[
           styles.centered,
           {
-            paddingTop: headerHeight + 24,
-            paddingBottom: BottomTabInset + 24,
+            paddingTop: headerHeight + Spacing.four,
+            paddingBottom: BottomTabInset + Spacing.four,
           },
         ]}
       >
-        <Text
+        <Icon name="chat" size={30} color="textTertiary" />
+        <ThemedText
+          type="headline"
           accessibilityRole="header"
           accessibilityLabel="Community is coming soon"
-          style={[
-            styles.notEnrolledTitle,
-            { color: colors.text, textAlign: "center" },
-          ]}
+          style={styles.centerText}
         >
           Community is coming soon
-        </Text>
-        <Text style={[styles.notEnrolledBody, { color: colors.textSecondary }]}>
+        </ThemedText>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          style={styles.centerText}
+        >
           Keep tracking privately while we prepare Community.
-        </Text>
-        <Link href="/" asChild>
-          <Pressable
-            style={styles.primaryButton}
-            accessibilityRole="button"
-            accessibilityLabel="Keep tracking privately"
-          >
-            <Text style={[styles.primaryButtonText, { color: colors.primary }]}>
-              Keep tracking privately
-            </Text>
-          </Pressable>
-        </Link>
+        </ThemedText>
+        <CommunityButton label="Keep tracking privately" href="/" />
       </ScrollView>
     </SafeAreaView>
   );
@@ -493,35 +491,20 @@ function FeedScreenContent({
         edges={["top", "left", "right"]}
         style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <TabHeader onLayout={onHeaderLayout} />
+        <TabHeader title="Community" onLayout={onHeaderLayout} />
         {checking ? (
           <ScrollView
             style={{ marginTop: -headerHeight }}
             contentContainerStyle={[
               styles.centered,
-              { paddingTop: headerHeight + 24 },
+              { paddingTop: headerHeight + Spacing.four },
             ]}
           >
-            <Text
-              accessibilityRole="header"
-              style={[styles.notEnrolledTitle, { color: colors.text }]}
-            >
-              Community
-            </Text>
-            <ActivityIndicator color={colors.primary} />
-            <Link href="/" asChild>
-              <Pressable
-                style={styles.privateButton}
-                accessibilityRole="button"
-                accessibilityLabel="Keep tracking privately"
-              >
-                <Text
-                  style={[styles.primaryButtonText, { color: colors.primary }]}
-                >
-                  Keep tracking privately
-                </Text>
-              </Pressable>
-            </Link>
+            <ActivityIndicator
+              color={colors.primary}
+              accessibilityLabel="Checking Community membership"
+            />
+            <CommunityButton label="Keep tracking privately" href="/" />
           </ScrollView>
         ) : (
           <CommunitySettingsScreen embedded onJoined={revalidateMembership} />
@@ -532,34 +515,31 @@ function FeedScreenContent({
 
   const headerComponent = (
     <View style={styles.headerBar}>
-      <CommunityRootHeader selected="feed" />
       <View style={styles.feedActions}>
+        {/* Equal-weight quick actions as compact pills that wrap. */}
         <CommunityButton
           label="Share workout"
           href={"/community/share" as Href}
-          tone="primary"
+          size="small"
         />
         <CommunityButton
           label="Share meal"
           href={"/community/share-meal" as Href}
+          size="small"
         />
-        <CommunityButton label="Spaces" href="/community/more" />
+        <CommunityButton label="Spaces" href="/community/more" size="small" />
       </View>
       {state.error ? (
-        <View
-          style={[
-            styles.errorBanner,
-            { backgroundColor: colors.backgroundElement },
-          ]}
-        >
-          <Text
-            accessibilityRole="alert"
-            style={[styles.errorText, { color: colors.text }]}
-          >
-            {state.error}
-          </Text>
-          <CommunityButton label="Retry loading feed" onPress={handleRefresh} />
-        </View>
+        <Notice
+          tone="danger"
+          message={state.error}
+          action={
+            <CommunityButton
+              label="Retry loading feed"
+              onPress={handleRefresh}
+            />
+          }
+        />
       ) : null}
     </View>
   );
@@ -572,59 +552,44 @@ function FeedScreenContent({
     (state.status !== "idle" && state.status !== "error");
   const emptyComponent =
     checkingActivity && !state.error ? (
-      <View
+      <Card
         accessibilityLabel="Checking shared activity"
         accessibilityState={{ busy: true }}
-        style={[
-          styles.activityPlaceholder,
-          {
-            backgroundColor: colors.backgroundElement,
-            borderColor: colors.border,
-          },
-        ]}
+        style={styles.activityPlaceholder}
       >
-        <View
-          accessible={false}
-          style={[
-            styles.placeholderLine,
-            { backgroundColor: colors.border, width: "45%" },
-          ]}
-        />
-        <View
-          accessible={false}
-          style={[
-            styles.placeholderLine,
-            { backgroundColor: colors.border, width: "70%" },
-          ]}
-        />
-        <View
-          accessible={false}
-          style={[
-            styles.placeholderLine,
-            { backgroundColor: colors.border, width: "90%" },
-          ]}
-        />
-      </View>
-    ) : (
-      <View style={styles.emptyContainer}>
-        <Text
-          accessibilityRole="header"
-          style={[styles.emptyTitle, { color: colors.text }]}
-        >
-          {state.error ? "Activity is unavailable" : "No shared activity yet"}
-        </Text>
-        <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
-          {state.error
-            ? "Retry to check again. Your private tracking stays available."
-            : "Meals and workouts people choose to share appear here after they approve your follow request."}
-        </Text>
-        {!state.error ? (
-          <CommunityButton
-            label="Find people"
-            href={"/community/people" as Href}
+        {(["45%", "70%", "90%"] as const).map((width) => (
+          <View
+            key={width}
+            accessible={false}
+            style={[
+              styles.placeholderLine,
+              { backgroundColor: colors.backgroundSelected, width },
+            ]}
           />
-        ) : null}
-      </View>
+        ))}
+      </Card>
+    ) : (
+      <Card style={styles.emptyCard}>
+        <EmptyState
+          icon={state.error ? "warning" : "chat"}
+          title={
+            state.error ? "Activity is unavailable" : "No shared activity yet"
+          }
+          message={
+            state.error
+              ? "Retry to check again. Your private tracking stays available."
+              : "Meals and workouts people choose to share appear here after they approve your follow request."
+          }
+          action={
+            !state.error ? (
+              <CommunityButton
+                label="Find people"
+                href={"/community/people" as Href}
+              />
+            ) : undefined
+          }
+        />
+      </Card>
     );
 
   const footerComponent = (
@@ -632,9 +597,13 @@ function FeedScreenContent({
       {state.status === "loading_more" ? (
         <ActivityIndicator size="small" color={colors.primary} />
       ) : membershipVerified && state.items.length > 0 && !state.hasMore ? (
-        <Text style={[styles.caughtUpText, { color: colors.textSecondary }]}>
+        <ThemedText
+          type="footnote"
+          themeColor="textSecondary"
+          style={styles.centerText}
+        >
           You're all caught up
-        </Text>
+        </ThemedText>
       ) : null}
     </View>
   );
@@ -644,7 +613,7 @@ function FeedScreenContent({
       edges={["top", "left", "right"]}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <TabHeader onLayout={onHeaderLayout} />
+      <CommunityRootHeader selected="feed" onLayout={onHeaderLayout} />
       <FlatList
         data={
           (!checkingMembership && feedGenerationMatches && community.isEnrolled
@@ -679,215 +648,48 @@ function FeedScreenContent({
 const styles = StyleSheet.create({
   activityPlaceholder: {
     minHeight: 320,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 20,
-    gap: 24,
-    marginTop: 24,
-    marginBottom: 16,
+    padding: PageGutter,
+    gap: Spacing.four,
+    marginHorizontal: PageGutter,
+    marginTop: Spacing.three,
+    marginBottom: Spacing.three,
   },
-  placeholderLine: { height: 16, borderRadius: 8 },
+  placeholderLine: { height: Spacing.three, borderRadius: Radius.sm },
   container: {
     flex: 1,
   },
   listContent: {
     flexGrow: 1,
-    paddingBottom: BottomTabInset + 24,
+    paddingBottom: BottomTabInset + Spacing.four,
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
   },
-  heading: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: "600",
-    marginHorizontal: 16,
-    marginBottom: 4,
-  },
-  privateButton: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    marginTop: 12,
-  },
   feedActions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    paddingTop: 8,
+    gap: Spacing.two,
   },
   headerBar: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+    gap: Spacing.three,
   },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
-  quickLinks: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 24,
-    flexWrap: "wrap",
-  },
-  findFriendsCard: { flexBasis: "100%", padding: 18 },
-  shortcutCard: { flexBasis: "28%", minWidth: 88 },
-  shortcutTopRow: { alignItems: "center", gap: 6 },
-  shortcutTitle: { textAlign: "center", flex: 0 },
-  navigationIcon: { fontSize: 26, marginBottom: 4 },
-  navigationCard: {
-    flexGrow: 1,
-    minHeight: 80,
-    padding: 12,
-    gap: 4,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  navigationTopRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 8,
-  },
-  navigationTitle: { flex: 1, fontSize: 14, lineHeight: 20, fontWeight: "700" },
-  navigationArrow: { fontSize: 24, lineHeight: 28 },
-  navigationDescription: { fontSize: 14, lineHeight: 20 },
-  sharingNote: {
-    marginHorizontal: 16,
-    padding: 16,
-    gap: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  noteTitle: { fontSize: 15, lineHeight: 22, fontWeight: "600" },
-  noteBody: { fontSize: 14, lineHeight: 21 },
-  noteAction: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  noteActionLabel: { flex: 1, flexShrink: 1 },
-  feedHeading: {
-    fontSize: 21,
-    lineHeight: 28,
-    fontWeight: "700",
-    marginHorizontal: 16,
-  },
-  feedDescription: {
-    fontSize: 14,
-    lineHeight: 21,
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  errorBanner: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  errorText: {
-    fontSize: 13,
-    flex: 1,
-    marginRight: 8,
-  },
-  retryButton: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  retryText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  encouragementArt: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    maxWidth: "100%",
-    gap: 10,
-    marginBottom: 16,
-  },
-  artBubble: {
-    fontSize: 28,
-    padding: 12,
-    borderRadius: 28,
-    overflow: "hidden",
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 16,
-    padding: 24,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptyBody: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  inviteButton: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  inviteButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
+  emptyCard: {
+    marginHorizontal: PageGutter,
+    marginTop: Spacing.three,
   },
   footerContainer: {
-    paddingVertical: 20,
-    gap: 20,
+    paddingVertical: Spacing.four,
+    gap: Spacing.four,
   },
-  caughtUpText: {
-    textAlign: "center",
-    fontSize: 13,
-  },
+  centerText: { textAlign: "center" },
   centered: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
-  },
-  notEnrolledTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  notEnrolledBody: {
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  primaryButton: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
+    padding: Spacing.four,
+    gap: Spacing.three,
   },
 });

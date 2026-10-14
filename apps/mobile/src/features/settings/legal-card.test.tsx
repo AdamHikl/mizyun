@@ -7,7 +7,20 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
-vi.mock("@/constants/theme", () => ({ Spacing: {} }));
+vi.mock("@/constants/theme", () => ({
+  MinTouchTarget: 44,
+  Radius: {},
+  Spacing: {},
+}));
+vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+vi.mock("@/components/ui", () => ({
+  Card: "Card",
+  Icon: "Icon",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+}));
 vi.mock("@/composition/api-client", () => ({
   apiConfiguration: { configured: true, baseUrl: "https://synthetic.example" },
 }));

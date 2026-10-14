@@ -1,8 +1,24 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { FeedbackHeaderButton } from "@/components/feedback-header-button";
-import { MaxContentWidth, Spacing } from "@/constants/theme";
+import {
+  Button,
+  Card,
+  Chip,
+  Icon,
+  IconButton,
+  ListGroup,
+  ListRow,
+  SectionHeader,
+  type IconName,
+  type ListRowProps,
+} from "@/components/ui";
+import {
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import {
   getAppVariant,
   isProgressPhotosEnabled,
@@ -20,14 +36,7 @@ import {
 } from "@/features/coach/coach-reminders";
 import { router, type Href } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -35,6 +44,7 @@ import {
   getAvailableSettings,
   type SettingsAvailabilityContext,
   type SettingsCategoryDefinition,
+  type SettingsCategoryId,
 } from "./settings-catalog";
 import { navigateToSetting } from "./settings-destinations";
 import { searchSettings, type SettingsSearchResult } from "./settings-search";
@@ -125,6 +135,10 @@ export function SettingsScreen() {
     [onSignOut, openOnboarding],
   );
 
+  const openFeedback = useCallback(() => {
+    router.push("/feedback" as Href);
+  }, []);
+
   const handleOpenCategory = useCallback(
     (category: SettingsCategoryDefinition) => {
       if (category.id === "appearance") {
@@ -142,7 +156,8 @@ export function SettingsScreen() {
   const displayName = profile?.displayName ?? "Mizyun Member";
   const emailOrId =
     session?.user?.email ?? session?.user?.id ?? "Active Member";
-  const topPadding = Spacing.two;
+  const planLabel =
+    profile?.planTier === "paid" ? "Launch Pro Pass" : "Free Plan";
   const bottomPadding = insets.bottom + Spacing.six;
 
   const isSearching = searchQuery.trim().length > 0;
@@ -152,87 +167,71 @@ export function SettingsScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          {
-            paddingTop: topPadding,
-            paddingBottom: bottomPadding,
-          },
+          { paddingBottom: bottomPadding },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTopRow}>
-            <BrandWordmark />
-            <View style={styles.headerActions}>
-              <FeedbackHeaderButton />
-              <View style={styles.verifiedBadge}>
-                <View style={styles.verifiedDot} />
-                <ThemedText type="small" style={styles.verifiedText}>
-                  Authenticated
-                </ThemedText>
-              </View>
-            </View>
-          </View>
-          <ThemedText type="subtitle">Settings</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Manage your profile, goals, preferences, and account.
-          </ThemedText>
-        </View>
-
         {/* Compact identity; profile details live in their settings. */}
-        <ThemedView type="backgroundElement" style={styles.heroCard}>
-          <View style={styles.heroIdentity}>
-            <ThemedText type="smallBold">{displayName}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {emailOrId}
+        <Card
+          accessible
+          accessibilityLabel={`${displayName}, ${emailOrId}, ${planLabel}`}
+          style={styles.identityCard}
+        >
+          <View
+            style={[styles.avatar, { backgroundColor: theme.primaryLight }]}
+          >
+            <ThemedText type="headline" themeColor="primary">
+              {initialsFor(displayName)}
             </ThemedText>
           </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            {profile?.planTier === "paid" ? "Launch Pro Pass" : "Free Plan"}
-          </ThemedText>
-        </ThemedView>
+          <View style={styles.identityText}>
+            <ThemedText type="headline">{displayName}</ThemedText>
+            <ThemedText type="footnote" themeColor="textSecondary">
+              {emailOrId}
+            </ThemedText>
+            <Chip
+              label={planLabel}
+              tone={profile?.planTier === "paid" ? "primary" : "neutral"}
+              style={styles.planChip}
+            />
+          </View>
+        </Card>
 
         {/* Search settings input */}
-        <View style={styles.searchSection}>
-          <View style={styles.searchBar}>
-            <ThemedText style={styles.searchIcon}>🔍</ThemedText>
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={() => {
-                if (searchQuery.trim())
-                  trackSettingsSearchUsed(searchResults.length);
-              }}
-              placeholder="Search settings"
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.searchInput, { color: theme.text }]}
-              accessibilityLabel="Search settings"
-              accessibilityHint="Search by name or describe what you want to change"
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-              autoCapitalize="none"
-              autoCorrect={false}
+        <View
+          style={[
+            styles.searchBar,
+            { backgroundColor: theme.backgroundSelected },
+          ]}
+        >
+          <Icon name="search" size={17} color="textSecondary" />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={() => {
+              if (searchQuery.trim())
+                trackSettingsSearchUsed(searchResults.length);
+            }}
+            placeholder="Search settings"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.searchInput, { color: theme.text }]}
+            accessibilityLabel="Search settings"
+            accessibilityHint="Search by name or describe what you want to change"
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 ? (
+            <IconButton
+              icon="close"
+              variant="plain"
+              accessibilityLabel="Clear search text"
+              onPress={() => setSearchQuery("")}
+              style={styles.clearSearchButton}
             />
-            {searchQuery.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Clear search text"
-                onPress={() => setSearchQuery("")}
-                style={styles.clearSearchButton}
-                hitSlop={8}
-              >
-                <ThemedText style={styles.clearSearchIcon}>✕</ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
-          <ThemedText
-            type="small"
-            themeColor="textSecondary"
-            style={styles.searchHint}
-          >
-            Search by name or describe what you want to change.
-          </ThemedText>
+          ) : null}
         </View>
 
         {/* Content: Either Search Results or Category Browsing */}
@@ -243,81 +242,77 @@ export function SettingsScreen() {
             onSelectResult={handleSelectResult}
             onClearQuery={() => setSearchQuery("")}
             onBrowseCategories={() => setSearchQuery("")}
-            onFeedback={() => router.push("/feedback" as Href)}
+            onFeedback={openFeedback}
           />
         ) : (
           <>
             {!profile?.displayName ? <SetupWizardCard /> : null}
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Help improve Mizyun, optional usage analytics consent"
-              onPress={() => router.push("/account-settings/analytics" as Href)}
-              style={({ pressed }) => [
-                styles.categoryCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.categoryTextBlock}>
-                <ThemedText type="smallBold">Help improve Mizyun</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Optional usage analytics · Separate from AI consent
-                </ThemedText>
-              </View>
-              <ThemedText style={styles.categoryArrow}>›</ThemedText>
-            </Pressable>
-
-            {/* Category Rows */}
-            <View style={styles.categoriesSection}>
-              <ThemedText type="smallBold" style={styles.sectionHeader}>
-                SETTINGS CATEGORIES
-              </ThemedText>
-              <View style={styles.categoryList}>
-                {SETTINGS_CATEGORIES.map((category) => (
-                  <Pressable
+            <ListGroup>
+              {SETTINGS_CATEGORIES.map((category) => {
+                const visual = CATEGORY_ICONS[category.id];
+                return (
+                  <ListRow
                     key={category.id}
-                    accessibilityRole="button"
+                    icon={visual.icon}
+                    iconTone={visual.tone}
+                    title={category.title}
+                    subtitle={category.shortDescription}
                     accessibilityLabel={`${category.title}, ${category.shortDescription}`}
                     onPress={() => handleOpenCategory(category)}
-                    style={({ pressed }) => [
-                      styles.categoryCard,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <View style={styles.categoryIconBox}>
-                      <ThemedText style={styles.categoryIcon}>
-                        {category.icon}
-                      </ThemedText>
-                    </View>
-                    <View style={styles.categoryTextBlock}>
-                      <ThemedText type="smallBold" style={styles.categoryTitle}>
-                        {category.title}
-                      </ThemedText>
-                      <ThemedText
-                        type="small"
-                        themeColor="textSecondary"
-                        numberOfLines={1}
-                        style={styles.categoryDescription}
-                      >
-                        {category.shortDescription}
-                      </ThemedText>
-                    </View>
-                    <ThemedText style={styles.categoryArrow}>›</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
+                  />
+                );
+              })}
+            </ListGroup>
+
+            <View style={styles.section}>
+              <SectionHeader title="Support" />
+              <ListGroup>
+                <ListRow
+                  icon="feedback"
+                  title="Feedback & reviews"
+                  subtitle="Report a problem or suggest an idea"
+                  accessibilityLabel="Feedback & reviews, send feedback or report an issue"
+                  onPress={openFeedback}
+                />
+                <ListRow
+                  icon="chart"
+                  iconTone="info"
+                  title="Help improve Mizyun"
+                  subtitle="Optional usage analytics · Separate from AI consent"
+                  accessibilityLabel="Help improve Mizyun, optional usage analytics consent"
+                  onPress={() =>
+                    router.push("/account-settings/analytics" as Href)
+                  }
+                />
+              </ListGroup>
             </View>
 
-            {/* Sign Out Card */}
-            <SignOutCard onSignOut={onSignOut} />
-
-            {/* Footer */}
-            <ThemedView type="backgroundElement" style={styles.footerNote}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Mizyun Alpha · Pure domain calculations, client-side RLS
-                isolation, and private secure storage.
+            <View style={styles.section}>
+              <Button
+                label="Sign out"
+                variant="destructive"
+                block
+                accessibilityLabel="Sign out"
+                onPress={onSignOut}
+              />
+              <ThemedText
+                type="footnote"
+                themeColor="textSecondary"
+                style={styles.centered}
+              >
+                Ends this device&apos;s session. Other devices and stored cloud
+                data are unaffected.
               </ThemedText>
-            </ThemedView>
+            </View>
+
+            <ThemedText
+              type="caption"
+              themeColor="textTertiary"
+              style={styles.centered}
+            >
+              Mizyun Alpha
+            </ThemedText>
           </>
         )}
       </ScrollView>
@@ -325,54 +320,48 @@ export function SettingsScreen() {
   );
 }
 
+const CATEGORY_ICONS: Record<
+  SettingsCategoryId,
+  {
+    readonly icon: IconName;
+    readonly tone: NonNullable<ListRowProps["iconTone"]>;
+  }
+> = {
+  "profile-goals": { icon: "target", tone: "primary" },
+  "workouts-reminders": { icon: "timer", tone: "warning" },
+  appearance: { icon: "appearance", tone: "info" },
+  "health-connections": { icon: "steps", tone: "danger" },
+  "ai-coach": { icon: "sparkles", tone: "fat" },
+  "privacy-data": { icon: "privacy", tone: "neutral" },
+  "account-help": { icon: "person", tone: "neutral" },
+};
+
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return letters || "M";
+}
+
 function SetupWizardCard() {
   const { openOnboarding } = useAuth();
   return (
-    <ThemedView type="backgroundElement" style={styles.finishSetupCard}>
-      <ThemedText type="smallBold">Finish setting up Mizyun</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
+    <Card>
+      <ThemedText type="headline">Finish setting up Mizyun</ThemedText>
+      <ThemedText type="footnote" themeColor="textSecondary">
         Add your display name, units, starting weight, and primary goal to
         personalize your daily targets.
       </ThemedText>
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label="Start setup"
+        size="small"
         accessibilityLabel="Finish setting up Mizyun"
         onPress={openOnboarding}
-        style={({ pressed }) => [
-          styles.setupWizardButton,
-          pressed && styles.pressed,
-        ]}
-      >
-        <ThemedText type="smallBold" style={{ color: "#ffffff" }}>
-          Start setup →
-        </ThemedText>
-      </Pressable>
-    </ThemedView>
-  );
-}
-
-function SignOutCard({ onSignOut }: { readonly onSignOut: () => void }) {
-  return (
-    <ThemedView type="backgroundElement" style={styles.signOutCard}>
-      <ThemedText type="smallBold">Sign Out</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        End this device&apos;s active session. Other devices and stored cloud
-        data are unaffected.
-      </ThemedText>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Sign out"
-        onPress={onSignOut}
-        style={({ pressed }) => [
-          styles.signOutButton,
-          pressed && styles.pressed,
-        ]}
-      >
-        <ThemedText type="smallBold" style={styles.signOutButtonText}>
-          Sign Out of Account
-        </ThemedText>
-      </Pressable>
-    </ThemedView>
+        style={styles.setupButton}
+      />
+    </Card>
   );
 }
 
@@ -382,170 +371,54 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    padding: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.three,
+    gap: Spacing.four,
+  },
+  identityCard: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.three,
   },
-  header: { gap: Spacing.one },
-  headerTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.pill,
     alignItems: "center",
+    justifyContent: "center",
   },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  identityText: {
+    flex: 1,
+    gap: Spacing.half,
   },
-  verifiedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
-  verifiedDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#10B981",
-  },
-  verifiedText: {
-    fontSize: 11,
-    color: "#10B981",
-    fontWeight: "700",
-  },
-  heroCard: {
-    padding: Spacing.three,
-    borderRadius: 12,
-    gap: Spacing.one,
-  },
-  heroIdentity: {
-    gap: 2,
-  },
-  searchSection: {
-    gap: Spacing.one,
+  planChip: {
+    marginTop: Spacing.one,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: 14,
-    backgroundColor: "rgba(128, 128, 128, 0.12)",
+    paddingLeft: Spacing.three - 4,
+    borderRadius: Radius.md,
     gap: Spacing.two,
-    minHeight: 48,
-  },
-  searchIcon: {
-    fontSize: 16,
-    opacity: 0.6,
+    minHeight: MinTouchTarget,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    paddingVertical: 0,
+    fontSize: 17,
+    paddingVertical: Spacing.two,
   },
   clearSearchButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    margin: Spacing.one,
   },
-  clearSearchIcon: {
-    fontSize: 14,
-    opacity: 0.6,
-  },
-  searchHint: {
-    paddingHorizontal: Spacing.one,
-    fontSize: 12,
-  },
-  categoriesSection: {
+  section: {
     gap: Spacing.two,
   },
-  sectionHeader: {
-    fontSize: 12,
-    letterSpacing: 0.5,
-    opacity: 0.6,
-    paddingHorizontal: Spacing.one,
+  setupButton: {
+    marginTop: Spacing.one,
   },
-  categoryList: {
-    gap: Spacing.two,
-  },
-  categoryCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.four,
-    borderRadius: 16,
-    backgroundColor: "rgba(128, 128, 128, 0.08)",
-    minHeight: 64,
-  },
-  categoryIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(128, 128, 128, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  categoryIcon: {
-    fontSize: 22,
-  },
-  categoryTextBlock: {
-    flex: 1,
-    paddingHorizontal: Spacing.three,
-    gap: 2,
-  },
-  categoryTitle: {
-    fontSize: 15,
-  },
-  categoryDescription: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  categoryArrow: {
-    fontSize: 22,
-    opacity: 0.4,
-  },
-  finishSetupCard: {
-    padding: Spacing.four,
-    borderRadius: 16,
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
-  },
-  setupWizardButton: {
-    alignSelf: "flex-start",
-    marginTop: Spacing.two,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#10B981",
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  signOutCard: {
-    padding: Spacing.four,
-    borderRadius: 16,
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-  },
-  signOutButton: {
-    marginTop: Spacing.two,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  signOutButtonText: {
-    color: "#EF4444",
-    fontSize: 14,
-  },
-  footerNote: {
-    padding: Spacing.four,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  pressed: {
-    opacity: 0.7,
+  centered: {
+    textAlign: "center",
   },
 });

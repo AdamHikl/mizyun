@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import {
@@ -41,12 +42,25 @@ import {
 
 import { ThemedText, type ThemedTextProps } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Icon } from "@/components/ui";
+import {
+  Button,
+  Card,
+  Chip,
+  Icon,
+  IconBadge,
+  IconButton,
+  ListGroup,
+  ListRow,
+  SectionHeader,
+  type IconName,
+} from "@/components/ui";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import {
   BottomTabInset,
-  Colors,
   MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
   Spacing,
 } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -115,6 +129,13 @@ type AlertCategory = "rate_limited" | "unavailable" | "config" | "generic";
  * response. LLM calls take 1–5 s and are unaffected.
  */
 const MIN_SEND_INDICATOR_MS = 500;
+
+const alertTones: Record<AlertCategory, "warning" | "info" | "danger"> = {
+  rate_limited: "warning",
+  unavailable: "info",
+  config: "danger",
+  generic: "warning",
+};
 
 const alertCategoryFromMessage = (message: string | null): AlertCategory => {
   if (message === null) return "generic";
@@ -1065,19 +1086,49 @@ export function CoachSetupScreen() {
     });
   }, []);
 
+  const newConversationDisabled =
+    loading || loadFailed || !canUseCoach || sending || deleting;
+  const deleteDisabled = sending || deleting || !canUseCoach;
+  const photoDisabled = sending || deleting || !canUseCoach;
+  const sendDisabled =
+    sending || deleting || !canUseCoach || draft.trim().length === 0;
+  const showThreadSwitcher = canUseCoach || historyVisible;
+  const alertTone = alertTones[alertCategoryFromMessage(message)];
+
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader title="Coach" onLayout={onHeaderLayout}>
-          {/* Top Header */}
-          <View style={styles.header}>
-            <View
-              style={[
-                styles.headerTopRow,
-                stackHeader && styles.headerTopRowLargeText,
-              ]}
-            >
-              {canUseCoach || historyVisible ? (
+        <TabHeader
+          title="Coach"
+          onLayout={onHeaderLayout}
+          actions={
+            <>
+              <IconButton
+                icon="cook"
+                accessibilityLabel="What can I cook?"
+                onPress={() => router.push("/meal-recipes" as Href)}
+              />
+              <IconButton
+                icon="info"
+                accessibilityLabel="Toggle training plan & advisory info"
+                accessibilityState={{ expanded: planExpanded }}
+                onPress={() => setPlanExpanded((expanded) => !expanded)}
+                selected={planExpanded}
+              />
+              <IconButton
+                icon="add"
+                accessibilityLabel="New conversation"
+                disabled={newConversationDisabled}
+                accessibilityState={{ disabled: newConversationDisabled }}
+                onPress={() => void create()}
+                style={newConversationDisabled ? styles.disabled : undefined}
+              />
+            </>
+          }
+        >
+          {showThreadSwitcher || active !== null ? (
+            <View style={styles.threadRow}>
+              {showThreadSwitcher ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Open thread list"
@@ -1089,130 +1140,63 @@ export function CoachSetupScreen() {
                     setThreadListVisible(true);
                   }}
                   style={({ pressed }) => [
-                    styles.conversationIdentity,
-                    stackHeader && styles.conversationIdentityLargeText,
+                    styles.threadSwitcher,
                     pressed && styles.pressed,
                   ]}
                 >
-                  <View style={styles.threadTitleRow}>
-                    <Icon name="chat" size={15} color="textSecondary" />
-                    <ThemedText
-                      type="smallBold"
-                      themeColor="textSecondary"
-                      numberOfLines={stackHeader ? 2 : 1}
-                      style={styles.navThreadTitle}
-                    >
-                      {active?.title ?? "Coach check-in"}
-                    </ThemedText>
-                    <Icon name="chevronDown" size={12} color="textSecondary" />
-                  </View>
+                  <Icon name="chat" size={15} color="textSecondary" />
+                  <ThemedText
+                    type="smallBold"
+                    themeColor="textSecondary"
+                    numberOfLines={stackHeader ? 2 : 1}
+                    style={styles.threadTitle}
+                  >
+                    {active?.title ?? "Coach check-in"}
+                  </ThemedText>
+                  <Icon name="chevronDown" size={12} color="textSecondary" />
                 </Pressable>
               ) : (
-                <View />
+                <View style={styles.flex} />
               )}
-              <View style={styles.headerActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Toggle training plan & advisory info"
-                  accessibilityState={{ expanded: planExpanded }}
-                  onPress={() => setPlanExpanded((expanded) => !expanded)}
-                  style={({ pressed }) => [
-                    styles.navIconButton,
-                    planExpanded && styles.navIconButtonActive,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedText
-                    style={[
-                      styles.navIconText,
-                      planExpanded && styles.navIconTextActive,
-                    ]}
-                  >
-                    ⚡
-                  </ThemedText>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="New conversation"
-                  disabled={
-                    loading || loadFailed || !canUseCoach || sending || deleting
-                  }
-                  accessibilityState={{
-                    disabled:
-                      loading ||
-                      loadFailed ||
-                      !canUseCoach ||
-                      sending ||
-                      deleting,
-                  }}
-                  onPress={() => void create()}
-                  style={({ pressed }) => [
-                    styles.navIconButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedText style={styles.navIconText}>＋</ThemedText>
-                </Pressable>
-
-                {active !== null ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Delete conversation"
-                    disabled={sending || deleting || !canUseCoach}
-                    onPress={remove}
-                    style={({ pressed }) => [
-                      styles.navIconButton,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <ThemedText style={styles.navIconText}>🗑️</ThemedText>
-                  </Pressable>
-                ) : null}
-              </View>
+              {active !== null ? (
+                <IconButton
+                  icon="trash"
+                  variant="plain"
+                  accessibilityLabel="Delete conversation"
+                  disabled={deleteDisabled}
+                  accessibilityState={{ disabled: deleteDisabled }}
+                  onPress={remove}
+                  style={deleteDisabled ? styles.disabled : undefined}
+                />
+              ) : null}
             </View>
-          </View>
+          ) : null}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="What can I cook?"
-            onPress={() => router.push("/meal-recipes" as Href)}
-            style={styles.navIconButton}
-          >
-            <ThemedText type="smallBold">What can I cook?</ThemedText>
-          </Pressable>
-
-          {/* Expandable Plan & Advisory Info Drawer */}
+          {/* Expandable plan and advisory drawer */}
           {planExpanded ? (
-            <View style={styles.advisoryCardWrapper}>
-              <ThemedView type="backgroundElement" style={styles.advisoryCard}>
-                <View style={styles.advisoryCardHeader}>
-                  <View style={styles.advisoryIconContainer}>
-                    <ThemedText style={styles.advisoryIcon}>💡</ThemedText>
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <ThemedText type="smallBold">
+            <View style={styles.advisoryWrapper}>
+              <Card>
+                <View style={styles.advisoryHeader}>
+                  <IconBadge name="info" tone="info" />
+                  <View style={styles.flexText}>
+                    <ThemedText type="headline">
                       Advisory &amp; Privacy Notice
                     </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
+                    <ThemedText type="footnote" themeColor="textSecondary">
                       AI can make mistakes. Mizyun references confirmed data for
                       fitness &amp; nutrition wellness—never medical diagnosis
                       or treatment.
                     </ThemedText>
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
+                  <IconButton
+                    icon="close"
+                    variant="plain"
                     accessibilityLabel="Close advisory panel"
                     onPress={() => setPlanExpanded(false)}
-                    style={styles.advisoryCloseButton}
-                  >
-                    <ThemedText type="small" themeColor="textSecondary">
-                      ✕
-                    </ThemedText>
-                  </Pressable>
+                  />
                 </View>
-                <TrainingPlanCard />
-              </ThemedView>
+              </Card>
+              <TrainingPlanCard />
             </View>
           ) : null}
         </TabHeader>
@@ -1239,45 +1223,45 @@ export function CoachSetupScreen() {
             historyOwner.current !== ownerKey &&
             !historyAvailable) ? (
             <View style={[styles.center, { paddingTop: headerHeight }]}>
-              <ActivityIndicator color="#10B981" />
+              <ActivityIndicator color={theme.primary} />
               <ThemedText type="small" themeColor="textSecondary">
                 Loading Coach…
               </ThemedText>
             </View>
           ) : status !== null && !status.ready && !historyVisible ? (
-            <ThemedView
-              type="backgroundElement"
-              style={[styles.card, { marginTop: headerHeight + Spacing.four }]}
+            <Card
+              style={[
+                styles.stateCard,
+                { marginTop: headerHeight + Spacing.four },
+              ]}
             >
-              <ThemedText type="smallBold">Coach is safely off</ThemedText>
+              <ThemedText type="headline">Coach is safely off</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {status.reason}
               </ThemedText>
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Check again"
+                variant="secondary"
                 onPress={() => void refresh()}
-                style={styles.secondaryButton}
-              >
-                <ThemedText type="smallBold">Check again</ThemedText>
-              </Pressable>
-            </ThemedView>
+              />
+            </Card>
           ) : loadFailed && !historyVisible ? (
-            <ThemedView
-              type="backgroundElement"
-              style={[styles.card, { marginTop: headerHeight + Spacing.four }]}
+            <Card
+              style={[
+                styles.stateCard,
+                { marginTop: headerHeight + Spacing.four },
+              ]}
             >
-              <ThemedText type="smallBold">Couldn't load Coach</ThemedText>
+              <ThemedText type="headline">Couldn't load Coach</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {message}
               </ThemedText>
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Check again"
+                variant="secondary"
                 onPress={() => void refresh()}
-                style={styles.secondaryButton}
-              >
-                <ThemedText type="smallBold">Check again</ThemedText>
-              </Pressable>
-            </ThemedView>
+              />
+            </Card>
           ) : (
             <>
               <ScrollView
@@ -1291,164 +1275,59 @@ export function CoachSetupScreen() {
                 keyboardDismissMode="on-drag"
               >
                 {messages.length === 0 ? (
-                  <View style={styles.emptyStateContainer}>
+                  <View style={styles.emptyState}>
                     <ThemedText type="small" themeColor="textSecondary">
                       Private fitness &amp; nutrition guidance grounded in your
                       confirmed data.
                     </ThemedText>
-                    {/* Primary Action Card: Ask AI Coach */}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Ask AI Coach"
-                      onPress={() => {
-                        inputRef.current?.focus();
-                      }}
-                      style={({ pressed }) => [
-                        styles.coachHeroCard,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <View style={styles.coachHeroIconContainer}>
-                        <ThemedText style={styles.coachHeroIcon}>✨</ThemedText>
-                      </View>
-                      <View style={styles.coachHeroBody}>
-                        <ThemedText type="smallBold">Ask AI Coach</ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          Personalized insights, meal analysis, and workout
-                          plans
-                        </ThemedText>
-                      </View>
-                      <View style={styles.coachHeroBadge}>
-                        <ThemedText
-                          type="smallBold"
-                          style={styles.coachHeroBadgeText}
-                        >
-                          💬 Ask
-                        </ThemedText>
-                      </View>
-                    </Pressable>
-
                     <View style={styles.section}>
-                      <ThemedText type="smallBold" style={styles.sectionTitle}>
-                        SUGGESTED CHECK-INS
-                      </ThemedText>
-                      <View style={styles.actionGrid}>
-                        <Pressable
-                          accessibilityRole="button"
+                      <SectionHeader title="Suggested check-ins" />
+                      <ListGroup>
+                        <ListRow
+                          icon="dumbbell"
+                          title="Workout routine"
+                          subtitle="Design a specialised exercise plan"
                           accessibilityLabel="Suggest a workout routine"
                           onPress={() =>
                             sendPrompt(
                               "Help me design a specialized workout routine to build a V-shape body",
                             )
                           }
-                          style={({ pressed }) => [
-                            styles.actionCard,
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <View style={styles.actionIconContainer}>
-                            <ThemedText style={styles.actionIcon}>
-                              🏋️
-                            </ThemedText>
-                          </View>
-                          <View style={styles.actionBody}>
-                            <ThemedText type="smallBold">
-                              Workout Routine
-                            </ThemedText>
-                            <ThemedText type="small" themeColor="textSecondary">
-                              Design specialized exercise plan
-                            </ThemedText>
-                          </View>
-                          <ThemedText style={styles.actionArrow}>→</ThemedText>
-                        </Pressable>
-
-                        <Pressable
-                          accessibilityRole="button"
+                        />
+                        <ListRow
+                          icon="fork"
+                          title="Nutrition & macros"
+                          subtitle="Protein goals & meal ideas"
                           accessibilityLabel="Review nutrition targets"
                           onPress={() =>
                             sendPrompt(
                               "How much protein should I eat today and what foods work best?",
                             )
                           }
-                          style={({ pressed }) => [
-                            styles.actionCard,
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <View style={styles.actionIconContainer}>
-                            <ThemedText style={styles.actionIcon}>
-                              🥗
-                            </ThemedText>
-                          </View>
-                          <View style={styles.actionBody}>
-                            <ThemedText type="smallBold">
-                              Nutrition &amp; Macros
-                            </ThemedText>
-                            <ThemedText type="small" themeColor="textSecondary">
-                              Protein goals &amp; meal ideas
-                            </ThemedText>
-                          </View>
-                          <ThemedText style={styles.actionArrow}>→</ThemedText>
-                        </Pressable>
-
-                        <Pressable
-                          accessibilityRole="button"
+                        />
+                        <ListRow
+                          icon="chart"
+                          title="Progress & trends"
+                          subtitle="Weight & calorie trend"
                           accessibilityLabel="Explain weight trend"
                           onPress={() =>
                             sendPrompt(
                               "Explain my latest weight trend and calorie balance",
                             )
                           }
-                          style={({ pressed }) => [
-                            styles.actionCard,
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <View style={styles.actionIconContainer}>
-                            <ThemedText style={styles.actionIcon}>
-                              📈
-                            </ThemedText>
-                          </View>
-                          <View style={styles.actionBody}>
-                            <ThemedText type="smallBold">
-                              Progress &amp; Trends
-                            </ThemedText>
-                            <ThemedText type="small" themeColor="textSecondary">
-                              Analyze weight &amp; calorie trend
-                            </ThemedText>
-                          </View>
-                          <ThemedText style={styles.actionArrow}>→</ThemedText>
-                        </Pressable>
-
-                        <Pressable
-                          accessibilityRole="button"
+                        />
+                        <ListRow
+                          icon="run"
+                          title="Quick session"
+                          subtitle="45-minute full body workout"
                           accessibilityLabel="Suggest a quick gym session"
                           onPress={() =>
                             sendPrompt(
                               "Suggest a 45-minute full body gym session",
                             )
                           }
-                          style={({ pressed }) => [
-                            styles.actionCard,
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <View style={styles.actionIconContainer}>
-                            <ThemedText style={styles.actionIcon}>
-                              ⚡
-                            </ThemedText>
-                          </View>
-                          <View style={styles.actionBody}>
-                            <ThemedText type="smallBold">
-                              Quick Session
-                            </ThemedText>
-                            <ThemedText type="small" themeColor="textSecondary">
-                              45-minute full body workout
-                            </ThemedText>
-                          </View>
-                          <ThemedText style={styles.actionArrow}>→</ThemedText>
-                        </Pressable>
-                      </View>
+                        />
+                      </ListGroup>
                     </View>
                   </View>
                 ) : (
@@ -1473,7 +1352,7 @@ export function CoachSetupScreen() {
                 )}
                 {sending ? (
                   <View style={styles.pendingRow}>
-                    <ActivityIndicator size="small" color="#10B981" />
+                    <ActivityIndicator size="small" color={theme.primary} />
                     <ThemedText type="small" themeColor="textSecondary">
                       Mizyun Coach is thinking…
                     </ThemedText>
@@ -1485,29 +1364,59 @@ export function CoachSetupScreen() {
                 <View
                   style={[
                     styles.alert,
-                    alertCategoryFromMessage(message) === "rate_limited" &&
-                      styles.alertRateLimited,
-                    alertCategoryFromMessage(message) === "unavailable" &&
-                      styles.alertUnavailable,
-                    alertCategoryFromMessage(message) === "config" &&
-                      styles.alertConfig,
+                    { backgroundColor: theme[`${alertTone}Light`] },
                   ]}
                   accessibilityRole="alert"
                 >
-                  <ThemedText type="small">{message}</ThemedText>
-                  {!canUseCoach && !sending ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Check Coach availability"
-                      onPress={() => void refresh()}
-                      style={styles.retryButton}
-                    >
-                      <ThemedText type="smallBold">Check again</ThemedText>
-                    </Pressable>
-                  ) : null}
-                  {activeRetry !== null && !retryBubbleVisible ? (
-                    <Pressable
-                      accessibilityRole="button"
+                  <Icon
+                    name={alertTone === "info" ? "info" : "warning"}
+                    size={18}
+                    color={alertTone}
+                  />
+                  <View style={styles.alertBody}>
+                    <ThemedText type="small">{message}</ThemedText>
+                    {!canUseCoach && !sending ? (
+                      <Button
+                        label="Check again"
+                        variant="plain"
+                        size="small"
+                        accessibilityLabel="Check Coach availability"
+                        onPress={() => void refresh()}
+                      />
+                    ) : null}
+                    {activeRetry !== null && !retryBubbleVisible ? (
+                      <Button
+                        label="Retry"
+                        variant="plain"
+                        size="small"
+                        accessibilityLabel="Retry saved Coach message"
+                        accessibilityState={{
+                          disabled: sending || !canUseCoach,
+                          busy: sending,
+                        }}
+                        disabled={sending || !canUseCoach}
+                        onPress={() => void send(activeRetry)}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              ) : activeRetry !== null && !retryBubbleVisible ? (
+                <View
+                  style={[
+                    styles.alert,
+                    { backgroundColor: theme.warningLight },
+                  ]}
+                  accessibilityRole="alert"
+                >
+                  <Icon name="warning" size={18} color="warning" />
+                  <View style={styles.alertBody}>
+                    <ThemedText type="small">
+                      A saved message still needs to be sent.
+                    </ThemedText>
+                    <Button
+                      label="Retry"
+                      variant="plain"
+                      size="small"
                       accessibilityLabel="Retry saved Coach message"
                       accessibilityState={{
                         disabled: sending || !canUseCoach,
@@ -1515,54 +1424,37 @@ export function CoachSetupScreen() {
                       }}
                       disabled={sending || !canUseCoach}
                       onPress={() => void send(activeRetry)}
-                      style={styles.retryButton}
-                    >
-                      <ThemedText type="smallBold">Retry</ThemedText>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : activeRetry !== null && !retryBubbleVisible ? (
-                <View style={styles.alert} accessibilityRole="alert">
-                  <ThemedText type="small">
-                    A saved message still needs to be sent.
-                  </ThemedText>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Retry saved Coach message"
-                    accessibilityState={{
-                      disabled: sending || !canUseCoach,
-                      busy: sending,
-                    }}
-                    disabled={sending || !canUseCoach}
-                    onPress={() => void send(activeRetry)}
-                    style={styles.retryButton}
-                  >
-                    <ThemedText type="smallBold">Retry</ThemedText>
-                  </Pressable>
+                    />
+                  </View>
                 </View>
               ) : null}
 
-              {/* Composer Bar */}
+              {/* Composer */}
               <View
                 style={[
                   styles.composerWrapper,
                   isKeyboardVisible && styles.composerWrapperKeyboardActive,
                 ]}
               >
-                <View style={styles.composerCapsule}>
-                  <Pressable
-                    accessibilityRole="button"
+                <View
+                  style={[
+                    styles.composerCapsule,
+                    { backgroundColor: theme.backgroundSelected },
+                  ]}
+                >
+                  <IconButton
+                    icon="camera"
+                    variant="plain"
                     accessibilityLabel="Attach photos"
                     accessibilityHint="Choose up to three photos with Pro, or one with Free. Type a question first for meals, menus, labels or training context."
-                    accessibilityState={{
-                      disabled: sending || deleting || !canUseCoach,
-                    }}
-                    disabled={sending || deleting || !canUseCoach}
+                    accessibilityState={{ disabled: photoDisabled }}
+                    disabled={photoDisabled}
                     onPress={() => void attachMealPhoto()}
-                    style={styles.photoIconButton}
-                  >
-                    <ThemedText style={styles.composerIconEmoji}>📷</ThemedText>
-                  </Pressable>
+                    style={[
+                      styles.composerIconButton,
+                      photoDisabled && styles.disabled,
+                    ]}
+                  />
                   <TextInput
                     ref={inputRef}
                     accessibilityLabel="Message Coach"
@@ -1570,7 +1462,7 @@ export function CoachSetupScreen() {
                     multiline
                     maxLength={4_000}
                     placeholder="Message..."
-                    placeholderTextColor="#64748B"
+                    placeholderTextColor={theme.textTertiary}
                     value={draft}
                     onChangeText={setDraft}
                     style={[styles.capsuleInput, { color: theme.text }]}
@@ -1580,33 +1472,32 @@ export function CoachSetupScreen() {
                     accessibilityLabel="Send message"
                     accessibilityState={{
                       busy: sending,
-                      disabled:
-                        sending ||
-                        deleting ||
-                        !canUseCoach ||
-                        draft.trim().length === 0,
+                      disabled: sendDisabled,
                     }}
-                    disabled={
-                      sending ||
-                      deleting ||
-                      !canUseCoach ||
-                      draft.trim().length === 0
-                    }
+                    disabled={sendDisabled}
                     onPress={() => void send()}
-                    style={[
-                      styles.circleSendButton,
-                      (sending ||
-                        deleting ||
-                        !canUseCoach ||
-                        draft.trim().length === 0) &&
-                        styles.disabledSendButton,
-                    ]}
+                    style={styles.sendTarget}
                   >
-                    {sending ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <ThemedText style={styles.sendArrow}>↑</ThemedText>
-                    )}
+                    <View
+                      style={[
+                        styles.sendCircle,
+                        { backgroundColor: theme.primary },
+                        sendDisabled && !sending && styles.sendCircleDisabled,
+                      ]}
+                    >
+                      {sending ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={theme.onPrimary}
+                        />
+                      ) : (
+                        <Icon
+                          name="arrowUp"
+                          size={17}
+                          tintColor={theme.onPrimary}
+                        />
+                      )}
+                    </View>
                   </Pressable>
                 </View>
               </View>
@@ -1698,6 +1589,8 @@ function SelectableCoachText({
 
 function FormattedCoachMessage({ text }: { readonly text: string }) {
   const lines = useMemo(() => text.split("\n"), [text]);
+  const theme = useTheme();
+  const markerColor = { color: theme.textSecondary };
 
   return (
     <View style={styles.formattedMessageContainer}>
@@ -1709,7 +1602,15 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
 
         // Horizontal Rule
         if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
-          return <View key={`hr-${lineIndex}`} style={styles.messageDivider} />;
+          return (
+            <View
+              key={`hr-${lineIndex}`}
+              style={[
+                styles.messageDivider,
+                { backgroundColor: theme.separator },
+              ]}
+            />
+          );
         }
 
         // Headers: ###, ##, #
@@ -1737,7 +1638,9 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
           const bulletContent = bulletMatch[1] ?? "";
           return (
             <View key={`bullet-${lineIndex}`} style={styles.messageBulletRow}>
-              <SelectableCoachText style={styles.messageBulletDot}>
+              <SelectableCoachText
+                style={[styles.messageBulletDot, markerColor]}
+              >
                 •
               </SelectableCoachText>
               <View style={styles.messageBulletContent}>
@@ -1756,7 +1659,7 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
             <View key={`num-${lineIndex}`} style={styles.messageBulletRow}>
               <SelectableCoachText
                 type="smallBold"
-                style={styles.messageNumberDot}
+                style={[styles.messageNumberDot, markerColor]}
               >
                 {num}
               </SelectableCoachText>
@@ -1830,6 +1733,7 @@ function MessageBubble({
     proposal: CoachWeeklyAdaptationProposal,
   ) => void;
 }) {
+  const theme = useTheme();
   const assistant = message.role === "assistant";
   const displayText =
     assistant && message.actionProposal
@@ -1837,58 +1741,64 @@ function MessageBubble({
       : message.text;
 
   return (
-    <View
-      style={[
-        styles.bubble,
-        assistant ? styles.assistantBubble : styles.userBubble,
-      ]}
-    >
-      <View style={styles.bubbleHeaderRow}>
-        {assistant ? (
-          <View style={styles.coachAvatarBadge}>
-            <ThemedText style={styles.coachAvatarEmoji}>🤖</ThemedText>
+    <View style={[styles.messageGroup, !assistant && styles.userGroup]}>
+      <View
+        style={[
+          styles.bubble,
+          assistant
+            ? [
+                styles.assistantBubble,
+                { backgroundColor: theme.backgroundElement },
+              ]
+            : [styles.userBubble, { backgroundColor: theme.primary }],
+        ]}
+      >
+        <View style={styles.bubbleHeaderRow}>
+          {assistant ? (
+            <Icon name="sparkles" size={13} color="primary" />
+          ) : null}
+          <ThemedText
+            type="caption"
+            themeColor={assistant ? "primary" : "onPrimary"}
+          >
+            {assistant ? "Mizyun Coach" : "You"}
+          </ThemedText>
+        </View>
+        {displayText.trim().length > 0 ? (
+          assistant ? (
+            <FormattedCoachMessage text={displayText} />
+          ) : (
+            <ThemedText themeColor="onPrimary" style={styles.messageText}>
+              {displayText}
+            </ThemedText>
+          )
+        ) : null}
+        {onRetry !== undefined ? (
+          <View style={styles.failedMessageActions}>
+            <ThemedText
+              type="footnote"
+              themeColor={assistant ? "textSecondary" : "onPrimary"}
+            >
+              Not completed
+            </ThemedText>
+            <Button
+              label="Retry"
+              variant="secondary"
+              size="small"
+              loading={retrying}
+              accessibilityLabel="Retry failed Coach message"
+              accessibilityState={{ disabled: retrying, busy: retrying }}
+              disabled={retrying}
+              onPress={onRetry}
+            />
           </View>
         ) : null}
-        <ThemedText
-          type="smallBold"
-          style={assistant ? styles.coachNameText : styles.userNameText}
-        >
-          {assistant ? "Mizyun Coach" : "You"}
-        </ThemedText>
+        {assistant && message.evidenceKinds.length > 0 ? (
+          <EvidenceChips kinds={message.evidenceKinds} />
+        ) : null}
       </View>
-      {displayText.trim().length > 0 ? (
-        assistant ? (
-          <FormattedCoachMessage text={displayText} />
-        ) : (
-          <ThemedText style={styles.userMessageText}>{displayText}</ThemedText>
-        )
-      ) : null}
-      {onRetry !== undefined ? (
-        <View style={styles.failedMessageActions}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Not completed
-          </ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Retry failed Coach message"
-            accessibilityState={{ disabled: retrying, busy: retrying }}
-            disabled={retrying}
-            onPress={onRetry}
-            style={styles.retryButton}
-          >
-            {retrying ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
-                Retry
-              </ThemedText>
-            )}
-          </Pressable>
-        </View>
-      ) : null}
-      {message.actionProposal?.kind === "meal_log" ? (
-        <View>
-          {[
+      {message.actionProposal?.kind === "meal_log"
+        ? [
             message.actionProposal.candidate,
             ...(message.actionProposal.additionalCandidates ?? []),
           ].map((candidate, index) => (
@@ -1901,9 +1811,8 @@ function MessageBubble({
               }}
               onReview={onReviewNutritionProposal}
             />
-          ))}
-        </View>
-      ) : null}
+          ))
+        : null}
       {message.actionProposal?.kind === "workout_start" ? (
         <WorkoutProposalCard
           proposal={message.actionProposal}
@@ -1926,10 +1835,78 @@ function MessageBubble({
           disabled={!actionsEnabled}
         />
       ) : null}
-      {assistant && message.evidenceKinds.length > 0 ? (
-        <EvidenceChips kinds={message.evidenceKinds} />
-      ) : null}
     </View>
+  );
+}
+
+/** Icon badge, headline title, footnote metadata and an optional status chip. */
+function ProposalHeader({
+  icon,
+  title,
+  subtitle,
+  status,
+}: {
+  readonly icon: IconName;
+  readonly title: string;
+  readonly subtitle?: string | undefined;
+  readonly status?: ReactNode;
+}) {
+  return (
+    <View style={styles.proposalHeaderRow}>
+      <IconBadge name={icon} />
+      <View style={styles.flexText}>
+        <ThemedText type="headline">{title}</ThemedText>
+        {subtitle ? (
+          <ThemedText type="footnote" themeColor="textSecondary">
+            {subtitle}
+          </ThemedText>
+        ) : null}
+      </View>
+      {status}
+    </View>
+  );
+}
+
+/** One labelled fact inside a proposal, led by a quiet icon. */
+function ProposalFact({
+  icon,
+  children,
+}: {
+  readonly icon: IconName;
+  readonly children: ReactNode;
+}) {
+  return (
+    <View style={styles.factRow}>
+      <Icon
+        name={icon}
+        size={15}
+        color="textSecondary"
+        style={styles.factIcon}
+      />
+      <ThemedText type="small" style={styles.flexText}>
+        {children}
+      </ThemedText>
+    </View>
+  );
+}
+
+/** Confirmation line shown after a proposal action succeeds. */
+function ProposalDone({ label }: { readonly label: string }) {
+  return (
+    <View style={styles.factRow}>
+      <Icon name="checkCircle" size={16} color="primary" />
+      <ThemedText type="smallBold" themeColor="primary" style={styles.flexText}>
+        {label}
+      </ThemedText>
+    </View>
+  );
+}
+
+function ProposalError({ message }: { readonly message: string }) {
+  return (
+    <ThemedText type="footnote" themeColor="warning" accessibilityRole="alert">
+      {message}
+    </ThemedText>
   );
 }
 
@@ -1950,54 +1927,35 @@ function NutritionProposalCard({
     .filter((value): value is string => value !== null)
     .join(" · ");
   return (
-    <View style={styles.proposalCard}>
-      <View style={styles.proposalHeaderRow}>
-        <View style={styles.proposalIconBox}>
-          <ThemedText style={styles.proposalIcon}>🥗</ThemedText>
-        </View>
-        <View style={styles.proposalTitleBox}>
-          <ThemedText type="smallBold">
-            {draft.name ?? "Meal Estimate"}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Photo/text draft · tap to confirm
-          </ThemedText>
-        </View>
-        <View style={styles.proposalBadge}>
-          <ThemedText type="smallBold" style={styles.proposalBadgeText}>
-            ＋ LOG
-          </ThemedText>
-        </View>
-      </View>
+    <Card>
+      <ProposalHeader
+        icon="fork"
+        title={draft.name ?? "Meal Estimate"}
+        subtitle="Photo/text draft · tap to confirm"
+        status={<Chip label="Draft" />}
+      />
 
-      <View style={styles.proposalMetricBox}>
+      <ThemedView type="backgroundSelected" style={styles.proposalMetricBox}>
         <ThemedText type="smallBold">
           {point || "Nutrition values need review"}
         </ThemedText>
         {draft.calorieRangeKcal !== null ? (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="footnote" themeColor="textSecondary">
             Estimated range {draft.calorieRangeKcal.low}–
             {draft.calorieRangeKcal.high} kcal · confidence{" "}
             {Math.round(draft.confidence * 100)}%
           </ThemedText>
         ) : null}
-      </View>
+      </ThemedView>
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label="Review & log meal"
+        block
         accessibilityLabel={`Review and log ${draft.name ?? "meal"} draft`}
         accessibilityHint="Opens an editable meal form. Nothing is logged until you save it."
         onPress={() => onReview(proposal)}
-        style={({ pressed }) => [
-          styles.proposalButton,
-          pressed && styles.pressed,
-        ]}
-      >
-        <ThemedText type="smallBold" style={styles.proposalButtonText}>
-          Review &amp; log meal
-        </ThemedText>
-      </Pressable>
-    </View>
+      />
+    </Card>
   );
 }
 
@@ -2074,26 +2032,19 @@ function WorkoutProposalCard({
   }, [savedWorkout, saving]);
 
   return (
-    <View style={styles.proposalCard}>
-      <View style={styles.proposalHeaderRow}>
-        <View style={styles.proposalIconBox}>
-          <ThemedText style={styles.proposalIcon}>🏋️</ThemedText>
-        </View>
-        <View style={styles.proposalTitleBox}>
-          <ThemedText type="smallBold">{proposal.session.label}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            ~{proposal.session.estimatedMinutes} min · {proposal.volumeAction}{" "}
-            volume
-          </ThemedText>
-        </View>
-        <View style={styles.proposalBadge}>
-          <ThemedText type="smallBold" style={styles.proposalBadgeText}>
-            {savedWorkout !== null ? "✓ SAVED" : "＋ ROUTINE"}
-          </ThemedText>
-        </View>
-      </View>
+    <Card>
+      <ProposalHeader
+        icon="dumbbell"
+        title={proposal.session.label}
+        subtitle={`~${proposal.session.estimatedMinutes} min · ${proposal.volumeAction} volume`}
+        status={
+          savedWorkout !== null ? (
+            <Chip label="Saved" icon="check" tone="primary" />
+          ) : undefined
+        }
+      />
 
-      <View style={styles.proposalListContainer}>
+      <View style={styles.proposalList}>
         {proposal.session.exercises.map((exercise) => (
           <ThemedText key={exercise.catalogId} type="small">
             • {exercise.name} · {exercise.sets}×
@@ -2105,75 +2056,39 @@ function WorkoutProposalCard({
         ))}
       </View>
 
-      {saveError !== null ? (
-        <ThemedText
-          type="small"
-          themeColor="textSecondary"
-          accessibilityRole="alert"
-          style={styles.proposalErrorText}
-        >
-          {saveError}
-        </ThemedText>
-      ) : null}
+      {saveError !== null ? <ProposalError message={saveError} /> : null}
 
       {savedWorkout !== null ? (
-        <View style={{ gap: Spacing.one }}>
-          <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-            ✓ Added to your workout routines
-          </ThemedText>
-          <Pressable
-            accessibilityRole="button"
+        <View style={styles.proposalActions}>
+          <ProposalDone label="Added to your workout routines" />
+          <Button
+            label={saving ? "Starting Session…" : "Start Workout Now"}
+            block
             accessibilityLabel={`Start ${proposal.session.label}`}
             disabled={saving}
             onPress={() => void onOpenSaved()}
-            style={({ pressed }) => [
-              styles.proposalButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.proposalButtonText}>
-              {saving ? "Starting Session…" : "Start Workout Now →"}
-            </ThemedText>
-          </Pressable>
+          />
         </View>
       ) : (
-        <View style={{ gap: Spacing.two, marginTop: Spacing.one }}>
-          <Pressable
-            accessibilityRole="button"
+        <View style={styles.proposalActions}>
+          <Button
+            label={saving ? "Saving to Routines…" : "Save to My Routines"}
+            block
             accessibilityLabel={`Save ${proposal.session.label} to my routines`}
             disabled={saving}
             onPress={() => void handleSaveToRoutines()}
-            style={({ pressed }) => [
-              styles.proposalButton,
-              pressed && styles.pressed,
-              saving && { opacity: 0.6 },
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.proposalButtonText}>
-              {saving ? "Saving to Routines…" : "💾 Save to My Routines"}
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
+          />
+          <Button
+            label="Start Live Session Directly"
+            variant="tinted"
+            block
             accessibilityLabel={`Review and start ${proposal.session.label}`}
             accessibilityHint="Opens the live workout tracker directly."
             onPress={() => onReview(proposal)}
-            style={({ pressed }) => [
-              styles.proposalSecondaryButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <ThemedText
-              type="smallBold"
-              style={styles.proposalSecondaryButtonText}
-            >
-              ⚡ Start Live Session Directly
-            </ThemedText>
-          </Pressable>
+          />
         </View>
       )}
-    </View>
+    </Card>
   );
 }
 
@@ -2214,6 +2129,7 @@ function MultiWorkoutPlanCard({
 }: {
   readonly proposal: CoachMultiWorkoutPlanProposal;
 }) {
+  const theme = useTheme();
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<MultiWorkoutPlanSaveResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -2279,23 +2195,14 @@ function MultiWorkoutPlanCard({
   });
 
   return (
-    <View style={styles.proposalCard}>
-      <View style={styles.proposalHeaderRow}>
-        <View style={styles.proposalIconBox}>
-          <ThemedText style={styles.proposalIcon}>🏋️</ThemedText>
-        </View>
-        <View style={styles.proposalTitleBox}>
-          <ThemedText type="smallBold">
-            {proposal.requestedSessions}-Session Workout Plan
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {humanFocusLabel(proposal.focus) ?? "Specialized Plan"} ·{" "}
-            {proposal.sessionMinutes} min each
-          </ThemedText>
-        </View>
-      </View>
+    <Card>
+      <ProposalHeader
+        icon="calendar"
+        title={`${proposal.requestedSessions}-Session Workout Plan`}
+        subtitle={`${humanFocusLabel(proposal.focus) ?? "Specialized Plan"} · ${proposal.sessionMinutes} min each`}
+      />
 
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="footnote" themeColor="textSecondary">
         {proposal.rationale}
       </ThemedText>
 
@@ -2311,17 +2218,20 @@ function MultiWorkoutPlanCard({
         return (
           <View
             key={session.index}
-            style={styles.multiWorkoutRow}
+            style={[
+              styles.multiWorkoutRow,
+              { borderTopColor: theme.separator },
+            ]}
             accessibilityLabel={`Routine ${session.index}: ${session.label}${sessionFocusLabel === null || isDuplicateLabel ? "" : `, ${sessionFocusLabel}`}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
           >
-            <View style={{ flex: 1, gap: Spacing.half }}>
+            <View style={styles.multiWorkoutBody}>
               <ThemedText type="smallBold">
                 Routine {session.index} · {session.label}
                 {sessionFocusLabel === null || isDuplicateLabel
                   ? ""
                   : ` · ${sessionFocusLabel}`}
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="footnote" themeColor="textSecondary">
                 ~{session.estimatedMinutes} min · {session.exercises.length}{" "}
                 exercises
               </ThemedText>
@@ -2337,13 +2247,9 @@ function MultiWorkoutPlanCard({
                     : `${exercise.repsMin}–${exercise.repsMax}`}
                 </ThemedText>
               ))}
-              {isSaved ? (
-                <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-                  ✓ Saved to routines
-                </ThemedText>
-              ) : null}
+              {isSaved ? <ProposalDone label="Saved to routines" /> : null}
               {isFailed ? (
-                <ThemedText type="small" themeColor="textSecondary">
+                <ThemedText type="footnote" themeColor="warning">
                   Could not save ·{" "}
                   {saved?.result.ok === false
                     ? saved.result.message
@@ -2352,37 +2258,25 @@ function MultiWorkoutPlanCard({
               ) : null}
             </View>
             {isSaved ? (
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Start"
+                variant="tinted"
+                size="small"
                 accessibilityLabel={`Start ${session.label}`}
                 onPress={() =>
                   saved.result.ok && void onOpenWorkout(saved.result.workout)
                 }
-                style={({ pressed }) => [
-                  styles.multiWorkoutOpenButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-                  Start →
-                </ThemedText>
-              </Pressable>
+              />
             ) : null}
           </View>
         );
       })}
-      {error !== null ? (
-        <ThemedText
-          type="small"
-          themeColor="textSecondary"
-          accessibilityRole="alert"
-        >
-          {error}
-        </ThemedText>
-      ) : null}
+      {error !== null ? <ProposalError message={error} /> : null}
       {result === null ? (
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={`Save ${proposal.requestedSessions} routines`}
+          block
+          loading={saving}
           accessibilityLabel={`Save all ${proposal.requestedSessions} routines`}
           accessibilityHint="Saves reusable routines for the planned days. Starting one creates a separate live workout session."
           disabled={saving}
@@ -2390,37 +2284,18 @@ function MultiWorkoutPlanCard({
           onPress={() => {
             void onSaveAll();
           }}
-          style={({ pressed }) => [
-            styles.proposalButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <ThemedText type="smallBold" style={styles.proposalButtonText}>
-              Save {proposal.requestedSessions} routines
-            </ThemedText>
-          )}
-        </Pressable>
+        />
       ) : (
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label="Start first routine"
+          block
           accessibilityLabel="Start the first saved routine"
           onPress={() => {
             void onOpenFirst();
           }}
-          style={({ pressed }) => [
-            styles.proposalButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <ThemedText type="smallBold" style={styles.proposalButtonText}>
-            Start first routine
-          </ThemedText>
-        </Pressable>
+        />
       )}
-    </View>
+    </Card>
   );
 }
 
@@ -2430,80 +2305,72 @@ function DailyPlanCard({
   readonly proposal: CoachDailyPlanProposal;
 }) {
   return (
-    <View style={styles.proposalCard}>
-      <View style={styles.proposalHeaderRow}>
-        <View style={styles.proposalIconBox}>
-          <ThemedText style={styles.proposalIcon}>⚡</ThemedText>
-        </View>
-        <View style={styles.proposalTitleBox}>
-          <ThemedText type="smallBold">Daily Action Plan</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {proposal.date}
-          </ThemedText>
-        </View>
-        <View style={styles.proposalBadge}>
-          <ThemedText type="smallBold" style={styles.proposalBadgeText}>
-            TODAY
-          </ThemedText>
-        </View>
-      </View>
+    <Card>
+      <ProposalHeader
+        icon="sunrise"
+        title="Daily Action Plan"
+        subtitle={proposal.date}
+        status={<Chip label="Today" tone="primary" />}
+      />
 
-      <View style={styles.proposalMetricBox}>
+      <ThemedView type="backgroundSelected" style={styles.proposalMetricBox}>
         {proposal.calorie === null ? null : (
-          <ThemedText type="small">
-            🥗 Calories:{" "}
+          <ProposalFact icon="energy">
+            Calories:{" "}
             {proposal.calorie.consumedKcal === null
               ? "not logged"
               : `${proposal.calorie.consumedKcal} / ${proposal.calorie.targetKcal} kcal (${proposal.calorie.remainingKcal} left)`}
-          </ThemedText>
+          </ProposalFact>
         )}
         {proposal.protein === null ? null : (
-          <ThemedText type="small">
-            🥩 Protein:{" "}
+          <ProposalFact icon="fork">
+            Protein:{" "}
             {proposal.protein.consumedG === null
               ? "not logged"
               : `${proposal.protein.consumedG}g / ${proposal.protein.targetG}g target (${proposal.protein.remainingG}g left)`}
-          </ThemedText>
+          </ProposalFact>
         )}
         {proposal.training === null ? null : (
-          <ThemedText type="small">
-            🏋️ Training:{" "}
+          <ProposalFact icon="dumbbell">
+            Training:{" "}
             {proposal.training.completedToday
               ? "completed today"
               : proposal.training.due
                 ? "due today"
                 : "base frequency on track"}
-          </ThemedText>
+          </ProposalFact>
         )}
-      </View>
+      </ThemedView>
 
-      <View
-        style={{
-          padding: Spacing.two,
-          borderRadius: 10,
-          backgroundColor: "rgba(16, 185, 129, 0.12)",
-          gap: 2,
-        }}
-      >
-        <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-          Next Focus
+      <ThemedView type="primaryLight" style={styles.proposalMetricBox}>
+        <ThemedText type="smallBold" themeColor="primary">
+          Next focus
         </ThemedText>
         <ThemedText type="small">
           {nextActionLabel[proposal.nextAction]}
         </ThemedText>
-      </View>
+      </ThemedView>
 
       {proposal.missingInputs.length > 0 ? (
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText type="footnote" themeColor="textSecondary">
           Missing inputs: {proposal.missingInputs.join(", ")}
         </ThemedText>
       ) : null}
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="footnote" themeColor="textSecondary">
         Deterministic plan · updates from confirmed logs
       </ThemedText>
-    </View>
+    </Card>
   );
 }
+
+const calorieActionTone: Record<
+  CoachWeeklyAdaptationProposal["calorieAction"],
+  "primary" | "neutral" | "warning"
+> = {
+  hold: "primary",
+  increase: "neutral",
+  decrease: "warning",
+};
 
 function WeeklyAdaptationCard({
   proposal,
@@ -2551,67 +2418,46 @@ function WeeklyAdaptationCard({
         ? `${obs.smoothedWeightKg} kg smoothed · Need 3+ weigh-ins for rate`
         : "Pending weight data";
 
-  const actionBadgeColor =
-    proposal.calorieAction === "hold"
-      ? "rgba(16, 185, 129, 0.2)"
-      : proposal.calorieAction === "increase"
-        ? "rgba(59, 130, 246, 0.2)"
-        : "rgba(245, 158, 11, 0.2)";
+  const actionLabel =
+    proposal.calorieAction.charAt(0).toUpperCase() +
+    proposal.calorieAction.slice(1);
 
   return (
-    <View style={styles.proposalCard}>
-      {/* Header with Title & Action Badge */}
-      <View style={styles.proposalHeaderRow}>
-        <View style={styles.proposalIconBox}>
-          <ThemedText style={styles.proposalIcon}>📊</ThemedText>
-        </View>
-        <View style={styles.proposalTitleBox}>
-          <ThemedText type="smallBold">
-            Weekly Review &amp; Adaptation
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            7-day confirmed adherence scorecard
-          </ThemedText>
-        </View>
-        <View
-          style={{
-            backgroundColor: actionBadgeColor,
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-            borderRadius: 6,
-          }}
-        >
-          <ThemedText type="smallBold">
-            {proposal.calorieAction.toUpperCase()}
-          </ThemedText>
-        </View>
-      </View>
+    <Card>
+      <ProposalHeader
+        icon="chart"
+        title="Weekly Review & Adaptation"
+        subtitle="7-day confirmed adherence scorecard"
+        status={
+          <Chip
+            label={actionLabel}
+            tone={calorieActionTone[proposal.calorieAction] ?? "neutral"}
+          />
+        }
+      />
 
-      {/* Goal Pace Status */}
       <ThemedText type="small">
-        Goal Pace · {proposal.currentPace ?? "steady"}
-        {canApply ? ` → ${proposal.proposedPace}` : " (maintained)"}
+        Goal pace · {proposal.currentPace ?? "steady"}
+        {canApply ? ` to ${proposal.proposedPace}` : " (maintained)"}
       </ThemedText>
 
-      {/* Metric Breakdown Rows */}
-      <View style={styles.proposalMetricBox}>
-        <ThemedText type="small">🥗 Nutrition: {nutritionSummary}</ThemedText>
-        <ThemedText type="small">🥩 Protein: {proteinSummary}</ThemedText>
-        <ThemedText type="small">🏋️ Training: {trainingSummary}</ThemedText>
-        <ThemedText type="small">⚖️ Weight Trend: {weightSummary}</ThemedText>
-      </View>
+      <ThemedView type="backgroundSelected" style={styles.proposalMetricBox}>
+        <ProposalFact icon="energy">Nutrition: {nutritionSummary}</ProposalFact>
+        <ProposalFact icon="fork">Protein: {proteinSummary}</ProposalFact>
+        <ProposalFact icon="dumbbell">Training: {trainingSummary}</ProposalFact>
+        <ProposalFact icon="scale">Weight trend: {weightSummary}</ProposalFact>
+      </ThemedView>
 
-      {/* Rationale & Reasons */}
       {proposal.reasons.map((reason) => (
-        <ThemedText key={reason} type="small" themeColor="textSecondary">
+        <ThemedText key={reason} type="footnote" themeColor="textSecondary">
           • {reason}
         </ThemedText>
       ))}
 
-      {/* Action button */}
       {canApply ? (
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label="Accept pace change"
+          block
           accessibilityLabel={`Accept goal pace change from ${proposal.currentPace} to ${proposal.proposedPace}`}
           accessibilityHint="Updates the active goal and recalculates future deterministic calorie targets."
           disabled={disabled}
@@ -2619,23 +2465,15 @@ function WeeklyAdaptationCard({
           onPress={() => {
             if (!disabled) onAccept(proposal);
           }}
-          style={({ pressed }) => [
-            styles.proposalButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <ThemedText type="smallBold" style={styles.proposalButtonText}>
-            Accept pace change
-          </ThemedText>
-        </Pressable>
+        />
       ) : (
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText type="footnote" themeColor="textSecondary">
           {proposal.readiness === "ready"
             ? "Current pace is on track. No changes needed."
             : "No goal change available. Continue logging next week."}
         </ThemedText>
       )}
-    </View>
+    </Card>
   );
 }
 
@@ -2677,22 +2515,14 @@ function WorkoutEditProposalCard({
   }, [proposal.workoutId]);
 
   return (
-    <View style={styles.proposalCard}>
-      <View style={styles.proposalHeaderRow}>
-        <View style={styles.proposalIconBox}>
-          <ThemedText style={styles.proposalIcon}>✏️</ThemedText>
-        </View>
-        <View style={styles.proposalTitleBox}>
-          <ThemedText type="smallBold">
-            Workout Changes · {proposal.targetName}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {proposal.summary}
-          </ThemedText>
-        </View>
-      </View>
+    <Card>
+      <ProposalHeader
+        icon="edit"
+        title={`Workout Changes · ${proposal.targetName}`}
+        subtitle={proposal.summary}
+      />
 
-      <View style={styles.proposalListContainer}>
+      <View style={styles.proposalList}>
         {proposal.exercises.map((exercise) => (
           <ThemedText
             key={exercise.catalogId}
@@ -2707,184 +2537,81 @@ function WorkoutEditProposalCard({
           </ThemedText>
         ))}
       </View>
-      {error !== null ? (
-        <ThemedText
-          type="small"
-          themeColor="textSecondary"
-          accessibilityRole="alert"
-        >
-          {error}
-        </ThemedText>
-      ) : null}
+      {error !== null ? <ProposalError message={error} /> : null}
       {!applied ? (
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={applying ? "Applying…" : "Apply changes to workout"}
+          block
           accessibilityLabel="Apply changes to workout"
           disabled={applying}
           accessibilityState={{ disabled: applying, busy: applying }}
           onPress={onApply}
-          style={({ pressed }) => [
-            styles.proposalButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <ThemedText type="smallBold" style={styles.proposalButtonText}>
-            {applying ? "Applying…" : "Apply changes to workout"}
-          </ThemedText>
-        </Pressable>
+        />
       ) : (
-        <View style={{ gap: Spacing.one }}>
-          <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-            ✓ Changes applied to workout
-          </ThemedText>
-          <Pressable
-            accessibilityRole="button"
+        <View style={styles.proposalActions}>
+          <ProposalDone label="Changes applied to workout" />
+          <Button
+            label="Open workout"
+            variant="tinted"
+            block
             accessibilityLabel={`Open ${proposal.targetName}`}
             onPress={onOpen}
-            style={({ pressed }) => [
-              styles.proposalButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.proposalButtonText}>
-              Open workout
-            </ThemedText>
-          </Pressable>
+          />
         </View>
       )}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
   safeArea: { flex: 1 },
-  header: {
+  flex: { flex: 1 },
+  flexText: { flex: 1, gap: Spacing.half },
+  disabled: { opacity: 0.4 },
+  pressed: { opacity: 0.6 },
+  threadRow: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
-    paddingBottom: Spacing.one,
-  },
-  headerTopRow: {
-    flexWrap: "wrap",
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.two,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    paddingLeft: PageGutter,
+    // IconButton carries its own 6pt margin inside the 48pt target.
+    paddingRight: PageGutter - 6,
   },
-  headerTopRowLargeText: {
-    flexDirection: "column",
-    alignItems: "stretch",
-  },
-  conversationIdentity: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 120,
-    minWidth: 120,
-    minHeight: 44,
-  },
-  conversationIdentityLargeText: {
-    flexBasis: "auto",
-  },
-  threadTitleRow: {
+  threadSwitcher: {
+    flex: 1,
+    minHeight: MinTouchTarget,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    minWidth: 0,
   },
-  headerActions: {
-    flexDirection: "row",
-    alignSelf: "center",
-    alignItems: "center",
-    gap: 6,
-    flexShrink: 0,
-  },
-  navChatIcon: { fontSize: 13, lineHeight: 20 },
-  navThreadTitle: { fontSize: 13, lineHeight: 20, flexShrink: 1 },
-  navChevron: { fontSize: 11, marginLeft: 2 },
-  navIconButton: {
-    minWidth: 44,
-    minHeight: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navIconButtonActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderColor: "#10B981",
-  },
-  navIconText: { fontSize: 14 },
-  navIconTextActive: { color: "#10B981" },
-  advisoryCloseButton: {
-    minWidth: 44,
-    minHeight: 44,
-    padding: 4,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  advisoryCardWrapper: {
+  threadTitle: { flexShrink: 1 },
+  advisoryWrapper: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: PageGutter,
+    paddingTop: Spacing.one,
     paddingBottom: Spacing.two,
+    gap: Spacing.two,
   },
-  advisoryCard: {
-    borderRadius: 16,
-    padding: Spacing.three,
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.18)",
-  },
-  advisoryCardHeader: {
+  advisoryHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: Spacing.two,
+    gap: 12,
   },
-  advisoryIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  advisoryIcon: { fontSize: 16 },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.three,
   },
-  card: {
-    margin: Spacing.four,
-    borderRadius: 18,
-    padding: Spacing.four,
+  stateCard: {
+    marginHorizontal: PageGutter,
     gap: Spacing.three,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
-  },
-  primaryButton: {
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.four,
-  },
-  secondaryButton: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
   },
   srOnly: {
     position: "absolute",
@@ -2901,132 +2628,47 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.two,
-    gap: Spacing.two,
-    paddingBottom: Spacing.two,
+    paddingHorizontal: PageGutter,
+    gap: Spacing.three,
+    paddingBottom: Spacing.three,
   },
-  emptyStateContainer: {
+  emptyState: {
     flex: 1,
     gap: Spacing.four,
     paddingVertical: Spacing.two,
   },
-  coachHeroCard: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
-  },
-  coachHeroIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  coachHeroIcon: {
-    fontSize: 20,
-  },
-  coachHeroBody: {
-    flex: 1,
-    gap: 2,
-  },
-  coachHeroBadge: {
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  coachHeroBadgeText: {
-    color: "#ffffff",
-    fontSize: 12,
-  },
   section: { gap: Spacing.two },
-  sectionTitle: {
-    letterSpacing: 0.8,
-    fontSize: 11,
-    color: "#64748B",
-  },
-  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
-  actionCard: {
-    minWidth: "47%",
-    flexBasis: 240,
-    flexGrow: 1,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.18)",
-    borderRadius: 16,
-    padding: Spacing.three,
-    flexDirection: "row",
-    alignItems: "center",
+  messageGroup: {
+    width: "100%",
     gap: Spacing.two,
-    backgroundColor: "rgba(148, 163, 184, 0.05)",
   },
-  actionIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionIcon: { fontSize: 18 },
-  actionBody: { flex: 1, gap: 2 },
-  actionArrow: {
-    color: "#10B981",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  userGroup: { alignItems: "flex-end" },
   bubble: {
-    maxWidth: "96%",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 18,
-    gap: Spacing.two,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    gap: Spacing.one,
   },
   userBubble: {
-    alignSelf: "flex-end",
     maxWidth: "82%",
-    backgroundColor: "rgba(16, 185, 129, 0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.35)",
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: Spacing.one,
   },
   assistantBubble: {
     alignSelf: "stretch",
-    width: "100%",
-    maxWidth: "100%",
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: Spacing.one,
   },
   bubbleHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: Spacing.one,
   },
-  coachAvatarBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  coachAvatarEmoji: { fontSize: 10 },
-  coachNameText: { color: "#10B981" },
-  userNameText: {},
-  bubbleMessageText: { lineHeight: 22 },
   formattedMessageContainer: {
     gap: Spacing.one,
   },
   messageParagraph: {},
+  // Coach replies keep one explicit size so the iOS selectable surface and
+  // its nested bold spans measure identically (matches the `small` style).
   messageText: {
     fontSize: 15,
     lineHeight: 22,
@@ -3035,14 +2677,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   messageHeaderContainer: {
-    marginTop: 8,
-    marginBottom: 2,
+    marginTop: Spacing.two,
+    marginBottom: Spacing.half,
   },
   messageHeaderText: {
-    fontSize: 16,
+    fontSize: 17,
     lineHeight: 22,
-    fontWeight: "700",
-    color: "#10B981",
+    fontWeight: "600",
   },
   messageBulletRow: {
     flexDirection: "row",
@@ -3050,14 +2691,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   messageBulletDot: {
-    fontSize: 14,
     lineHeight: 22,
-    color: "#10B981",
   },
   messageNumberDot: {
-    fontSize: 14,
     lineHeight: 22,
-    color: "#10B981",
     minWidth: 16,
   },
   messageBulletContent: {
@@ -3065,79 +2702,26 @@ const styles = StyleSheet.create({
   },
   messageDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(148, 163, 184, 0.2)",
-    marginVertical: 8,
-  },
-  userMessageText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  proposalCard: {
-    marginTop: Spacing.two,
-    padding: Spacing.three,
-    gap: Spacing.two,
-    borderRadius: 16,
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.22)",
+    marginVertical: Spacing.two,
   },
   proposalHeaderRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  proposalMetricBox: {
+    padding: 12,
+    borderRadius: Radius.md,
+    gap: Spacing.one,
+  },
+  proposalList: { gap: Spacing.half },
+  proposalActions: { gap: Spacing.two },
+  factRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: Spacing.two,
   },
-  proposalIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  proposalIcon: { fontSize: 16 },
-  proposalTitleBox: { flex: 1, gap: 1 },
-  proposalBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  proposalBadgeText: { fontSize: 11, color: "#10B981" },
-  proposalMetricBox: {
-    backgroundColor: "rgba(0, 0, 0, 0.15)",
-    padding: Spacing.two,
-    borderRadius: 10,
-    gap: 4,
-  },
-  proposalListContainer: { gap: Spacing.half },
-  proposalButton: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.three,
-  },
-  proposalButtonText: { color: "#FFFFFF" },
-  proposalSecondaryButton: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.4)",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-    paddingHorizontal: Spacing.three,
-  },
-  proposalSecondaryButtonText: {
-    color: "#10B981",
-    fontSize: 14,
-  },
-  proposalErrorText: {
-    color: "#E8A230",
-    fontSize: 13,
-  },
+  factIcon: { marginTop: 2 },
   pendingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -3147,31 +2731,26 @@ const styles = StyleSheet.create({
   failedMessageActions: {
     marginTop: Spacing.one,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.two,
-  },
-  retryButton: {
-    minHeight: 40,
-    minWidth: 80,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.three,
   },
   alert: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    borderLeftWidth: 3,
-    borderLeftColor: "#E8A230",
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: PageGutter,
+    paddingVertical: 10,
   },
-  alertRateLimited: { borderLeftColor: "#E8A230" },
-  alertUnavailable: { borderLeftColor: "#7B7B82" },
-  alertConfig: { borderLeftColor: "#C8403B" },
+  alertBody: {
+    flex: 1,
+    gap: Spacing.one,
+    alignItems: "flex-start",
+  },
   composerWrapper: {
     width: "100%",
     maxWidth: MaxContentWidth,
@@ -3190,69 +2769,44 @@ const styles = StyleSheet.create({
   composerCapsule: {
     flexDirection: "row",
     alignItems: "flex-end",
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
-    paddingLeft: 8,
-    paddingRight: 8,
-    paddingVertical: Spacing.one,
-    gap: 6,
+    borderRadius: Radius.xl + 2,
+    borderCurve: "continuous",
+    paddingHorizontal: Spacing.one,
+    gap: Spacing.half,
   },
-  photoIconButton: {
-    minWidth: 44,
-    minHeight: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
-  composerIconEmoji: { fontSize: 18 },
+  composerIconButton: { margin: 4 },
   capsuleInput: {
     flex: 1,
-    minHeight: 44,
+    minHeight: MinTouchTarget,
     maxHeight: 120,
-    paddingHorizontal: Spacing.two,
-    paddingTop: 8,
-    paddingBottom: 8,
-    fontSize: 16,
-    lineHeight: 20,
+    paddingHorizontal: Spacing.one,
+    paddingTop: 12,
+    paddingBottom: 12,
+    // TextInput needs an explicit size; matches the body text style.
+    fontSize: 17,
+    lineHeight: 22,
   },
-  circleSendButton: {
-    minWidth: 44,
-    minHeight: 44,
-    borderRadius: 22,
-    backgroundColor: "#10B981",
+  sendTarget: {
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
-  disabledSendButton: {
-    backgroundColor: "rgba(148, 163, 184, 0.2)",
+  sendCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sendArrow: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 20,
-    textAlign: "center",
-  },
+  sendCircleDisabled: { opacity: 0.35 },
   multiWorkoutRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "flex-start",
     gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(148, 163, 184, 0.15)",
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  multiWorkoutOpenButton: {
-    borderWidth: 1,
-    borderColor: "#10B981",
-    borderRadius: 10,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
+  multiWorkoutBody: { flex: 1, minWidth: 180, gap: Spacing.half },
 });

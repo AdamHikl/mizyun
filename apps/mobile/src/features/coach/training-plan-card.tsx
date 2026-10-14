@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   trainingPrescriptionResponseSchema,
@@ -9,7 +9,7 @@ import {
 
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { Button, Card } from "@/components/ui";
 import { Spacing } from "@/constants/theme";
 
 const missingLabel: Readonly<Record<string, string>> = {
@@ -49,23 +49,22 @@ export function TrainingPlanCard() {
   }, [load]);
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
+    <Card>
       <View style={styles.headingRow}>
         <View style={styles.headingCopy}>
-          <ThemedText type="smallBold">Your training plan</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="headline">Your training plan</ThemedText>
+          <ThemedText type="footnote" themeColor="textSecondary">
             Deterministic · updates from confirmed records
           </ThemedText>
         </View>
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={expanded ? "Hide" : "View"}
+          variant="tinted"
+          size="small"
           accessibilityState={{ expanded }}
           disabled={prescription === null}
           onPress={() => setExpanded((value) => !value)}
-          style={styles.compactButton}
-        >
-          <ThemedText type="smallBold">{expanded ? "Hide" : "View"}</ThemedText>
-        </Pressable>
+        />
       </View>
 
       {loading ? (
@@ -74,10 +73,15 @@ export function TrainingPlanCard() {
         </ThemedText>
       ) : error !== null ? (
         <View style={styles.row}>
-          <ThemedText type="small">{error}</ThemedText>
-          <Pressable accessibilityRole="button" onPress={() => void load()}>
-            <ThemedText type="smallBold">Retry</ThemedText>
-          </Pressable>
+          <ThemedText type="small" style={styles.flex}>
+            {error}
+          </ThemedText>
+          <Button
+            label="Retry"
+            variant="plain"
+            size="small"
+            onPress={() => void load()}
+          />
         </View>
       ) : prescription !== null && !prescription.complete ? (
         <View style={styles.section}>
@@ -88,13 +92,12 @@ export function TrainingPlanCard() {
               .join(", ")}{" "}
             to build your plan.
           </ThemedText>
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label="Open Coach preferences"
+            variant="tinted"
+            size="small"
             onPress={() => router.push("/settings")}
-            style={styles.settingsButton}
-          >
-            <ThemedText type="smallBold">Open Coach preferences</ThemedText>
-          </Pressable>
+          />
         </View>
       ) : prescription !== null ? (
         <>
@@ -115,7 +118,11 @@ export function TrainingPlanCard() {
                     {session.label} · {session.estimatedMinutes} min
                   </ThemedText>
                   {session.exercises.map((exercise) => (
-                    <ThemedText key={exercise.catalogId} type="small">
+                    <ThemedText
+                      key={exercise.catalogId}
+                      type="small"
+                      themeColor="textSecondary"
+                    >
                       {exercise.name} · {exercise.sets}×
                       {exercise.repsMin !== null
                         ? `${exercise.repsMin}–${exercise.repsMax}`
@@ -124,21 +131,20 @@ export function TrainingPlanCard() {
                   ))}
                 </View>
               ))}
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="footnote" themeColor="textSecondary">
                 Double progression: reach the top of the rep range with
                 controlled technique and RPE ≤ 8 before adding 2–5% load.
               </ThemedText>
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Adjust plan inputs"
+                variant="tinted"
+                size="small"
                 onPress={() => router.push("/settings")}
-                style={styles.settingsButton}
-              >
-                <ThemedText type="smallBold">Adjust plan inputs</ThemedText>
-              </Pressable>
+              />
               {prescription.warnings.map((warning) => (
                 <ThemedText
                   key={warning}
-                  type="small"
+                  type="footnote"
                   themeColor="textSecondary"
                 >
                   {warning}
@@ -148,50 +154,28 @@ export function TrainingPlanCard() {
           ) : null}
         </>
       ) : null}
-    </ThemedView>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    width: "100%",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.18)",
-    padding: Spacing.three,
-    gap: Spacing.two,
-  },
   headingRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.two,
   },
-  headingCopy: { flex: 1, gap: 2 },
-  compactButton: {
-    minHeight: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-  },
+  headingCopy: { flex: 1, minWidth: 160, gap: Spacing.half },
   section: { gap: Spacing.two },
   row: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.two,
   },
-  settingsButton: {
-    minHeight: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-  },
+  flex: { flexShrink: 1 },
   sessions: { gap: Spacing.three },
   sessionScroll: { maxHeight: 320 },
   session: { gap: Spacing.one },

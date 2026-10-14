@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Switch, View } from "react-native";
+import { Platform, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import {
+  Button,
+  Card,
+  Chip,
+  ListGroup,
+  ListRow,
+  SectionHeader,
+} from "@/components/ui";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { dismissActiveWorkoutNotification } from "@/features/workouts/workout-notification";
@@ -135,225 +142,140 @@ export function WorkoutSettingsCard({
     [liveNotificationEnabled, onSaved, restSeconds, userId],
   );
 
-  return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <View style={styles.header}>
-        <ThemedText type="smallBold" themeColor="textSecondary">
-          WORKOUT & REST TIMER
-        </ThemedText>
-        <ThemedText type="subtitle">Default rest duration</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          The rest timer automatically starts after logging a set. It continues
-          tracking in the background and sends an alert when your phone is
-          locked.
-        </ThemedText>
-      </View>
+  const switchTrack = { true: theme.primary };
 
-      {/* Prominent display of current setting */}
-      <View style={styles.displayRow}>
-        <View style={styles.timerDisplayBadge}>
-          <ThemedText style={styles.timerClockIcon}>⏱</ThemedText>
-          <ThemedText type="title" style={styles.timerDisplayTime}>
-            {loading ? "…" : formatRestDuration(restSeconds)}
-          </ThemedText>
-          <View style={styles.labelTag}>
-            <ThemedText type="smallBold" style={styles.labelTagText}>
-              {formatRestDurationLabel(restSeconds)}
+  return (
+    <View style={styles.page}>
+      <SectionHeader title="Rest timer" />
+      <Card style={styles.timerCard}>
+        <View style={styles.displayRow}>
+          <View style={styles.timerValue}>
+            <ThemedText
+              type="title"
+              themeColor="primary"
+              accessibilityLabel={
+                loading
+                  ? "Loading rest duration"
+                  : `Default rest ${formatRestDurationLabel(restSeconds)}`
+              }
+            >
+              {loading ? "…" : formatRestDuration(restSeconds)}
             </ThemedText>
+            <Chip label={formatRestDurationLabel(restSeconds)} tone="primary" />
+          </View>
+
+          <View style={styles.stepperContainer}>
+            <Button
+              label="−15s"
+              variant="secondary"
+              size="small"
+              accessibilityLabel="Subtract 15 seconds"
+              disabled={restSeconds <= MIN_REST_SECONDS}
+              onPress={() => void updateDuration(restSeconds - 15)}
+            />
+            <Button
+              label="+15s"
+              variant="secondary"
+              size="small"
+              accessibilityLabel="Add 15 seconds"
+              disabled={restSeconds >= MAX_REST_SECONDS}
+              onPress={() => void updateDuration(restSeconds + 15)}
+            />
           </View>
         </View>
 
-        {/* Stepper controls (-15s / +15s) */}
-        <View style={styles.stepperContainer}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Subtract 15 seconds"
-            disabled={restSeconds <= MIN_REST_SECONDS}
-            onPress={() => void updateDuration(restSeconds - 15)}
-            style={({ pressed }) => [
-              styles.stepperBtn,
-              pressed && styles.stepperBtnPressed,
-              restSeconds <= MIN_REST_SECONDS && styles.btnDisabled,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.stepperBtnText}>
-              −15s
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add 15 seconds"
-            disabled={restSeconds >= MAX_REST_SECONDS}
-            onPress={() => void updateDuration(restSeconds + 15)}
-            style={({ pressed }) => [
-              styles.stepperBtn,
-              pressed && styles.stepperBtnPressed,
-              restSeconds >= MAX_REST_SECONDS && styles.btnDisabled,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.stepperBtnText}>
-              +15s
-            </ThemedText>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* Presets Chips Grid */}
-      <View style={styles.presetsSection}>
-        <ThemedText type="small" themeColor="textSecondary">
-          Quick presets:
-        </ThemedText>
         <View style={styles.presetsGrid}>
-          {REST_DURATION_PRESETS.map((seconds) => {
-            const isSelected = restSeconds === seconds;
-            return (
-              <Pressable
-                key={seconds}
-                accessibilityRole="button"
-                accessibilityLabel={`Set rest timer to ${formatRestDurationLabel(seconds)}`}
-                onPress={() => void updateDuration(seconds)}
-                style={({ pressed }) => [
-                  styles.presetChip,
-                  isSelected && styles.presetChipSelected,
-                  pressed && styles.presetChipPressed,
-                ]}
-              >
-                <ThemedText
-                  type="smallBold"
-                  style={[
-                    styles.presetChipText,
-                    isSelected && styles.presetChipTextSelected,
-                  ]}
-                >
-                  {formatRestDurationLabel(seconds)}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
+          {REST_DURATION_PRESETS.map((seconds) => (
+            <Chip
+              key={seconds}
+              label={formatRestDurationLabel(seconds)}
+              selected={restSeconds === seconds}
+              accessibilityLabel={`Set rest timer to ${formatRestDurationLabel(seconds)}`}
+              onPress={() => void updateDuration(seconds)}
+              style={styles.presetChip}
+            />
+          ))}
         </View>
-      </View>
+      </Card>
+      <ThemedText type="footnote" themeColor="textSecondary">
+        The rest timer automatically starts after logging a set. It continues
+        tracking in the background and sends an alert when your phone is locked.
+      </ThemedText>
 
-      {/* Live Workout Status Toggle */}
-      <View style={styles.notificationToggleSection}>
-        <View style={styles.notificationToggleInfo}>
-          <ThemedText type="smallBold">
-            {usesWorkoutLiveActivity
-              ? "Workout Live Activity"
-              : "Live workout notification"}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {usesWorkoutLiveActivity
-              ? "Show one updating workout card on the Lock Screen and Dynamic Island with your current exercise, set progress, and rest timer."
-              : "Show an always-on lock screen notification with current exercise, target load, reps, and rest timer during active sessions."}
-          </ThemedText>
-        </View>
-        <Switch
-          accessibilityLabel={
+      <SectionHeader title="During workouts" />
+      <ListGroup>
+        <ListRow
+          title={
             usesWorkoutLiveActivity
-              ? "Toggle workout Live Activity"
-              : "Toggle live workout notification"
+              ? "Workout Live Activity"
+              : "Live workout notification"
           }
-          value={liveNotificationEnabled}
-          onValueChange={(val) => void toggleLiveNotification(val)}
-          trackColor={{ false: "rgba(148, 163, 184, 0.2)", true: "#10B981" }}
-          thumbColor="#FFFFFF"
+          subtitle={
+            usesWorkoutLiveActivity
+              ? "Show one updating workout card on the Lock Screen and Dynamic Island with your current exercise, set progress, and rest timer."
+              : "Show an always-on lock screen notification with current exercise, target load, reps, and rest timer during active sessions."
+          }
+          trailing={
+            <Switch
+              accessibilityLabel={
+                usesWorkoutLiveActivity
+                  ? "Toggle workout Live Activity"
+                  : "Toggle live workout notification"
+              }
+              value={liveNotificationEnabled}
+              onValueChange={(val) => void toggleLiveNotification(val)}
+              trackColor={switchTrack}
+            />
+          }
         />
-      </View>
-
-      {/* Auto-advance target weights toggle */}
-      <View style={styles.notificationToggleSection}>
-        <View style={styles.notificationToggleInfo}>
-          <ThemedText type="smallBold">Auto-advance target weights</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Automatically carry over in-workout weight progression to routine
-            and exercise targets for your next session.
-          </ThemedText>
-        </View>
-        <Switch
-          accessibilityLabel="Toggle auto-advance target weights"
-          value={autoAdvanceTargetWeights}
-          onValueChange={(val) => void toggleAutoAdvance(val)}
-          trackColor={{ false: "rgba(148, 163, 184, 0.2)", true: "#10B981" }}
-          thumbColor="#FFFFFF"
+        <ListRow
+          title="Auto-advance target weights"
+          subtitle="Automatically carry over in-workout weight progression to routine and exercise targets for your next session."
+          trailing={
+            <Switch
+              accessibilityLabel="Toggle auto-advance target weights"
+              value={autoAdvanceTargetWeights}
+              onValueChange={(val) => void toggleAutoAdvance(val)}
+              trackColor={switchTrack}
+            />
+          }
         />
-      </View>
+      </ListGroup>
 
       {feedback ? (
-        <View style={styles.feedbackBanner}>
-          <ThemedText type="small" style={styles.feedbackText}>
-            ✓ {feedback}
-          </ThemedText>
-        </View>
+        <ThemedText
+          type="footnote"
+          themeColor="primary"
+          accessibilityLiveRegion="polite"
+        >
+          {feedback}
+        </ThemedText>
       ) : null}
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    padding: Spacing.four,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    gap: Spacing.four,
+  page: {
+    gap: Spacing.two,
   },
-  header: {
-    gap: Spacing.one,
+  timerCard: {
+    gap: Spacing.three,
   },
   displayRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-    borderRadius: 14,
-    padding: Spacing.three,
-  },
-  timerDisplayBadge: {
-    flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
   },
-  timerClockIcon: {
-    fontSize: 22,
-  },
-  timerDisplayTime: {
-    fontSize: 24,
-    color: "#10B981",
-    fontWeight: "700",
-  },
-  labelTag: {
-    backgroundColor: "rgba(16, 185, 129, 0.18)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  labelTagText: {
-    color: "#10B981",
-    fontSize: 11,
+  timerValue: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
   },
   stepperContainer: {
     flexDirection: "row",
-    gap: Spacing.two,
-  },
-  stepperBtn: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-  },
-  stepperBtnPressed: {
-    opacity: 0.7,
-  },
-  stepperBtnText: {
-    fontSize: 13,
-  },
-  btnDisabled: {
-    opacity: 0.3,
-  },
-  presetsSection: {
     gap: Spacing.two,
   },
   presetsGrid: {
@@ -362,49 +284,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   presetChip: {
+    minHeight: 36,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.18)",
-  },
-  presetChipSelected: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
-  },
-  presetChipPressed: {
-    opacity: 0.8,
-  },
-  presetChipText: {
-    fontSize: 13,
-  },
-  presetChipTextSelected: {
-    color: "#FFFFFF",
-  },
-  feedbackBanner: {
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-  feedbackText: {
-    color: "#10B981",
-    fontSize: 12,
-  },
-  notificationToggleSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(148, 163, 184, 0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    borderRadius: 14,
-    padding: Spacing.three,
-    gap: Spacing.three,
-  },
-  notificationToggleInfo: {
-    flex: 1,
-    gap: 2,
   },
 });

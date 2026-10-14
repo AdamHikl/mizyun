@@ -20,13 +20,33 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
-import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
+import { useTabHeaderLayout } from "@/components/tab-header";
+import { ThemedText } from "@/components/themed-text";
+import {
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  Icon,
+  IconButton,
+  ListRow,
+  Notice,
+  SectionHeader,
+  type ButtonVariant,
+} from "@/components/ui";
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  MinTouchTarget,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CommunityRootHeader } from "../ui";
+import { CommunityButton, CommunityRootHeader, CommunityRow } from "../ui";
 import { InitialsAvatar } from "../initials-avatar";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -137,6 +157,7 @@ function OwnerRelationships({
 }) {
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
 
   const community = useCommunityProfile({
     principalKey,
@@ -305,36 +326,20 @@ function OwnerRelationships({
     label: string,
     onPress: () => void,
     disabled = busy,
-    primary = false,
+    variant: ButtonVariant = "secondary",
     accessibilityLabel?: string,
     accessibilityHint?: string,
   ) => (
-    <Pressable
+    <Button
       key={label}
+      label={label}
+      size="small"
+      variant={variant}
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled }}
-      style={[
-        styles.button,
-        {
-          borderColor: primary ? colors.primary : colors.border,
-          backgroundColor: primary ? "#047857" : colors.backgroundElement,
-          opacity: disabled ? 0.5 : 1,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.buttonText,
-          { color: primary ? "#FFFFFF" : colors.text },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
+      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+      {...(accessibilityHint ? { accessibilityHint } : {})}
+    />
   );
   const confirm = (action: RelationshipAction, row: RelationshipRow) => {
     const explanations: Partial<Record<RelationshipAction, string>> = {
@@ -379,6 +384,7 @@ function OwnerRelationships({
     );
   };
   const info = listInfo[state.list];
+  const findDisabled = busy || searchBusy || !query.trim();
   const safetyList = state.list === "muted" || state.list === "blocked";
   const requestsList = state.list === "incoming" || state.list === "outgoing";
   const select = (
@@ -386,53 +392,72 @@ function OwnerRelationships({
     label: string,
     selected: boolean,
     filter = false,
-  ) => (
-    <Pressable
-      key={key}
-      accessibilityRole={filter ? "button" : "tab"}
-      accessibilityState={{
-        selected,
-        disabled:
-          state.loading ||
-          state.pending ||
-          ((checkingMembership || !community.isEnrolled) &&
-            key !== "blocked" &&
-            key !== "muted"),
-      }}
-      disabled={
-        state.loading ||
-        state.pending ||
-        ((checkingMembership || !community.isEnrolled) &&
-          key !== "blocked" &&
-          key !== "muted")
+  ) => {
+    const disabled =
+      state.loading ||
+      state.pending ||
+      ((checkingMembership || !community.isEnrolled) &&
+        key !== "blocked" &&
+        key !== "muted");
+    const onPress = () => {
+      setOptionsUser(null);
+      if (key === "blocked" || key === "muted") {
+        pendingGraph.current = null;
+        controller.resume();
       }
-      onPress={() => {
-        setOptionsUser(null);
-        if (key === "blocked" || key === "muted") {
-          pendingGraph.current = null;
-          controller.resume();
-        }
-        void controller.load(key);
-      }}
-      style={[
-        filter ? styles.filter : styles.tab,
-        {
-          borderColor: selected ? colors.primary : colors.border,
-          backgroundColor:
-            filter && selected ? colors.backgroundElement : colors.background,
-          opacity: busy ? 0.5 : 1,
-        },
-      ]}
-    >
-      <Text
+      void controller.load(key);
+    };
+    if (filter)
+      return (
+        <Chip
+          key={key}
+          label={label}
+          selected={selected}
+          accessibilityRole="button"
+          accessibilityState={{ selected, disabled }}
+          disabled={disabled}
+          onPress={onPress}
+          style={busy ? styles.inactive : undefined}
+        />
+      );
+    // Segment of a local segmented control: the shared `SegmentedControl`
+    // has no per-option disabled state, which safety lists depend on.
+    return (
+      <Pressable
+        key={key}
+        accessibilityRole="tab"
+        accessibilityState={{ selected, disabled }}
+        disabled={disabled}
+        onPress={onPress}
         style={[
-          filter ? styles.filterText : styles.tabText,
-          { color: selected ? colors.text : colors.textSecondary },
+          styles.segment,
+          selected && [
+            styles.segmentSelected,
+            {
+              backgroundColor: colors.backgroundElement,
+              shadowColor: colors.text,
+            },
+          ],
+          busy && styles.inactive,
         ]}
       >
-        {label}
-      </Text>
-    </Pressable>
+        <ThemedText
+          type="footnote"
+          themeColor={selected ? "text" : "textSecondary"}
+          style={styles.segmentText}
+        >
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  };
+  const segmented = (children: React.ReactNode) => (
+    <View
+      accessibilityRole="tablist"
+      style={[styles.segmented, { backgroundColor: colors.backgroundSelected }]}
+    >
+      {children}
+    </View>
   );
   return (
     <View
@@ -444,15 +469,21 @@ function OwnerRelationships({
         paddingRight: insets.right,
       }}
     >
+      {/* Fixed tab header; content scrolls beneath its feathered edge. */}
+      <CommunityRootHeader selected="people" onLayout={onHeaderLayout} />
       <ScrollView
-        style={{ flex: 1, backgroundColor: colors.background }}
+        style={{ flex: 1, marginTop: -headerHeight }}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(48, BottomTabInset) + insets.bottom },
+          {
+            paddingTop: headerHeight + Spacing.two,
+            paddingBottom: Math.max(48, BottomTabInset) + insets.bottom,
+          },
         ]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
+            progressViewOffset={headerHeight}
             refreshing={state.loading || checkingMembership}
             onRefresh={() => {
               if (principalKey && !busy) {
@@ -483,45 +514,45 @@ function OwnerRelationships({
             }}
           />
         )}
-        <CommunityRootHeader selected="people" />
         {community.isEnrolled && (
           <View style={styles.search}>
-            <View style={styles.wrap}>
-              <Text
-                accessibilityRole="header"
-                style={[styles.title, { color: colors.text }]}
-              >
-                Find a person
-              </Text>
-              <Link
-                href={"/community/invite" as Href}
-                style={[styles.findLink, { color: colors.primary }]}
-              >
-                Invite a friend
-              </Link>
-            </View>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            <SectionHeader
+              title="Find a person"
+              action={
+                <CommunityButton
+                  label="Invite a friend"
+                  href={"/community/invite" as Href}
+                  size="small"
+                />
+              }
+            />
+            <ThemedText type="footnote" themeColor="textSecondary">
               Search their exact @handle. They choose whether to allow handle
               search.
-            </Text>
-            <TextInput
-              accessibilityLabel="Exact friend handle"
-              placeholder="@handle"
-              placeholderTextColor={colors.textSecondary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={25}
-              value={query}
-              editable={!searchBusy}
-              onChangeText={(value) => {
-                setQuery(value);
-                clearSearch();
-              }}
+            </ThemedText>
+            <View
               style={[
-                styles.input,
-                { color: colors.text, borderColor: colors.border },
+                styles.field,
+                { backgroundColor: colors.backgroundSelected },
               ]}
-            />
+            >
+              <Icon name="search" size={17} color="textSecondary" />
+              <TextInput
+                accessibilityLabel="Exact friend handle"
+                placeholder="@handle"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={25}
+                value={query}
+                editable={!searchBusy}
+                onChangeText={(value) => {
+                  setQuery(value);
+                  clearSearch();
+                }}
+                style={[styles.input, { color: colors.text }]}
+              />
+            </View>
             {button(
               "Find exact handle",
               () => {
@@ -565,33 +596,55 @@ function OwnerRelationships({
                   );
                 })();
               },
-              busy || searchBusy || !query.trim(),
-              true,
+              findDisabled,
+              findDisabled ? "tinted" : "primary",
             )}
             {searchError && (
-              <Text
+              <ThemedText
+                type="footnote"
+                themeColor="textSecondary"
                 accessibilityLiveRegion="polite"
-                style={{ color: colors.textSecondary }}
               >
                 {searchError}
-              </Text>
+              </ThemedText>
             )}
             {searchResult && (
-              <Link
-                href={`/community/profile/${searchResult.userId}` as Href}
-                accessibilityLabel={`View @${searchResult.handle} profile`}
-                style={[styles.findLink, { color: colors.primary }]}
-              >
-                {searchResult.displayName} · @{searchResult.handle} →
-              </Link>
+              <Card padded={false}>
+                <Link
+                  href={`/community/profile/${searchResult.userId}` as Href}
+                  accessibilityLabel={`View @${searchResult.handle} profile`}
+                  asChild
+                >
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel={`View @${searchResult.handle} profile`}
+                    style={styles.resultRow}
+                  >
+                    <InitialsAvatar
+                      symbol={searchResult.avatarSymbol}
+                      seed={searchResult.handle}
+                      size={40}
+                    />
+                    <View style={styles.name}>
+                      <ThemedText type="default">
+                        {searchResult.displayName}
+                      </ThemedText>
+                      <ThemedText type="footnote" themeColor="textSecondary">
+                        @{searchResult.handle}
+                      </ThemedText>
+                    </View>
+                    <Icon name="chevronRight" size={14} color="textTertiary" />
+                  </Pressable>
+                </Link>
+              </Card>
             )}
           </View>
         )}
-        <View style={styles.tabs} accessibilityRole="tablist">
-          {select("incoming", "Requests", requestsList)}
-          {select("following", "Following", state.list === "following")}
-          {select("followers", "Followers", state.list === "followers")}
-        </View>
+        {segmented([
+          select("incoming", "Requests", requestsList),
+          select("following", "Following", state.list === "following"),
+          select("followers", "Followers", state.list === "followers"),
+        ])}
         {requestsList && (
           <View style={styles.wrap} accessibilityLabel="Request direction">
             {select("incoming", "Received", state.list === "incoming", true)}
@@ -599,37 +652,27 @@ function OwnerRelationships({
           </View>
         )}
         {!community.isEnrolled && !checkingMembership && (
-          <Text
+          <ThemedText
+            type="footnote"
+            themeColor="textSecondary"
             accessibilityLiveRegion="polite"
-            style={{ color: colors.textSecondary }}
           >
             {community.error ??
               "Join Community to manage follows. Your safety lists remain available."}
-          </Text>
+          </ThemedText>
         )}
         <View style={styles.section}>
-          {safetyList && (
-            <Text
-              accessibilityRole="header"
-              style={[styles.title, { color: colors.text }]}
-            >
-              {info.title}
-            </Text>
-          )}
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {safetyList && <SectionHeader title={info.title} />}
+          <ThemedText type="footnote" themeColor="textSecondary">
             {info.description}
-          </Text>
+          </ThemedText>
         </View>
         {state.notice && (
-          <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
+          <ThemedText type="small" accessibilityLiveRegion="polite">
             {state.notice}
-          </Text>
+          </ThemedText>
         )}
-        {state.error && (
-          <Text accessibilityRole="alert" style={{ color: colors.text }}>
-            {state.error}
-          </Text>
-        )}
+        {state.error && <Notice tone="danger" message={state.error} />}
         {(state.loading || checkingMembership) && (
           <ActivityIndicator
             accessibilityLabel={
@@ -641,167 +684,177 @@ function OwnerRelationships({
           />
         )}
         {(state.error || community.status === "error") &&
-          button("Try again", reload, busy || !principalKey)}
+          button("Try again", reload, busy || !principalKey, "tinted")}
         {enabled && !busy && !state.error && state.rows.length === 0 && (
-          <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {info.empty}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {info.hint}
-            </Text>
-            {community.isEnrolled &&
-              ["incoming", "outgoing", "following"].includes(state.list) && (
-                <Link
-                  href={"/community/invite" as Href}
-                  accessibilityRole="link"
-                  style={[styles.findLink, { color: colors.primary }]}
-                >
-                  Find friends →
-                </Link>
-              )}
-          </View>
+          <Card>
+            <EmptyState
+              icon="person"
+              title={info.empty}
+              message={info.hint}
+              action={
+                community.isEnrolled &&
+                ["incoming", "outgoing", "following"].includes(state.list) ? (
+                  <CommunityButton
+                    label="Find friends"
+                    href={"/community/invite" as Href}
+                    size="small"
+                  />
+                ) : undefined
+              }
+            />
+          </Card>
         )}
-        {enabled &&
-          state.rows.map((row) => (
-            <View
-              key={row.user.userId}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <View style={styles.identity}>
-                <InitialsAvatar
-                  symbol={row.user.avatarSymbol}
-                  seed={row.user.handle}
-                  size={44}
-                />
-                <Link
-                  href={`/community/profile/${row.user.userId}` as Href}
-                  asChild
-                  disabled={busy || state.list === "blocked"}
-                >
-                  <Pressable
-                    accessibilityRole="link"
-                    accessibilityLabel={`View @${row.user.handle} profile`}
+        {enabled && state.rows.length > 0 && (
+          <Card padded={false} style={styles.list}>
+            {state.rows.map((row, index) => (
+              <View
+                key={row.user.userId}
+                style={[
+                  styles.person,
+                  index > 0 && {
+                    borderTopColor: colors.separator,
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                  },
+                ]}
+              >
+                <View style={styles.identity}>
+                  <InitialsAvatar
+                    symbol={row.user.avatarSymbol}
+                    seed={row.user.handle}
+                    size={40}
+                  />
+                  <Link
+                    href={`/community/profile/${row.user.userId}` as Href}
+                    asChild
                     disabled={busy || state.list === "blocked"}
-                    style={styles.name}
                   >
-                    <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                      {row.user.displayName}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary }}>
-                      @{row.user.handle}
-                    </Text>
-                  </Pressable>
-                </Link>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Options for @${row.user.handle}`}
-                  disabled={busy}
-                  onPress={() =>
-                    setOptionsUser(
-                      optionsUser === row.user.userId ? null : row.user.userId,
-                    )
-                  }
-                  accessibilityState={{
-                    disabled: busy,
-                    expanded: optionsUser === row.user.userId,
-                  }}
-                  style={styles.options}
-                >
-                  <Text
-                    style={[styles.buttonText, { color: colors.textSecondary }]}
-                  >
-                    •••
-                  </Text>
-                </Pressable>
-              </View>
-              {state.list === "followers" && (
-                <View style={styles.wrap}>
-                  {row.outgoingFollowStatus === "none" &&
-                    button(
-                      "Follow back",
-                      () => confirm("follow", row),
-                      busy,
-                      true,
-                      `Follow back @${row.user.handle}`,
-                      "Sends a follow request. They must approve before you can see their shared meals and workouts.",
+                    <Pressable
+                      accessibilityRole="link"
+                      accessibilityLabel={`View @${row.user.handle} profile`}
+                      disabled={busy || state.list === "blocked"}
+                      style={styles.name}
+                    >
+                      <ThemedText type="default">
+                        {row.user.displayName}
+                      </ThemedText>
+                      <ThemedText type="footnote" themeColor="textSecondary">
+                        @{row.user.handle}
+                      </ThemedText>
+                    </Pressable>
+                  </Link>
+                  <IconButton
+                    icon="more"
+                    variant="plain"
+                    accessibilityLabel={`Options for @${row.user.handle}`}
+                    selected={optionsUser === row.user.userId}
+                    disabled={busy}
+                    onPress={() =>
+                      setOptionsUser(
+                        optionsUser === row.user.userId
+                          ? null
+                          : row.user.userId,
+                      )
+                    }
+                    accessibilityState={{
+                      disabled: busy,
+                      expanded: optionsUser === row.user.userId,
+                    }}
+                  />
+                </View>
+                {state.list === "followers" && (
+                  <View style={[styles.wrap, styles.indented]}>
+                    {row.outgoingFollowStatus === "none" &&
+                      button(
+                        "Follow back",
+                        () => confirm("follow", row),
+                        busy,
+                        "tinted",
+                        `Follow back @${row.user.handle}`,
+                        "Sends a follow request. They must approve before you can see their shared meals and workouts.",
+                      )}
+                    {row.outgoingFollowStatus === "pending" && (
+                      <ThemedText type="footnote" themeColor="textSecondary">
+                        Requested · Waiting for approval
+                      </ThemedText>
                     )}
-                  {row.outgoingFollowStatus === "pending" && (
-                    <Text
-                      style={[
-                        styles.buttonText,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      Requested · Waiting for approval
-                    </Text>
-                  )}
-                  {row.outgoingFollowStatus === "approved" && (
-                    <Text
-                      style={[
-                        styles.buttonText,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      Following
-                    </Text>
-                  )}
-                </View>
-              )}
-              {optionsUser === row.user.userId && (
-                <View
-                  style={[
-                    styles.wrap,
-                    styles.rowOptions,
-                    { borderColor: colors.border },
-                  ]}
-                >
-                  {state.list === "following" && [
-                    button("Mute", () => confirm("mute", row)),
-                    button("Unfollow", () => confirm("unfollow", row)),
-                  ]}
-                  {state.list === "followers" &&
-                    button("Remove follower", () => confirm("remove", row))}
-                  {button(
-                    "Report profile or handle",
-                    () => void openReport(row),
-                  )}
-                  {state.list !== "blocked" &&
-                    button("Block", () => confirm("block", row))}
-                </View>
-              )}
-              {state.list === "incoming" && (
-                <View style={styles.wrap}>
-                  {button("Approve", () => confirm("approve", row), busy, true)}
-                  {button("Decline", () => confirm("decline", row))}
-                </View>
-              )}
-              {state.list === "outgoing" && (
-                <View style={styles.wrap}>
-                  {button("Cancel request", () => confirm("cancel", row))}
-                </View>
-              )}
-              {state.list === "blocked" &&
-                button("Unblock", () => confirm("unblock", row))}
-              {state.list === "muted" &&
-                button("Unmute", () => confirm("unmute", row))}
-            </View>
-          ))}
+                    {row.outgoingFollowStatus === "approved" && (
+                      <ThemedText type="footnote" themeColor="textSecondary">
+                        Following
+                      </ThemedText>
+                    )}
+                  </View>
+                )}
+                {optionsUser === row.user.userId && (
+                  <View
+                    style={[
+                      styles.wrap,
+                      styles.indented,
+                      styles.rowOptions,
+                      { borderTopColor: colors.separator },
+                    ]}
+                  >
+                    {state.list === "following" && [
+                      button("Mute", () => confirm("mute", row)),
+                      button("Unfollow", () => confirm("unfollow", row)),
+                    ]}
+                    {state.list === "followers" &&
+                      button("Remove follower", () => confirm("remove", row))}
+                    {button(
+                      "Report profile or handle",
+                      () => void openReport(row),
+                    )}
+                    {state.list !== "blocked" &&
+                      button(
+                        "Block",
+                        () => confirm("block", row),
+                        busy,
+                        "destructive",
+                      )}
+                  </View>
+                )}
+                {state.list === "incoming" && (
+                  <View style={[styles.wrap, styles.indented]}>
+                    {button(
+                      "Approve",
+                      () => confirm("approve", row),
+                      busy,
+                      "tinted",
+                    )}
+                    {button("Decline", () => confirm("decline", row))}
+                  </View>
+                )}
+                {state.list === "outgoing" && (
+                  <View style={[styles.wrap, styles.indented]}>
+                    {button("Cancel request", () => confirm("cancel", row))}
+                  </View>
+                )}
+                {state.list === "blocked" && (
+                  <View style={[styles.wrap, styles.indented]}>
+                    {button("Unblock", () => confirm("unblock", row))}
+                  </View>
+                )}
+                {state.list === "muted" && (
+                  <View style={[styles.wrap, styles.indented]}>
+                    {button("Unmute", () => confirm("unmute", row))}
+                  </View>
+                )}
+              </View>
+            ))}
+          </Card>
+        )}
         {state.cursor &&
-          button("Load more", () => void controller.load(state.list, true))}
+          button(
+            "Load more",
+            () => void controller.load(state.list, true),
+            busy,
+            "plain",
+          )}
         {safetyList ? (
-          <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
-            Safety & preferences
-          </Text>
+          <SectionHeader title="Safety & preferences" />
         ) : (
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Safety & preferences"
             accessibilityState={{ expanded: showSafety || safetyList }}
             onPress={() => {
               if (safetyList) {
@@ -810,25 +863,33 @@ function OwnerRelationships({
             }}
             style={styles.safetyToggle}
           >
-            <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
-              Safety & preferences {showSafety || safetyList ? "−" : "+"}
-            </Text>
+            <ThemedText type="title3" style={styles.flex}>
+              Safety & preferences
+            </ThemedText>
+            <Icon
+              name={showSafety ? "chevronUp" : "chevronDown"}
+              size={15}
+              color="textSecondary"
+            />
           </Pressable>
         )}
         {(showSafety || safetyList) && (
-          <View style={[styles.safetyPanel, { borderColor: colors.border }]}>
-            <View style={styles.wrap} accessibilityRole="tablist">
-              {select("muted", "Muted", state.list === "muted")}
-              {select("blocked", "Blocked", state.list === "blocked")}
+          <Card padded={false} style={styles.list}>
+            <View style={styles.safetyPanel}>
+              {segmented([
+                select("muted", "Muted", state.list === "muted"),
+                select("blocked", "Blocked", state.list === "blocked"),
+              ])}
             </View>
-            <Link
+            <View
+              style={[styles.hairline, { backgroundColor: colors.separator }]}
+            />
+            <CommunityRow
+              title="Reports, appeals & safety contact"
               href={"/community/safety" as Href}
-              accessibilityRole="link"
-              style={[styles.findLink, { color: colors.primary }]}
-            >
-              Reports, appeals & safety contact →
-            </Link>
-          </View>
+              icon="privacy"
+            />
+          </Card>
         )}
       </ScrollView>
     </View>
@@ -836,68 +897,90 @@ function OwnerRelationships({
 }
 const styles = StyleSheet.create({
   content: {
-    padding: 20,
-    gap: 16,
+    paddingHorizontal: PageGutter,
+    gap: Spacing.three,
     paddingBottom: 48,
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
   },
-  search: { gap: 10 },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 10, padding: 12 },
-  subtitle: { fontSize: 15, lineHeight: 22 },
-  title: { fontSize: 22, fontWeight: "700" },
-  section: { gap: 6 },
-  tabs: { flexDirection: "row", gap: 4 },
-  tab: {
+  search: { gap: Spacing.two },
+  field: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    paddingHorizontal: 12,
+    borderRadius: Radius.md,
+  },
+  input: {
+    flex: 1,
+    minHeight: MinTouchTarget,
+    paddingVertical: Spacing.two,
+    fontSize: 17,
+  },
+  section: { gap: Spacing.one },
+  segmented: {
+    flexDirection: "row",
+    borderRadius: Radius.md,
+    padding: 2,
+    gap: 2,
+  },
+  segment: {
     minHeight: 48,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-    borderBottomWidth: 2,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 6,
+    borderRadius: Radius.sm + 2,
+    alignItems: "center",
     justifyContent: "center",
     flexBasis: 0,
     flexGrow: 1,
     minWidth: 0,
   },
-  tabText: { fontSize: 15, fontWeight: "600", textAlign: "center" },
-  filter: {
-    minHeight: 48,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderRadius: 24,
-    justifyContent: "center",
+  segmentSelected: {
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
-  filterText: { fontSize: 13, fontWeight: "600" },
-  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  buttonText: { fontSize: 15, fontWeight: "600" },
-  button: {
-    minHeight: 48,
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 12,
-    justifyContent: "center",
-  },
-  findLink: {
-    fontSize: 15,
-    fontWeight: "600",
-    paddingVertical: 12,
-    minHeight: 48,
-  },
-  safetyToggle: { minHeight: 48, justifyContent: "center" },
-  safetyPanel: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
-  empty: { paddingVertical: 16, gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: "600" },
-  card: { paddingVertical: 14, borderBottomWidth: 1, gap: 10 },
-  rowOptions: { borderTopWidth: 1, paddingTop: 12 },
-  identity: { flexDirection: "row", alignItems: "center", gap: 12 },
-  name: { flex: 1, gap: 4, minHeight: 48, justifyContent: "center" },
-  options: {
-    minHeight: 48,
-    minWidth: 48,
+  segmentText: { fontWeight: "600", textAlign: "center" },
+  inactive: { opacity: 0.45 },
+  wrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    justifyContent: "center",
+    gap: Spacing.two,
   },
+  list: { overflow: "hidden" },
+  person: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
+    gap: Spacing.two,
+  },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
+  },
+  // Aligns actions with the name column (40pt avatar + 12pt gap).
+  indented: { marginLeft: 52 },
+  rowOptions: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: Spacing.two,
+  },
+  identity: { flexDirection: "row", alignItems: "center", gap: 12 },
+  name: { flex: 1, gap: 1, minHeight: 48, justifyContent: "center" },
+  safetyToggle: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  safetyPanel: { padding: Spacing.three },
+  hairline: { height: StyleSheet.hairlineWidth, marginLeft: Spacing.three },
+  flex: { flex: 1 },
 });
 
 export const CommunityPeopleScreen = RelationshipsScreen;

@@ -9,6 +9,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -23,7 +24,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import { communityMessagingResponseSchema } from "@mizyun/contracts";
 import { useTheme } from "@/hooks/use-theme";
-import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
+import { Button, Card } from "@/components/ui";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { ExpansionInput, useExpansionCommand } from "../expansions";
 import {
   CommunityPage,
@@ -357,8 +359,8 @@ function CommunityMessagingScreenContent({
           keyboardShouldPersistTaps="handled"
           style={{ flex: 1 }}
           contentContainerStyle={{
-            padding: 16,
-            gap: 12,
+            paddingTop: Spacing.two,
+            gap: Spacing.three,
             width: "100%",
             maxWidth: MaxContentWidth,
             alignSelf: "center",
@@ -366,63 +368,20 @@ function CommunityMessagingScreenContent({
           }}
         >
           {isRoot && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
-              <Text
-                accessibilityRole="header"
-                style={{
-                  color: t.text,
-                  fontSize: 24,
-                  fontWeight: "700",
-                  flexGrow: 1,
-                  flexShrink: 0,
-                  flexBasis: 120,
-                }}
-              >
-                {heading}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
+            // The segmented Community control already names this view, so
+            // only the compose action sits above the list.
+            <View style={styles.toolbar}>
+              <Button
+                variant="tinted"
+                size="small"
+                icon={newMessage ? "back" : "add"}
+                label={newMessage ? "Conversations" : "New message"}
                 accessibilityLabel={
                   newMessage ? "Back to conversations" : "New message"
                 }
-                accessibilityState={{
-                  disabled: newMessageDisabled,
-                }}
                 disabled={newMessageDisabled}
                 onPress={() => setNewMessage(!newMessage)}
-                style={{
-                  minHeight: 48,
-                  minWidth: 48,
-                  maxWidth: "100%",
-                  flexShrink: 1,
-                  paddingHorizontal: 12,
-                  justifyContent: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    color:
-                      !state.principal ||
-                      state.busy ||
-                      !!state.error ||
-                      state.data?.enabled === false ||
-                      !state.data?.contacts
-                        ? t.textSecondary
-                        : t.primary,
-                    fontSize: 15,
-                    fontWeight: "600",
-                  }}
-                >
-                  {newMessage ? "Conversations" : "New message"}
-                </Text>
-              </Pressable>
+              />
             </View>
           )}
           {!state.principal && (
@@ -488,30 +447,26 @@ function CommunityMessagingScreenContent({
                         }
                       />
                     ) : (
-                      state.data.contacts.map((c) => (
-                        <View
-                          key={c.userId}
-                          style={{
-                            borderBottomWidth: 1,
-                            borderColor: t.border,
-                            paddingVertical: 8,
-                            gap: 4,
-                          }}
-                        >
-                          <CommunityIdentityLink
-                            userId={c.userId}
-                            displayName={c.displayName}
-                          />
-                          <CommunityRow
-                            title={`Message ${c.displayName}`}
-                            onPress={() =>
-                              router.push(
-                                `/community/conversation/${c.userId}` as Href,
-                              )
-                            }
-                          />
+                      <Card style={styles.list}>
+                        <View style={styles.clipLastSeparator}>
+                          {state.data.contacts.map((c) => (
+                            <View key={c.userId} style={styles.listItem}>
+                              <CommunityIdentityLink
+                                userId={c.userId}
+                                displayName={c.displayName}
+                              />
+                              <CommunityRow
+                                title={`Message ${c.displayName}`}
+                                onPress={() =>
+                                  router.push(
+                                    `/community/conversation/${c.userId}` as Href,
+                                  )
+                                }
+                              />
+                            </View>
+                          ))}
                         </View>
-                      ))
+                      </Card>
                     )}
                   </>
                 ) : !newMessage && state.data?.threads ? (
@@ -522,29 +477,25 @@ function CommunityMessagingScreenContent({
                         description="Choose New message to start one. Messages expire after 90 days."
                       />
                     ) : (
-                      state.data.threads.map((thread) => (
-                        <View
-                          key={thread.userId}
-                          style={{
-                            borderBottomWidth: 1,
-                            borderColor: t.border,
-                            gap: 4,
-                            paddingVertical: 8,
-                          }}
-                        >
-                          <CommunityIdentityLink
-                            userId={thread.userId}
-                            displayName={thread.displayName}
-                          />
-                          <CommunityRow
-                            title={`Conversation with ${thread.displayName}`}
-                            description={`${thread.latestMessage.deleted ? "Message removed" : (thread.latestMessage.text ?? "")} · ${new Date(thread.latestMessage.createdAt).toLocaleString()}`}
-                            href={
-                              `/community/conversation/${thread.userId}` as Href
-                            }
-                          />
+                      <Card style={styles.list}>
+                        <View style={styles.clipLastSeparator}>
+                          {state.data.threads.map((thread) => (
+                            <View key={thread.userId} style={styles.listItem}>
+                              <CommunityIdentityLink
+                                userId={thread.userId}
+                                displayName={thread.displayName}
+                              />
+                              <CommunityRow
+                                title={`Conversation with ${thread.displayName}`}
+                                description={`${thread.latestMessage.deleted ? "Message removed" : (thread.latestMessage.text ?? "")} · ${new Date(thread.latestMessage.createdAt).toLocaleString()}`}
+                                href={
+                                  `/community/conversation/${thread.userId}` as Href
+                                }
+                              />
+                            </View>
+                          ))}
                         </View>
-                      ))
+                      </Card>
                     )}
                     {state.data.nextBefore && (
                       <ExpansionButton
@@ -561,23 +512,26 @@ function CommunityMessagingScreenContent({
                 ) : (
                   <CommunityState title="Checking messages…" busy />
                 ))}
-              <View style={{ marginTop: 12 }}>
-                <CommunityRow
-                  title="Messaging settings"
-                  description="Message permissions and update preferences"
-                  disabled={!state.principal || blockBusy}
-                  onPress={() => {
-                    setSettings(true);
-                    void state.run({ operation: "preferences" });
-                  }}
-                />
-                <CommunityRow
-                  title="Manage my sent messages"
-                  description="View or remove messages you sent"
-                  disabled={!state.principal || blockBusy}
-                  onPress={listMine}
-                />
-              </View>
+              {/* Clip the last row's hairline so separators sit between rows. */}
+              <Card style={styles.list}>
+                <View style={styles.clipLastSeparator}>
+                  <CommunityRow
+                    title="Messaging settings"
+                    description="Message permissions and update preferences"
+                    disabled={!state.principal || blockBusy}
+                    onPress={() => {
+                      setSettings(true);
+                      void state.run({ operation: "preferences" });
+                    }}
+                  />
+                  <CommunityRow
+                    title="Manage my sent messages"
+                    description="View or remove messages you sent"
+                    disabled={!state.principal || blockBusy}
+                    onPress={listMine}
+                  />
+                </View>
+              </Card>
             </>
           )}
           {!peer && settings && (
@@ -919,3 +873,21 @@ export function CommunityConversationScreen() {
     />
   );
 }
+
+const styles = StyleSheet.create({
+  toolbar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  list: {
+    paddingVertical: 0,
+    overflow: "hidden",
+  },
+  listItem: {
+    paddingTop: Spacing.two,
+  },
+  clipLastSeparator: {
+    marginBottom: -StyleSheet.hairlineWidth,
+  },
+});

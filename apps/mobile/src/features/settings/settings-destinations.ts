@@ -38,32 +38,32 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
   SettingsDetailRouteConfig
 > = {
   profile: {
-    title: "Personal & Physical Details",
+    title: "Personal & physical details",
     categoryId: "profile-goals",
     validAnchors: ["personal-details", "units"],
   },
   goal: {
-    title: "Goal & Target Pace",
+    title: "Goal & target pace",
     categoryId: "profile-goals",
     validAnchors: ["target-weight", "weekly-pace"],
   },
   "food-standards": {
-    title: "Regional Food Standards",
+    title: "Regional food standards",
     categoryId: "profile-goals",
     validAnchors: [],
   },
   workout: {
-    title: "Rest Timer & Workout Preferences",
+    title: "Rest timer & workout preferences",
     categoryId: "workouts-reminders",
     validAnchors: ["rest-timer", "weight-progression"],
   },
   reminders: {
-    title: "Push Notification Reminders",
+    title: "Push notification reminders",
     categoryId: "workouts-reminders",
     validAnchors: ["coach-reminders", "first-meal", "evening-catch-up"],
   },
   appearance: {
-    title: "Appearance & Theme",
+    title: "Appearance & theme",
     categoryId: "appearance",
     validAnchors: [],
   },
@@ -73,27 +73,27 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
     validAnchors: [],
   },
   "health-exports": {
-    title: "Nutrition & Workout Health Exports",
+    title: "Nutrition & workout Health exports",
     categoryId: "health-connections",
     validAnchors: [],
   },
   "health-preview": {
-    title: "Weight & Workout Health Preview",
+    title: "Weight & workout Health preview",
     categoryId: "health-connections",
     validAnchors: [],
   },
   "coach-preferences": {
-    title: "Coaching Style & Preferences",
+    title: "Coaching style & preferences",
     categoryId: "ai-coach",
     validAnchors: [],
   },
   "ai-usage": {
-    title: "AI Usage & Launch Pro Pass",
+    title: "AI usage & Launch Pro Pass",
     categoryId: "ai-coach",
     validAnchors: [],
   },
   memory: {
-    title: "Coach Memory",
+    title: "Coach memory",
     categoryId: "ai-coach",
     validAnchors: [],
   },
@@ -103,22 +103,22 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
     validAnchors: [],
   },
   "account-data": {
-    title: "Account Data & Erasure",
+    title: "Account data & erasure",
     categoryId: "privacy-data",
     validAnchors: ["ai-consent", "export", "delete"],
   },
   security: {
-    title: "Password & Security",
+    title: "Password & security",
     categoryId: "account-help",
     validAnchors: [],
   },
   identity: {
-    title: "Account Information",
+    title: "Account information",
     categoryId: "account-help",
     validAnchors: [],
   },
   legal: {
-    title: "Legal, Terms & Health Advisory",
+    title: "Legal, terms & health advisory",
     categoryId: "account-help",
     validAnchors: [
       "privacy-policy",

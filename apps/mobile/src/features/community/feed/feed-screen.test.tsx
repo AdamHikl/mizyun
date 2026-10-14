@@ -252,7 +252,8 @@ function find(node: any, label: string): any {
   if (node.props?.accessibilityLabel === label) return node;
   if (Array.isArray(node))
     return node.map((child) => find(child, label)).find(Boolean);
-  return find(node.props?.children, label);
+  // Tab header actions (the updates bell) live beside its children.
+  return find(node.props?.actions, label) ?? find(node.props?.children, label);
 }
 function linkFor(node: any, label: string): any {
   if (!node) return null;
@@ -261,7 +262,9 @@ function linkFor(node: any, label: string): any {
   if (node.type === "Link" && find(node.props.children, label)) return node;
   if (Array.isArray(node))
     return node.map((child) => linkFor(child, label)).find(Boolean);
-  return linkFor(node.props?.children, label);
+  return (
+    linkFor(node.props?.actions, label) ?? linkFor(node.props?.children, label)
+  );
 }
 
 afterEach(() => {
@@ -518,6 +521,7 @@ describe("Community home participation and navigation", () => {
         "Community is coming soon",
       );
       expect(tree.props.children[0].type).toBe("TabHeader");
+      expect(tree.props.children[0].props.title).toBe("Community");
       expect(linkFor(tree, "Keep tracking privately").props.href).toBe("/");
       expect(find(tree, "Check Community status")).toBeFalsy();
       expect(find(tree, "Join Community")).toBeFalsy();
@@ -569,8 +573,7 @@ describe("Community home participation and navigation", () => {
   });
   it("separates the updates bell from messaging and connects the four root destinations", async () => {
     mocks.enrolled = true;
-    const header = (await settledRender()).props.children[1].props
-      .ListHeaderComponent;
+    const header = (await settledRender()).props.children[0];
     expect(linkFor(header, "Community updates").props.href).toBe(
       "/community/inbox",
     );
@@ -595,22 +598,24 @@ describe("Community home participation and navigation", () => {
       "/community/share-meal",
     );
     expect(linkFor(header, "Spaces").props.href).toBe("/community/more");
-    expect(find(header, "Feed").props.accessibilityState.selected).toBe(true);
+    const root = render().props.children[0];
+    expect(find(root, "Feed").props.accessibilityState.selected).toBe(true);
   });
   it("passes flat native styles through router links with accessible targets", async () => {
     mocks.enrolled = true;
-    const list = (await settledRender()).props.children[1];
-    for (const label of [
-      "Feed",
-      "People",
-      "Messages",
-      "Me",
-      "Community updates",
-      "Share workout",
-      "Share meal",
-      "Spaces",
+    const tree = await settledRender();
+    const list = tree.props.children[1];
+    for (const [label, region] of [
+      ["Feed", tree.props.children[0]],
+      ["People", tree.props.children[0]],
+      ["Messages", tree.props.children[0]],
+      ["Me", tree.props.children[0]],
+      ["Community updates", tree.props.children[0]],
+      ["Share workout", list.props.ListHeaderComponent],
+      ["Share meal", list.props.ListHeaderComponent],
+      ["Spaces", list.props.ListHeaderComponent],
     ]) {
-      const action = find(list.props.ListHeaderComponent, label);
+      const action = find(region, label);
       expect(Array.isArray(action.props.style)).toBe(false);
       expect(action.props.style.minHeight).toBeGreaterThanOrEqual(48);
     }

@@ -98,7 +98,24 @@ vi.mock("@/components/account-header-button", () => ({
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,
   MaxContentWidth: 600,
+  MinTouchTarget: 44,
+  PageGutter: 20,
+  Radius: {},
   Spacing: {},
+}));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  EmptyState: "EmptyState",
+  Icon: "Icon",
+  IconBadge: "IconBadge",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  Notice: "Notice",
+  SectionHeader: "SectionHeader",
+  SegmentedControl: "SegmentedControl",
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/composition/analytics-client", () => ({
@@ -443,24 +460,26 @@ it("gives each account-scoped root modal a distinct sibling key", () => {
 });
 
 it("announces the selected workout filter after switching views", () => {
-  const filter = (tree: any, label: string) =>
-    find(tree, (node) => node.props?.accessibilityLabel === label);
+  const control = (tree: any) =>
+    find(tree, (node) => node.type === "SegmentedControl");
+  const option = (tree: any, label: string) =>
+    control(tree).props.options.find(
+      (candidate: any) => candidate.accessibilityLabel === label,
+    );
   let tree = render();
-  expect(
-    filter(tree, "Show all workouts").props.accessibilityState.selected,
-  ).toBe(true);
-  filter(tree, "Show completed workout history").props.onPress();
+  expect(control(tree).props.value).toBe("all");
+  expect(option(tree, "Show all workouts").value).toBe("all");
+  expect(option(tree, "Show available routines").value).toBe("planned");
+  expect(option(tree, "Show completed workout history").value).toBe("history");
+  control(tree).props.onChange("history");
   tree = render();
+  // The control marks the option matching `value` as the selected tab.
+  expect(control(tree).props.value).toBe("history");
   expect(
-    filter(tree, "Show all workouts").props.accessibilityState.selected,
-  ).toBe(false);
-  expect(
-    filter(tree, "Show completed workout history").props.accessibilityState
-      .selected,
-  ).toBe(true);
-  expect(
-    filter(tree, "Show available routines").props.accessibilityState.selected,
-  ).toBe(false);
+    control(tree).props.options.find(
+      (candidate: any) => candidate.value === control(tree).props.value,
+    ).accessibilityLabel,
+  ).toBe("Show completed workout history");
 });
 
 it("resumes the active workout from the primary action without creating another", async () => {
@@ -619,5 +638,16 @@ describe("running history ownership before effects settle", () => {
     expect(hasWorkout(tree, "old-strength")).toBeFalsy();
     expect(find(tree, (node) => node.props?.run?.id === "old-run")).toBeFalsy();
     expect(scopedOptions.isCurrent()).toBe(false);
+  });
+});
+
+describe("target load display", () => {
+  it("drops database trailing zeros without changing the value", async () => {
+    const { formatTargetLoad } = await import("./workouts-hub-screen");
+    expect(formatTargetLoad("10.000 kg")).toBe("10 kg");
+    expect(formatTargetLoad("62.50 kg")).toBe("62.5 kg");
+    expect(formatTargetLoad("62.5 kg")).toBe("62.5 kg");
+    expect(formatTargetLoad("100 kg")).toBe("100 kg");
+    expect(formatTargetLoad("RPE 8")).toBe("RPE 8");
   });
 });

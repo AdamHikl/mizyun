@@ -1,23 +1,18 @@
 import { useCallback, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, View, type TextInput } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
+import { Button, Card, Chip, Notice } from "@/components/ui";
 import { authClient } from "@/composition/auth-client";
 import { Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 
+import { FormTextInput } from "./settings-form";
+
 /**
  * Password & Security Settings Card.
  *
- * Designed to live inside a CollapsibleSection in the Account & Session hub.
- * Fully theme-aware with dark mode compliance.
+ * Rendered on the Sign-in & security settings detail screen.
  */
 export function PasswordSecurityCard() {
   const { session } = useAuth();
@@ -97,302 +92,138 @@ export function PasswordSecurityCard() {
 
   if (isApple) {
     return (
-      <View style={styles.container}>
-        <View style={styles.badgeRow}>
-          <View style={styles.appleBadge}>
-            <ThemedText type="smallBold" style={styles.appleBadgeText}>
-              APPLE ACCOUNT
-            </ThemedText>
-          </View>
-        </View>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.body}>
+      <Card>
+        <Chip label="Apple Account" style={styles.providerChip} />
+        <ThemedText type="footnote" themeColor="textSecondary">
           You are signed in with Apple ID. Your password and account security
           are managed directly through your Apple Account.
         </ThemedText>
-      </View>
+      </Card>
     );
   }
 
   if (isGoogle) {
     return (
-      <View style={styles.container}>
-        <View style={styles.badgeRow}>
-          <View style={styles.googleBadge}>
-            <ThemedText type="smallBold" style={styles.googleBadgeText}>
-              GOOGLE ACCOUNT
-            </ThemedText>
-          </View>
-        </View>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.body}>
+      <Card>
+        <Chip label="Google Account" style={styles.providerChip} />
+        <ThemedText type="footnote" themeColor="textSecondary">
           You are signed in with Google OAuth. Your password and account
           security are managed directly through your Google Account.
         </ThemedText>
-      </View>
+      </Card>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.badgeRow}>
-        <View style={styles.emailBadge}>
-          <ThemedText type="smallBold" style={styles.emailBadgeText}>
-            EMAIL & PASSWORD
+      <Card>
+        <Chip
+          label="Email & password"
+          tone="primary"
+          style={styles.providerChip}
+        />
+        <ThemedText type="footnote" themeColor="textSecondary">
+          Manage your password or request an official reset link sent to{" "}
+          <ThemedText type="footnote" style={styles.emphasis}>
+            {email ?? "your email"}
           </ThemedText>
-        </View>
-      </View>
-
-      <ThemedText type="small" themeColor="textSecondary" style={styles.body}>
-        Manage your password or request an official reset link sent to{" "}
-        <ThemedText type="smallBold" style={styles.highlightEmail}>
-          {email ?? "your email"}
+          .
         </ThemedText>
-        .
-      </ThemedText>
 
-      {message ? (
-        <ThemedText type="smallBold" style={styles.successText}>
-          ✓ {message}
-        </ThemedText>
-      ) : null}
-
-      {error ? (
-        <ThemedText type="smallBold" style={styles.errorText}>
-          ⚠️ {error}
-        </ThemedText>
-      ) : null}
-
-      {!isChangingInApp ? (
-        <View style={styles.buttonRow}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={emailBusy}
-            onPress={handleSendResetEmail}
-            style={({ pressed }) => [
-              styles.actionButton,
-              styles.secondaryButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            {emailBusy ? (
-              <ActivityIndicator color="#10B981" size="small" />
-            ) : (
-              <ThemedText type="smallBold" style={styles.secondaryButtonText}>
-                ✉️ Send Reset Link via Email
-              </ThemedText>
-            )}
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setIsChangingInApp(true);
-              setError(undefined);
-              setMessage(undefined);
-            }}
-            style={({ pressed }) => [
-              styles.actionButton,
-              styles.primaryButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.primaryButtonText}>
-              🔒 Change Password In-App
-            </ThemedText>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.formContainer}>
-          <ThemedText type="smallBold">Choose a new password</ThemedText>
-
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="new-password"
-            placeholder="New password (min 8 characters)"
-            placeholderTextColor="#64748B"
-            returnKeyType="next"
-            secureTextEntry
-            value={newPassword}
-            onChangeText={setNewPassword}
-            onSubmitEditing={() => confirmInput.current?.focus()}
-            style={styles.input}
-          />
-
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="new-password"
-            placeholder="Confirm new password"
-            placeholderTextColor="#64748B"
-            ref={confirmInput}
-            returnKeyType="done"
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            onSubmitEditing={() => void handleUpdatePasswordInApp()}
-            style={styles.input}
-          />
-
-          <View style={styles.formButtonRow}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={inAppBusy}
-              onPress={handleUpdatePasswordInApp}
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.primaryButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              {inAppBusy ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                  Save New Password
-                </ThemedText>
-              )}
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
+        {!isChangingInApp ? (
+          <View style={styles.buttonRow}>
+            <Button
+              label="Change password in app"
+              variant="tinted"
+              block
               onPress={() => {
-                setIsChangingInApp(false);
-                setNewPassword("");
-                setConfirmPassword("");
+                setIsChangingInApp(true);
                 setError(undefined);
+                setMessage(undefined);
               }}
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.cancelButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <ThemedText type="smallBold" style={styles.cancelButtonText}>
-                Cancel
-              </ThemedText>
-            </Pressable>
+            />
+            <Button
+              label="Send reset link by email"
+              variant="secondary"
+              block
+              loading={emailBusy}
+              onPress={handleSendResetEmail}
+            />
           </View>
-        </View>
-      )}
+        ) : (
+          <View style={styles.formContainer}>
+            <ThemedText type="headline">Choose a new password</ThemedText>
+
+            <FormTextInput
+              accessibilityLabel="New password (min 8 characters)"
+              autoCapitalize="none"
+              autoComplete="new-password"
+              placeholder="New password (min 8 characters)"
+              returnKeyType="next"
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+              onSubmitEditing={() => confirmInput.current?.focus()}
+            />
+
+            <FormTextInput
+              accessibilityLabel="Confirm new password"
+              autoCapitalize="none"
+              autoComplete="new-password"
+              placeholder="Confirm new password"
+              ref={confirmInput}
+              returnKeyType="done"
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              onSubmitEditing={() => void handleUpdatePasswordInApp()}
+            />
+
+            <View style={styles.buttonRow}>
+              <Button
+                label="Save new password"
+                block
+                loading={inAppBusy}
+                onPress={handleUpdatePasswordInApp}
+              />
+              <Button
+                label="Cancel"
+                variant="plain"
+                block
+                onPress={() => {
+                  setIsChangingInApp(false);
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setError(undefined);
+                }}
+              />
+            </View>
+          </View>
+        )}
+      </Card>
+
+      {message ? <Notice tone="success" message={message} /> : null}
+      {error ? <Notice tone="danger" message={error} /> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: Spacing.four,
     gap: Spacing.three,
   },
-  badgeRow: {
-    flexDirection: "row",
+  providerChip: {
+    marginBottom: Spacing.one,
   },
-  emailBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-  },
-  emailBadgeText: {
-    color: "#10B981",
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  appleBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
-  },
-  appleBadgeText: {
-    color: "#F8FAFC",
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  googleBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.3)",
-  },
-  googleBadgeText: {
-    color: "#60A5FA",
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  body: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  highlightEmail: {
-    color: "#E2E8F0",
+  emphasis: {
+    fontWeight: "600",
   },
   buttonRow: {
     gap: Spacing.two,
-    marginTop: Spacing.one,
-  },
-  actionButton: {
-    minHeight: 46,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.three,
-  },
-  primaryButton: {
-    backgroundColor: "#10B981",
-  },
-  primaryButtonText: {
-    color: "#ffffff",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  secondaryButton: {
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
-  },
-  secondaryButtonText: {
-    color: "#34D399",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  cancelButton: {
-    backgroundColor: "transparent",
-  },
-  cancelButtonText: {
-    color: "#94A3B8",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  pressed: {
-    opacity: 0.8,
+    marginTop: Spacing.two,
   },
   formContainer: {
     gap: Spacing.two,
-    marginTop: Spacing.one,
-  },
-  input: {
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderColor: "rgba(148, 163, 184, 0.2)",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: Spacing.three,
-    fontSize: 15,
-    color: "#F8FAFC",
-  },
-  formButtonRow: {
-    gap: Spacing.two,
-    marginTop: Spacing.one,
-  },
-  successText: {
-    color: "#10B981",
-    fontSize: 13,
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 13,
+    marginTop: Spacing.two,
   },
 });

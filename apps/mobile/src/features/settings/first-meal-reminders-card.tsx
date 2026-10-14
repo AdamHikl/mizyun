@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
-  Pressable,
   StyleSheet,
   Switch,
   TextInput,
@@ -10,9 +8,9 @@ import {
 } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
 import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
-import { Colors, Spacing } from "@/constants/theme";
+import { MinTouchTarget, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   DEFAULT_FIRST_MEAL_REMINDERS,
@@ -80,9 +78,9 @@ export function FirstMealRemindersCard({
   };
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">First-meal reminder</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
+    <View style={styles.section}>
+      <SectionHeader title="First-meal reminder" />
+      <ThemedText type="footnote" themeColor="textSecondary">
         Optional local reminder to log your first meal or repeat a recent one.
         Automatically suppressed for the rest of the day once you log food. Open
         Mizyun at least weekly to keep the local schedule up to date.
@@ -92,204 +90,94 @@ export function FirstMealRemindersCard({
         <ActivityIndicator accessibilityLabel="Loading first-meal reminder" />
       ) : (
         <>
-          {/* Daily Reminder Toggle */}
-          <View
-            style={[
-              styles.insetGroup,
-              {
-                backgroundColor:
-                  theme.background === Colors.light.background
-                    ? "#FFFFFF"
-                    : "rgba(255, 255, 255, 0.04)",
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <View style={styles.row}>
-              <ThemedText style={styles.rowLabel}>
-                Daily first-meal reminder
-              </ThemedText>
-              <Switch
-                accessibilityLabel="Daily first-meal reminder"
-                value={settings.enabled}
-                onValueChange={(enabled) =>
-                  setSettings((current) => ({ ...current, enabled }))
-                }
-              />
-            </View>
-          </View>
-
-          {/* Schedule & Routine Section */}
-          {settings.enabled ? (
-            <View style={styles.scheduleSection}>
-              <ThemedText type="smallBold" style={styles.sectionHeaderTitle}>
-                SCHEDULE & ROUTINE
-              </ThemedText>
-
-              <View
-                style={[
-                  styles.insetGroup,
-                  {
-                    backgroundColor:
-                      theme.background === Colors.light.background
-                        ? "#FFFFFF"
-                        : "rgba(255, 255, 255, 0.04)",
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                {/* Time Picker */}
-                <View style={styles.pickerRowContainer}>
-                  <IosTimePicker
-                    label="Reminder time"
-                    hour={settings.hour}
-                    minute={settings.minute}
-                    onChange={(hour, minute) =>
-                      setSettings((current) => ({
-                        ...current,
-                        hour,
-                        minute,
-                      }))
-                    }
-                  />
-                </View>
-
-                <View
-                  style={[
-                    styles.separator,
-                    {
-                      backgroundColor:
-                        theme.background === Colors.light.background
-                          ? "rgba(0, 0, 0, 0.06)"
-                          : "rgba(255, 255, 255, 0.08)",
-                    },
-                  ]}
+          <ListGroup>
+            <ListRow
+              title="Daily first-meal reminder"
+              trailing={
+                <Switch
+                  accessibilityLabel="Daily first-meal reminder"
+                  value={settings.enabled}
+                  onValueChange={(enabled) =>
+                    setSettings((current) => ({ ...current, enabled }))
+                  }
                 />
+              }
+            />
+          </ListGroup>
 
-                {/* Routine Context Input */}
-                <View style={styles.inputRow}>
-                  <TextInput
-                    accessibilityLabel="Routine context (e.g. morning coffee)"
-                    placeholder="Routine context (e.g. morning coffee)"
-                    placeholderTextColor={
-                      theme.background === Colors.light.background
-                        ? "#94A3B8"
-                        : "#64748B"
-                    }
-                    value={settings.routineLabel ?? ""}
-                    onChangeText={(routineLabel) =>
-                      setSettings((current) => ({
-                        ...current,
-                        routineLabel:
-                          routineLabel.length > 0 ? routineLabel : null,
-                      }))
-                    }
-                    style={[styles.input, { color: theme.text }]}
-                    autoCapitalize="sentences"
-                    autoCorrect
-                    maxLength={60}
-                  />
-                </View>
+          {settings.enabled ? (
+            <ListGroup>
+              <View style={styles.pickerRow}>
+                <IosTimePicker
+                  label="Reminder time"
+                  hour={settings.hour}
+                  minute={settings.minute}
+                  onChange={(hour, minute) =>
+                    setSettings((current) => ({
+                      ...current,
+                      hour,
+                      minute,
+                    }))
+                  }
+                />
               </View>
-            </View>
+              <View style={styles.inputRow}>
+                <TextInput
+                  accessibilityLabel="Routine context (e.g. morning coffee)"
+                  placeholder="Routine context (e.g. morning coffee)"
+                  placeholderTextColor={theme.textTertiary}
+                  value={settings.routineLabel ?? ""}
+                  onChangeText={(routineLabel) =>
+                    setSettings((current) => ({
+                      ...current,
+                      routineLabel:
+                        routineLabel.length > 0 ? routineLabel : null,
+                    }))
+                  }
+                  style={[styles.input, { color: theme.text }]}
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  maxLength={60}
+                />
+              </View>
+            </ListGroup>
           ) : null}
 
-          {/* Save Button */}
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={saving ? "Saving…" : "Save reminder"}
+            variant="tinted"
+            block
+            loading={saving}
             accessibilityLabel="Save first-meal reminder"
-            accessibilityState={{ disabled: saving, busy: saving }}
-            disabled={saving}
             onPress={() => void save()}
-            style={styles.save}
-          >
-            <ThemedText type="smallBold" style={styles.saveText}>
-              {saving ? "Saving…" : "Save reminder"}
-            </ThemedText>
-          </Pressable>
+          />
 
           {message ? (
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="footnote" themeColor="textSecondary">
               {message}
             </ThemedText>
           ) : null}
         </>
       )}
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
+  section: {
+    gap: Spacing.two,
   },
-  insetGroup: {
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 1,
-      },
-      default: {},
-    }),
-  },
-  row: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.three,
-  },
-  rowLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: Spacing.three,
-  },
-  scheduleSection: {
-    gap: Spacing.one,
-  },
-  sectionHeaderTitle: {
-    fontSize: 12,
-    letterSpacing: 0.5,
-    color: "#64748B",
-    marginLeft: Spacing.one,
-    marginBottom: Spacing.half,
-  },
-  pickerRowContainer: {
+  pickerRow: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.half,
   },
   inputRow: {
-    minHeight: 48,
+    minHeight: MinTouchTarget + 4,
     justifyContent: "center",
     paddingHorizontal: Spacing.three,
   },
   input: {
-    fontSize: 16,
+    fontSize: 17,
     paddingVertical: Spacing.two,
-  },
-  save: {
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.four,
-    marginTop: Spacing.one,
-  },
-  saveText: {
-    color: "#FFFFFF",
   },
 });

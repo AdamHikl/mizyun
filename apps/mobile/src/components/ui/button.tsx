@@ -106,12 +106,17 @@ export function IconButton({
   icon,
   accessibilityLabel,
   variant = "filled",
+  selected = false,
+  disabled,
+  accessibilityState,
   style,
   ...rest
 }: Omit<PressableProps, "children" | "style"> & {
   icon: IconName;
   accessibilityLabel: string;
   variant?: "filled" | "plain";
+  /** Toggled-on state (e.g. an open panel): tinted with the brand colour. */
+  selected?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
@@ -119,16 +124,20 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ ...accessibilityState, disabled: !!disabled }}
+      disabled={disabled}
       hitSlop={4}
       style={({ pressed }) => [
         styles.iconButton,
         variant === "filled" && { backgroundColor: theme.backgroundSelected },
+        selected && { backgroundColor: theme.primaryLight },
         pressed && styles.pressed,
+        disabled && styles.disabled,
         style,
       ]}
       {...rest}
     >
-      <Icon name={icon} size={19} color="text" />
+      <Icon name={icon} size={19} color={selected ? "primary" : "text"} />
     </Pressable>
   );
 }

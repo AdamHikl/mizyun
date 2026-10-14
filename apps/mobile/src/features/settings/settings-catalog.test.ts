@@ -354,7 +354,7 @@ describe("settings-catalog", () => {
     it("getSettingById returns matching item or undefined", () => {
       const theme = getSettingById("theme");
       expect(theme).toBeDefined();
-      expect(theme?.label).toBe("Appearance & Theme");
+      expect(theme?.label).toBe("Appearance & theme");
 
       const missing = getSettingById("non-existent-id");
       expect(missing).toBeUndefined();

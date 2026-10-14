@@ -1,5 +1,5 @@
 import { spokenRunPace } from "@/features/running/presentation";
-import { Pressable, StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
 import type { RunRecord } from "@mizyun/contracts";
 import {
@@ -8,8 +8,10 @@ import {
   formatRunPace,
   summarizeRuns,
 } from "@mizyun/core";
-import { ThemedView } from "@/components/themed-view";
 import { ThemedText } from "@/components/themed-text";
+import { Button, Card, IconBadge } from "@/components/ui";
+import { Spacing } from "@/constants/theme";
+
 export function RunCard({ run, unit }: { run: RunRecord; unit: "km" | "mi" }) {
   const pace = formatRunPace(
     run.summary.durationSeconds,
@@ -17,32 +19,44 @@ export function RunCard({ run, unit }: { run: RunRecord; unit: "km" | "mi" }) {
     unit,
   );
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">
-        {run.name} · {run.summary.activityDate}
-      </ThemedText>
-      <ThemedText>
+    <Card>
+      <View style={styles.header}>
+        <IconBadge name="run" tone="primary" />
+        <View style={styles.titleBlock}>
+          <ThemedText type="headline">{run.name}</ThemedText>
+          <ThemedText type="footnote" themeColor="textSecondary">
+            {run.summary.activityDate}
+          </ThemedText>
+        </View>
+      </View>
+      <ThemedText type="small">
         {run.summary.distanceMeters === null
           ? "Distance not recorded"
           : `${Number(distanceFromMetres(run.summary.distanceMeters, unit).toFixed(2))} ${unit}`}{" "}
         · {formatRunDuration(run.summary.durationSeconds)}
       </ThemedText>
       {pace ? (
-        <ThemedText type="small" accessibilityLabel={spokenRunPace(pace)}>
+        <ThemedText
+          type="footnote"
+          themeColor="textSecondary"
+          accessibilityLabel={spokenRunPace(pace)}
+        >
           Average pace · {pace}
         </ThemedText>
       ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`View run on ${run.summary.activityDate}`}
-        onPress={() => router.push(`/run/${run.id}` as Href)}
-        style={styles.action}
-      >
-        <ThemedText type="smallBold">View run →</ThemedText>
-      </Pressable>
-    </ThemedView>
+      <View style={styles.actions}>
+        <Button
+          label="View run"
+          variant="secondary"
+          size="small"
+          accessibilityLabel={`View run on ${run.summary.activityDate}`}
+          onPress={() => router.push(`/run/${run.id}` as Href)}
+        />
+      </View>
+    </Card>
   );
 }
+
 export function RunningWeek({
   runs,
   unit,
@@ -64,36 +78,48 @@ export function RunningWeek({
     missing: summary.missingDistanceCount,
   };
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">
-        Running this week · {from}–{to}
-      </ThemedText>
-      <ThemedText>
+    <Card>
+      <View style={styles.header}>
+        <IconBadge name="run" tone="neutral" />
+        <View style={styles.titleBlock}>
+          <ThemedText type="headline">Running this week</ThemedText>
+          <ThemedText type="footnote" themeColor="textSecondary">
+            {from}–{to}
+          </ThemedText>
+        </View>
+      </View>
+      <ThemedText type="small">
         {runs.length} {runs.length === 1 ? "run" : "runs"} ·{" "}
         {formatRunDuration(total.seconds)}
       </ThemedText>
-      <ThemedText>
+      <ThemedText type="small">
         Known distance ·{" "}
         {Number(distanceFromMetres(total.metres, unit).toFixed(2))} {unit}
       </ThemedText>
       {total.missing ? (
-        <ThemedText type="small">
+        <ThemedText type="footnote" themeColor="textSecondary">
           {total.missing} {total.missing === 1 ? "run" : "runs"} without
           distance
         </ThemedText>
       ) : null}
       {incomplete ? (
-        <ThemedText type="small">
+        <ThemedText type="footnote" themeColor="textSecondary">
           More runs are loading. Totals are incomplete.
         </ThemedText>
       ) : null}
-      <ThemedText type="small">
+      <ThemedText type="footnote" themeColor="textSecondary">
         Monday–Sunday. Overnight runs count on their start date.
       </ThemedText>
-    </ThemedView>
+    </Card>
   );
 }
+
 const styles = StyleSheet.create({
-  card: { borderRadius: 16, padding: 16, gap: 8 },
-  action: { minHeight: 48, paddingVertical: 12, justifyContent: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  titleBlock: { flex: 1, gap: Spacing.half },
+  actions: { flexDirection: "row", marginTop: Spacing.one },
 });

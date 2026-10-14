@@ -14,6 +14,11 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: () => null }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: () => null }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  SectionHeader: "SectionHeader",
+}));
 vi.mock("@/features/auth/auth-context", () => ({ useAuth: () => ({}) }));
 vi.mock("@/features/coach/ai-consent-controller", () => ({
   useAiConsentController: () => ({}),

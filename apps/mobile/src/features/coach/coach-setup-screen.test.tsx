@@ -118,7 +118,17 @@ vi.mock("expo-image-picker", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
-vi.mock("@/components/ui", () => ({ Icon: "Icon" }));
+vi.mock("@/components/ui", () => ({
+  Button: "Button",
+  Card: "Card",
+  Chip: "Chip",
+  Icon: "Icon",
+  IconBadge: "IconBadge",
+  IconButton: "IconButton",
+  ListGroup: "ListGroup",
+  ListRow: "ListRow",
+  SectionHeader: "SectionHeader",
+}));
 vi.mock("@/components/tab-header", () => ({
   TabHeader: "TabHeader",
   useTabHeaderLayout: () => ({
@@ -228,7 +238,8 @@ const settle = async () => {
 const nodes = (tree: any): any[] => {
   if (!tree || typeof tree !== "object") return [];
   if (Array.isArray(tree)) return tree.flatMap(nodes);
-  return [tree, ...nodes(tree.props?.children)];
+  // TabHeader renders its icon actions from the `actions` prop.
+  return [tree, ...nodes(tree.props?.actions), ...nodes(tree.props?.children)];
 };
 const labelled = (tree: any, label: string) =>
   nodes(tree).find((n) => n.props?.accessibilityLabel === label);
@@ -316,6 +327,46 @@ describe("Coach translucent header", () => {
     expect(flatten(transcript().props.contentContainerStyle).paddingTop).toBe(
       272,
     );
+  });
+});
+
+describe("Coach header actions", () => {
+  it("keeps recipes, advisory and new-conversation actions in the tab header", async () => {
+    const { router } = await import("expo-router");
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation],
+    });
+    const tree = await open();
+    const chrome = nodes(tree).find((node) => node.type === "TabHeader");
+    const actions = nodes(chrome.props.actions);
+    const action = (label: string) =>
+      actions.find((node) => node.props?.accessibilityLabel === label);
+    expect(action("What can I cook?").type).toBe("IconButton");
+    expect(action("Toggle training plan & advisory info").type).toBe(
+      "IconButton",
+    );
+    expect(action("New conversation").type).toBe("IconButton");
+    expect(action("New conversation").props.disabled).toBe(false);
+    action("What can I cook?").props.onPress();
+    expect(router.push).toHaveBeenLastCalledWith("/meal-recipes");
+    action("New conversation").props.onPress();
+    await settle();
+    expect(mocks.create).toHaveBeenCalledTimes(1);
+
+    const threadRow = nodes(chrome.props.children);
+    const switcher = threadRow.find(
+      (node) => node.props?.accessibilityLabel === "Open thread list",
+    );
+    const remove = threadRow.find(
+      (node) => node.props?.accessibilityLabel === "Delete conversation",
+    );
+    expect(switcher).toBeDefined();
+    expect(remove.type).toBe("IconButton");
+    expect(remove.props.disabled).toBe(false);
+    remove.props.onPress();
+    expect(mocks.alert).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -666,7 +717,7 @@ describe("direct Coach entry", () => {
     expect(mocks.create).not.toHaveBeenCalled();
     expect(labelled(tree, "Message Coach")).toBeUndefined();
     nodes(tree)
-      .find((n) => n.type === "Pressable" && text(n, "Check again"))
+      .find((n) => n.type === "Button" && n.props.label === "Check again")
       .props.onPress();
     await settle();
     tree = render();
@@ -733,7 +784,6 @@ describe("direct Coach entry", () => {
     const tree = await open();
     expect(text(tree, "Start a private check-in")).toBe(false);
     for (const label of [
-      "Ask AI Coach",
       "Suggest a workout routine",
       "Review nutrition targets",
       "Explain weight trend",
@@ -851,7 +901,7 @@ describe("direct Coach entry", () => {
       .onPress();
     await settle();
     expect(labelled(render(), "Message Coach")).toBeDefined();
-    expect(labelled(render(), "Ask AI Coach")).toBeDefined();
+    expect(labelled(render(), "Suggest a workout routine")).toBeDefined();
     expect(text(render(), "Start a private check-in")).toBe(false);
     expect(mocks.create).not.toHaveBeenCalled();
   });

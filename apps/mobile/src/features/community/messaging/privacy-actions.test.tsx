@@ -39,6 +39,7 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   Pressable: "Pressable",
   RefreshControl: "RefreshControl",
+  StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
   Alert: { alert: mocks.alert },
   AppState: { addEventListener: () => ({ remove: vi.fn() }) },
 }));
@@ -63,7 +64,9 @@ vi.mock("../ui", () => ({
 vi.mock("@/constants/theme", () => ({
   MaxContentWidth: 800,
   BottomTabInset: 90,
+  Spacing: { one: 4, two: 8, three: 16 },
 }));
+vi.mock("@/components/ui", () => ({ Button: "UIButton", Card: "Card" }));
 vi.mock("expo-crypto", () => ({ randomUUID: mocks.uuid }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
@@ -112,7 +115,8 @@ function button(tree: any, label: string): any {
     (node) =>
       (node.type === "Button" && node.props.label === label) ||
       (node.type === "Row" && node.props.title === label) ||
-      (node.type === "Pressable" && node.props.accessibilityLabel === label),
+      ((node.type === "Pressable" || node.type === "UIButton") &&
+        node.props.accessibilityLabel === label),
   );
 }
 function confirm() {
@@ -536,23 +540,22 @@ describe("messaging authority transitions", () => {
 });
 
 describe("Messages list hierarchy and read states", () => {
-  it("keeps New message beside the title and management in quiet secondary rows", () => {
+  it("keeps New message as a tinted action without a repeated Messages title", () => {
     mocks.data = { enabled: true, threads: [], contacts: [] };
     const tree = render(CommunityMessagingScreen);
     const action = button(tree, "New message");
-    expect(action.type).toBe("Pressable");
-    expect(action.props.style.minHeight).toBe(48);
-    const toolbar = nodes(tree).find(
-      (node) =>
-        node.type === "View" &&
-        nodes(node).includes(action) &&
-        node.props.style?.flexDirection === "row",
-    );
+    expect(action.type).toBe("UIButton");
+    expect(action.props.variant).toBe("tinted");
+    expect(action.props.icon).toBe("add");
+    expect(action.props.label).toBe("New message");
+    expect(action.props.disabled).toBe(false);
     expect(
-      nodes(toolbar).some(
-        (node) => node.type === "Text" && node.props.children === "Messages",
+      nodes(tree).some(
+        (node) =>
+          node.props?.accessibilityRole === "header" &&
+          node.props.children === "Messages",
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(button(tree, "Messaging settings").type).toBe("Row");
     expect(button(tree, "Manage my sent messages").type).toBe("Row");
     expect(button(tree, "Refresh message choices")).toBeUndefined();

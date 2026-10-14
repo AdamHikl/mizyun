@@ -1,7 +1,15 @@
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import {
+  Card,
+  Icon,
+  ListGroup,
+  ListRow,
+  Notice,
+  SectionHeader,
+} from "@/components/ui";
 import { apiConfiguration } from "@/composition/api-client";
-import { Spacing } from "@/constants/theme";
+import { MinTouchTarget, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 import {
   openBrowserAsync,
   WebBrowserPresentationStyle,
@@ -14,6 +22,7 @@ export function LegalCard({
 }: {
   readonly highlightAnchor?: string;
 }) {
+  const theme = useTheme();
   const baseUrl = apiConfiguration.configured
     ? apiConfiguration.baseUrl
     : "https://mizyun-api.phiskel.com";
@@ -38,127 +47,79 @@ export function LegalCard({
     }
   };
 
+  const highlight = { backgroundColor: theme.primaryLight };
+
   return (
     <View style={styles.container}>
-      <ThemedView
-        type="backgroundElement"
+      <View
         style={[
-          styles.disclaimerContainer,
-          highlightAnchor === "medical-advisory" && styles.highlightedSection,
+          styles.advisory,
+          highlightAnchor === "medical-advisory" && {
+            borderColor: theme.primary,
+          },
         ]}
       >
-        <ThemedText style={styles.disclaimerIcon}>⚠️</ThemedText>
-        <View style={styles.disclaimerTextBlock}>
-          <ThemedText type="smallBold" style={styles.disclaimerTitle}>
-            Health & Medical Advisory
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Mizyun is an informational fitness and nutrition tool and is not a
-            medical device. Always consult a physician or qualified healthcare
-            provider before starting any new diet or training program.
-          </ThemedText>
-        </View>
-      </ThemedView>
-
-      <View style={styles.legalLinksList}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open Privacy Policy"
-          onPress={() => void openUrl("/legal/privacy")}
-          style={({ pressed }) => [
-            styles.legalLinkRow,
-            pressed && styles.pressed,
-            highlightAnchor === "privacy-policy" && styles.highlightedRow,
-          ]}
-        >
-          <ThemedText style={styles.legalLinkIcon}>📄</ThemedText>
-          <View style={styles.legalLinkTextBlock}>
-            <ThemedText type="smallBold">Privacy Policy</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              How your health and photo data is protected
-            </ThemedText>
-          </View>
-          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open Terms of Service"
-          onPress={() => void openUrl("/legal/terms")}
-          style={({ pressed }) => [
-            styles.legalLinkRow,
-            pressed && styles.pressed,
-            highlightAnchor === "terms" && styles.highlightedRow,
-          ]}
-        >
-          <ThemedText style={styles.legalLinkIcon}>⚖️</ThemedText>
-          <View style={styles.legalLinkTextBlock}>
-            <ThemedText type="smallBold">Terms of Service</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Service conditions and membership terms
-            </ThemedText>
-          </View>
-          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open Support and Inquiries"
-          onPress={() => void openUrl("/legal/support")}
-          style={({ pressed }) => [
-            styles.legalLinkRow,
-            pressed && styles.pressed,
-          ]}
-        >
-          <ThemedText style={styles.legalLinkIcon}>💬</ThemedText>
-          <View style={styles.legalLinkTextBlock}>
-            <ThemedText type="smallBold">Support & Inquiries</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Contact us via email or support channels
-            </ThemedText>
-          </View>
-          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open Account Deletion Instructions"
-          onPress={() => void openUrl("/legal/delete-account")}
-          style={({ pressed }) => [
-            styles.legalLinkRow,
-            pressed && styles.pressed,
-            highlightAnchor === "external-deletion" && styles.highlightedRow,
-          ]}
-        >
-          <ThemedText style={styles.legalLinkIcon}>🗑️</ThemedText>
-          <View style={styles.legalLinkTextBlock}>
-            <ThemedText type="smallBold">Account Deletion</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              External data erasure request pathway
-            </ThemedText>
-          </View>
-          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
-        </Pressable>
+        <Notice
+          tone="warning"
+          title="Health & Medical Advisory"
+          message="Mizyun is an informational fitness and nutrition tool and is not a medical device. Always consult a physician or qualified healthcare provider before starting any new diet or training program."
+        />
       </View>
 
-      <ThemedView type="backgroundElement" style={styles.creditsContainer}>
-        <ThemedText type="smallBold">Credits</ThemedText>
+      <ListGroup>
+        <ListRow
+          title="Privacy policy"
+          subtitle="How your health and photo data is protected"
+          accessibilityLabel="Open Privacy Policy"
+          accessibilityHint="Opens in the browser"
+          onPress={() => void openUrl("/legal/privacy")}
+          style={highlightAnchor === "privacy-policy" ? highlight : undefined}
+        />
+        <ListRow
+          title="Terms of Service"
+          subtitle="Service conditions and membership terms"
+          accessibilityLabel="Open Terms of Service"
+          accessibilityHint="Opens in the browser"
+          onPress={() => void openUrl("/legal/terms")}
+          style={highlightAnchor === "terms" ? highlight : undefined}
+        />
+        <ListRow
+          title="Support & Inquiries"
+          subtitle="Contact us via email or support channels"
+          accessibilityLabel="Open Support and Inquiries"
+          accessibilityHint="Opens in the browser"
+          onPress={() => void openUrl("/legal/support")}
+        />
+        <ListRow
+          title="Account Deletion"
+          subtitle="External data erasure request pathway"
+          accessibilityLabel="Open Account Deletion Instructions"
+          accessibilityHint="Opens in the browser"
+          onPress={() => void openUrl("/legal/delete-account")}
+          style={
+            highlightAnchor === "external-deletion" ? highlight : undefined
+          }
+        />
+      </ListGroup>
+
+      <SectionHeader title="Credits" />
+      <Card padded={false}>
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Exercise data by RepDB (repdb.co)"
           accessibilityHint="Opens the exercise data source website"
           onPress={openExerciseSource}
           style={({ pressed }) => [
-            styles.legalLinkRow,
-            pressed && styles.pressed,
+            styles.creditRow,
+            pressed && { backgroundColor: theme.backgroundSelected },
           ]}
         >
-          <ThemedText type="small" themeColor="primary">
+          <ThemedText type="default" themeColor="primary" style={styles.flex}>
             Exercise data by RepDB (repdb.co)
           </ThemedText>
-          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
+          <Icon name="externalLink" size={15} color="textTertiary" />
         </Pressable>
-      </ThemedView>
+      </Card>
     </View>
   );
 }
@@ -167,59 +128,18 @@ const styles = StyleSheet.create({
   container: {
     gap: Spacing.three,
   },
-  creditsContainer: {
-    padding: Spacing.three,
-    borderRadius: 14,
-    gap: Spacing.one,
+  advisory: {
+    borderRadius: Radius.md + 2,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
-  disclaimerContainer: {
-    flexDirection: "row",
-    gap: Spacing.three,
-    padding: Spacing.four,
-    borderRadius: 14,
-  },
-  disclaimerIcon: {
-    fontSize: 20,
-  },
-  disclaimerTextBlock: {
-    flex: 1,
-    gap: 4,
-  },
-  disclaimerTitle: {
-    fontSize: 14,
-  },
-  legalLinksList: {
-    gap: Spacing.two,
-  },
-  legalLinkRow: {
+  creditRow: {
+    minHeight: MinTouchTarget + 8,
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
+    gap: Spacing.two,
     paddingHorizontal: Spacing.three,
-    borderRadius: 12,
+    paddingVertical: 10,
   },
-  legalLinkIcon: {
-    fontSize: 18,
-  },
-  legalLinkTextBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  legalLinkArrow: {
-    fontSize: 16,
-    opacity: 0.6,
-  },
-  highlightedSection: {
-    borderWidth: 2,
-    borderColor: "#10B981",
-  },
-  highlightedRow: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    borderWidth: 1,
-    borderColor: "#10B981",
-  },
-  pressed: {
-    opacity: 0.7,
-  },
+  flex: { flex: 1 },
 });

@@ -1,19 +1,11 @@
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
 import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
 import { IosWeekdayPicker } from "@/components/ui/ios-weekday-picker";
-import { Colors, Spacing } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
+import { Spacing } from "@/constants/theme";
 import {
   applyCoachReminders,
   DEFAULT_COACH_REMINDERS,
@@ -28,7 +20,6 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const theme = useTheme();
 
   useEffect(() => {
     let active = true;
@@ -72,9 +63,9 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
   const isScheduleVisible = settings.dailyEnabled || settings.weeklyEnabled;
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">Proactive Coach reminders</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
+    <View style={styles.section}>
+      <SectionHeader title="Coach reminders" />
+      <ThemedText type="footnote" themeColor="textSecondary">
         Optional local reminders open an auto-submitted daily plan or weekly
         review at your selected time. Nothing is analyzed, logged, or changed in
         the background.
@@ -84,208 +75,92 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
         <ActivityIndicator accessibilityLabel="Loading Coach reminders" />
       ) : (
         <>
-          {/* Toggles Group */}
-          <View
-            style={[
-              styles.insetGroup,
-              {
-                backgroundColor:
-                  theme.background === Colors.light.background
-                    ? "#FFFFFF"
-                    : "rgba(255, 255, 255, 0.04)",
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <View style={styles.row}>
-              <ThemedText style={styles.rowLabel}>Daily plan</ThemedText>
-              <Switch
-                accessibilityLabel="Daily Coach plan reminder"
-                value={settings.dailyEnabled}
-                onValueChange={(dailyEnabled) =>
-                  setSettings((current) => ({ ...current, dailyEnabled }))
-                }
-              />
-            </View>
-
-            <View
-              style={[
-                styles.separator,
-                {
-                  backgroundColor:
-                    theme.background === Colors.light.background
-                      ? "rgba(0, 0, 0, 0.06)"
-                      : "rgba(255, 255, 255, 0.08)",
-                },
-              ]}
+          <ListGroup>
+            <ListRow
+              title="Daily plan"
+              trailing={
+                <Switch
+                  accessibilityLabel="Daily Coach plan reminder"
+                  value={settings.dailyEnabled}
+                  onValueChange={(dailyEnabled) =>
+                    setSettings((current) => ({ ...current, dailyEnabled }))
+                  }
+                />
+              }
             />
+            <ListRow
+              title="Weekly adaptation"
+              trailing={
+                <Switch
+                  accessibilityLabel="Weekly Coach adaptation reminder"
+                  value={settings.weeklyEnabled}
+                  onValueChange={(weeklyEnabled) =>
+                    setSettings((current) => ({ ...current, weeklyEnabled }))
+                  }
+                />
+              }
+            />
+          </ListGroup>
 
-            <View style={styles.row}>
-              <ThemedText style={styles.rowLabel}>Weekly adaptation</ThemedText>
-              <Switch
-                accessibilityLabel="Weekly Coach adaptation reminder"
-                value={settings.weeklyEnabled}
-                onValueChange={(weeklyEnabled) =>
-                  setSettings((current) => ({ ...current, weeklyEnabled }))
-                }
-              />
-            </View>
-          </View>
-
-          {/* Schedule Section */}
           {isScheduleVisible ? (
-            <View style={styles.scheduleSection}>
-              <ThemedText type="smallBold" style={styles.sectionHeaderTitle}>
-                SCHEDULE
-              </ThemedText>
-
-              <View
-                style={[
-                  styles.insetGroup,
-                  {
-                    backgroundColor:
-                      theme.background === Colors.light.background
-                        ? "#FFFFFF"
-                        : "rgba(255, 255, 255, 0.04)",
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                {/* Time Picker Row & Popover */}
-                <View style={styles.pickerRowContainer}>
-                  <IosTimePicker
-                    label="Reminder time"
-                    hour={settings.hour}
-                    minute={settings.minute ?? 0}
-                    onChange={(hour, minute) =>
+            <ListGroup>
+              <View style={styles.pickerRow}>
+                <IosTimePicker
+                  label="Reminder time"
+                  hour={settings.hour}
+                  minute={settings.minute ?? 0}
+                  onChange={(hour, minute) =>
+                    setSettings((current) => ({
+                      ...current,
+                      hour,
+                      minute,
+                    }))
+                  }
+                />
+              </View>
+              {settings.weeklyEnabled ? (
+                <View style={styles.pickerRow}>
+                  <IosWeekdayPicker
+                    label="Weekly review day"
+                    weekday={settings.weeklyWeekday}
+                    onChange={(weeklyWeekday) =>
                       setSettings((current) => ({
                         ...current,
-                        hour,
-                        minute,
+                        weeklyWeekday,
                       }))
                     }
                   />
                 </View>
-
-                {/* Weekday Picker Row & Popover (when weekly is enabled) */}
-                {settings.weeklyEnabled ? (
-                  <>
-                    <View
-                      style={[
-                        styles.separator,
-                        {
-                          backgroundColor:
-                            theme.background === Colors.light.background
-                              ? "rgba(0, 0, 0, 0.06)"
-                              : "rgba(255, 255, 255, 0.08)",
-                        },
-                      ]}
-                    />
-                    <View style={styles.pickerRowContainer}>
-                      <IosWeekdayPicker
-                        label="Weekly review day"
-                        weekday={settings.weeklyWeekday}
-                        onChange={(weeklyWeekday) =>
-                          setSettings((current) => ({
-                            ...current,
-                            weeklyWeekday,
-                          }))
-                        }
-                      />
-                    </View>
-                  </>
-                ) : null}
-              </View>
-            </View>
+              ) : null}
+            </ListGroup>
           ) : null}
 
-          {/* Save Button */}
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={saving ? "Saving…" : "Save reminders"}
+            variant="tinted"
+            block
+            loading={saving}
             accessibilityLabel="Save proactive Coach reminders"
-            accessibilityState={{ disabled: saving, busy: saving }}
-            disabled={saving}
             onPress={() => void save()}
-            style={styles.save}
-          >
-            <ThemedText type="smallBold" style={styles.saveText}>
-              {saving ? "Saving…" : "Save reminders"}
-            </ThemedText>
-          </Pressable>
+          />
 
           {message ? (
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="footnote" themeColor="textSecondary">
               {message}
             </ThemedText>
           ) : null}
         </>
       )}
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.three,
+  section: {
+    gap: Spacing.two,
   },
-  insetGroup: {
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 1,
-      },
-      default: {},
-    }),
-  },
-  row: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.three,
-  },
-  rowLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: Spacing.three,
-  },
-  scheduleSection: {
-    gap: Spacing.one,
-  },
-  sectionHeaderTitle: {
-    fontSize: 12,
-    letterSpacing: 0.5,
-    color: "#64748B",
-    marginLeft: Spacing.one,
-    marginBottom: Spacing.half,
-  },
-  pickerRowContainer: {
+  pickerRow: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.half,
-  },
-  save: {
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.four,
-    marginTop: Spacing.one,
-  },
-  saveText: {
-    color: "#FFFFFF",
   },
 });

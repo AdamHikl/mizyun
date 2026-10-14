@@ -1,17 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as AppleAuthentication from "expo-apple-authentication";
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  Share,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Alert, Platform, Share, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { Button, Card, SectionHeader } from "@/components/ui";
 import { apiClient } from "@/composition/api-client";
 import { Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
@@ -389,100 +381,72 @@ export function AccountDataCard({
   const deletionButtonLabel = () => {
     switch (deletionStage) {
       case "requesting_challenge":
-        return "Requesting Deletion...";
+        return "Requesting deletion…";
       case "erasing_server_data":
-        return "Erasing Account Data...";
+        return "Erasing account data…";
       case "clearing_local_cache":
-        return "Clearing Local Session...";
+        return "Clearing local session…";
       case "failed":
         return pendingChallenge
-          ? "⚠️ Retry Account Deletion"
-          : "🗑️ Delete Account & All Data";
+          ? "Retry account deletion"
+          : "Delete account & all data";
       default:
-        return "🗑️ Delete Account & All Data";
+        return "Delete account & all data";
     }
   };
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">Account Data & Privacy Rights</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
+    <View style={styles.page}>
+      <ThemedText type="footnote" themeColor="textSecondary">
         You own all your personal health and fitness data. You can download a
         complete copy of your records or permanently delete your account at any
         time in accordance with GDPR and CCPA.
       </ThemedText>
 
-      <View style={styles.buttonRow}>
-        <Pressable
-          accessibilityRole="button"
+      <SectionHeader title="Export" />
+      <Card>
+        <Button
+          label="Export all account data (JSON)"
+          variant="tinted"
+          icon="share"
+          block
           accessibilityLabel="Export all account data"
-          disabled={disabled || isExporting || isDeleting}
+          loading={isExporting}
+          disabled={disabled || isDeleting}
           onPress={() => void handleExport()}
-          style={({ pressed }) => [
-            styles.exportButton,
-            pressed && styles.pressed,
-            (disabled || isExporting || isDeleting) && styles.buttonDisabled,
-          ]}
-        >
-          {isExporting ? (
-            <ActivityIndicator size="small" color="#10B981" />
-          ) : (
-            <ThemedText type="smallBold" style={styles.exportButtonText}>
-              📦 Export All Account Data (JSON)
-            </ThemedText>
-          )}
-        </Pressable>
-      </View>
+        />
+        <ThemedText type="footnote" themeColor="textSecondary">
+          Export creates a single JSON file containing all your profile, health
+          metrics, logged meals, workouts, AI chat history, and stored coach
+          memories. For private photos, temporary 24-hour signed download links
+          are included so you can save the original files before the links
+          expire (full raw media files are not directly embedded in the JSON
+          export).
+        </ThemedText>
+      </Card>
 
-      <ThemedText type="small" themeColor="textSecondary">
-        Export creates a single JSON file containing all your profile, health
-        metrics, logged meals, workouts, AI chat history, and stored coach
-        memories. For private photos, temporary 24-hour signed download links
-        are included so you can save the original files before the links expire
-        (full raw media files are not directly embedded in the JSON export).
-      </ThemedText>
-
-      <View style={styles.divider} />
-
-      <View style={styles.consentSection}>
-        <ThemedText type="smallBold">Third-Party AI & Consent</ThemedText>
+      <SectionHeader title="Third-party AI & consent" />
+      <Card>
         <ThemedText type="small" themeColor="textSecondary">
           {aiConsentGranted
             ? "Third-party AI processing (Google Gemini API) is currently enabled for Coach conversation and meal photo drafting. You confirmed adult eligibility (18+)."
             : "Third-party AI processing is currently not enabled. You will be prompted for consent before using Coach or AI meal drafting."}
         </ThemedText>
         {aiConsentGranted ? (
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label="Revoke AI consent"
+            variant="secondary"
+            block
             accessibilityLabel="Revoke AI consent"
-            disabled={
-              disabled || isExporting || isDeleting || isRevokingConsent
-            }
+            loading={isRevokingConsent}
+            disabled={disabled || isExporting || isDeleting}
             onPress={handleRevokeConsent}
-            style={({ pressed }) => [
-              styles.revokeButton,
-              pressed && styles.pressed,
-              (disabled || isExporting || isDeleting || isRevokingConsent) &&
-                styles.buttonDisabled,
-            ]}
-          >
-            {isRevokingConsent ? (
-              <ActivityIndicator size="small" color="#D97706" />
-            ) : (
-              <ThemedText type="smallBold" style={styles.revokeButtonText}>
-                Revoke AI Consent
-              </ThemedText>
-            )}
-          </Pressable>
+          />
         ) : null}
-      </View>
+      </Card>
 
-      <View style={styles.divider} />
-
-      <View style={styles.deleteSection}>
-        <ThemedText type="smallBold" style={styles.dangerTitle}>
-          Permanent Account Erasure
-        </ThemedText>
+      <SectionHeader title="Permanent account erasure" />
+      <Card>
         <ThemedText type="small" themeColor="textSecondary">
           Permanently erase your account, login credentials, and all database
           and photo records from active systems after the staged deletion
@@ -490,126 +454,33 @@ export function AccountDataCard({
           period; a cleanup outage may delay physical deletion. Previously
           exported local files are not remotely erased.
         </ThemedText>
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={deletionButtonLabel()}
+          variant="destructive"
+          icon="trash"
+          block
           accessibilityLabel="Permanently delete account"
-          disabled={disabled || isExporting || isDeleting}
+          loading={isDeleting}
+          disabled={disabled || isExporting}
           onPress={handleDeletePress}
-          style={({ pressed }) => [
-            styles.deleteButton,
-            pressed && styles.pressed,
-            (disabled || isExporting || isDeleting) && styles.buttonDisabled,
-          ]}
-        >
-          {isDeleting ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color="#EF4444" />
-              <ThemedText type="smallBold" style={styles.deleteButtonText}>
-                {deletionButtonLabel()}
-              </ThemedText>
-            </View>
-          ) : (
-            <ThemedText type="smallBold" style={styles.deleteButtonText}>
-              {deletionButtonLabel()}
-            </ThemedText>
-          )}
-        </Pressable>
-      </View>
+        />
+      </Card>
 
       {feedbackMessage !== null ? (
         <ThemedText
-          type="small"
+          type="footnote"
           themeColor="textSecondary"
           accessibilityRole="alert"
-          style={styles.feedback}
         >
           {feedbackMessage}
         </ThemedText>
       ) : null}
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  card: {
-    padding: Spacing.two + 4,
-    borderRadius: 14,
+  page: {
     gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-  },
-  buttonRow: {
-    marginTop: 4,
-  },
-  exportButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  exportButtonText: {
-    color: "#10B981",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
-    marginVertical: 4,
-  },
-  consentSection: {
-    gap: Spacing.one,
-  },
-  revokeButton: {
-    marginTop: 4,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  revokeButtonText: {
-    color: "#D97706",
-  },
-  deleteSection: {
-    gap: Spacing.one,
-  },
-  dangerTitle: {
-    color: "#EF4444",
-  },
-  deleteButton: {
-    marginTop: 4,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: "rgba(239, 68, 68, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  deleteButtonText: {
-    color: "#EF4444",
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  feedback: {
-    marginTop: 4,
-    fontSize: 12,
   },
 });

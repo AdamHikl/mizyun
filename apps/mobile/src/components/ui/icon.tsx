@@ -19,6 +19,12 @@ export const IconNames = {
     android: "add_circle",
     web: "add_circle",
   },
+  appearance: {
+    ios: "circle.lefthalf.filled",
+    android: "contrast",
+    web: "contrast",
+  },
+  arrowUp: { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward" },
   back: { ios: "chevron.left", android: "arrow_back", web: "arrow_back" },
   bell: { ios: "bell", android: "notifications", web: "notifications" },
   calendar: {
@@ -67,12 +73,18 @@ export const IconNames = {
     android: "local_fire_department",
     web: "local_fire_department",
   },
+  externalLink: {
+    ios: "arrow.up.right.square",
+    android: "open_in_new",
+    web: "open_in_new",
+  },
   feedback: {
     ios: "exclamationmark.bubble",
     android: "feedback",
     web: "feedback",
   },
   fork: { ios: "fork.knife", android: "restaurant", web: "restaurant" },
+  globe: { ios: "globe", android: "public", web: "public" },
   history: {
     ios: "clock.arrow.circlepath",
     android: "history",
@@ -80,7 +92,18 @@ export const IconNames = {
   },
   info: { ios: "info.circle", android: "info", web: "info" },
   more: { ios: "ellipsis", android: "more_horiz", web: "more_horiz" },
+  person: {
+    ios: "person.crop.circle",
+    android: "account_circle",
+    web: "account_circle",
+  },
   photo: { ios: "photo", android: "image", web: "image" },
+  reorder: {
+    ios: "arrow.up.arrow.down",
+    android: "swap_vert",
+    web: "swap_vert",
+  },
+  privacy: { ios: "hand.raised", android: "shield", web: "shield" },
   repeat: { ios: "arrow.clockwise", android: "replay", web: "replay" },
   run: { ios: "figure.run", android: "directions_run", web: "directions_run" },
   scale: { ios: "scalemass", android: "monitor_weight", web: "monitor_weight" },
@@ -94,6 +117,8 @@ export const IconNames = {
     web: "directions_walk",
   },
   sunrise: { ios: "sunrise", android: "wb_twilight", web: "wb_twilight" },
+  target: { ios: "target", android: "track_changes", web: "track_changes" },
+  timer: { ios: "timer", android: "timer", web: "timer" },
   trash: { ios: "trash", android: "delete", web: "delete" },
   warning: {
     ios: "exclamationmark.triangle",

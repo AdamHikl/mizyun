@@ -22,6 +22,18 @@ vi.mock("@/hooks/use-theme", () => ({
   }),
 }));
 
+vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
+vi.mock("@/components/ui", () => ({
+  Card: "Card",
+  Icon: "Icon",
+  IconButton: "IconButton",
+}));
+vi.mock("@/constants/theme", () => ({
+  PageGutter: 20,
+  Radius: { pill: 999 },
+  Spacing: { half: 2, one: 4, two: 8, three: 16 },
+}));
+
 import { ActivityCard } from "./activity-card";
 
 const mockItem: SharedActivityFeedItemDto = {
@@ -59,6 +71,7 @@ describe("ActivityCard", () => {
 
     expect(element).not.toBeNull();
     expect(element.props.testID).toBe("activity-card-act-123");
+    expect(element.type).toBe("Card");
     expect(element.props.accessible).toBe(false);
     const content = element.props.children[1];
     expect(content.props.accessibilityRole).toBe("button");
@@ -114,6 +127,23 @@ describe("ActivityCard", () => {
       (child: any) => child?.props?.details === meal,
     );
     expect(projection.props.compact).toBe(true);
+  });
+  it("keeps card options as an icon button that opens actions without opening the card", () => {
+    const onPress = vi.fn();
+    const onOpenActions = vi.fn();
+    const element = ActivityCard({ item: mockItem, onPress, onOpenActions });
+    const options = element.props.children[0].props.children[1];
+    expect(options.type).toBe("IconButton");
+    expect(options.props.testID).toBe("activity-actions-act-123");
+    expect(options.props.accessibilityLabel).toBe("Card options");
+    const stopPropagation = vi.fn();
+    options.props.onPress({ stopPropagation });
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onOpenActions).toHaveBeenCalledOnce();
+    expect(onPress).not.toHaveBeenCalled();
+    expect(
+      ActivityCard({ item: mockItem }).props.children[0].props.children[1],
+    ).toBeFalsy();
   });
   it("handles null duration gracefully", () => {
     const itemWithoutDuration = { ...mockItem, durationSeconds: null };

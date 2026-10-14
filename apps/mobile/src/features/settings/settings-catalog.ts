@@ -171,7 +171,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "profile-personal-details",
     destinationId: "profile",
-    label: "Personal & Physical Details",
+    label: "Personal & physical details",
     description: "Name, birth date, biological sex, and height",
     categoryId: "profile-goals",
     categoryLabel: "Profile & goals",
@@ -201,7 +201,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "profile-units",
     destinationId: "profile",
-    label: "Units of Measurement",
+    label: "Units of measurement",
     description: "Metric (kg, cm) or Imperial (lb, in)",
     categoryId: "profile-goals",
     categoryLabel: "Profile & goals",
@@ -239,7 +239,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "goal-pace",
     destinationId: "goal",
-    label: "Goal & Target Pace",
+    label: "Goal & target pace",
     description:
       "Calorie deficit or surplus, target weight, and weekly rate of change",
     categoryId: "profile-goals",
@@ -280,7 +280,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "energy-targets",
     destinationId: "energy-setup",
-    label: "Energy Targets",
+    label: "Energy targets",
     description:
       "Daily calorie target, macro split (protein, carbs, fats), and BMR calculations",
     categoryId: "profile-goals",
@@ -312,7 +312,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "regional-food-standards",
     destinationId: "food-standards",
-    label: "Regional Food Standards",
+    label: "Regional food standards",
     description:
       "Country food database conventions and energy labeling standards",
     categoryId: "profile-goals",
@@ -341,7 +341,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "body-progress",
     destinationId: "body",
-    label: "Body Progress Trends",
+    label: "Body progress trends",
     description:
       "Weight history, trend lines, body measurements, and rate of change",
     categoryId: "profile-goals",
@@ -367,7 +367,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "progress-photos",
     destinationId: "progress-photos",
-    label: "Progress Photos",
+    label: "Progress photos",
     description: "Visual transformation timeline and comparison photos",
     categoryId: "profile-goals",
     categoryLabel: "Profile & goals",
@@ -394,7 +394,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "rest-timer",
     destinationId: "workout",
-    label: "Rest Timer & Workout Alerts",
+    label: "Rest timer & workout alerts",
     description:
       "Default rest duration, sound, vibration, and auto-start preferences",
     categoryId: "workouts-reminders",
@@ -435,7 +435,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "weight-progression",
     destinationId: "workout",
-    label: "Auto-advance Target Weights",
+    label: "Auto-advance target weights",
     description:
       "Automatically increase planned workout weights when target reps are completed",
     categoryId: "workouts-reminders",
@@ -470,7 +470,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "coach-reminders",
     destinationId: "reminders",
-    label: "Coach Push Reminders",
+    label: "Coach push reminders",
     description:
       "Daily coaching check-ins and weekly progress review notifications",
     categoryId: "workouts-reminders",
@@ -499,7 +499,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "first-meal-reminder",
     destinationId: "reminders",
-    label: "First-Meal Reminder",
+    label: "First-meal reminder",
     description:
       "Morning prompt to log breakfast or your first meal of the day",
     categoryId: "workouts-reminders",
@@ -527,7 +527,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "evening-catch-up-reminder",
     destinationId: "reminders",
-    label: "Evening Catch-Up Reminder",
+    label: "Evening catch-up reminder",
     description:
       "Evening prompt to finish logging meals or review remaining calorie targets",
     categoryId: "workouts-reminders",
@@ -557,7 +557,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "theme",
     destinationId: "appearance",
-    label: "Appearance & Theme",
+    label: "Appearance & theme",
     description: "Switch between Auto (System), Light, or Dark display mode",
     categoryId: "appearance",
     categoryLabel: "Appearance",
@@ -629,7 +629,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "health-preview",
     destinationId: "health-preview",
-    label: "Weight & Workout Health Preview",
+    label: "Weight & workout Health preview",
     description:
       "Read selected weight or completed workout summaries on this screen",
     categoryId: "health-connections",
@@ -655,7 +655,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "health-exports",
     destinationId: "health-exports",
-    label: "Nutrition & Workout Health Exports",
+    label: "Nutrition & workout Health exports",
     description: "Send selected confirmed nutrition and completed workouts",
     categoryId: "health-connections",
     categoryLabel: "Health connections",
@@ -680,7 +680,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "coach-preferences",
     destinationId: "coach-preferences",
-    label: "Coaching Style & Preferences",
+    label: "Coaching style & preferences",
     description:
       "Experience level, workout equipment, dietary focus, and communication style",
     categoryId: "ai-coach",
@@ -709,7 +709,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "ai-usage",
     destinationId: "ai-usage",
-    label: "AI Usage & Launch Pro Pass",
+    label: "AI usage & Launch Pro Pass",
     description: "Daily AI usage limits, token allowances, and Launch Pro Pass",
     categoryId: "ai-coach",
     categoryLabel: "AI coach",
@@ -744,7 +744,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "coach-memory",
     destinationId: "memory",
-    label: "Coach Memory",
+    label: "Coach memory",
     description:
       "Inspect, edit, or wipe learned personal context and dietary facts",
     categoryId: "ai-coach",
@@ -778,7 +778,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "ai-data-consent",
     destinationId: "account-data",
-    label: "AI Data Consent",
+    label: "AI data consent",
     description:
       "Manage or revoke third-party AI processing consent for nutrition and coaching",
     categoryId: "ai-coach",
@@ -837,7 +837,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "coach-memory-privacy",
     destinationId: "memory",
-    label: "Coach Memory & Facts",
+    label: "Coach memory & facts",
     description: "Inspect, edit, or erase learned preferences and facts",
     categoryId: "privacy-data",
     categoryLabel: "Privacy & data",
@@ -860,7 +860,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "ai-data-consent-privacy",
     destinationId: "account-data",
-    label: "AI Data Consent & Revocation",
+    label: "AI data consent & revocation",
     description: "Review or withdraw consent for third-party model processing",
     categoryId: "privacy-data",
     categoryLabel: "Privacy & data",
@@ -914,7 +914,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "export-account-data",
     destinationId: "account-data",
-    label: "Export Account Data",
+    label: "Export account data",
     description:
       "Download a complete copy of your personal data, meals, workouts, and weights",
     categoryId: "privacy-data",
@@ -944,7 +944,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "delete-account",
     destinationId: "account-data",
-    label: "Delete Account",
+    label: "Delete account",
     description:
       "Permanently erase your account, identity, photos, workout logs, and nutrition records",
     categoryId: "privacy-data",
@@ -973,7 +973,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "privacy-policy",
     destinationId: "legal",
-    label: "Privacy Policy",
+    label: "Privacy policy",
     description:
       "Review how your health, nutrition, and photo data is stored and protected",
     categoryId: "privacy-data",
@@ -996,7 +996,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "password-security",
     destinationId: "security",
-    label: "Sign-in & Security",
+    label: "Sign-in & security",
     description:
       "Password reset, change password, or provider-managed sign-in details",
     categoryId: "account-help",
@@ -1025,7 +1025,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "account-information",
     destinationId: "identity",
-    label: "Account Information",
+    label: "Account information",
     description:
       "Signed-in email address, internal user ID, session status, and connection diagnostics",
     categoryId: "account-help",
@@ -1053,7 +1053,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "setup-wizard",
     destinationId: "setup-wizard",
-    label: "Complete Setup",
+    label: "Complete setup",
     description:
       "Finish setting up profile details, units, starting weight, and primary goal",
     categoryId: "account-help",
@@ -1078,7 +1078,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "feedback-support",
     destinationId: "feedback",
-    label: "Feedback & Support",
+    label: "Feedback & support",
     description:
       "Send bug reports, suggest features, or submit feedback to the team",
     categoryId: "account-help",
@@ -1108,7 +1108,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "terms-of-service",
     destinationId: "legal",
-    label: "Terms of Service",
+    label: "Terms of service",
     description: "Service conditions and membership terms",
     categoryId: "account-help",
     categoryLabel: "Account & help",
@@ -1132,7 +1132,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "health-advisory",
     destinationId: "legal",
-    label: "Health & Medical Advisory",
+    label: "Health & medical advisory",
     description: "Informational fitness disclaimer and medical advice guidance",
     categoryId: "account-help",
     categoryLabel: "Account & help",
@@ -1152,7 +1152,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "external-account-deletion",
     destinationId: "legal",
-    label: "External Account Deletion Info",
+    label: "External account deletion info",
     description:
       "Information on requesting data erasure outside the mobile app",
     categoryId: "account-help",
@@ -1175,7 +1175,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
   {
     id: "sign-out",
     destinationId: "sign-out",
-    label: "Sign Out",
+    label: "Sign out",
     description: "Sign out of your Mizyun account on this device",
     categoryId: "account-help",
     categoryLabel: "Account & help",

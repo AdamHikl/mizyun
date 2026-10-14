@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   focus: null as null | (() => void),
   load: vi.fn(),
   pause: vi.fn(),
+  options: false,
 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -33,7 +34,9 @@ vi.mock("react", async (original) => ({
             mocks.report = next;
           },
         ]
-      : [value, vi.fn()],
+      : value === false
+        ? [mocks.options, vi.fn()]
+        : [value, vi.fn()],
   useEffect: () => {},
   useCallback: (fn: unknown) => fn,
   useSyncExternalStore: (_sub: unknown, snapshot: () => unknown) => snapshot(),
@@ -62,6 +65,11 @@ vi.mock("@/features/auth/auth-context", () => ({
   }),
 }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
+vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
+vi.mock("@/components/ui", () => ({ Card: "Card" }));
+vi.mock("@/constants/theme", () => ({
+  Spacing: { half: 2, one: 4, two: 8, three: 16, four: 24 },
+}));
 vi.mock("../initials-avatar", () => ({ InitialsAvatar: "InitialsAvatar" }));
 vi.mock("../ui", () => ({
   CommunityPage: "CommunityPage",
@@ -119,6 +127,7 @@ beforeEach(() => {
   mocks.refs = [];
   mocks.refIndex = 0;
   mocks.report = null;
+  mocks.options = false;
   mocks.focus = null;
   mocks.current = true;
   mocks.canMessage = false;
@@ -364,5 +373,33 @@ describe("profile navigation and directional approval", () => {
     expect(mocks.pause).toHaveBeenCalledOnce();
     expect(mocks.load).toHaveBeenCalledOnce();
     expect(mocks.report).toBeNull();
+  });
+  it("keeps every profile option as a grouped row with its confirmation", () => {
+    mocks.profile = {
+      ...mocks.profile,
+      relationshipContext: {
+        outgoing: { id: "out", status: "approved" },
+        incoming: { id: "in", status: "approved" },
+      },
+    };
+    expect(button(render(), "Options")).toBeTruthy();
+    mocks.options = true;
+    const tree = render();
+    expect(button(tree, "Close options")).toBeTruthy();
+    const section = nodes(tree).find(
+      (node) => node.props?.title === "Profile options",
+    );
+    const rows = nodes(section).filter((node) => node.type === "CommunityRow");
+    expect(rows.map((row) => row.props.title)).toEqual([
+      "Unfollow",
+      "Mute in feed",
+      "Remove follower",
+      "Report profile or handle",
+      "Block person",
+    ]);
+    expect(rows[4].props.danger).toBe(true);
+    rows[4].props.onPress();
+    expect(mocks.alert.mock.calls[0][0]).toBe("Block @friend?");
+    expect(mocks.act).not.toHaveBeenCalled();
   });
 });

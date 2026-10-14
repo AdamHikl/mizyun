@@ -1,9 +1,7 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -13,7 +11,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Spacing } from "@/constants/theme";
+import { Button, Card, Notice } from "@/components/ui";
+import {
+  MaxContentWidth,
+  PageGutter,
+  Radius,
+  Spacing,
+} from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 export interface AiConsentModalProps {
@@ -90,10 +94,10 @@ export function AiConsentModal({
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
           <View style={styles.header}>
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              MIZYUN AI DISCLOSURE
+            <ThemedText type="footnote" themeColor="textSecondary">
+              Mizyun AI disclosure
             </ThemedText>
-            <ThemedText type="subtitle" style={styles.title}>
+            <ThemedText type="subtitle" accessibilityRole="header">
               Third-Party AI &amp; Privacy
             </ThemedText>
           </View>
@@ -103,19 +107,17 @@ export function AiConsentModal({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
           >
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="smallBold" style={styles.cardHeader}>
-                1. Third-Party Provider
-              </ThemedText>
+            <Card>
+              <ThemedText type="headline">1. Third-Party Provider</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 AI features in Mizyun (Coach conversation and photo-based meal
                 drafting) are powered by Google LLC (&ldquo;Google Gemini
                 API&rdquo;).
               </ThemedText>
-            </ThemedView>
+            </Card>
 
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="smallBold" style={styles.cardHeader}>
+            <Card>
+              <ThemedText type="headline">
                 2. Data Shared with Google
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
@@ -125,10 +127,10 @@ export function AiConsentModal({
                 and active goals), and photo bytes are transmitted to Google
                 Gemini for inference.
               </ThemedText>
-            </ThemedView>
+            </Card>
 
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="smallBold" style={styles.cardHeader}>
+            <Card>
+              <ThemedText type="headline">
                 3. Privacy &amp; Model Training
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
@@ -139,10 +141,10 @@ export function AiConsentModal({
                 promise that every submission is excluded from Google product
                 improvement.
               </ThemedText>
-            </ThemedView>
+            </Card>
 
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="smallBold" style={styles.cardHeader}>
+            <Card>
+              <ThemedText type="headline">
                 4. Adult Eligibility (18+)
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
@@ -160,12 +162,14 @@ export function AiConsentModal({
                       styles.birthYearInput,
                       {
                         color: theme.text,
-                        borderColor: validationError ? "#EF4444" : theme.border,
-                        backgroundColor: theme.backgroundElement,
+                        borderColor: validationError
+                          ? theme.danger
+                          : theme.border,
+                        backgroundColor: theme.backgroundSelected,
                       },
                     ]}
                     placeholder={`YYYY (e.g. ${currentYear - 25})`}
-                    placeholderTextColor="#64748B"
+                    placeholderTextColor={theme.textTertiary}
                     keyboardType="number-pad"
                     maxLength={4}
                     value={birthYearInput}
@@ -174,21 +178,29 @@ export function AiConsentModal({
                     accessibilityLabel="Birth year for adult verification"
                   />
                   {validationError && (
-                    <ThemedText type="small" style={styles.validationText}>
+                    <ThemedText
+                      type="footnote"
+                      themeColor="danger"
+                      style={styles.validationText}
+                    >
                       {validationError}
                     </ThemedText>
                   )}
                 </View>
               )}
               {!needsBirthYear && validationError && (
-                <ThemedText type="small" style={styles.validationText}>
+                <ThemedText
+                  type="footnote"
+                  themeColor="danger"
+                  style={styles.validationText}
+                >
                   {validationError}
                 </ThemedText>
               )}
-            </ThemedView>
+            </Card>
 
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="smallBold" style={styles.cardHeader}>
+            <Card>
+              <ThemedText type="headline">
                 5. Advisory &amp; Wellness Only
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
@@ -196,65 +208,36 @@ export function AiConsentModal({
                 is for fitness and general wellness guidance only—never medical
                 diagnosis, dietary prescriptions, or medical treatment.
               </ThemedText>
-            </ThemedView>
+            </Card>
           </ScrollView>
 
           <View
             style={[
               styles.buttonContainer,
               {
-                borderTopColor: theme.border,
+                borderTopColor: theme.separator,
               },
             ]}
           >
-            {error && (
-              <View style={styles.errorBanner}>
-                <ThemedText type="small" style={styles.errorBannerText}>
-                  {error}
-                </ThemedText>
-              </View>
-            )}
+            {error && <Notice tone="danger" message={error} />}
 
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label="I am 18+ and I Consent"
+              block
               accessibilityLabel="Confirm adult eligibility and grant AI consent"
-              accessibilityState={{
-                disabled: isConsentDisabled,
-                busy: isSaving,
-              }}
               disabled={isConsentDisabled}
+              loading={isSaving}
               onPress={() => void onConsent(parsedBirthYear)}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                isConsentDisabled && styles.disabledPrimaryButton,
-                pressed && !isConsentDisabled && styles.pressed,
-              ]}
-            >
-              {isSaving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                  I am 18+ and I Consent
-                </ThemedText>
-              )}
-            </Pressable>
+            />
 
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label="Not Now / Decline"
+              variant="plain"
+              block
               accessibilityLabel="Decline AI consent"
-              accessibilityState={{ disabled: isSaving }}
               disabled={isSaving}
               onPress={onDecline}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                isSaving && styles.disabledSecondaryButton,
-                pressed && !isSaving && styles.pressed,
-              ]}
-            >
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                Not Now / Decline
-              </ThemedText>
-            </Pressable>
+            />
           </View>
         </SafeAreaView>
       </ThemedView>
@@ -270,89 +253,48 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: Spacing.four,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
     paddingTop: Spacing.four,
     paddingBottom: Spacing.three,
-    gap: 4,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
+    gap: Spacing.one,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.four,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
     paddingBottom: Spacing.four,
     gap: Spacing.three,
-  },
-  card: {
-    padding: Spacing.four,
-    borderRadius: 16,
-    gap: 8,
-  },
-  cardHeader: {
-    fontSize: 15,
   },
   birthYearSection: {
     marginTop: Spacing.two,
     gap: Spacing.one,
   },
   birthYearInput: {
-    borderWidth: 1,
-    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
     paddingVertical: 10,
-    fontSize: 16,
+    minHeight: 44,
+    // TextInput needs an explicit size; matches the body text style.
+    fontSize: 17,
   },
   validationText: {
-    color: "#EF4444",
-    marginTop: 2,
+    marginTop: Spacing.half,
   },
   buttonContainer: {
-    padding: Spacing.four,
-    borderTopWidth: 1,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    paddingHorizontal: PageGutter,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
     gap: Spacing.two,
-  },
-  errorBanner: {
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
-    borderColor: "#EF4444",
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: Spacing.two,
-  },
-  errorBannerText: {
-    color: "#EF4444",
-    textAlign: "center",
-  },
-  primaryButton: {
-    backgroundColor: "#10B981",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
-  },
-  disabledPrimaryButton: {
-    backgroundColor: "#6EE7B7",
-    opacity: 0.6,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-  },
-  secondaryButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-  },
-  disabledSecondaryButton: {
-    opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.8,
   },
 });

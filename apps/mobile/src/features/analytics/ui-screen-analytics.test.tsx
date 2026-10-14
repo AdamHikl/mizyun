@@ -81,6 +81,9 @@ vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/components/ui", () => ({
   Button: "Button",
   Card: "Card",
+  Chip: "Chip",
+  EmptyState: "EmptyState",
+  IconButton: "IconButton",
   Icon: "Icon",
   IconBadge: "IconBadge",
   ListGroup: "ListGroup",
