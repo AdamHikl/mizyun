@@ -1,0 +1,1749 @@
+{
+  "version": "recipe-context-corpus-v1",
+  "synthetic": true,
+  "referenceBasis": "Pinned USDA SR Legacy per100g rows; separately computed sum(per100g * grams/100) and fixed macro-balance-v1 reference arithmetic. Never generated from production function results.",
+  "catalogRevision": "usda-sr-legacy-2018-rec02-v1",
+  "groups": {
+    "all": [
+      "rice-white-cooked",
+      "chicken-breast-cooked",
+      "tomato-puree",
+      "olive-oil",
+      "lentils-cooked",
+      "chickpeas-cooked",
+      "tofu-firm",
+      "greek-yogurt-nonfat",
+      "oats-dry",
+      "banana-raw",
+      "apple-raw",
+      "almonds",
+      "cucumber-raw",
+      "tomato-raw",
+      "egg-boiled",
+      "potato-boiled"
+    ],
+    "rice": [
+      "rice-white-cooked",
+      "chicken-breast-cooked",
+      "tomato-puree",
+      "olive-oil",
+      "lentils-cooked",
+      "chickpeas-cooked",
+      "tofu-firm"
+    ],
+    "breakfast": [
+      "greek-yogurt-nonfat",
+      "oats-dry",
+      "banana-raw",
+      "apple-raw",
+      "almonds"
+    ]
+  },
+  "referenceRecipes": [
+    {
+      "recipeId": "chicken-rice-tomato",
+      "prepMinutes": 12,
+      "ingredients": [
+        {
+          "ingredientId": "rice-white-cooked",
+          "grams": 200,
+          "fdcId": 169757,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 130,
+            "proteinG": 2.69,
+            "carbohydrateG": 28.17,
+            "fatG": 0.28
+          }
+        },
+        {
+          "ingredientId": "chicken-breast-cooked",
+          "grams": 130,
+          "fdcId": 171477,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 165,
+            "proteinG": 31.02,
+            "carbohydrateG": 0,
+            "fatG": 3.57
+          }
+        },
+        {
+          "ingredientId": "tomato-puree",
+          "grams": 80,
+          "fdcId": 170460,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 38,
+            "proteinG": 1.65,
+            "carbohydrateG": 8.98,
+            "fatG": 0.21
+          }
+        },
+        {
+          "ingredientId": "olive-oil",
+          "grams": 5,
+          "fdcId": 171413,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 884,
+            "proteinG": 0,
+            "carbohydrateG": 0,
+            "fatG": 100
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 549.1,
+        "proteinG": 47.03,
+        "carbohydrateG": 63.52,
+        "fatG": 10.37
+      },
+      "expectedPortionGrams": 415
+    },
+    {
+      "recipeId": "lentil-rice-tomato",
+      "prepMinutes": 12,
+      "ingredients": [
+        {
+          "ingredientId": "rice-white-cooked",
+          "grams": 180,
+          "fdcId": 169757,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 130,
+            "proteinG": 2.69,
+            "carbohydrateG": 28.17,
+            "fatG": 0.28
+          }
+        },
+        {
+          "ingredientId": "lentils-cooked",
+          "grams": 180,
+          "fdcId": 172421,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 116,
+            "proteinG": 9.02,
+            "carbohydrateG": 20.13,
+            "fatG": 0.38
+          }
+        },
+        {
+          "ingredientId": "tomato-puree",
+          "grams": 80,
+          "fdcId": 170460,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 38,
+            "proteinG": 1.65,
+            "carbohydrateG": 8.98,
+            "fatG": 0.21
+          }
+        },
+        {
+          "ingredientId": "olive-oil",
+          "grams": 5,
+          "fdcId": 171413,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 884,
+            "proteinG": 0,
+            "carbohydrateG": 0,
+            "fatG": 100
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 517.4,
+        "proteinG": 22.4,
+        "carbohydrateG": 94.12,
+        "fatG": 6.36
+      },
+      "expectedPortionGrams": 445
+    },
+    {
+      "recipeId": "chickpea-rice-tomato",
+      "prepMinutes": 12,
+      "ingredients": [
+        {
+          "ingredientId": "rice-white-cooked",
+          "grams": 180,
+          "fdcId": 169757,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 130,
+            "proteinG": 2.69,
+            "carbohydrateG": 28.17,
+            "fatG": 0.28
+          }
+        },
+        {
+          "ingredientId": "chickpeas-cooked",
+          "grams": 160,
+          "fdcId": 173757,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 164,
+            "proteinG": 8.86,
+            "carbohydrateG": 27.42,
+            "fatG": 2.59
+          }
+        },
+        {
+          "ingredientId": "tomato-puree",
+          "grams": 80,
+          "fdcId": 170460,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 38,
+            "proteinG": 1.65,
+            "carbohydrateG": 8.98,
+            "fatG": 0.21
+          }
+        },
+        {
+          "ingredientId": "olive-oil",
+          "grams": 5,
+          "fdcId": 171413,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 884,
+            "proteinG": 0,
+            "carbohydrateG": 0,
+            "fatG": 100
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 571.0,
+        "proteinG": 20.34,
+        "carbohydrateG": 101.76,
+        "fatG": 9.82
+      },
+      "expectedPortionGrams": 425
+    },
+    {
+      "recipeId": "tofu-rice-tomato",
+      "prepMinutes": 15,
+      "ingredients": [
+        {
+          "ingredientId": "rice-white-cooked",
+          "grams": 200,
+          "fdcId": 169757,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 130,
+            "proteinG": 2.69,
+            "carbohydrateG": 28.17,
+            "fatG": 0.28
+          }
+        },
+        {
+          "ingredientId": "tofu-firm",
+          "grams": 180,
+          "fdcId": 172475,
+          "preparationState": "raw",
+          "per100g": {
+            "caloriesKcal": 144,
+            "proteinG": 17.27,
+            "carbohydrateG": 2.78,
+            "fatG": 8.72
+          }
+        },
+        {
+          "ingredientId": "tomato-puree",
+          "grams": 80,
+          "fdcId": 170460,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 38,
+            "proteinG": 1.65,
+            "carbohydrateG": 8.98,
+            "fatG": 0.21
+          }
+        },
+        {
+          "ingredientId": "olive-oil",
+          "grams": 5,
+          "fdcId": 171413,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 884,
+            "proteinG": 0,
+            "carbohydrateG": 0,
+            "fatG": 100
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 593.8,
+        "proteinG": 37.79,
+        "carbohydrateG": 68.53,
+        "fatG": 21.42
+      },
+      "expectedPortionGrams": 465
+    },
+    {
+      "recipeId": "yogurt-oats-banana",
+      "prepMinutes": 5,
+      "ingredients": [
+        {
+          "ingredientId": "greek-yogurt-nonfat",
+          "grams": 200,
+          "fdcId": 170894,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 59,
+            "proteinG": 10.19,
+            "carbohydrateG": 3.6,
+            "fatG": 0.39
+          }
+        },
+        {
+          "ingredientId": "oats-dry",
+          "grams": 50,
+          "fdcId": 173904,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 379,
+            "proteinG": 13.15,
+            "carbohydrateG": 67.7,
+            "fatG": 6.52
+          }
+        },
+        {
+          "ingredientId": "banana-raw",
+          "grams": 100,
+          "fdcId": 173944,
+          "preparationState": "raw",
+          "per100g": {
+            "caloriesKcal": 89,
+            "proteinG": 1.09,
+            "carbohydrateG": 22.84,
+            "fatG": 0.33
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 396.5,
+        "proteinG": 28.05,
+        "carbohydrateG": 63.89,
+        "fatG": 4.37
+      },
+      "expectedPortionGrams": 350
+    },
+    {
+      "recipeId": "yogurt-apple-almond",
+      "prepMinutes": 5,
+      "ingredients": [
+        {
+          "ingredientId": "greek-yogurt-nonfat",
+          "grams": 200,
+          "fdcId": 170894,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 59,
+            "proteinG": 10.19,
+            "carbohydrateG": 3.6,
+            "fatG": 0.39
+          }
+        },
+        {
+          "ingredientId": "apple-raw",
+          "grams": 150,
+          "fdcId": 171688,
+          "preparationState": "raw",
+          "per100g": {
+            "caloriesKcal": 52,
+            "proteinG": 0.26,
+            "carbohydrateG": 13.81,
+            "fatG": 0.17
+          }
+        },
+        {
+          "ingredientId": "almonds",
+          "grams": 20,
+          "fdcId": 170567,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 579,
+            "proteinG": 21.15,
+            "carbohydrateG": 21.55,
+            "fatG": 49.93
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 311.8,
+        "proteinG": 25.0,
+        "carbohydrateG": 32.23,
+        "fatG": 11.02
+      },
+      "expectedPortionGrams": 370
+    },
+    {
+      "recipeId": "chickpea-cucumber-tomato",
+      "prepMinutes": 8,
+      "ingredients": [
+        {
+          "ingredientId": "chickpeas-cooked",
+          "grams": 200,
+          "fdcId": 173757,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 164,
+            "proteinG": 8.86,
+            "carbohydrateG": 27.42,
+            "fatG": 2.59
+          }
+        },
+        {
+          "ingredientId": "cucumber-raw",
+          "grams": 100,
+          "fdcId": 168409,
+          "preparationState": "raw",
+          "per100g": {
+            "caloriesKcal": 15,
+            "proteinG": 0.65,
+            "carbohydrateG": 3.63,
+            "fatG": 0.11
+          }
+        },
+        {
+          "ingredientId": "tomato-raw",
+          "grams": 100,
+          "fdcId": 170457,
+          "preparationState": "raw",
+          "per100g": {
+            "caloriesKcal": 18,
+            "proteinG": 0.88,
+            "carbohydrateG": 3.89,
+            "fatG": 0.2
+          }
+        },
+        {
+          "ingredientId": "olive-oil",
+          "grams": 5,
+          "fdcId": 171413,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 884,
+            "proteinG": 0,
+            "carbohydrateG": 0,
+            "fatG": 100
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 405.2,
+        "proteinG": 19.25,
+        "carbohydrateG": 62.36,
+        "fatG": 10.49
+      },
+      "expectedPortionGrams": 405
+    },
+    {
+      "recipeId": "egg-potato-tomato",
+      "prepMinutes": 12,
+      "ingredients": [
+        {
+          "ingredientId": "egg-boiled",
+          "grams": 100,
+          "fdcId": 173424,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 155,
+            "proteinG": 12.58,
+            "carbohydrateG": 1.12,
+            "fatG": 10.61
+          }
+        },
+        {
+          "ingredientId": "potato-boiled",
+          "grams": 200,
+          "fdcId": 170440,
+          "preparationState": "cooked",
+          "per100g": {
+            "caloriesKcal": 86,
+            "proteinG": 1.71,
+            "carbohydrateG": 20.01,
+            "fatG": 0.1
+          }
+        },
+        {
+          "ingredientId": "tomato-puree",
+          "grams": 80,
+          "fdcId": 170460,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 38,
+            "proteinG": 1.65,
+            "carbohydrateG": 8.98,
+            "fatG": 0.21
+          }
+        },
+        {
+          "ingredientId": "olive-oil",
+          "grams": 5,
+          "fdcId": 171413,
+          "preparationState": "as_sold",
+          "per100g": {
+            "caloriesKcal": 884,
+            "proteinG": 0,
+            "carbohydrateG": 0,
+            "fatG": 100
+          }
+        }
+      ],
+      "expectedPerServing": {
+        "caloriesKcal": 401.6,
+        "proteinG": 17.32,
+        "carbohydrateG": 48.32,
+        "fatG": 15.98
+      },
+      "expectedPortionGrams": 385
+    }
+  ],
+  "cases": [
+    {
+      "id": "all-reviewed-templates",
+      "kind": "template",
+      "tags": ["provenance", "nutrition"],
+      "group": "all",
+      "servings": 1,
+      "patch": {},
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato",
+          "yogurt-oats-banana",
+          "yogurt-apple-almond",
+          "chickpea-cucumber-tomato",
+          "egg-potato-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "rice-confirmed",
+      "kind": "template",
+      "tags": ["provenance", "oil"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {},
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "vegan-no-animal",
+      "kind": "template",
+      "tags": ["exclusions", "vegan"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "dietaryRestrictions": ["vegan"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato",
+          "chickpea-cucumber-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "vegan-and-soy",
+      "kind": "template",
+      "tags": ["exclusions", "soy", "vegan"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "dietaryRestrictions": ["vegan"],
+        "allergens": ["soya"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "chickpea-cucumber-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "vegetarian",
+      "kind": "template",
+      "tags": ["exclusions", "vegetarian"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "dietaryRestrictions": ["vegetarian"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato",
+          "yogurt-oats-banana",
+          "yogurt-apple-almond",
+          "chickpea-cucumber-tomato",
+          "egg-potato-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "exclude-milk",
+      "kind": "template",
+      "tags": ["exclusions", "milk"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "allergens": ["milk"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato",
+          "chickpea-cucumber-tomato",
+          "egg-potato-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "exclude-gluten",
+      "kind": "template",
+      "tags": ["exclusions", "gluten"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "allergens": ["gluten"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato",
+          "yogurt-apple-almond",
+          "chickpea-cucumber-tomato",
+          "egg-potato-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "exclude-tree-nuts",
+      "kind": "template",
+      "tags": ["exclusions", "tree_nuts"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "allergens": ["tree_nuts"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato",
+          "yogurt-oats-banana",
+          "chickpea-cucumber-tomato",
+          "egg-potato-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "exclude-eggs",
+      "kind": "template",
+      "tags": ["exclusions", "eggs"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "allergens": ["eggs"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato",
+          "yogurt-oats-banana",
+          "yogurt-apple-almond",
+          "chickpea-cucumber-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "exclude-soy",
+      "kind": "template",
+      "tags": ["exclusions", "soy"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "allergens": ["soy"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "yogurt-oats-banana",
+          "yogurt-apple-almond",
+          "chickpea-cucumber-tomato",
+          "egg-potato-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "rice-family-alias",
+      "kind": "template",
+      "tags": ["exclusions", "family"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "ingredientIds": ["WHITE_RICE"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "yogurt-oats-banana",
+          "yogurt-apple-almond",
+          "chickpea-cucumber-tomato",
+          "egg-potato-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "chicken-raw-family",
+      "kind": "template",
+      "tags": ["exclusions", "raw_cooked"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientIds": ["chicken-breast-raw"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "oil-not-inventory",
+      "kind": "template",
+      "tags": ["oil", "missing"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "omit": ["olive-oil"]
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": ["yogurt-oats-banana", "yogurt-apple-almond"],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "oil-not-confirmed",
+      "kind": "template",
+      "tags": ["oil", "unconfirmed"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "olive-oil": {
+            "confirmed": false,
+            "availability": "check_quantity"
+          }
+        }
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": ["yogurt-oats-banana", "yogurt-apple-almond"],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "rice-not-enough",
+      "kind": "template",
+      "tags": ["insufficient"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "rice-white-cooked": {
+            "quantity": 100
+          }
+        }
+      },
+      "expected": {
+        "state": "no_feasible_recipe",
+        "recipeIds": [],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "oil-not-enough",
+      "kind": "template",
+      "tags": ["insufficient", "oil"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "olive-oil": {
+            "quantity": 1
+          }
+        }
+      },
+      "expected": {
+        "state": "no_feasible_recipe",
+        "recipeIds": [],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "oil-marked-missing",
+      "kind": "template",
+      "tags": ["missing", "oil"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "olive-oil": {
+            "availability": "missing"
+          }
+        }
+      },
+      "expected": {
+        "state": "no_feasible_recipe",
+        "recipeIds": [],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "raw-rice-not-cooked",
+      "kind": "template",
+      "tags": ["raw_cooked"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "omit": ["rice-white-cooked"],
+        "add": ["rice-white-raw"]
+      },
+      "expected": {
+        "state": "no_feasible_recipe",
+        "recipeIds": [],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "tofu-unconfirmed",
+      "kind": "template",
+      "tags": ["unconfirmed"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "tofu-firm": {
+            "confirmed": false,
+            "availability": "check_quantity"
+          }
+        }
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "unknown-oil-quantity",
+      "kind": "template",
+      "tags": ["quantity", "oil"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "olive-oil": {
+            "quantity": null,
+            "availability": "check_quantity"
+          }
+        },
+        "expectedCheckQuantity": true
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "oil-volume-not-weight",
+      "kind": "template",
+      "tags": ["quantity", "oil"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "olive-oil": {
+            "quantity": 10,
+            "quantityUnit": "ml",
+            "availability": "check_quantity"
+          }
+        },
+        "expectedCheckQuantity": true
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "yogurt-count-not-weight",
+      "kind": "template",
+      "tags": ["quantity"],
+      "group": "breakfast",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "greek-yogurt-nonfat": {
+            "quantity": 2,
+            "quantityUnit": "count",
+            "availability": "check_quantity"
+          }
+        },
+        "expectedCheckQuantity": true
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": ["yogurt-oats-banana", "yogurt-apple-almond"],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "prep-five-minutes",
+      "kind": "template",
+      "tags": ["prep"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "maximumPrepMinutes": 5
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": ["yogurt-oats-banana", "yogurt-apple-almond"],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "prep-one-minute",
+      "kind": "template",
+      "tags": ["prep", "insufficient"],
+      "group": "all",
+      "servings": 1,
+      "patch": {
+        "maximumPrepMinutes": 1
+      },
+      "expected": {
+        "state": "no_feasible_recipe",
+        "recipeIds": [],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "two-servings",
+      "kind": "template",
+      "tags": ["servings", "nutrition"],
+      "group": "rice",
+      "servings": 2,
+      "patch": {},
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "twelve-servings",
+      "kind": "template",
+      "tags": ["servings", "nutrition"],
+      "group": "rice",
+      "servings": 12,
+      "patch": {},
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "small-servings",
+      "kind": "template",
+      "tags": ["servings", "nutrition"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "mealSize": "small"
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "large-servings",
+      "kind": "template",
+      "tags": ["servings", "nutrition"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "mealSize": "large"
+      },
+      "expected": {
+        "state": "ready",
+        "recipeIds": [
+          "chicken-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "unsupported-allergy",
+      "kind": "template",
+      "tags": ["clarification", "exclusions"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "allergens": ["nightshades"]
+      },
+      "expected": {
+        "state": "clarification_needed",
+        "recipeIds": [],
+        "clarificationReasons": ["unsupported_constraint"]
+      }
+    },
+    {
+      "id": "unsupported-renal-diet",
+      "kind": "template",
+      "tags": ["clarification", "exclusions"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "dietaryRestrictions": ["renal diet"]
+      },
+      "expected": {
+        "state": "clarification_needed",
+        "recipeIds": [],
+        "clarificationReasons": ["unsupported_constraint"]
+      }
+    },
+    {
+      "id": "unreviewed-cuisine",
+      "kind": "template",
+      "tags": ["clarification", "preparation"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "cuisines": ["Thai"]
+      },
+      "expected": {
+        "state": "clarification_needed",
+        "recipeIds": [],
+        "clarificationReasons": ["unsupported_cuisine"]
+      }
+    },
+    {
+      "id": "raw-cooked-mismatch",
+      "kind": "template",
+      "tags": ["clarification", "preparation"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "ingredientPatches": {
+          "rice-white-cooked": {
+            "preparationState": "raw"
+          }
+        }
+      },
+      "expected": {
+        "state": "clarification_needed",
+        "recipeIds": [],
+        "clarificationReasons": ["preparation_mismatch"]
+      }
+    },
+    {
+      "id": "unknown-brand",
+      "kind": "template",
+      "tags": ["clarification", "preparation"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "add": ["unknown-branded-sauce"]
+      },
+      "expected": {
+        "state": "clarification_needed",
+        "recipeIds": [],
+        "clarificationReasons": ["unsupported_ingredient"]
+      }
+    },
+    {
+      "id": "duplicate-ingredient-id",
+      "kind": "template",
+      "tags": ["invalid", "duplicate"],
+      "group": "rice",
+      "servings": 1,
+      "patch": {
+        "duplicateFirst": true
+      },
+      "expected": {
+        "state": "invalid_input",
+        "recipeIds": [],
+        "clarificationReasons": []
+      }
+    },
+    {
+      "id": "adam-reference",
+      "kind": "context",
+      "tags": ["ranking", "adam"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["carbohydrate", "protein"],
+        "rankedRecipeIds": [
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "chicken-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "protein-dominant",
+      "kind": "context",
+      "tags": ["ranking", "protein"],
+      "remaining": {
+        "proteinG": 100,
+        "carbohydrateG": 20,
+        "fatG": 5
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["protein"],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "tofu-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "fat-energy-dominant",
+      "kind": "context",
+      "tags": ["ranking", "fat"],
+      "remaining": {
+        "proteinG": 5,
+        "carbohydrateG": 30,
+        "fatG": 40
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["fat", "carbohydrate"],
+        "rankedRecipeIds": [
+          "tofu-rice-tomato",
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "balanced",
+      "kind": "context",
+      "tags": ["ranking", "balanced"],
+      "remaining": {
+        "proteinG": 60,
+        "carbohydrateG": 60,
+        "fatG": 20
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["protein", "carbohydrate", "fat"],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "tofu-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "carbs-only",
+      "kind": "context",
+      "tags": ["ranking", "carbs"],
+      "remaining": {
+        "proteinG": 0,
+        "carbohydrateG": 150,
+        "fatG": 0
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["carbohydrate"],
+        "rankedRecipeIds": [
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "chicken-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "protein-only",
+      "kind": "context",
+      "tags": ["ranking", "protein"],
+      "remaining": {
+        "proteinG": 80,
+        "carbohydrateG": 0,
+        "fatG": 0
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["protein"],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "tofu-rice-tomato",
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "fat-only",
+      "kind": "context",
+      "tags": ["ranking", "fat"],
+      "remaining": {
+        "proteinG": 0,
+        "carbohydrateG": 0,
+        "fatG": 40
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["fat"],
+        "rankedRecipeIds": [
+          "tofu-rice-tomato",
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "zero-protein-gap",
+      "kind": "context",
+      "tags": ["ranking", "zero"],
+      "remaining": {
+        "proteinG": 0,
+        "carbohydrateG": 100,
+        "fatG": 20
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["carbohydrate", "fat"],
+        "rankedRecipeIds": [
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato",
+          "chicken-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "zero-carb-gap",
+      "kind": "context",
+      "tags": ["ranking", "zero"],
+      "remaining": {
+        "proteinG": 60,
+        "carbohydrateG": 0,
+        "fatG": 10
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["protein", "fat"],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "tofu-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "fat-overshoot",
+      "kind": "context",
+      "tags": ["ranking", "fat"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": -20
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["carbohydrate", "protein"],
+        "rankedRecipeIds": [
+          "lentil-rice-tomato",
+          "chickpea-rice-tomato",
+          "chicken-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "protein-overshoot",
+      "kind": "context",
+      "tags": ["ranking", "protein"],
+      "remaining": {
+        "proteinG": -10,
+        "carbohydrateG": 150,
+        "fatG": 20
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["carbohydrate", "fat"],
+        "rankedRecipeIds": [
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato",
+          "chicken-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "small-gaps",
+      "kind": "context",
+      "tags": ["ranking", "small"],
+      "remaining": {
+        "proteinG": 5,
+        "carbohydrateG": 10,
+        "fatG": 2
+      },
+      "sourcePatch": {},
+      "expected": {
+        "state": "ready",
+        "reason": "logged_so_far",
+        "focus": ["carbohydrate", "protein", "fat"],
+        "rankedRecipeIds": [
+          "lentil-rice-tomato",
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": true
+      }
+    },
+    {
+      "id": "unknown-fat",
+      "kind": "context",
+      "tags": ["context", "unknown"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "unknownFat": true
+      },
+      "expected": {
+        "state": "unknown",
+        "reason": "intake_unknown",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "no-summary",
+      "kind": "context",
+      "tags": ["context", "unknown"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "noSummary": true
+      },
+      "expected": {
+        "state": "unknown",
+        "reason": "intake_unknown",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "unfinished-intake",
+      "kind": "context",
+      "tags": ["context", "unknown"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "intakeReadComplete": false
+      },
+      "expected": {
+        "state": "unknown",
+        "reason": "source_incomplete",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "unknown-coverage",
+      "kind": "context",
+      "tags": ["context", "unknown"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "coverage": "unknown"
+      },
+      "expected": {
+        "state": "unknown",
+        "reason": "intake_unknown",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "unavailable-targets",
+      "kind": "context",
+      "tags": ["context", "unknown"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "energyComplete": false
+      },
+      "expected": {
+        "state": "unknown",
+        "reason": "targets_unavailable",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "expired-context",
+      "kind": "context",
+      "tags": ["context", "stale"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "expired": true
+      },
+      "expected": {
+        "state": "stale",
+        "reason": "source_stale",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "local-day-changed",
+      "kind": "context",
+      "tags": ["context", "stale"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "previousLocalDay": true
+      },
+      "expected": {
+        "state": "stale",
+        "reason": "source_stale",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "goal-revision-changed",
+      "kind": "context",
+      "tags": ["context", "stale"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "currentRevision": "goalRevision"
+      },
+      "expected": {
+        "state": "stale",
+        "reason": "source_stale",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "intake-revision-changed",
+      "kind": "context",
+      "tags": ["context", "stale"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "currentRevision": "intakeRevision"
+      },
+      "expected": {
+        "state": "stale",
+        "reason": "source_stale",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "constraints-revision-changed",
+      "kind": "context",
+      "tags": ["context", "stale"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "currentRevision": "constraintsRevision"
+      },
+      "expected": {
+        "state": "stale",
+        "reason": "source_stale",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "profile-revision-changed",
+      "kind": "context",
+      "tags": ["context", "stale"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "currentRevision": "profileRevision"
+      },
+      "expected": {
+        "state": "stale",
+        "reason": "source_stale",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    },
+    {
+      "id": "all-gaps-exhausted",
+      "kind": "context",
+      "tags": ["context", "no_remaining_gaps"],
+      "remaining": {
+        "proteinG": 50,
+        "carbohydrateG": 150,
+        "fatG": 10
+      },
+      "sourcePatch": {
+        "allExhausted": true
+      },
+      "expected": {
+        "state": "no_remaining_gaps",
+        "reason": "no_remaining_gaps",
+        "focus": [],
+        "rankedRecipeIds": [
+          "chicken-rice-tomato",
+          "chickpea-rice-tomato",
+          "lentil-rice-tomato",
+          "tofu-rice-tomato"
+        ],
+        "scored": false
+      }
+    }
+  ]
+}

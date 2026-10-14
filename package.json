@@ -85,7 +85,7 @@
     "test:tier-authority": "node scripts/test-tier-authority-postgrest.mjs",
     "backup:verify": "bash scripts/verify-backup-recovery.sh",
     "test:community-operations": "node --test scripts/community-moderation.test.mjs scripts/community-worker.test.mjs scripts/community-revocation-ledger.test.mjs scripts/community-media-cleanup.test.mjs scripts/community-dev-maintenance.test.mjs && python3 scripts/test-backup-dev-encrypted.py && python3 scripts/test-restore-dev-quarantined.py && python3 scripts/test-community-revocation-replay.py",
-    "test:ai-eval": "node --import tsx scripts/run-ai-evaluation.mjs",
+    "test:ai-eval": "node --import tsx scripts/run-ai-evaluation.mjs && pnpm test:meal-recipe-eval",
     "check": "node scripts/run-check.mjs",
     "test:dev-ios-apple-auth": "node scripts/test-dev-ios-apple-auth.mjs",
     "nav:read": "node scripts/navigation/read.mjs",
@@ -104,7 +104,8 @@
     "check:steps": "pnpm test:check-runner && pnpm navigation:check && pnpm test:navigation && pnpm test:exercise-catalog && pnpm test:coach-feature-knowledge && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:analytics-dashboard && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:android-release-optimization && pnpm test:android-window-support && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:community-operations && pnpm test:dev-ios-apple-auth && pnpm test:ios-simulator",
     "test:check-runner": "node --test scripts/run-check.test.mjs",
     "mobile:simulator:ios": "node scripts/ios-simulator-dev.mjs",
-    "test:ios-simulator": "node --test scripts/ios-simulator-dev.test.mjs"
+    "test:ios-simulator": "node --test scripts/ios-simulator-dev.test.mjs",
+    "test:meal-recipe-eval": "node --import tsx --test scripts/recipe-evaluation/evaluation.test.mjs && node --import tsx scripts/run-meal-recipe-evaluation.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

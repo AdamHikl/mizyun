@@ -1,0 +1,28 @@
+{
+  "version": "recipe-evaluation-v1",
+  "frozenOn": "2026-10-13",
+  "scope": "offline engineering only; scripted photo outputs are not provider accuracy",
+  "offline": {
+    "minimumRecipeContextFixtures": 40,
+    "minimumPhotoScenarios": 20,
+    "referencePassRate": 1,
+    "maximumForbiddenIngredientSuccesses": 0,
+    "maximumCrossOwnerSuccesses": 0,
+    "maximumUnauthorizedProviderCalls": 0,
+    "nutritionAbsoluteTolerance": 0.005
+  },
+  "release": {
+    "eligibleIndependentlyFeasibleRecipeRate": 0.9,
+    "visibleIngredientPrecision": 0.9,
+    "providerOperationP95Milliseconds": 15000,
+    "recall": "report with abstentions; no unmeasured inventory-completeness claim",
+    "cost": "record actual two-photo, generation and explicit retries; compare with permitted per-user caps and an evidenced aggregate spend limit",
+    "requiredAcceptance": [
+      "qualified nutrition and food-safety review",
+      "current AI checklist and provider/cost/latency acceptance",
+      "exact Dev deployment and physical iOS/Android text/photo/restart/accessibility acceptance",
+      "separately authorized adult pilot and product validation",
+      "separate Production and Store release"
+    ]
+  }
+}

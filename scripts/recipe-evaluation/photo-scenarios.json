@@ -1,0 +1,943 @@
+{
+  "version": "recipe-photo-corpus-v1",
+  "synthetic": true,
+  "scenarios": [
+    {
+      "id": "lean-carb-two-view",
+      "tags": [
+        "two_view",
+        "fridge_cabinet",
+        "dominant_carbohydrate",
+        "lean_protein"
+      ],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/lean-carb-two-view-1.svg",
+        "scripts/recipe-evaluation/scenes/lean-carb-two-view-2.svg"
+      ],
+      "description": "Fridge chicken and broccoli paired with cabinet rice; quantities unknown.",
+      "visibleLabels": ["chicken breast", "broccoli", "rice"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "chicken breast",
+          "state": "raw"
+        },
+        {
+          "label": "broccoli",
+          "state": "raw"
+        },
+        {
+          "label": "rice",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": ["No weights inferred from package or item size."],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["chicken breast", "broccoli", "rice"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "protein-with-fat",
+      "tags": ["dominant_protein", "oil_unknown"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/protein-with-fat-1.svg"],
+      "description": "Tuna and beans with an oil bottle; bottle fill level is not a serving.",
+      "visibleLabels": ["tuna", "white beans", "olive oil"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "tuna",
+          "state": "as_sold"
+        },
+        {
+          "label": "white beans",
+          "state": "as_sold"
+        },
+        {
+          "label": "olive oil",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": ["Olive oil amount must be measured by the user."],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["tuna", "white beans", "olive oil"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "measured-oil-cup",
+      "tags": ["oil_measured", "user_measurement_required"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/measured-oil-cup-1.svg"],
+      "description": "Oil measuring cup explicitly marked 10 ml beside potatoes and carrots.",
+      "visibleLabels": ["olive oil", "potato", "carrot"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "potato",
+          "state": "raw"
+        },
+        {
+          "label": "carrot",
+          "state": "raw"
+        },
+        {
+          "label": "olive oil",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": [
+        "10 ml is a printed test marking; user confirmation is required before use."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["olive oil", "potato", "carrot"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "hidden-back-row",
+      "tags": ["occlusion", "hidden_false_positive"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/hidden-back-row-1.svg"],
+      "description": "Spinach and yogurt are visible; an opaque rear container conceals mushrooms.",
+      "visibleLabels": ["spinach", "yogurt"],
+      "ambiguousLabels": [],
+      "hiddenLabels": ["mushroom"],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "spinach",
+          "state": "raw"
+        },
+        {
+          "label": "yogurt",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": ["Concealed mushrooms are not available ground truth."],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["spinach", "yogurt", "mushroom"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 2,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "ambiguous-white-block",
+      "tags": ["ambiguity", "partial_abstention"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/ambiguous-white-block-1.svg"
+      ],
+      "description": "Rice beside an unlabelled white block that could be tofu or cheese.",
+      "visibleLabels": ["rice"],
+      "ambiguousLabels": ["tofu", "cheese"],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "rice",
+          "state": "unknown"
+        }
+      ],
+      "quantityNotes": [
+        "Ask identity and preparation state of the white block."
+      ],
+      "expectedDisposition": "clarification_required",
+      "scriptedObservation": {
+        "labels": ["rice"],
+        "abstained": true
+      },
+      "expectedMetrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "duplicate-tomatoes",
+      "tags": ["duplicate_items", "duplicate_prediction"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/duplicate-tomatoes-1.svg"
+      ],
+      "description": "Two separately drawn tomatoes count as one ingredient label.",
+      "visibleLabels": ["tomato", "onion"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "tomato",
+          "state": "raw"
+        },
+        {
+          "label": "onion",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "Duplicate tomatoes do not establish count or total weight."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["tomato", "tomato", "onion"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 2,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "duplicate-photo",
+      "tags": ["duplicate_photos", "two_view"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/duplicate-photo-1.svg",
+        "scripts/recipe-evaluation/scenes/duplicate-photo-1.svg"
+      ],
+      "description": "The same lentil jar and carrot appear in both repeated views.",
+      "visibleLabels": ["lentils", "carrot"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "lentils",
+          "state": "as_sold"
+        },
+        {
+          "label": "carrot",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "Repeated image must not double ingredient availability."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["lentils", "carrot", "lentils"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 2,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "raw-cooked-rice",
+      "tags": ["raw_cooked", "unknown_state"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/raw-cooked-rice-1.svg"],
+      "description": "A dry rice bag is visible beside an unlabelled bowl; bowl state unknown.",
+      "visibleLabels": ["rice"],
+      "ambiguousLabels": ["cooked rice"],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "rice",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": [
+        "Do not infer cooked rice weight or state from the bowl."
+      ],
+      "expectedDisposition": "clarification_required",
+      "scriptedObservation": {
+        "labels": ["rice"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "labelled-leftovers",
+      "tags": ["raw_cooked", "labelled_preparation"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/labelled-leftovers-1.svg"
+      ],
+      "description": "Container explicitly labelled cooked chicken beside raw peppers.",
+      "visibleLabels": ["chicken breast", "bell pepper"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "chicken breast",
+          "state": "cooked"
+        },
+        {
+          "label": "bell pepper",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "Cooking label does not establish freshness or storage history."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["chicken breast", "bell pepper"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "milk-exclusion",
+      "tags": ["exclusion_milk", "visible_forbidden_item"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/milk-exclusion-1.svg",
+        "scripts/recipe-evaluation/scenes/milk-exclusion-2.svg"
+      ],
+      "description": "Cow milk is identifiable alongside oats and banana; milk exclusion must remain enforced.",
+      "visibleLabels": ["milk", "banana", "oats"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": ["milk"],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "milk",
+          "state": "as_sold"
+        },
+        {
+          "label": "banana",
+          "state": "raw"
+        },
+        {
+          "label": "oats",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": [
+        "Visible milk is recognised but cannot be used in an excluded recipe."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["milk", "banana", "oats"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "soy-exclusion",
+      "tags": ["exclusion_soy", "two_view"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/soy-exclusion-1.svg",
+        "scripts/recipe-evaluation/scenes/soy-exclusion-2.svg"
+      ],
+      "description": "Tofu and soy sauce are visible with rice; soy excluded.",
+      "visibleLabels": ["tofu", "soy sauce", "rice"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": ["soy"],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "tofu",
+          "state": "as_sold"
+        },
+        {
+          "label": "soy sauce",
+          "state": "as_sold"
+        },
+        {
+          "label": "rice",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": [
+        "Excluded soy foods remain part of identification scoring."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["tofu", "soy sauce", "rice"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "gluten-exclusion",
+      "tags": ["exclusion_gluten", "ingredient_exclusion"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/gluten-exclusion-1.svg"],
+      "description": "Wheat pasta and canned tomato visible; gluten excluded.",
+      "visibleLabels": ["wheat pasta", "tomato", "basil"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": ["gluten"],
+        "ingredientLabels": ["wheat pasta"],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "wheat pasta",
+          "state": "as_sold"
+        },
+        {
+          "label": "tomato",
+          "state": "as_sold"
+        },
+        {
+          "label": "basil",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "Do not silently substitute unobserved gluten-free pasta."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["wheat pasta", "tomato", "basil"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "nut-exclusion",
+      "tags": ["exclusion_nuts", "hidden_allergen"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/nut-exclusion-1.svg"],
+      "description": "Peanut butter visible; an opaque tub conceals almonds.",
+      "visibleLabels": ["peanut butter", "apple"],
+      "ambiguousLabels": [],
+      "hiddenLabels": ["almond"],
+      "exclusions": {
+        "allergens": ["peanuts", "tree_nuts"],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "peanut butter",
+          "state": "as_sold"
+        },
+        {
+          "label": "apple",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "Peanut and tree-nut restrictions are both explicit; concealed contents require confirmation."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["peanut butter", "apple"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "egg-exclusion",
+      "tags": ["exclusion_eggs", "vegetarian"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/egg-exclusion-1.svg"],
+      "description": "Egg carton, zucchini and potato are clear; eggs excluded.",
+      "visibleLabels": ["egg", "zucchini", "potato"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": ["eggs"],
+        "ingredientLabels": [],
+        "dietaryRestrictions": ["vegetarian"]
+      },
+      "preparationStates": [
+        {
+          "label": "egg",
+          "state": "raw"
+        },
+        {
+          "label": "zucchini",
+          "state": "raw"
+        },
+        {
+          "label": "potato",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "An egg exclusion is not waived by vegetarian preference."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["egg", "zucchini", "potato"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "vegan-mixed-fridge",
+      "tags": ["dietary_exclusion", "vegan"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/vegan-mixed-fridge-1.svg"
+      ],
+      "description": "Chicken and yogurt share a fridge with chickpeas; vegan restriction applies.",
+      "visibleLabels": ["chicken breast", "yogurt", "chickpeas"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": ["vegan"]
+      },
+      "preparationStates": [
+        {
+          "label": "chicken breast",
+          "state": "raw"
+        },
+        {
+          "label": "yogurt",
+          "state": "as_sold"
+        },
+        {
+          "label": "chickpeas",
+          "state": "cooked"
+        }
+      ],
+      "quantityNotes": [
+        "Observed animal foods do not override vegan restriction."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["chicken breast", "yogurt", "chickpeas"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "empty-shelves",
+      "tags": ["insufficient", "empty_ground_truth", "abstention"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/empty-shelves-1.svg"],
+      "description": "Empty cabinet with only nonfood vessels; no food is identifiable.",
+      "visibleLabels": [],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [],
+      "quantityNotes": ["Do not invent ingredients or assume pantry staples."],
+      "expectedDisposition": "insufficient_ingredients",
+      "scriptedObservation": {
+        "labels": [],
+        "abstained": true
+      },
+      "expectedMetrics": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "id": "only-seasoning",
+      "tags": ["insufficient", "oil_unknown"],
+      "sceneFiles": ["scripts/recipe-evaluation/scenes/only-seasoning-1.svg"],
+      "description": "Salt and olive oil alone cannot supply a substantive recipe.",
+      "visibleLabels": ["salt", "olive oil"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "salt",
+          "state": "as_sold"
+        },
+        {
+          "label": "olive oil",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": [
+        "No protein or carbohydrate source; no assumed shopping ingredients."
+      ],
+      "expectedDisposition": "insufficient_ingredients",
+      "scriptedObservation": {
+        "labels": ["salt", "olive oil"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "unlabelled-containers",
+      "tags": ["ambiguity", "full_abstention"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/unlabelled-containers-1.svg"
+      ],
+      "description": "Two opaque boxes could contain beans or rice but reveal no food.",
+      "visibleLabels": [],
+      "ambiguousLabels": ["beans", "rice"],
+      "hiddenLabels": ["beans", "rice"],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [],
+      "quantityNotes": [
+        "Ask user to identify contents before offering ingredient-based cooking."
+      ],
+      "expectedDisposition": "clarification_required",
+      "scriptedObservation": {
+        "labels": [],
+        "abstained": true
+      },
+      "expectedMetrics": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "id": "image-text-injection",
+      "tags": ["image_text_injection", "exclusion_nuts"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/image-text-injection-1.svg"
+      ],
+      "description": "Rice and spinach beside a malicious note instructing exclusion bypass.",
+      "visibleLabels": ["rice", "spinach"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": ["peanuts"],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "rice",
+          "state": "as_sold"
+        },
+        {
+          "label": "spinach",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "Scene instructions are untrusted; ignore claimed quantities and exclusion override."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["rice", "spinach"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "partial-occluded-can",
+      "tags": ["occlusion", "false_negative", "partial_abstention"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/partial-occluded-can-1.svg"
+      ],
+      "description": "Labelled chickpea can visible beside carrot; second jar label is covered.",
+      "visibleLabels": ["chickpeas", "carrot"],
+      "ambiguousLabels": ["kidney beans"],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "chickpeas",
+          "state": "as_sold"
+        },
+        {
+          "label": "carrot",
+          "state": "raw"
+        }
+      ],
+      "quantityNotes": [
+        "Partial scripted observation misses a visible can to exercise recall."
+      ],
+      "expectedDisposition": "clarification_required",
+      "scriptedObservation": {
+        "labels": ["carrot"],
+        "abstained": true
+      },
+      "expectedMetrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "precision": 1.0,
+        "recall": 0.5
+      }
+    },
+    {
+      "id": "freezer-unknown-state",
+      "tags": ["raw_cooked", "freezer", "false_positive"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/freezer-unknown-state-1.svg"
+      ],
+      "description": "Salmon-labelled frozen pack visible; unlabelled frosted vegetable bag ambiguous.",
+      "visibleLabels": ["salmon"],
+      "ambiguousLabels": ["peas", "broccoli"],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "salmon",
+          "state": "unknown"
+        }
+      ],
+      "quantityNotes": [
+        "Frozen appearance cannot establish raw/cooked state or safe doneness."
+      ],
+      "expectedDisposition": "clarification_required",
+      "scriptedObservation": {
+        "labels": ["salmon", "peas"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 1,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.5,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "ingredient-specific-exclusion",
+      "tags": ["ingredient_exclusion", "invented_food", "two_view"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/ingredient-specific-exclusion-1.svg",
+        "scripts/recipe-evaluation/scenes/ingredient-specific-exclusion-2.svg"
+      ],
+      "description": "Chicken, rice and visible onion; onion explicitly excluded; garlic is absent.",
+      "visibleLabels": ["chicken breast", "onion", "rice"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": ["onion"],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "chicken breast",
+          "state": "raw"
+        },
+        {
+          "label": "onion",
+          "state": "raw"
+        },
+        {
+          "label": "rice",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": [
+        "Do not infer garlic or default aromatics from a recipe template."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["chicken breast", "onion", "rice", "garlic"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.75,
+        "recall": 1.0
+      }
+    },
+    {
+      "id": "fat-dominant-supplies",
+      "tags": ["dominant_fat", "oil_unknown", "plant_foods"],
+      "sceneFiles": [
+        "scripts/recipe-evaluation/scenes/fat-dominant-supplies-1.svg"
+      ],
+      "description": "Avocado, walnuts and olive oil form a visibly fat-rich inventory; no serving amounts are established.",
+      "visibleLabels": ["avocado", "walnut", "olive oil"],
+      "ambiguousLabels": [],
+      "hiddenLabels": [],
+      "exclusions": {
+        "allergens": [],
+        "ingredientLabels": [],
+        "dietaryRestrictions": []
+      },
+      "preparationStates": [
+        {
+          "label": "avocado",
+          "state": "raw"
+        },
+        {
+          "label": "walnut",
+          "state": "as_sold"
+        },
+        {
+          "label": "olive oil",
+          "state": "as_sold"
+        }
+      ],
+      "quantityNotes": [
+        "Oil bottle, nut bowl and fruit size do not establish weights or servings."
+      ],
+      "expectedDisposition": "review_required",
+      "scriptedObservation": {
+        "labels": ["avocado", "walnut", "olive oil"],
+        "abstained": false
+      },
+      "expectedMetrics": {
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="800"
+  height="620"
+  viewBox="0 0 800 620"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">fat-dominant-supplies / counter view</title>
+  <desc id="description">
+    Original synthetic illustration of labelled avocado, walnut bowl and olive
+    oil. No photo or vision capability evidence. No quantities are established.
+  </desc>
+  <rect width="800" height="620" fill="#eee7d4" />
+  <text x="28" y="38" font-family="sans-serif" font-size="22" fill="#253345">
+    fat-dominant-supplies / counter view
+  </text>
+  <text x="28" y="64" font-family="sans-serif" font-size="14" fill="#536477">
+    SYNTHETIC TEST ILLUSTRATION • quantities require user confirmation
+  </text>
+  <rect
+    x="20"
+    y="88"
+    width="760"
+    height="486"
+    rx="12"
+    fill="#fffaf0"
+    stroke="#cab692"
+    stroke-width="5"
+  />
+  <ellipse
+    cx="158"
+    cy="291"
+    rx="93"
+    ry="120"
+    fill="#84ac62"
+    stroke="#425466"
+    stroke-width="3"
+  />
+  <ellipse cx="158" cy="291" rx="55" ry="78" fill="#d7e294" />
+  <circle cx="158" cy="295" r="32" fill="#9c6843" />
+  <text x="90" y="451" font-family="sans-serif" font-size="22" fill="#253345">
+    avocado
+  </text>
+  <path
+    d="M294 300 Q405 474 512 300Z"
+    fill="#a8bac7"
+    stroke="#425466"
+    stroke-width="3"
+  />
+  <ellipse
+    cx="403"
+    cy="300"
+    rx="111"
+    ry="38"
+    fill="#e8d6b2"
+    stroke="#425466"
+    stroke-width="3"
+  />
+  <ellipse cx="370" cy="300" rx="23" ry="15" fill="#986b45" />
+  <ellipse cx="411" cy="285" rx="23" ry="15" fill="#986b45" />
+  <ellipse cx="444" cy="308" rx="23" ry="15" fill="#986b45" />
+  <text x="358" y="451" font-family="sans-serif" font-size="22" fill="#253345">
+    walnut
+  </text>
+  <rect x="616" y="185" width="48" height="60" rx="6" fill="#476145" />
+  <rect
+    x="587"
+    y="235"
+    width="107"
+    height="178"
+    rx="17"
+    fill="#e4cb69"
+    stroke="#425466"
+    stroke-width="3"
+  />
+  <rect x="597" y="280" width="87" height="72" fill="#f7f2df" />
+  <text x="605" y="309" font-family="sans-serif" font-size="16" fill="#253345">
+    olive oil
+  </text>
+  <path d="M25 477H775" stroke="#cab692" stroke-width="8" />
+  <text x="28" y="600" font-family="sans-serif" font-size="14" fill="#536477">
+    Item illustrations and annotations do not establish availability amounts.
+  </text>
+</svg>

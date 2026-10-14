@@ -1,0 +1,136 @@
+{
+  "version": "recipe-evaluation-freeze-v1",
+  "frozenOn": "2026-10-13",
+  "liveProviderObservationsAtFreeze": 0,
+  "purpose": "Immutable offline references and release thresholds; explicit versioned edits require a new reviewed freeze.",
+  "entries": [
+    {
+      "path": "apps/api/src/modules/meal-recipes/catalog-data.ts",
+      "sha256": "8245f753f8c40277cd7be471d405ade62b5c2cd8be1e282583e8f59674f0adbd"
+    },
+    {
+      "path": "apps/api/src/modules/meal-recipes/catalog-source.json",
+      "sha256": "610d4679c7fb376df9570487610853e834d3b3fa0e8009ca13a4dc59b3d5a82c"
+    },
+    {
+      "path": "scripts/recipe-evaluation/photo-scenarios.json",
+      "sha256": "d38d1b73ff131fc6d710e48e39685de5e11e0396ccb3f9eb4892911d0cff1a6d"
+    },
+    {
+      "path": "scripts/recipe-evaluation/recipe-contexts.json",
+      "sha256": "c1632cd52b92db3698de6a2fb422c0bb56555d9d898b18231039bfdf5abc2d71"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/ambiguous-white-block-1.svg",
+      "sha256": "1b3b1c2341758cb94dbc9b60abf54209755e5ff858d60f3cd1b377c2d1b708f5"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/duplicate-photo-1.svg",
+      "sha256": "53e1ca9b4297f2fc15651d3eab32ce0f346710c54d01012de5cc2581b1577569"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/duplicate-tomatoes-1.svg",
+      "sha256": "c3795c0c2dfbc471375feb6bf6ec34017ac41d495d2326484b1c8644ab5a5f71"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/egg-exclusion-1.svg",
+      "sha256": "16f7a2851bafc6e41b88bf05f25db141517dc7da00cd4b36f1004267afc3d5e7"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/empty-shelves-1.svg",
+      "sha256": "2c58445c684b55476362aa1d51eff307574438ab352c1e277b779d78d3aef958"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/fat-dominant-supplies-1.svg",
+      "sha256": "adbc321517dcb3dbe819e08b3ef8623687fde7f776d6e04521edd17e37cfae31"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/freezer-unknown-state-1.svg",
+      "sha256": "fa61ebcd3c48f28de12ea1512d890f1eb3a3b2d24565d01175a5c69817fa5ce5"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/gluten-exclusion-1.svg",
+      "sha256": "0c49e8701e0c2573a5ef1eebbb5ff4a487ba0c924f87c85b5a6394e92f7f833d"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/hidden-back-row-1.svg",
+      "sha256": "4dd23ea3a849117c9dc3b46879db1bfeab7a5fd906c2fb56d36d2c3732af92c1"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/image-text-injection-1.svg",
+      "sha256": "55fa85a43d7182bee8fe9381b46e0834c3f1e34bb71dd3b380feaddda490e9e3"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/ingredient-specific-exclusion-1.svg",
+      "sha256": "87875ea542bcb61962b5ebb455569d9d7c0c6e7cc1a73da1ee50f265eb35ccfa"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/ingredient-specific-exclusion-2.svg",
+      "sha256": "8693a524f8641681e4e294d1d5a0a4f3115003a12ffdb926b46f3eeac11f8888"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/labelled-leftovers-1.svg",
+      "sha256": "12e98815ee5a65289b83c70aba93966d553284b6fe7d04cb05e99d526c0d1f95"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/lean-carb-two-view-1.svg",
+      "sha256": "371188463e14f4a38d903f667f30d52a6e012487f2fb247126ed678a6fd79cbb"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/lean-carb-two-view-2.svg",
+      "sha256": "437d43b53f353c9cb8873e187fd13f6827c261ebde44c7dfdf84af6da1f636ef"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/measured-oil-cup-1.svg",
+      "sha256": "d25e50a67115ce379a610cb0b46579e57e036412fa8db7e85fd76c97420ef3d4"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/milk-exclusion-1.svg",
+      "sha256": "e7efb2f73448b551a28616f09cd80860ba575f63725d8645143ab76fac1c9453"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/milk-exclusion-2.svg",
+      "sha256": "925f58dc28539ad14c0b3736c8c7e00726c1f40a8ac53502fcfbb6644462bf4d"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/nut-exclusion-1.svg",
+      "sha256": "7ce1ef8fab89fe87275461a618a39cb259e57a5521108151a22f55f7b2b40727"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/only-seasoning-1.svg",
+      "sha256": "95b1a91e7310ab00e8219fc78b11bda16d1bc1f66e959a5d3951beb8b5e505cf"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/partial-occluded-can-1.svg",
+      "sha256": "001bf768c47b219e174fb4456d15905dcc309348f1255b513199e1caa661a33b"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/protein-with-fat-1.svg",
+      "sha256": "daf41e28f0eb67b52f3c69010bf7e804c2b0cd7028ed3566d25a1406a61043a7"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/raw-cooked-rice-1.svg",
+      "sha256": "45fc55f12b82de5d520dba1263dea4356021975131c06a2fc45e896e3b0d111e"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/soy-exclusion-1.svg",
+      "sha256": "e7d441ea928d57cac1f36f4da2e4f624c8ad63a19e8cc4419bcf5aaea7fa4399"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/soy-exclusion-2.svg",
+      "sha256": "74f60a84345663e89732375cb25a358d19f9882d07b2fd3e00d114a11d2be489"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/unlabelled-containers-1.svg",
+      "sha256": "7b70f653aee874e3215b7111a073979fb184d0a0eb07b9fd4c4a2d9767cda46f"
+    },
+    {
+      "path": "scripts/recipe-evaluation/scenes/vegan-mixed-fridge-1.svg",
+      "sha256": "de81a45604c21fabd25e27b3d876bef1bab1c287a6b8ea231e8eebb0260ff2de"
+    },
+    {
+      "path": "scripts/recipe-evaluation/thresholds.json",
+      "sha256": "5dbb3c4de77b6b1352f52642f708493dcbdf615946ca6d43012aad7246d9f21f"
+    }
+  ]
+}

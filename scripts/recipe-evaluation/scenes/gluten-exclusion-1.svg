@@ -1,0 +1,99 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="800"
+  height="620"
+  viewBox="0 0 800 620"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">gluten-exclusion / view 1: cabinet</title>
+  <desc id="description">
+    Original synthetic illustration. Wheat pasta and canned tomato visible;
+    gluten excluded. Hidden contents are intentionally absent from the drawing.
+    No photo or vision accuracy evidence.
+  </desc>
+  <rect width="800" height="620" fill="#fff1db" />
+  <text x="28" y="38" font-family="sans-serif" font-size="22" fill="#253345">
+    gluten-exclusion / view 1: cabinet
+  </text>
+  <text x="28" y="64" font-family="sans-serif" font-size="14" fill="#536477">
+    SYNTHETIC TEST ILLUSTRATION • quantities require user confirmation
+  </text>
+  <rect
+    x="20"
+    y="88"
+    width="760"
+    height="486"
+    rx="12"
+    fill="white"
+    stroke="#dabf97"
+    stroke-width="5"
+  />
+  <path d="M25 246H775" stroke="#dabf97" stroke-width="8" />
+  <path d="M25 408H775" stroke="#dabf97" stroke-width="8" />
+  <path d="M25 570H775" stroke="#dabf97" stroke-width="8" />
+  <rect
+    x="42"
+    y="102"
+    width="220"
+    height="128"
+    rx="20"
+    fill="#f7b267"
+    stroke="#425466"
+    stroke-width="2"
+  />
+  <text
+    x="54"
+    y="150"
+    font-family="sans-serif"
+    font-size="17"
+    font-weight="600"
+    fill="#253345"
+  >
+    wheat pasta
+  </text>
+  <rect
+    x="290"
+    y="102"
+    width="220"
+    height="128"
+    rx="20"
+    fill="#89c685"
+    stroke="#425466"
+    stroke-width="2"
+  />
+  <text
+    x="302"
+    y="150"
+    font-family="sans-serif"
+    font-size="17"
+    font-weight="600"
+    fill="#253345"
+  >
+    tomato
+  </text>
+  <rect
+    x="538"
+    y="102"
+    width="220"
+    height="128"
+    rx="20"
+    fill="#f4dc75"
+    stroke="#425466"
+    stroke-width="2"
+  />
+  <text
+    x="550"
+    y="150"
+    font-family="sans-serif"
+    font-size="17"
+    font-weight="600"
+    fill="#253345"
+  >
+    basil
+  </text>
+  <text x="28" y="600" font-family="sans-serif" font-size="14" fill="#536477">
+    Visible annotations identify test items; covered / opaque regions do not
+    identify food.
+  </text>
+</svg>
