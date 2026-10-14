@@ -13,3 +13,4 @@ export {
 } from "./card";
 export { Icon, IconBadge, IconNames, type IconName } from "./icon";
 export { EmptyState, Notice } from "./notice";
+export { Chip, SegmentedControl, type SegmentedOption } from "./segmented";

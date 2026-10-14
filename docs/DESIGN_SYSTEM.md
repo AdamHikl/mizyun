@@ -32,6 +32,8 @@ Adopted 2026-10-14 (Adam: "calm iOS-native" direction, large-title tab headers, 
 - `Card` — raised surface, 16 radius, 16 padding.
 - `ListGroup` + `ListRow` — inset grouped list with hairline separators; rows take `icon`, `iconTone`, `title`, `subtitle`, `value`, `trailing`, chevron when pressable.
 - `SectionHeader` — `title3` header with optional trailing action (e.g. `Button variant="plain" size="small"`).
+- `SegmentedControl` — switch between views of the same content (filters, sub-sections); wraps at large text sizes; exposed as a tab list.
+- `Chip` — compact pill for tags, filters and small inline actions (`tone`, `selected`, `icon`).
 - `Notice` — inline info/warning/danger/success message with optional action.
 - `EmptyState` — icon, title, message, one action.
 - `Icon`, `IconBadge`, `IconNames` — the icon vocabulary; add new names to `IconNames`.
