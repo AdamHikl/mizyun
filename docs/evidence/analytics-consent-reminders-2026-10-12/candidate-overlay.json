@@ -1,0 +1,34 @@
+{
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidate": "/private/tmp/mizyun-analytics-consent-candidate",
+  "reviewedSourceHashes": {
+    "apps/mobile/src/app/_layout.tsx": "0476a60936873fc7ef0ce845b8e9bbdd08fd6a199cb02f60958fe5383bca6831",
+    "apps/mobile/src/features/settings/analytics-card.tsx": "0404bd3bab454f79f1d77efdc4910ba3f135edc0e2717bb6d6cb46c80d1f722e",
+    "apps/mobile/src/features/settings/settings-screen.tsx": "db1de1e48b367d3bac745c8d5249d675f5ac09158a2696b8f8db51182879f638",
+    "apps/mobile/src/features/settings/settings-catalog.ts": "3df8c99a4488423c20e1023f8b6911d1d3190a9307da2ee91b1998d6b7c85a8e",
+    "apps/mobile/src/features/settings/settings-destinations.ts": "4f31242cceff16d75a1e6cf88025f6fab4705d1184272d795eee424a2cc7ef16",
+    "apps/mobile/src/features/settings/analytics-discovery.test.ts": "5653385e5215fa2aa83611eda576710031997ca3a9a92e5bb8b9f99412f01ea2",
+    "apps/mobile/src/features/settings/account-data-management.ts": "ec34dd875f12d6251d38d62b57b06887ff8ea55af2bcb463719b2045015ffc4c",
+    "apps/mobile/src/features/settings/account-data-management.test.ts": "5ecd528491a8e63d5777f36ae1886631ec21dd718493f068e616a88eedb5eef4",
+    "apps/mobile/src/composition/analytics-consent-reminder-bridge.tsx": "b2ab0898a97ea90cf3115af2f2a18a4af973633db4ab3446f7db89cc6196eea2",
+    "apps/mobile/src/composition/analytics-consent-reminder-bridge.test.tsx": "ef2090b3f5e151c31aaa0bf36b1fb7e8e95e1d2733b2790e4bb8e7c7625e3f53",
+    "apps/mobile/src/features/analytics/consent-reminder-preferences.ts": "4914d2d0bf23b2ecdf0122a78253fa55736ffbd117a2351d12df568a6edaf0cb",
+    "apps/mobile/src/features/analytics/consent-reminder-preferences.test.ts": "46f64ba29e443d64d80c3dc914bca1efddba86149f269a237754b149ff18368b",
+    "apps/mobile/src/features/analytics/consent-reminder-prompt.tsx": "62a7b7a55a658eddf84361a31117c7ed6e3463f28033429db725cb9b3407b3d4",
+    "apps/mobile/src/features/analytics/consent-reminder-prompt.test.tsx": "7c6185e008d9ed54737f3859d67025d312e8a7e684ae06ddb100927247f00f8a",
+    "apps/mobile/src/features/analytics/public-data.ts": "a19e078098d20a4359573e239bf5a2459c7481e761f76251278de3cae12ca295",
+    "apps/mobile/src/features/analytics/index.ts": "c6af1ec5ec48c212afeffee19d48220291b6b02d143a274566f9aff0141acc01"
+  },
+  "excluded": "All pre-existing/concurrent Community, startup-cache, retained-photo, instruction and continuity overlays; baseline dependencies preserved.",
+  "dependencyPolicy": "Copied node_modules links keep workspace imports in candidate; shared third-party pnpm store only.",
+  "nativeScaffolding": "Ignored iOS source/projects copied; Pods/build/local .xcode.env omitted.",
+  "docs": {
+    "docs/RESEARCH_LOG.md": "39f8b3a7db67a34a26909f49f62b2bd7734a130e4f4aa0041b4e579adf828e60",
+    "docs/PRODUCT_REQUIREMENTS.md": "17ad856c25c1ded3a03f2bcc7a8487dd12d2fd7a1ef32ab79c3e39609527adc4",
+    "docs/adr/README.md": "f8af08889a2658c76a21aabcf07cf4e52bd31fc779809ca6e860a68a33387bda",
+    "docs/adr/0057-discoverable-analytics-consent-reminders.md": "634a7365d4d770cbcd65ab843976677d2ec17bcbd0e26a5110cc9462a9f239fd",
+    "docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md": "e64e99db6e03e9a049b04573f2844266d50258a81347737242e5e4829dd52e69",
+    "docs/feature-map.json": "9cc80403507602a097b1f21873b82c8c5ad255969667c92fc23981a6aadbb483",
+    "status.md": "aaacbcf2c6c34b7b3c067b1825e6e3fa08f245af54f84b49c32891f3f3d724c1"
+  }
+}

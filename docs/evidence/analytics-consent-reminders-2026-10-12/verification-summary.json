@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-12",
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "inputSha256": "018f223d5b8baa31be8dcc6e93ec06d889e14582a5d8c517aad28ebed985efc6",
+  "fullGate": {
+    "command": "pnpm check",
+    "exitCode": 0,
+    "scope": "Exact baseline plus owned source/doc overlays; concurrent work excluded",
+    "mobileTestsPassed": 2202,
+    "apiTestsPassed": 980,
+    "apiTestsSkipped": 15,
+    "apiFilesSkipped": 3,
+    "skipReason": "Credential-gated live Auth/Storage/account-deletion E2E prerequisites unavailable",
+    "iOSBundle": "passed",
+    "androidBundle": "passed"
+  },
+  "focused": {
+    "command": "pnpm --filter @mizyun/mobile test src/features/analytics src/features/settings src/composition/analytics-consent-reminder-bridge.test.tsx src/composition/analytics-client.test.ts src/features/auth/auth-analytics-lifecycle.test.tsx",
+    "testsPassed": 289,
+    "filesPassed": 23,
+    "typecheck": "passed"
+  },
+  "review": {
+    "independent": true,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "status": "approved after workout hydration repair"
+  },
+  "sourceCorrespondence": "All16 hashes matched candidate and shared source before/after full gate",
+  "delivery": {
+    "committed": false,
+    "devInstalled": false,
+    "devDeployed": false,
+    "nativeAccepted": false,
+    "productionReleased": false
+  },
+  "postCheckRecord": true
+}

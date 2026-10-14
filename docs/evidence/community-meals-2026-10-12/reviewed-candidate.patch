@@ -1,0 +1,1853 @@
+diff --git a/apps/api/src/app.ts b/apps/api/src/app.ts
+index 0265757..3535ac1 100644
+--- a/apps/api/src/app.ts
++++ b/apps/api/src/app.ts
+@@ -186,6 +186,7 @@ import {
+   CommunityDiscoveryRateLimiter,
+ } from "./modules/community/discovery-routes.js";
+ import { communityInvitationRoutes } from "./modules/community/invitation-routes.js";
++import { communityMealPublicationRoutes } from "./modules/community/meal-publication-routes.js";
+ import { communityPublicationRoutes } from "./modules/community/publication-routes.js";
+ import { communityFeedRoutes } from "./modules/community/feed-routes.js";
+ import { communityReactionRoutes } from "./modules/community/reaction-routes.js";
+@@ -837,13 +838,18 @@ export const buildApp = (
+           })
+         : null
+       : new InMemoryMealIllustrationRepository());
+-  if (
+-    foodEntryRepository instanceof InMemoryFoodEntryRepository &&
+-    mealIllustrationRepository
+-  )
++  if (foodEntryRepository instanceof InMemoryFoodEntryRepository)
+     foodEntryRepository.setSourceChangeObserverForTest((userId, id) => {
+-      void mealIllustrationRepository.invalidateForEntry(userId, id);
++      void mealIllustrationRepository?.invalidateForEntry(userId, id);
+     });
++  if (foodEntryRepository instanceof InMemoryFoodEntryRepository)
++    foodEntryRepository.setCommunitySourceChangeObserverForTest(
++      (userId, id) => {
++        void communityRepository.revokeActivitiesForMeal(id, userId, {
++          accessToken: "in-memory",
++        });
++      },
++    );
+   const imageConfig = configResult.ok
+     ? configResult.value.mealIllustrationConfig
+     : null;
+@@ -1421,7 +1427,14 @@ export const buildApp = (
+         ? "mizyun-dev"
+         : "mizyun",
+   });
++  void app.register(communityMealPublicationRoutes, {
++    prefix: "/v1/community",
++    communityRepository,
++    foodEntryRepository,
++    profileRepository,
++  });
+   void app.register(communityPublicationRoutes, {
++    foodEntryRepository,
+     workoutSetRepository,
+     exerciseRepository,
+     prefix: "/v1/community",
+diff --git a/apps/api/src/community-repository.ts b/apps/api/src/community-repository.ts
+index ba69567..371253f 100644
+--- a/apps/api/src/community-repository.ts
++++ b/apps/api/src/community-repository.ts
+@@ -17,6 +17,7 @@ import {
+   type StoredModerationAppeal,
+   type StoredSharedActivity,
+   type SharedWorkoutDetails,
++  type MealActivityPublication,
+   type UserId,
+   type WorkoutCategory,
+ } from "@mizyun/core";
+@@ -1076,6 +1077,107 @@ export class InMemoryCommunityRepository implements CommunityRepository {
+     return null;
+   }
+ 
++  async getActivityByMealId(
++    mealId: string,
++    authorUserId: UserId,
++    _options?: { readonly accessToken?: string },
++  ): Promise<StoredSharedActivity | null> {
++    return (
++      [...this.#activities.values()].find(
++        (a) => a.sourceMealId === mealId && a.userId === authorUserId,
++      ) ?? null
++    );
++  }
++
++  async publishMealActivity(
++    userId: UserId,
++    activity: MealActivityPublication,
++    _options?: { readonly accessToken?: string },
++  ): Promise<StoredSharedActivity> {
++    const profile = this.#requireActive(userId);
++    if (profile.generation !== activity.enrollmentGeneration)
++      throw new CommunityMutationError("conflict");
++    const operationKey = `${userId}:${activity.operationId}`;
++    const { currentSourceMealDetails, currentSourceDay, ...confirmation } =
++      activity;
++    const fingerprint = JSON.stringify({
++      activityKind: "meal",
++      ...confirmation,
++    });
++    const operation = this.#publicationOperations.get(operationKey);
++    if (operation) {
++      const previous = this.#activities.get(operation.activityId);
++      if (
++        operation.fingerprint !== fingerprint ||
++        !previous ||
++        previous.revokedAt ||
++        previous.version !== operation.version
++      )
++        throw new CommunityMutationError("conflict");
++      return previous;
++    }
++    if (
++      JSON.stringify(activity.mealDetails) !==
++        JSON.stringify(currentSourceMealDetails) ||
++      Math.abs(
++        Date.parse(`${activity.sharedDay}T00:00:00Z`) -
++          Date.parse(`${currentSourceDay}T00:00:00Z`),
++      ) > 86400000 ||
++      activity.sharedDay >
++        new Date(Date.now() + 86400000).toISOString().slice(0, 10)
++    )
++      throw new CommunityMutationError("conflict");
++    const existing = await this.getActivityByMealId(
++      activity.sourceMealId,
++      userId,
++    );
++    if (
++      (existing?.version ?? 0) !== activity.expectedVersion ||
++      (existing?.revokedAt != null) !== activity.expectedRevoked
++    )
++      throw new CommunityMutationError("conflict");
++    this.#consumePublication(userId);
++    if (existing) this.#purgeReactions(existing.id);
++    const shared: StoredSharedActivity = {
++      id: existing?.id ?? crypto.randomUUID(),
++      userId,
++      activityKind: "meal",
++      sourceWorkoutId: null,
++      sourceMealId: activity.sourceMealId,
++      category: "other",
++      sharedDay: activity.sharedDay,
++      durationSeconds: null,
++      workoutDetails: null,
++      mealDetails: activity.mealDetails,
++      version: (existing?.version ?? 0) + 1,
++      revokedAt: null,
++      publishedAt:
++        existing && !existing.revokedAt ? existing.publishedAt : new Date(),
++    };
++    this.#activities.set(shared.id, shared);
++    this.#publicationOperations.set(operationKey, {
++      fingerprint,
++      activityId: shared.id,
++      version: shared.version,
++    });
++    return shared;
++  }
++
++  async revokeActivitiesForMeal(
++    mealId: string,
++    authorUserId: UserId,
++    _options?: { readonly accessToken?: string },
++  ): Promise<void> {
++    for (const [id, act] of this.#activities)
++      if (act.sourceMealId === mealId && act.userId === authorUserId) {
++        this.#purgeReactions(id);
++        this.#activities.set(id, {
++          ...act,
++          revokedAt: act.revokedAt ?? new Date(),
++        });
++      }
++  }
++
+   async publishActivity(
+     userId: UserId,
+     activity: {
+@@ -1221,6 +1323,8 @@ export class InMemoryCommunityRepository implements CommunityRepository {
+     if (!act || act.userId !== authorUserId || act.revokedAt) {
+       throw new CommunityMutationError("unavailable");
+     }
++    if (act.activityKind === "meal")
++      throw new CommunityMutationError("conflict");
+     if (act.version !== (updates.expectedVersion ?? 1))
+       throw new CommunityMutationError("conflict");
+     if (
+@@ -1336,6 +1440,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
+           candidateActivities.push({
+             ...act,
+             sourceWorkoutId: "00000000-0000-0000-0000-000000000000",
++            sourceMealId: null,
+           });
+         }
+       }
+diff --git a/apps/api/src/food-entry-repository.ts b/apps/api/src/food-entry-repository.ts
+index 96fec4e..1b8072b 100644
+--- a/apps/api/src/food-entry-repository.ts
++++ b/apps/api/src/food-entry-repository.ts
+@@ -34,6 +34,12 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
+   ): void {
+     this.#sourceChanged = observer;
+   }
++  #communitySourceChanged: ((userId: UserId, id: string) => void) | null = null;
++  setCommunitySourceChangeObserverForTest(
++    observer: (userId: UserId, id: string) => void,
++  ): void {
++    this.#communitySourceChanged = observer;
++  }
+   readonly #byUser = new Map<UserId, StoredFoodEntry[]>();
+   readonly #byId = new Map<string, StoredFoodEntry>();
+ 
+@@ -160,6 +166,16 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
+       existing.photoAssetId !== entry.photoAssetId
+     )
+       this.#sourceChanged?.(owner, entry.id);
++    if (
++      existing.name !== entry.name ||
++      existing.consumedAt.getTime() !== entry.consumedAt.getTime() ||
++      existing.confirmedByUser !== entry.confirmedByUser ||
++      existing.caloriesKcal !== entry.caloriesKcal ||
++      existing.proteinG !== entry.proteinG ||
++      existing.carbohydrateG !== entry.carbohydrateG ||
++      existing.fatG !== entry.fatG
++    )
++      this.#communitySourceChanged?.(owner, entry.id);
+     return entry;
+   }
+ 
+@@ -178,6 +194,7 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
+     );
+     this.#byId.delete(id);
+     this.#sourceChanged?.(owner, id);
++    this.#communitySourceChanged?.(owner, id);
+     return true;
+   }
+ 
+diff --git a/apps/api/src/modules/community/feed-routes.ts b/apps/api/src/modules/community/feed-routes.ts
+index 9bb3e43..8e1b95b 100644
+--- a/apps/api/src/modules/community/feed-routes.ts
++++ b/apps/api/src/modules/community/feed-routes.ts
+@@ -152,6 +152,8 @@ export const communityFeedRoutes: FastifyPluginAsync<
+                 category: item.category,
+                 sharedDay: item.sharedDay,
+                 durationSeconds: item.durationSeconds,
++                activityKind: item.activityKind ?? "workout",
++                mealDetails: item.mealDetails ?? null,
+                 workoutDetails: sharedWorkoutDetailsSchema
+                   .nullable()
+                   .parse(item.workoutDetails ?? null),
+diff --git a/apps/api/src/modules/community/profile-activity-routes.ts b/apps/api/src/modules/community/profile-activity-routes.ts
+index 498944d..2d5aec9 100644
+--- a/apps/api/src/modules/community/profile-activity-routes.ts
++++ b/apps/api/src/modules/community/profile-activity-routes.ts
+@@ -103,6 +103,8 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
+           category: item.category,
+           sharedDay: item.sharedDay,
+           durationSeconds: item.durationSeconds,
++          activityKind: item.activityKind ?? "workout",
++          mealDetails: item.mealDetails ?? null,
+           workoutDetails: sharedWorkoutDetailsSchema
+             .nullable()
+             .parse(item.workoutDetails ?? null),
+diff --git a/apps/api/src/modules/community/publication-routes.ts b/apps/api/src/modules/community/publication-routes.ts
+index e7de06b..ce5dbd4 100644
+--- a/apps/api/src/modules/community/publication-routes.ts
++++ b/apps/api/src/modules/community/publication-routes.ts
+@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
+ import { isSessionDetails, validateContentSafety } from "@mizyun/core";
+ import type {
+   CommunityRepository,
++  FoodEntryRepository,
+   ProfileRepository,
+   WorkoutRepository,
+   WorkoutSetRepository,
+@@ -29,6 +30,7 @@ const GENERIC_UUID =
+   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ 
+ export interface CommunityPublicationRoutesOptions {
++  readonly foodEntryRepository?: FoodEntryRepository;
+   readonly workoutSetRepository?: WorkoutSetRepository;
+   readonly exerciseRepository?: ExerciseRepository;
+   readonly communityRepository: CommunityRepository;
+@@ -219,9 +221,12 @@ export const communityPublicationRoutes: FastifyPluginAsync<
+             category: existing.category,
+             sharedDay: existing.sharedDay,
+             durationSeconds: existing.durationSeconds,
++            activityKind: existing.activityKind ?? "workout",
++            mealDetails: existing.mealDetails ?? null,
+             workoutDetails: existing.workoutDetails ?? null,
+             publishedAt: existing.publishedAt.toISOString(),
+             sourceWorkoutId: existing.sourceWorkoutId,
++            sourceMealId: existing.sourceMealId ?? null,
+             version: existing.version,
+             revokedAt: existing.revokedAt?.toISOString() ?? null,
+             reactionCounts: defaultReactionCounts,
+@@ -421,6 +426,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
+         category: published.category,
+         sharedDay: published.sharedDay,
+         durationSeconds: published.durationSeconds,
++        activityKind: published.activityKind ?? "workout",
++        mealDetails: published.mealDetails ?? null,
+         workoutDetails: published.workoutDetails ?? null,
+         publishedAt: published.publishedAt.toISOString(),
+         sourceWorkoutId: published.sourceWorkoutId,
+@@ -487,6 +494,15 @@ export const communityPublicationRoutes: FastifyPluginAsync<
+         );
+       }
+ 
++      if (!activity.sourceWorkoutId || activity.activityKind === "meal")
++        return sendApiError(
++          reply,
++          request,
++          422,
++          "VALIDATION_ERROR",
++          "Preview the meal again to update its share.",
++        );
++
+       const parsed = updateSharedActivitySchema.safeParse(request.body);
+       if (!parsed.success) {
+         return sendApiError(
+@@ -565,6 +581,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
+         category: updated.category,
+         sharedDay: updated.sharedDay,
+         durationSeconds: updated.durationSeconds,
++        activityKind: updated.activityKind ?? "workout",
++        mealDetails: updated.mealDetails ?? null,
+         workoutDetails: updated.workoutDetails ?? null,
+         publishedAt: updated.publishedAt.toISOString(),
+         sourceWorkoutId: updated.sourceWorkoutId,
+@@ -676,17 +694,34 @@ export const communityPublicationRoutes: FastifyPluginAsync<
+         activity.revokedAt !== null
+       )
+         return unavailable();
+-      const source = await options.workoutRepository.getById(
+-        activity.sourceWorkoutId,
+-        access,
+-      );
+-      if (
+-        !source ||
+-        source.userId !== principal.userId ||
+-        !source.completedAt ||
+-        !isSessionDetails(source.details)
+-      )
+-        return unavailable();
++      if (activity.activityKind === "meal") {
++        const source = activity.sourceMealId
++          ? await options.foodEntryRepository?.getById(
++              activity.sourceMealId,
++              access,
++            )
++          : null;
++        if (
++          !source ||
++          source.userId !== principal.userId ||
++          !source.confirmedByUser
++        )
++          return unavailable();
++      } else {
++        const source = activity.sourceWorkoutId
++          ? await options.workoutRepository.getById(
++              activity.sourceWorkoutId,
++              access,
++            )
++          : null;
++        if (
++          !source ||
++          source.userId !== principal.userId ||
++          !source.completedAt ||
++          !isSessionDetails(source.details)
++        )
++          return unavailable();
++      }
+       return authorSharedActivityDtoSchema.parse({
+         id: activity.id,
+         authorUserId: principal.userId,
+@@ -696,9 +731,12 @@ export const communityPublicationRoutes: FastifyPluginAsync<
+         category: activity.category,
+         sharedDay: activity.sharedDay,
+         durationSeconds: activity.durationSeconds,
++        activityKind: activity.activityKind ?? "workout",
++        mealDetails: activity.mealDetails ?? null,
+         workoutDetails: activity.workoutDetails ?? null,
+         publishedAt: activity.publishedAt.toISOString(),
+         sourceWorkoutId: activity.sourceWorkoutId,
++        sourceMealId: activity.sourceMealId ?? null,
+         version: activity.version,
+         revokedAt: null,
+         reactionCounts: defaultReactionCounts,
+@@ -820,6 +858,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
+         category: activity.category,
+         sharedDay: activity.sharedDay,
+         durationSeconds: activity.durationSeconds,
++        activityKind: activity.activityKind ?? "workout",
++        mealDetails: activity.mealDetails ?? null,
+         workoutDetails: activity.workoutDetails ?? null,
+         publishedAt: activity.publishedAt.toISOString(),
+         reactionCounts: reactions.reactionCounts,
+diff --git a/apps/mobile/src/app/community/rules.tsx b/apps/mobile/src/app/community/rules.tsx
+index 24a1c0b..cd24eff 100644
+--- a/apps/mobile/src/app/community/rules.tsx
++++ b/apps/mobile/src/app/community/rules.tsx
+@@ -36,14 +36,14 @@ export default function CommunityRulesScreen() {
+         The check does not verify identity or birthday.
+       </ThemedText>
+       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+-        Who can see shared workouts
++        Who can see shared meals and workouts
+       </ThemedText>
+       <ThemedText>
+         Your currently approved followers can see still-shared earlier cards and
+         future cards you deliberately share. Following is directional. Saving a
+-        private workout never shares it. Search is off by default; a valid
+-        invite can let someone request to follow you even with search off. Your
+-        handle cannot change during the pilot.
++        private meal or workout never shares it. Search is off by default; a
++        valid invite can let someone request to follow you even with search off.
++        Your handle cannot change during the pilot.
+       </ThemedText>
+       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+         Respect each other
+@@ -59,13 +59,16 @@ export default function CommunityRulesScreen() {
+         What stays private
+       </ThemedText>
+       <ThemedText>
+-        A handle, workout day or optional duration can identify you or reveal
+-        habits. Community has no access to private health integrations or Coach
+-        context. A separate, optional sharing choice can include completed
++        A handle, meal or workout day or optional duration can identify you or
++        reveal habits. Community has no access to private health integrations or
++        Coach context. A separate, optional sharing choice can include completed
+         exercises, set types, reps, weights and set durations. Preview every
+         field before confirming; custom exercise names can reveal personal
+         information. Workout titles and notes stay private. Existing summary
+-        cards are never automatically expanded.
++        cards are never automatically expanded. A separate meal preview shares
++        its name and day; nutrition is optional and starts off. Meal notes,
++        tracking photos and Coach metadata stay private. Editing or deleting a
++        shared source meal removes the post until you choose to share again.
+       </ThemedText>
+       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+         Optional Dev features
+diff --git a/apps/mobile/src/features/community/community-client.test.ts b/apps/mobile/src/features/community/community-client.test.ts
+index 34b154f..8d47dc7 100644
+--- a/apps/mobile/src/features/community/community-client.test.ts
++++ b/apps/mobile/src/features/community/community-client.test.ts
+@@ -20,9 +20,11 @@ import {
+   fetchSafetyContact,
+   fetchSharedActivity,
+   fetchWorkoutSharePreview,
++  fetchMealSharePreview,
+   getActivityReactions,
+   humanizeCommunityError,
+   publishWorkoutActivity,
++  publishMealActivity,
+   removeFollower,
+   requestFollow,
+   resolveCommunityInvitation,
+@@ -1010,3 +1012,45 @@ describe("community-client", () => {
+     });
+   });
+ });
++
++describe("meal publication client routes", () => {
++  it("encodes the principal-selected meal ID and timezone without adding private fields", async () => {
++    const request = vi.fn().mockResolvedValue({ ok: true, value: {} });
++    await fetchMealSharePreview(
++      { request } as unknown as ApiClient,
++      "meal/id",
++      "Europe/Bratislava",
++    );
++    expect(request.mock.calls[0]![0]).toMatchObject({
++      method: "GET",
++      path: "/v1/community/meals/meal%2Fid/preview?timezone=Europe%2FBratislava",
++    });
++    expect(request.mock.calls[0]![0].schema).toBeDefined();
++  });
++  it("publishes meals through the explicit meal route and author response contract", async () => {
++    const request = vi.fn().mockResolvedValue({ ok: true, value: {} });
++    const input = {
++      mealId: "meal",
++      operationId: "operation",
++      enrollmentGeneration: 1,
++      expectedVersion: 0,
++      expectedRevoked: false,
++      sharedDay: "2026-10-12",
++      includeNutrition: false,
++      expectedMealDetails: {
++        name: "Oatmeal",
++        caloriesKcal: null,
++        proteinG: null,
++        carbsG: null,
++        fatG: null,
++      },
++    };
++    await publishMealActivity({ request } as unknown as ApiClient, input);
++    expect(request.mock.calls[0]![0]).toMatchObject({
++      method: "POST",
++      path: "/v1/community/meal-activities",
++      body: input,
++    });
++    expect(request.mock.calls[0]![0].schema).toBeDefined();
++  });
++});
+diff --git a/apps/mobile/src/features/community/community-client.ts b/apps/mobile/src/features/community/community-client.ts
+index 7ee4108..db2c96f 100644
+--- a/apps/mobile/src/features/community/community-client.ts
++++ b/apps/mobile/src/features/community/community-client.ts
+@@ -19,6 +19,7 @@ import {
+   communityProfileViewDtoSchema,
+   type CommunityProfileViewDto,
+   publishWorkoutActivitySchema,
++  mealSharePreviewDtoSchema,
+   relationshipListResponseSchema,
+   removeFollowerResponseSchema,
+   resolveInvitationResponseSchema,
+@@ -52,6 +53,8 @@ import {
+   type ModerationAppealDto,
+   type PublicCommunityProfileDto,
+   type PublishWorkoutActivityInput,
++  type PublishMealActivityInput,
++  type MealSharePreviewDto,
+   type ReactorSummary,
+   type RelationshipListResponse,
+   type RemoveFollowerResponse,
+@@ -433,6 +436,31 @@ export async function publishWorkoutActivity(
+   });
+ }
+ 
++export async function fetchMealSharePreview(
++  client: ApiClient,
++  mealId: string,
++  timezone?: string,
++): Promise<Result<MealSharePreviewDto, ApiError>> {
++  const query = timezone ? `?${new URLSearchParams({ timezone })}` : "";
++  return client.request<MealSharePreviewDto>({
++    method: "GET",
++    path: `/v1/community/meals/${encodeURIComponent(mealId)}/preview${query}`,
++    schema: mealSharePreviewDtoSchema,
++  });
++}
++
++export async function publishMealActivity(
++  client: ApiClient,
++  input: PublishMealActivityInput,
++): Promise<Result<AuthorSharedActivityDto, ApiError>> {
++  return client.request<AuthorSharedActivityDto>({
++    method: "POST",
++    path: "/v1/community/meal-activities",
++    body: input,
++    schema: authorSharedActivityDtoSchema,
++  });
++}
++
+ export async function updateSharedActivity(
+   client: ApiClient,
+   activityId: string,
+diff --git a/apps/mobile/src/features/community/community-settings-screen.tsx b/apps/mobile/src/features/community/community-settings-screen.tsx
+index cb51ac9..473196b 100644
+--- a/apps/mobile/src/features/community/community-settings-screen.tsx
++++ b/apps/mobile/src/features/community/community-settings-screen.tsx
+@@ -270,8 +270,8 @@ function SettingsContent({
+             </ThemedText>
+             <ThemedText type="small">
+               Create a separate social identity. Nothing is copied from your
+-              private profile. Your social name, handle and shared workout day
+-              can identify you.
++              private profile. Your social name, handle and shared meal or
++              workout day can identify you.
+             </ThemedText>
+           </Section>
+         )}
+diff --git a/apps/mobile/src/features/community/discovery/screen.tsx b/apps/mobile/src/features/community/discovery/screen.tsx
+index 21d2d59..ca07020 100644
+--- a/apps/mobile/src/features/community/discovery/screen.tsx
++++ b/apps/mobile/src/features/community/discovery/screen.tsx
+@@ -254,7 +254,7 @@ export function DiscoveryScreen({
+           () =>
+             Alert.alert(
+               `Follow @${user.handle}?`,
+-              `Request as @${community.profile?.handle}. They must approve before you can see their shared workouts. This does not give them access to yours.`,
++              `Request as @${community.profile?.handle}. They must approve before you can see their shared meals and workouts. This does not give them access to yours.`,
+               [
+                 { text: "Cancel", style: "cancel" },
+                 {
+diff --git a/apps/mobile/src/features/community/feed/activity-card.test.ts b/apps/mobile/src/features/community/feed/activity-card.test.ts
+index a57335e..0f99e75 100644
+--- a/apps/mobile/src/features/community/feed/activity-card.test.ts
++++ b/apps/mobile/src/features/community/feed/activity-card.test.ts
+@@ -34,6 +34,8 @@ const mockItem: SharedActivityFeedItemDto = {
+   sharedDay: "2026-09-29",
+   durationSeconds: 2700,
+   workoutDetails: null,
++  activityKind: "workout",
++  mealDetails: null,
+   publishedAt: "2026-09-30T10:00:00.000Z",
+   reactionCounts: {
+     clap: 3,
+@@ -92,6 +94,27 @@ describe("ActivityCard", () => {
+       "workout details shared",
+     );
+   });
++  it("renders meals with a meal destination and excludes workout fields", () => {
++    const meal = {
++      name: "Lentil soup",
++      caloriesKcal: 320,
++      proteinG: 18,
++      carbsG: 42,
++      fatG: null,
++    };
++    const element = ActivityCard({
++      item: { ...mockItem, activityKind: "meal", mealDetails: meal },
++    });
++    const content = element.props.children[1];
++    expect(content.props.accessibilityLabel).toContain("Meal · Lentil soup");
++    expect(content.props.accessibilityLabel).not.toContain("duration");
++    expect(content.props.accessibilityLabel).not.toContain("Strength workout");
++    expect(content.props.accessibilityHint).toBe("Open shared meal details");
++    const projection = content.props.children.find(
++      (child: any) => child?.props?.details === meal,
++    );
++    expect(projection.props.compact).toBe(true);
++  });
+   it("handles null duration gracefully", () => {
+     const itemWithoutDuration = { ...mockItem, durationSeconds: null };
+     const element = ActivityCard({
+diff --git a/apps/mobile/src/features/community/feed/activity-card.tsx b/apps/mobile/src/features/community/feed/activity-card.tsx
+index 9e9bf63..5fa2386 100644
+--- a/apps/mobile/src/features/community/feed/activity-card.tsx
++++ b/apps/mobile/src/features/community/feed/activity-card.tsx
+@@ -6,6 +6,7 @@ import type {
+ } from "@mizyun/contracts";
+ import { useTheme } from "@/hooks/use-theme";
+ import type { ScopedCommunityClient } from "../community-client";
++import { SharedMealDetails } from "../shared-meal-details";
+ import { SharedWorkoutDetails } from "../shared-workout-details";
+ import { CommunityIdentityLink } from "../ui";
+ import { ReactionBar } from "../reactions";
+@@ -47,10 +48,13 @@ export function ActivityCard({
+   onUnavailable,
+ }: ActivityCardProps) {
+   const colors = useTheme();
+-  const duration = formatDuration(item.durationSeconds);
++  const isMeal = item.activityKind === "meal";
++  const duration = isMeal ? null : formatDuration(item.durationSeconds);
+   const sharedDayLabel = formatSharedDay(item.sharedDay);
+   const publishedAtLabel = formatPublishedAt(item.publishedAt);
+-  const categoryLabel = formatCategory(item.category);
++  const categoryLabel = isMeal
++    ? `Meal · ${item.mealDetails?.name ?? "Shared meal"}`
++    : formatCategory(item.category);
+ 
+   return (
+     <View
+@@ -109,8 +113,10 @@ export function ActivityCard({
+         style={styles.content}
+         onPress={onPress}
+         accessibilityRole="button"
+-        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
+-        accessibilityHint="Open shared workout details"
++        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${!isMeal && item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
++        accessibilityHint={
++          isMeal ? "Open shared meal details" : "Open shared workout details"
++        }
+       >
+         <Text style={[styles.categoryTitle, { color: colors.text }]}>
+           {categoryLabel}
+@@ -133,7 +139,10 @@ export function ActivityCard({
+             </View>
+           ) : null}
+         </View>
+-        {item.workoutDetails ? (
++        {isMeal && item.mealDetails ? (
++          <SharedMealDetails details={item.mealDetails} compact />
++        ) : null}
++        {!isMeal && item.workoutDetails ? (
+           <SharedWorkoutDetails details={item.workoutDetails} compact />
+         ) : null}
+       </Pressable>
+diff --git a/apps/mobile/src/features/community/feed/activity-detail-screen.test.tsx b/apps/mobile/src/features/community/feed/activity-detail-screen.test.tsx
+index 9112b78..d004509 100644
+--- a/apps/mobile/src/features/community/feed/activity-detail-screen.test.tsx
++++ b/apps/mobile/src/features/community/feed/activity-detail-screen.test.tsx
+@@ -266,3 +266,75 @@ vi.mock("../ui", () => ({
+ vi.mock("../share-workout-modal", () => ({
+   ShareWorkoutModal: "ShareWorkoutModal",
+ }));
++
++vi.mock("../share-meal-modal", () => ({ ShareMealModal: "ShareMealModal" }));
++vi.mock("../shared-meal-details", () => ({
++  SharedMealDetails: "SharedMealDetails",
++}));
++
++function button(node: any, label: string): any {
++  if (!node || typeof node !== "object") return null;
++  if (Array.isArray(node))
++    return node.map((child) => button(child, label)).find(Boolean);
++  if (node.props?.label === label) return node;
++  return button(node.props?.children, label);
++}
++
++describe("shared meal detail management", () => {
++  const meal = {
++    ...activity,
++    activityKind: "meal",
++    mealDetails: {
++      name: "Lentil soup",
++      caloriesKcal: null,
++      proteinG: null,
++      carbsG: null,
++      fatG: null,
++    },
++  };
++  it("uses the meal detail view with existing reactions and owner meal controls", async () => {
++    mocks.fetch.mockResolvedValue({ ok: true, value: meal });
++    render("author");
++    await Promise.resolve();
++    await Promise.resolve();
++    const tree = render("author");
++    expect(tree.props.title).toBe("Shared meal");
++    expect(find(tree, "SharedMealDetails").props.details).toEqual(
++      meal.mealDetails,
++    );
++    expect(find(tree, "SharedWorkoutDetails")).toBeFalsy();
++    expect(find(tree, "ReactionBar")).toBeTruthy();
++    const sourceMealId = "00000000-0000-4000-8000-000000000001";
++    mocks.request.mockResolvedValue({
++      ok: true,
++      value: {
++        ...meal,
++        sourceMealId,
++        sourceWorkoutId: null,
++        version: 1,
++        revokedAt: null,
++      },
++    });
++    await button(tree, "Edit or unpublish shared meal").props.onPress();
++    await Promise.resolve();
++    await Promise.resolve();
++    const modal = find(render("author"), "ShareMealModal");
++    expect(modal.props.mealId).toBe(sourceMealId);
++    expect(modal.props.existingActivityId).toBe(activity.id);
++    expect(find(render("author"), "ShareWorkoutModal")).toBeFalsy();
++  });
++  it("hides meal projections and rejects reactions after authority expires", async () => {
++    mocks.fetch.mockResolvedValue({ ok: true, value: meal });
++    render();
++    await Promise.resolve();
++    await Promise.resolve();
++    const client = find(render(), "ReactionBar").props.scopedClient;
++    await vi.advanceTimersByTimeAsync(10000);
++    expect(find(render(), "SharedMealDetails")).toBeFalsy();
++    expect(await client.request({ method: "POST", path: "/unused" })).toEqual({
++      ok: false,
++      error: { kind: "context_changed" },
++    });
++    expect(mocks.request).not.toHaveBeenCalled();
++  });
++});
+diff --git a/apps/mobile/src/features/community/feed/activity-detail-screen.tsx b/apps/mobile/src/features/community/feed/activity-detail-screen.tsx
+index ea82245..7975ae5 100644
+--- a/apps/mobile/src/features/community/feed/activity-detail-screen.tsx
++++ b/apps/mobile/src/features/community/feed/activity-detail-screen.tsx
+@@ -35,6 +35,8 @@ import {
+   getCommunityReadDeadline,
+ } from "../state/read-cache";
+ import { VisibilityEpoch } from "../state/visibility-epoch";
++import { SharedMealDetails } from "../shared-meal-details";
++import { ShareMealModal } from "../share-meal-modal";
+ import { SharedWorkoutDetails } from "../shared-workout-details";
+ import { CommunityIdentityLink, CommunityPage, CommunityButton } from "../ui";
+ import { ShareWorkoutModal } from "../share-workout-modal";
+@@ -234,7 +236,7 @@ export function ActivityDetailScreen({
+     const intentEpoch = epoch.current.capture();
+     Alert.alert(
+       `Mute @${activity.authorHandle}?`,
+-      "Their future shared workouts will not appear in your feed. They will not be notified.",
++      "Their future shared meals and workouts will not appear in your feed. They will not be notified.",
+       [
+         { text: "Cancel", style: "cancel" },
+         {
+@@ -314,7 +316,7 @@ export function ActivityDetailScreen({
+       setManaged(result.value);
+     } else
+       setManageError(
+-        "The shared workout cannot be managed here right now. Check access again or open your private workout history.",
++        "This shared activity cannot be managed here right now. Check access again.",
+       );
+   };
+ 
+@@ -340,7 +342,7 @@ export function ActivityDetailScreen({
+           {error ?? "This activity is unavailable."}
+         </Text>
+         <Text style={[styles.unavailableSub, { color: colors.textSecondary }]}>
+-          The workout may have been unpublished, or access may have changed.
++          The activity may have been unpublished, or access may have changed.
+         </Text>
+         <Pressable
+           accessibilityRole="button"
+@@ -368,14 +370,15 @@ export function ActivityDetailScreen({
+     );
+   }
+ 
+-  const duration = formatDuration(activity.durationSeconds);
++  const isMeal = activity.activityKind === "meal";
++  const duration = isMeal ? null : formatDuration(activity.durationSeconds);
+   const sharedDayLabel = formatSharedDay(activity.sharedDay);
+   const publishedAtLabel = formatPublishedAt(activity.publishedAt);
+-  const categoryLabel = formatCategory(activity.category);
++  const categoryLabel = isMeal ? "Meal" : formatCategory(activity.category);
+   const isSelf = activity.authorUserId === principalKey;
+ 
+   return (
+-    <CommunityPage title="Shared workout">
++    <CommunityPage title={isMeal ? "Shared meal" : "Shared workout"}>
+       {/* Author Card */}
+       <View
+         style={[
+@@ -433,7 +436,10 @@ export function ActivityDetailScreen({
+           ) : null}
+         </View>
+ 
+-        {activity.workoutDetails ? (
++        {isMeal && activity.mealDetails ? (
++          <SharedMealDetails details={activity.mealDetails} />
++        ) : null}
++        {!isMeal && activity.workoutDetails ? (
+           <SharedWorkoutDetails details={activity.workoutDetails} />
+         ) : null}
+ 
+@@ -490,7 +496,11 @@ export function ActivityDetailScreen({
+       {isSelf ? (
+         <>
+           <CommunityButton
+-            label="Edit or unpublish shared workout"
++            label={
++              isMeal
++                ? "Edit or unpublish shared meal"
++                : "Edit or unpublish shared workout"
++            }
+             onPress={() => void manageShare()}
+           />
+           {manageError ? (
+@@ -498,7 +508,22 @@ export function ActivityDetailScreen({
+               {manageError}
+             </Text>
+           ) : null}
+-          {managed ? (
++          {managed?.activityKind === "meal" && managed.sourceMealId ? (
++            <ShareMealModal
++              visible
++              mealId={managed.sourceMealId}
++              existingActivityId={managed.id}
++              onDismiss={() => setManaged(null)}
++              onPublished={() => {
++                setManaged(null);
++                void loadActivity();
++              }}
++              onRevoked={() => {
++                setManaged(null);
++                clear();
++              }}
++            />
++          ) : managed?.sourceWorkoutId ? (
+             <ShareWorkoutModal
+               visible
+               workoutId={managed.sourceWorkoutId}
+diff --git a/apps/mobile/src/features/community/feed/controller.test.ts b/apps/mobile/src/features/community/feed/controller.test.ts
+index debec38..0baa8b2 100644
+--- a/apps/mobile/src/features/community/feed/controller.test.ts
++++ b/apps/mobile/src/features/community/feed/controller.test.ts
+@@ -16,6 +16,8 @@ const mockItem1: SharedActivityFeedItemDto = {
+   sharedDay: "2026-09-30",
+   durationSeconds: 1800,
+   workoutDetails: null,
++  activityKind: "workout",
++  mealDetails: null,
+   publishedAt: "2026-09-30T10:00:00Z",
+   reactionCounts: {},
+   viewerReaction: null,
+@@ -31,6 +33,8 @@ const mockItem2: SharedActivityFeedItemDto = {
+   sharedDay: "2026-09-30",
+   durationSeconds: 3600,
+   workoutDetails: null,
++  activityKind: "workout",
++  mealDetails: null,
+   publishedAt: "2026-09-30T11:00:00Z",
+   reactionCounts: {},
+   viewerReaction: null,
+@@ -46,6 +50,8 @@ const mockItem3: SharedActivityFeedItemDto = {
+   sharedDay: "2026-09-30",
+   durationSeconds: 2400,
+   workoutDetails: null,
++  activityKind: "workout",
++  mealDetails: null,
+   publishedAt: "2026-09-30T12:00:00Z",
+   reactionCounts: {},
+   viewerReaction: null,
+diff --git a/apps/mobile/src/features/community/feed/feed-screen.test.tsx b/apps/mobile/src/features/community/feed/feed-screen.test.tsx
+index 2a08ce5..a94b3a6 100644
+--- a/apps/mobile/src/features/community/feed/feed-screen.test.tsx
++++ b/apps/mobile/src/features/community/feed/feed-screen.test.tsx
+@@ -373,6 +373,9 @@ describe("Community home participation and navigation", () => {
+     expect(linkFor(header, "Share workout").props.href).toBe(
+       "/community/share",
+     );
++    expect(linkFor(header, "Share meal").props.href).toBe(
++      "/community/share-meal",
++    );
+     expect(linkFor(header, "Spaces").props.href).toBe("/community/more");
+     expect(find(header, "Feed").props.accessibilityState.selected).toBe(true);
+   });
+@@ -386,6 +389,7 @@ describe("Community home participation and navigation", () => {
+       "Me",
+       "Community updates",
+       "Share workout",
++      "Share meal",
+       "Spaces",
+     ]) {
+       const action = find(list.props.ListHeaderComponent, label);
+@@ -406,10 +410,10 @@ describe("Community home participation and navigation", () => {
+       JSON.stringify(before),
+     );
+     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+-      "Checking shared workouts",
++      "Checking shared activity",
+     );
+     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+     expect(list.props.refreshControl.props.refreshing).toBe(false);
+     expect(list.props.data).toEqual([]);
+@@ -420,7 +424,7 @@ describe("Community home participation and navigation", () => {
+     const tree = await settledRender();
+     const empty = tree.props.children[1].props.ListEmptyComponent;
+     expect(JSON.stringify(empty)).toContain("Activity is unavailable");
+-    expect(JSON.stringify(empty)).not.toContain("No shared workouts yet");
++    expect(JSON.stringify(empty)).not.toContain("No shared activity yet");
+     expect(linkFor(empty, "Find people")).toBeFalsy();
+   });
+ });
+@@ -441,10 +445,10 @@ describe("Community retained tab membership freshness", () => {
+     const reset = render().props.children[1];
+     expect(reset.props.data).toEqual([]);
+     expect(JSON.stringify(reset.props.ListEmptyComponent)).not.toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+     expect(JSON.stringify(reset.props.ListEmptyComponent)).toContain(
+-      "Checking shared workouts",
++      "Checking shared activity",
+     );
+     let finishMembership!: () => void;
+     let finishFeed!: () => void;
+@@ -468,7 +472,7 @@ describe("Community retained tab membership freshness", () => {
+     const pending = render().props.children[1];
+     expect(pending.props.data).toEqual([]);
+     expect(JSON.stringify(pending.props.ListEmptyComponent)).not.toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+     finishMembership();
+     finishFeed();
+@@ -484,10 +488,10 @@ describe("Community retained tab membership freshness", () => {
+     const list = (await settledRender()).props.children[1];
+     expect(list.props.data).toEqual([]);
+     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+-      "Checking shared workouts",
++      "Checking shared activity",
+     );
+   });
+   it("shows encouragement after a successful conclusively empty feed read", async () => {
+@@ -496,7 +500,7 @@ describe("Community retained tab membership freshness", () => {
+     const list = (await settledRender()).props.children[1];
+     expect(list.props.data).toEqual([]);
+     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+   });
+   it("rebinds visible card intents after a fast refocus without an intermediate render", async () => {
+@@ -559,10 +563,10 @@ describe("Community retained tab membership freshness", () => {
+     const list = render().props.children[1];
+     expect(list.props.data).toEqual([]);
+     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+-      "Checking shared workouts",
++      "Checking shared activity",
+     );
+     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+     finish();
+     await flushAsync();
+@@ -606,14 +610,14 @@ describe("Community retained tab membership freshness", () => {
+       JSON.stringify(previousHeader),
+     );
+     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+-      "Checking shared workouts",
++      "Checking shared activity",
+     );
+     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+     expect(list.props.refreshControl.props.refreshing).toBe(false);
+     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+-      "No shared workouts yet",
++      "No shared activity yet",
+     );
+     expect(JSON.stringify(tree)).not.toContain("ActivityIndicator");
+     finish();
+@@ -630,7 +634,7 @@ describe("Community retained tab membership freshness", () => {
+     );
+     expect(
+       JSON.stringify(tree.props.children[1].props.ListEmptyComponent),
+-    ).not.toContain("No shared workouts yet");
++    ).not.toContain("No shared activity yet");
+     let finish!: () => void;
+     mocks.refresh.mockImplementationOnce(
+       () =>
+diff --git a/apps/mobile/src/features/community/feed/feed-screen.tsx b/apps/mobile/src/features/community/feed/feed-screen.tsx
+index 87be79c..5f05dff 100644
+--- a/apps/mobile/src/features/community/feed/feed-screen.tsx
++++ b/apps/mobile/src/features/community/feed/feed-screen.tsx
+@@ -488,6 +488,10 @@ function FeedScreenContent({
+           href={"/community/share" as Href}
+           tone="primary"
+         />
++        <CommunityButton
++          label="Share meal"
++          href={"/community/share-meal" as Href}
++        />
+         <CommunityButton label="Spaces" href="/community/more" />
+       </View>
+       {state.error ? (
+@@ -518,7 +522,7 @@ function FeedScreenContent({
+   const emptyComponent =
+     checkingActivity && !state.error ? (
+       <View
+-        accessibilityLabel="Checking shared workouts"
++        accessibilityLabel="Checking shared activity"
+         accessibilityState={{ busy: true }}
+         style={[
+           styles.activityPlaceholder,
+@@ -556,12 +560,12 @@ function FeedScreenContent({
+           accessibilityRole="header"
+           style={[styles.emptyTitle, { color: colors.text }]}
+         >
+-          {state.error ? "Activity is unavailable" : "No shared workouts yet"}
++          {state.error ? "Activity is unavailable" : "No shared activity yet"}
+         </Text>
+         <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
+           {state.error
+             ? "Retry to check again. Your private tracking stays available."
+-            : "Workouts people choose to share appear here after they approve your follow request."}
++            : "Meals and workouts people choose to share appear here after they approve your follow request."}
+         </Text>
+         {!state.error ? (
+           <CommunityButton
+diff --git a/apps/mobile/src/features/community/index.ts b/apps/mobile/src/features/community/index.ts
+index bdddb6a..1361436 100644
+--- a/apps/mobile/src/features/community/index.ts
++++ b/apps/mobile/src/features/community/index.ts
+@@ -4,6 +4,8 @@ export * from "./ui";
+ export * from "./initials-avatar";
+ export * from "./use-community-profile";
+ export * from "./share-workout-modal";
++export * from "./share-meal-modal";
++export { CommunityShareMealScreen } from "./share-meal-screen";
+ export { CommunityShareWorkoutScreen } from "./share-workout-screen";
+ export * from "./invitation-actions";
+ export * from "./invitation-links";
+diff --git a/apps/mobile/src/features/community/profiles/screen.test.tsx b/apps/mobile/src/features/community/profiles/screen.test.tsx
+index ad2f7de..f4792d5 100644
+--- a/apps/mobile/src/features/community/profiles/screen.test.tsx
++++ b/apps/mobile/src/features/community/profiles/screen.test.tsx
+@@ -242,7 +242,9 @@ describe("profile navigation and directional approval", () => {
+       nodes(tree).some((node) => node.props?.title === "Profile unavailable"),
+     ).toBe(false);
+     expect(
+-      nodes(tree).some((node) => node.props?.title === "No shared workouts"),
++      nodes(tree).some(
++        (node) => node.props?.title === "No shared meals and workouts",
++      ),
+     ).toBe(false);
+     expect(button(tree, "Edit profile")).toBeUndefined();
+     expect(
+@@ -290,9 +292,39 @@ describe("profile navigation and directional approval", () => {
+       true,
+     );
+     expect(
+-      nodes(tree).some((node) => node.props?.title === "No shared workouts"),
++      nodes(tree).some(
++        (node) => node.props?.title === "No shared meals and workouts",
++      ),
+     ).toBe(false);
+   });
++  it("lists shared meals and opens their common activity detail destination", () => {
++    mocks.activities = [
++      {
++        id: "meal-card",
++        activityKind: "meal",
++        category: "other",
++        mealDetails: { name: "Lentil soup" },
++        sharedDay: "2026-10-12",
++        durationSeconds: null,
++      },
++    ];
++    const row = nodes(render()).find(
++      (node) => node.props?.href === "/community/activity/meal-card",
++    );
++    expect(row.props.title).toBe("Meal · Lentil soup");
++    expect(row.props.description).toBe("2026-10-12");
++    mocks.profile = {
++      ...mocks.profile,
++      userId: "owner",
++      relationshipWithViewer: "self",
++      relationshipContext: { outgoing: null, incoming: null },
++    };
++    expect(
++      nodes(render()).some(
++        (node) => node.props?.href === "/community/share-meal",
++      ),
++    ).toBe(true);
++  });
+   it("preserves the authorized shared workout destination", () => {
+     mocks.activities = [
+       {
+diff --git a/apps/mobile/src/features/community/profiles/screen.tsx b/apps/mobile/src/features/community/profiles/screen.tsx
+index 7a98958..12ea4bb 100644
+--- a/apps/mobile/src/features/community/profiles/screen.tsx
++++ b/apps/mobile/src/features/community/profiles/screen.tsx
+@@ -151,12 +151,12 @@ function PersonProfile({
+     };
+     const explanation: Partial<Record<ProfileAction, string>> = {
+       follow:
+-        "They must approve before you can see their shared workouts. This does not give them access to yours.",
++        "They must approve before you can see their shared meals and workouts. This does not give them access to yours.",
+       approve:
+         "They can see your still-published workout cards, including past cards. This does not follow them back.",
+       remove:
+-        "Removes their access to your shared workouts and prior interactions.",
+-      unfollow: "Ends your access to their shared workouts.",
++        "Removes their access to your shared meals and workouts and prior interactions.",
++      unfollow: "Ends your access to their shared meals and workouts.",
+       block:
+         "Blocks interaction in both directions and removes both follows and requests. Unblocking restores nothing.",
+     };
+@@ -261,6 +261,10 @@ function PersonProfile({
+                 title="Share a completed workout"
+                 href="/community/share"
+               />
++              <CommunityRow
++                title="Share a saved meal"
++                href={"/community/share-meal" as Href}
++              />
+               <CommunityRow
+                 title="Shared routines and photos"
+                 href="/community/more"
+@@ -277,7 +281,7 @@ function PersonProfile({
+                     ? "Request sent · waiting for approval"
+                     : incoming?.status === "approved"
+                       ? "Follows you"
+-                      : "Approval is required to see shared workouts"}
++                      : "Approval is required to see shared meals and workouts"}
+               </Text>
+               <View style={styles.actions}>
+                 {!outgoing && (
+@@ -312,7 +316,7 @@ function PersonProfile({
+               {incoming?.status === "pending" && (
+                 <CommunitySection
+                   title="They requested to follow you"
+-                  description="Approving lets them see your shared workouts. Following back is separate."
++                  description="Approving lets them see your shared meals and workouts. Following back is separate."
+                 >
+                   <View style={styles.actions}>
+                     <CommunityButton
+@@ -366,7 +370,7 @@ function PersonProfile({
+               )}
+             </>
+           )}
+-          <CommunitySection title="Shared workouts">
++          <CommunitySection title="Shared meals and workouts">
+             {state.activityError ? (
+               <CommunityState
+                 title="Shared activities unavailable"
+@@ -379,25 +383,29 @@ function PersonProfile({
+               <>
+                 {state.activities.length === 0 && (
+                   <CommunityState
+-                    title="No shared workouts"
++                    title="No shared meals and workouts"
+                     description={
+                       isSelf
+-                        ? "Share a completed workout deliberately from Workouts."
+-                        : "There are no currently available shared workouts."
++                        ? "Choose Share meal or Share a completed workout to preview and publish."
++                        : "There are no currently available shared meals and workouts."
+                     }
+                   />
+                 )}
+                 {state.activities.map((item) => (
+                   <CommunityRow
+                     key={item.id}
+-                    title={item.category.replaceAll("_", " ")}
+-                    description={`${item.sharedDay}${item.durationSeconds !== null ? ` · ${Math.round(item.durationSeconds / 60)} min` : ""}`}
++                    title={
++                      item.activityKind === "meal"
++                        ? `Meal · ${item.mealDetails?.name ?? "Shared meal"}`
++                        : item.category.replaceAll("_", " ")
++                    }
++                    description={`${item.sharedDay}${item.activityKind !== "meal" && item.durationSeconds !== null ? ` · ${Math.round(item.durationSeconds / 60)} min` : ""}`}
+                     href={`/community/activity/${item.id}` as Href}
+                   />
+                 ))}
+                 {state.nextCursor && (
+                   <CommunityButton
+-                    label="Load more shared workouts"
++                    label="Load more shared meals and workouts"
+                     onPress={() => void controller.load(true)}
+                   />
+                 )}
+diff --git a/apps/mobile/src/features/community/relationships/controller.ts b/apps/mobile/src/features/community/relationships/controller.ts
+index 5be0012..f2b653c 100644
+--- a/apps/mobile/src/features/community/relationships/controller.ts
++++ b/apps/mobile/src/features/community/relationships/controller.ts
+@@ -447,7 +447,7 @@ export class RelationshipsController {
+           ? (result.value as { status: string }).status === "approved"
+             ? "You already follow this friend."
+             : (result.value as { status: string }).status === "pending"
+-              ? "Request sent. Your friend must approve before you can see their shared workouts."
++              ? "Request sent. Your friend must approve before you can see their shared meals and workouts."
+               : "This request ended. Refresh before trying again."
+           : action === "approve"
+             ? "Follower approved. Following them back requires a separate request."
+diff --git a/apps/mobile/src/features/community/relationships/screen.tsx b/apps/mobile/src/features/community/relationships/screen.tsx
+index 9992a33..8f85e95 100644
+--- a/apps/mobile/src/features/community/relationships/screen.tsx
++++ b/apps/mobile/src/features/community/relationships/screen.tsx
+@@ -55,27 +55,27 @@ const listInfo: Record<
+   incoming: {
+     title: "Received requests",
+     description:
+-      "Approve someone to let them see your shared workouts. Following back is separate.",
++      "Approve someone to let them see your shared meals and workouts. Following back is separate.",
+     empty: "No follow requests",
+     hint: "New requests will appear here for you to approve or decline.",
+   },
+   outgoing: {
+     title: "Sent requests",
+     description:
+-      "Waiting for their approval before you can see their shared workouts.",
++      "Waiting for their approval before you can see their shared meals and workouts.",
+     empty: "No requests waiting",
+     hint: "Find a friend by their exact handle or share an invitation.",
+   },
+   following: {
+     title: "Following",
+-    description: "People whose shared workouts you can see.",
++    description: "People whose shared meals and workouts you can see.",
+     empty: "You're not following anyone yet",
+     hint: "Find a friend and request to follow. They choose whether to approve.",
+   },
+   followers: {
+     title: "Followers",
+     description:
+-      "People you've approved to see your shared workouts, including past cards still shared.",
++      "People you've approved to see your shared meals and workouts, including past cards still shared.",
+     empty: "No followers yet",
+     hint: "When someone requests to follow you, approve them from Requests.",
+   },
+@@ -343,9 +343,9 @@ function OwnerRelationships({
+       block:
+         "Blocks interaction in both directions and removes both follows and pending requests. Unblocking restores nothing.",
+       remove:
+-        "Removes their access to your shared workouts and prior interactions.",
++        "Removes their access to your shared meals and workouts and prior interactions.",
+       unfollow:
+-        "Stops following this person and ends your access to their shared workouts.",
++        "Stops following this person and ends your access to their shared meals and workouts.",
+       unblock: "Previous follows and requests will not be restored.",
+     };
+     const intentCurrent = controller.captureIntent();
+@@ -730,7 +730,7 @@ function OwnerRelationships({
+                       busy,
+                       true,
+                       `Follow back @${row.user.handle}`,
+-                      "Sends a follow request. They must approve before you can see their shared workouts.",
++                      "Sends a follow request. They must approve before you can see their shared meals and workouts.",
+                     )}
+                   {row.outgoingFollowStatus === "pending" && (
+                     <Text
+diff --git a/apps/mobile/src/features/community/share-workout-actions.test.ts b/apps/mobile/src/features/community/share-workout-actions.test.ts
+index 4750034..e6d59d7 100644
+--- a/apps/mobile/src/features/community/share-workout-actions.test.ts
++++ b/apps/mobile/src/features/community/share-workout-actions.test.ts
+@@ -12,6 +12,8 @@ const preview = {
+   sharedDay: "2026-09-01",
+   durationSeconds: 1234,
+   workoutDetails: null,
++  activityKind: "workout",
++  mealDetails: null,
+   followerCount: 3,
+   enrollmentGeneration: 1,
+ };
+@@ -89,9 +91,12 @@ describe("workout sharing boundary", () => {
+           sharedDay: "2026-09-01",
+           durationSeconds: 1234,
+           workoutDetails: null,
++          activityKind: "workout",
++          mealDetails: null,
+           publishedAt: "2026-09-01T12:00:00Z",
+           reactionCounts: {},
+           viewerReaction: null,
++          sourceMealId: null,
+           sourceWorkoutId: "10000000-0000-4000-8000-000000000001",
+           version: 1,
+           revokedAt: null,
+diff --git a/docs/COMMUNITY_PRODUCT_CONTRACT.md b/docs/COMMUNITY_PRODUCT_CONTRACT.md
+index 0dbb4e3..aaa82a6 100644
+--- a/docs/COMMUNITY_PRODUCT_CONTRACT.md
++++ b/docs/COMMUNITY_PRODUCT_CONTRACT.md
+@@ -2,13 +2,15 @@
+ 
+ **Design revision:** COMM-01 / [#140](https://github.com/AdamHikl/mizyun/issues/140), 2026-09-30. This revision supersedes the September 29 contract and its conflicting defaults. Product rules below are implementation requirements, not claims about working screens, staff coverage or release acceptance. Target-user validation remains unrun; see [the validation pack](COMMUNITY_UX_VALIDATION_2026-09-30.md).
+ 
++**Meal extension (2026-10-12):** [#238](https://github.com/AdamHikl/mizyun/issues/238) and [ADR-0056](adr/0056-explicit-community-meal-publication.md) extend deliberate publication to confirmed meals. This bounded extension supersedes workout-only publication and nutrition exclusions only for an explicitly previewed meal name/day and separately selected calories/protein/carbs/fat. The audience, lifecycle, safety, retention and rollout gates below apply equally to meals. Simulator acceptance is deferred by Adam; no deployment or release acceptance is implied.
++
+ **Parent:** [#137](https://github.com/AdamHikl/mizyun/issues/137). **Architecture:** [ADR-0030](adr/0030-explicit-community-publication.md). **Inventory and per-issue plans:** [master implementation plan](COMMUNITY_IMPLEMENTATION_PLAN_2026-09-29.md). **Current code evidence:** [September 30 review](COMMUNITY_REVIEW_EVIDENCE_2026-09-30.md).
+ 
+ ## 1. Scope and permissions
+ 
+-Community lets consenting adult friends encourage each other through deliberately published workout completion cards. Private tracking remains the primary product. Community stays outside the first-beta follower exclusion until its own pilot gates are accepted; this document changes neither roadmap sequencing nor Production availability.
++Community lets consenting adult friends encourage each other through deliberately published meal and workout completion cards. Private tracking remains the primary product. Community stays outside the first-beta follower exclusion until its own pilot gates are accepted; this document changes neither roadmap sequencing nor Production availability.
+ 
+-- Joining, exact-handle discovery, each follow approval, each publication and push permission are separate choices. Discovery, duration and detailed workout sharing default off. Enrollment copies no private profile fields into social identity.
++- Joining, exact-handle discovery, each follow approval, each publication and push permission are separate choices. Discovery, duration, detailed workout sharing and meal nutrition sharing default off. Enrollment copies no private profile fields into social identity.
+ - Refusing Community, declining a request or withdrawing preserves private tracking, paid entitlement and Coach access. AI consent/admission, analytics consent, HealthKit/Health Connect permission and notification permission remain independent. Community has no access to private health integrations or Coach context.
+ - Pilot scope: separate social profile; approved directional following; exact lookup or invitation; chronological feed; five predefined encouragement reactions; owner controls; block/mute/report; staffed moderation; inbox; lifecycle/export and operational safety.
+ - No public profiles/feed, follower-count ranking, recommendations, contact uploads, email/phone lookup, custom workout titles, captions, comments, mentions, photos, groups, challenges, direct messages or routine imports in this pilot. Issues #156–162 retain separate post-pilot decisions and gates.
+diff --git a/docs/PRODUCT_REQUIREMENTS.md b/docs/PRODUCT_REQUIREMENTS.md
+index 53c7317..7e1347c 100644
+--- a/docs/PRODUCT_REQUIREMENTS.md
++++ b/docs/PRODUCT_REQUIREMENTS.md
+@@ -114,9 +114,9 @@ The selected design is [COMM-01 revision 2026-09-30](COMMUNITY_PRODUCT_CONTRACT.
+ - **COMMUNITY-04:** Either-direction block immediately ends both edges/requests, denies social visibility and interactions, suppresses notifications and invalidates affected reactions. Unblock restores nothing. Blocks/sanctions survive community re-enrollment; restricted owner block management and safety/account controls remain available.
+ - **COMMUNITY-05:** Owner mute suppresses that person's feed and non-safety push without changing the edge/audience or notifying them. Mute is separate from blocking and reporting.
+ - **COMMUNITY-06:** Exact handle lookup only for explicitly searchable active profiles; no prefix/contact/phone/email/recommendation discovery. Reusable owner-revocable invites last at most seven days, bind generation/environment and expose only minimal identity to eligible signed-in members. Possession never bypasses follow approval or cohort eligibility. Native/QR/HTTPS fallback require their own acceptance.
+-- **COMMUNITY-07:** Save privately and share separately. Explicit completed-session projection contains generic category, selected valid non-future calendar day and optional duration defaulting off. A separately selected detailed snapshot may include exercise names and completed set types, reps, weights and set durations after exact preview. Preview explains current/future approved audience and inability to recall copies already seen. No private titles/notes/location/biometrics/nutrition/photos/Coach content or health integrations. Detailed sharing defaults off; existing minimal cards are never backfilled. Private edits do not silently update snapshots; deleting/unconfirming revokes them; deliberate version changes clear reactions.
++- **COMMUNITY-07:** Save privately and share separately. Explicit completed-session projection contains generic category, selected valid non-future calendar day and optional duration defaulting off. A separately selected detailed snapshot may include exercise names and completed set types, reps, weights and set durations after exact preview. Preview explains current/future approved audience and inability to recall copies already seen. Workout sharing excludes private titles/notes/location/biometrics/nutrition/photos/Coach content and health integrations. A separately previewed confirmed meal shares its name and day, with calories/protein/carbs/fat only after explicit nutrition opt-in defaulting off; private notes/photos/provider and Coach metadata are excluded. Changes to meal name/day/nutrition, deletion or unconfirmation revoke meal snapshots until deliberate fresh publication. Meal cards reuse the same approved audience, interactions, reporting, lifecycle, export, expiry and owner controls as workouts. Detailed sharing defaults off; existing minimal cards are never backfilled. Private edits do not silently update snapshots; deleting/unconfirming revokes them; deliberate version changes clear reactions.
+ - **COMMUNITY-08:** Owner and currently approved active followers alone access still-published cards, subject to eligibility/generation/block/suspension/deletion/expiry/feature/cohort checks at the database boundary. Approval includes earlier still-published history. Raw private source IDs, social eligibility and other users' graph never become follower projections.
+-- **COMMUNITY-09:** Following feed is reverse chronological by publication timestamp and stable ID cursor; chosen workout day is separate. No algorithmic ranking, engagement pressure or public exploration. Expired/revoked cards are hidden even if purge is delayed.
++- **COMMUNITY-09:** Following feed is reverse chronological by publication timestamp and stable ID cursor; chosen meal/workout day is separate. No algorithmic ranking, engagement pressure or public exploration. Expired/revoked cards are hidden even if purge is delayed.
+ - **COMMUNITY-10:** One reversible predefined encouragement per actor/card. Author and actor alone see permitted identities; other followers see authorized aggregates. Unfollow/removal invalidates only the removed follower's reactions on that author's cards; revocation/version changes clear all card reactions. Comments/free-text replies remain off.
+ - **COMMUNITY-11:** Report handle/profile/card and recent authorized abuse without restoring browsing. Confidential case receipt, restricted safety contact, server filtering including bio, trained scoped moderation, backup, sanctions/appeal and response coverage are mandatory. A prohibited-word list alone is insufficient. No moderator access to private health/Coach records or subject access to reporter identity.
+ - **COMMUNITY-12:** Own inbox and separately optional push respect mute/block/withdrawal and current authority at delivery/open. Push is generic and contains no names, health details, private IDs or bearer tokens. Expired queued events cannot deliver after their deadline.
+diff --git a/docs/RESEARCH_LOG.md b/docs/RESEARCH_LOG.md
+index 776951a..a38c5ba 100644
+--- a/docs/RESEARCH_LOG.md
++++ b/docs/RESEARCH_LOG.md
+@@ -3294,3 +3294,9 @@ Primary sources: [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), [React N
+ Primary source: [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys), accessed2026-10-11. Legacy `anon` JWTs are public API keys; `service_role` JWTs and `sb_secret_` keys are server secrets. Consequence: the bundle scanner admits only the restricted legacy public anon claim shape while rejecting user/service-role/unknown/malformed JWTs and secret prefixes. It scans the actual fresh iOS and Android export directories and fails an existing empty export, avoiding an obsolete cache path. Installed hermes-compiler250829098.0.17 help confirms `-b -dump-bytecode`; decoded string tables preserve HBC string boundaries and are checked against their declared counts, preventing concatenated-storage false positives. Synthetic classification regressions and fresh artifact scans cover this tooling correction; no runtime configuration or credentials change.
+ 
+ [Hermes disassembler source](https://raw.githubusercontent.com/facebook/hermes/main/lib/BCGen/HBC/BytecodeDisassembler.cpp), accessed2026-10-11, prints UTF-16 storage as escaped bytes. The test decodes these to UTF-16LE before credential classification; a non-ASCII synthetic row exercises this boundary. Current bundle14tests and config typecheck pass; no runtime change.
++
++## 2026-10-12 — Community explicit meal publication (#238)
++
++- [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [React Native Text](https://reactnative.dev/docs/text), and [AppState](https://reactnative.dev/docs/appstate), accessed today: use existing Router and native text controls; preserve scalable wrapping text and explicit accessibility roles. Account/session, background and original foreground read expiry retire preview and action authority. No new native permission or dependency.
++- [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) and [PostgreSQL CREATE FUNCTION](https://www.postgresql.org/docs/current/sql-createfunction.html), accessed today by backend helper: retain authenticated row/relationship policies, narrow grants, and security-definer functions with empty search path. Derive source ownership from auth.uid(); recipient RPC projections redact private meal source IDs. SQL owns version/idempotency and source mutation revocation.
++- Design consequence: reuse shared activities for meal cards and their audience/engagement/lifecycle controls. Only confirmed meal name/day and separately opted-in bounded macro values enter the social projection; notes, photo/storage paths, provider and Coach data never do. See [ADR-0056](adr/0056-explicit-community-meal-publication.md). Simulator testing is explicitly deferred by Adam.
+diff --git a/docs/adr/README.md b/docs/adr/README.md
+index 1692737..2fb7c60 100644
+--- a/docs/adr/README.md
++++ b/docs/adr/README.md
+@@ -89,3 +89,5 @@
+ - [ADR-0054 — Dev phone-owned manual workout companions](0054-dev-workout-companions.md): accepted2026-10-09; explicit foreground binding, memory-only snapshots, bounded receipts and uncertain-outcome barriers; paired-device and Production acceptance remain open.
+ 
+ - [ADR-0055 — Persistent personal startup reads](0055-persistent-personal-startup-reads.md): accepted for implementation2026-10-09; encrypted owner-scoped offline display reads, shared background refresh, cleanup fences and live AI/Community authority.
++
++- [ADR-0056 — Explicit Community meal publication](0056-explicit-community-meal-publication.md): accepted for implementation 2026-10-12; confirmed meal snapshots, optional nutrition and existing social authorization/lifecycle controls. Simulator testing deferred; release gates open.
+diff --git a/docs/feature-map.json b/docs/feature-map.json
+index 8517de0..e203ae5 100644
+--- a/docs/feature-map.json
++++ b/docs/feature-map.json
+@@ -1417,14 +1417,15 @@
+     },
+     {
+       "id": "community",
+-      "title": "Community & Friend Workout Sharing",
++      "title": "Community & Friend Meal and Workout Sharing",
+       "summary": "Opt-in friends, comments, private groups, cooperative challenges, mutual messages, quarantined photos, deliberate routine snapshots and bounded consent-based discovery on Dev.",
+       "aliases": [
+         "community",
+         "social",
+         "friends",
+         "following",
+-        "share workout"
++        "share workout",
++        "share meal"
+       ],
+       "entryPoints": [
+         "packages/contracts/src/community.ts",
+diff --git a/packages/adapters/supabase-server/src/community-repository.test.ts b/packages/adapters/supabase-server/src/community-repository.test.ts
+index 4a139e5..3a41cab 100644
+--- a/packages/adapters/supabase-server/src/community-repository.test.ts
++++ b/packages/adapters/supabase-server/src/community-repository.test.ts
+@@ -468,7 +468,7 @@ describe("Community database operation boundaries", () => {
+       community_publish_activity: { data: [activityRow], error: null },
+     });
+     const publication = {
+-      sourceWorkoutId: activityRow.source_workout_id,
++      sourceWorkoutId: activityRow.source_workout_id!,
+       category: "strength" as const,
+       sharedDay: activityRow.shared_day,
+       durationSeconds: activityRow.duration_seconds,
+@@ -509,7 +509,7 @@ describe("Community database operation boundaries", () => {
+       repository.publishActivity(
+         callerId,
+         {
+-          sourceWorkoutId: activityRow.source_workout_id,
++          sourceWorkoutId: activityRow.source_workout_id!,
+           category: "strength",
+           sharedDay: activityRow.shared_day,
+           durationSeconds: null,
+@@ -842,3 +842,65 @@ describe("Bounded feed reaction reads", () => {
+     ).rejects.toThrow("unavailable");
+   });
+ });
++
++describe("Meal activity adapter", () => {
++  it("passes only the exact confirmed allowlist to the atomic publication RPC", async () => {
++    const mealDetails = {
++      name: "Rice bowl",
++      caloriesKcal: null,
++      proteinG: null,
++      carbsG: null,
++      fatG: null,
++    };
++    const row: SharedActivityRow = {
++      id: "a2380000-0000-4000-8000-000000000001",
++      user_id: "c2380000-0000-4000-8000-000000000001",
++      activity_kind: "meal",
++      source_workout_id: null,
++      source_meal_id: "d2380000-0000-4000-8000-000000000001",
++      meal_details: mealDetails,
++      category: "other",
++      shared_day: "2026-10-10",
++      duration_seconds: null,
++      version: 1,
++      published_at: "2026-10-10T12:00:00Z",
++      revoked_at: null,
++    };
++    const rpc = vi.fn().mockResolvedValue({ data: [row], error: null });
++    const clientFor = vi.fn(
++      () => ({ rpc }) as unknown as RepositorySupabaseClient,
++    );
++    const repo = new SupabaseCommunityRepository({ clientFor });
++    const result = await repo.publishMealActivity(
++      row.user_id as UserId,
++      {
++        sourceMealId: row.source_meal_id!,
++        enrollmentGeneration: 1,
++        operationId: row.id,
++        expectedVersion: 0,
++        expectedRevoked: false,
++        sharedDay: row.shared_day,
++        mealDetails,
++        currentSourceMealDetails: mealDetails,
++        currentSourceDay: row.shared_day,
++      },
++      { accessToken: "owner-token" },
++    );
++    expect(clientFor).toHaveBeenCalledWith("owner-token");
++    expect(rpc).toHaveBeenCalledExactlyOnceWith(
++      "community_publish_meal_activity",
++      {
++        p_source_meal_id: row.source_meal_id,
++        p_enrollment_generation: 1,
++        p_operation_id: row.id,
++        p_expected_version: 0,
++        p_expected_revoked: false,
++        p_shared_day: row.shared_day,
++        p_meal_details: mealDetails,
++      },
++    );
++    expect(result.activityKind).toBe("meal");
++    expect(result.sourceWorkoutId).toBeNull();
++    expect(result.mealDetails).toEqual(mealDetails);
++  });
++});
+diff --git a/packages/adapters/supabase-server/src/community-repository.ts b/packages/adapters/supabase-server/src/community-repository.ts
+index 05ad254..61b2c01 100644
+--- a/packages/adapters/supabase-server/src/community-repository.ts
++++ b/packages/adapters/supabase-server/src/community-repository.ts
+@@ -17,6 +17,8 @@ import {
+   type StoredModerationAppeal,
+   type StoredSharedActivity,
+   type SharedWorkoutDetails,
++  type SharedMealDetails,
++  type MealActivityPublication,
+   type UserId,
+   type WorkoutCategory,
+ } from "@mizyun/core";
+@@ -82,7 +84,10 @@ export interface CommunityBlockRow extends Record<string, unknown> {
+ export interface SharedActivityRow extends Record<string, unknown> {
+   readonly id: string;
+   readonly user_id: string;
+-  readonly source_workout_id: string;
++  readonly source_workout_id: string | null;
++  readonly source_meal_id?: string | null;
++  readonly activity_kind?: "meal" | "workout";
++  readonly meal_details?: SharedMealDetails | null;
+   readonly category: string;
+   readonly shared_day: string;
+   readonly duration_seconds: number | null;
+@@ -175,6 +180,9 @@ export const sharedActivityFromRow = (
+   id: row.id,
+   userId: row.user_id as UserId,
+   sourceWorkoutId: row.source_workout_id,
++  sourceMealId: row.source_meal_id ?? null,
++  activityKind: row.activity_kind ?? "workout",
++  mealDetails: row.meal_details ?? null,
+   category: row.category as WorkoutCategory,
+   sharedDay: row.shared_day,
+   durationSeconds: row.duration_seconds,
+@@ -1033,6 +1041,55 @@ export class SupabaseCommunityRepository implements CommunityRepository {
+     return data ? sharedActivityFromRow(data) : null;
+   }
+ 
++  async getActivityByMealId(
++    mealId: string,
++    authorUserId: UserId,
++    options: { readonly accessToken: string },
++  ): Promise<StoredSharedActivity | null> {
++    const result = await this.#clientFor(options.accessToken)
++      .from<SharedActivityRow>("shared_activities")
++      .select("*")
++      .eq("source_meal_id", mealId)
++      .eq("user_id", authorUserId)
++      .maybeSingle();
++    if (result.error) this.#throwDatabaseError(result.error);
++    return result.data ? sharedActivityFromRow(result.data) : null;
++  }
++
++  async publishMealActivity(
++    _userId: UserId,
++    activity: MealActivityPublication,
++    options: { readonly accessToken: string },
++  ): Promise<StoredSharedActivity> {
++    const rows = await this.#rpcRows<SharedActivityRow>(
++      "community_publish_meal_activity",
++      {
++        p_source_meal_id: activity.sourceMealId,
++        p_enrollment_generation: activity.enrollmentGeneration,
++        p_operation_id: activity.operationId,
++        p_expected_version: activity.expectedVersion,
++        p_expected_revoked: activity.expectedRevoked,
++        p_shared_day: activity.sharedDay,
++        p_meal_details: activity.mealDetails,
++      },
++      options,
++    );
++    if (!rows[0]) throw new CommunityMutationError("unavailable");
++    return sharedActivityFromRow(rows[0]);
++  }
++
++  async revokeActivitiesForMeal(
++    mealId: string,
++    _authorUserId: UserId,
++    options: { readonly accessToken: string },
++  ): Promise<void> {
++    await this.#rpcRows(
++      "community_revoke_meal_activities",
++      { p_source_meal_id: mealId },
++      options,
++    );
++  }
++
+   async publishActivity(
+     _userId: UserId,
+     activity: {
+diff --git a/packages/contracts/src/community.test.ts b/packages/contracts/src/community.test.ts
+index 9cf42df..63d526e 100644
+--- a/packages/contracts/src/community.test.ts
++++ b/packages/contracts/src/community.test.ts
+@@ -22,6 +22,8 @@ import {
+   moderationQueueItemSchema,
+   publicCommunityProfileDtoSchema,
+   publishWorkoutActivitySchema,
++  publishMealActivitySchema,
++  sharedMealDetailsSchema,
+   reactorSummarySchema,
+   relationshipListResponseSchema,
+   resolveInvitationResponseSchema,
+@@ -667,10 +669,62 @@ describe("publicCommunityProfile and search/list schemas", () => {
+     };
+     expect(communityFeedResponseSchema.parse(feed)).toEqual({
+       ...feed,
+-      items: feed.items.map((item) => ({ ...item, workoutDetails: null })),
++      items: feed.items.map((item) => ({
++        ...item,
++        workoutDetails: null,
++        activityKind: "workout",
++        mealDetails: null,
++      })),
+     });
+ 
+     const emptyFeed = { items: [], nextCursor: null };
+     expect(communityFeedResponseSchema.parse(emptyFeed)).toEqual(emptyFeed);
+   });
+ });
++
++describe("Meal sharing allowlist", () => {
++  const mealDetails = {
++    name: "Rice bowl",
++    caloriesKcal: null,
++    proteinG: null,
++    carbsG: null,
++    fatG: null,
++  };
++  it("rejects hidden source fields and invalid nutrition", () => {
++    expect(
++      sharedMealDetailsSchema.safeParse({
++        ...mealDetails,
++        details: { notes: "private" },
++      }).success,
++    ).toBe(false);
++    for (const number of [-1, 20001, Infinity, NaN])
++      expect(
++        sharedMealDetailsSchema.safeParse({
++          ...mealDetails,
++          caloriesKcal: number,
++        }).success,
++      ).toBe(false);
++    expect(
++      sharedMealDetailsSchema.parse({ ...mealDetails, caloriesKcal: 0 })
++        .caloriesKcal,
++    ).toBe(0);
++  });
++  it("requires the exact preview but defaults nutrition to private", () => {
++    const input = {
++      mealId: "d2380000-0000-4000-8000-000000000001",
++      operationId: "a2380000-0000-4000-8000-000000000001",
++      enrollmentGeneration: 1,
++      sharedDay: "2026-10-10",
++      expectedMealDetails: mealDetails,
++    };
++    expect(publishMealActivitySchema.parse(input).includeNutrition).toBe(false);
++    expect(
++      publishMealActivitySchema.safeParse({ ...input, sharedDay: "2026-02-30" })
++        .success,
++    ).toBe(false);
++    expect(
++      publishMealActivitySchema.safeParse({ ...input, photoAssetId: "private" })
++        .success,
++    ).toBe(false);
++  });
++});
+diff --git a/packages/contracts/src/community.ts b/packages/contracts/src/community.ts
+index 6b78190..1d7bea6 100644
+--- a/packages/contracts/src/community.ts
++++ b/packages/contracts/src/community.ts
+@@ -325,6 +325,17 @@ export const sharedWorkoutDetailsSchema = z
+   );
+ export type SharedWorkoutDetails = z.infer<typeof sharedWorkoutDetailsSchema>;
+ 
++export const sharedMealDetailsSchema = z
++  .object({
++    name: z.string().trim().min(1).max(200),
++    caloriesKcal: z.number().min(0).max(20000).nullable(),
++    proteinG: z.number().min(0).max(10000).nullable(),
++    carbsG: z.number().min(0).max(10000).nullable(),
++    fatG: z.number().min(0).max(10000).nullable(),
++  })
++  .strict();
++export type SharedMealDetails = z.infer<typeof sharedMealDetailsSchema>;
++
+ export const publishWorkoutActivitySchema = z
+   .object({
+     workoutId: z.string().uuid(),
+@@ -353,12 +364,30 @@ export type PublishWorkoutActivityInput = z.infer<
+   typeof publishWorkoutActivitySchema
+ >;
+ 
++export const publishMealActivitySchema = z
++  .object({
++    mealId: z.string().uuid(),
++    enrollmentGeneration: z.number().int().positive(),
++    operationId: z.string().uuid(),
++    expectedVersion: z.number().int().nonnegative().default(0),
++    expectedRevoked: z.boolean().default(false),
++    sharedDay: publishWorkoutActivitySchema.shape.sharedDay,
++    includeNutrition: z.boolean().default(false),
++    expectedMealDetails: sharedMealDetailsSchema,
++  })
++  .strict();
++export type PublishMealActivityInput = z.infer<
++  typeof publishMealActivitySchema
++>;
++
+ export const sharedActivityFeedItemDtoSchema = z.object({
+   id: z.string().uuid(),
+   authorUserId: z.string().uuid(),
+   authorHandle: z.string(),
+   authorDisplayName: z.string(),
+   authorAvatarSymbol: z.string(),
++  activityKind: z.enum(["workout", "meal"]).default("workout"),
++  mealDetails: sharedMealDetailsSchema.nullable().default(null),
+   category: workoutCategorySchema,
+   sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+   durationSeconds: z.number().int().nonnegative().nullable(),
+@@ -370,19 +399,29 @@ export const sharedActivityFeedItemDtoSchema = z.object({
+   ),
+   viewerReaction: communityReactionKindSchema.nullable(),
+ });
+-export type SharedActivityFeedItemDto = z.infer<
+-  typeof sharedActivityFeedItemDtoSchema
+->;
++export type SharedActivityFeedItemDto = Omit<
++  z.infer<typeof sharedActivityFeedItemDtoSchema>,
++  "activityKind" | "mealDetails"
++> & {
++  activityKind?: "workout" | "meal";
++  mealDetails?: SharedMealDetails | null;
++};
+ 
+ export const authorSharedActivityDtoSchema =
+   sharedActivityFeedItemDtoSchema.extend({
+-    sourceWorkoutId: z.string().uuid(),
++    sourceWorkoutId: z.string().uuid().nullable().default(null),
++    sourceMealId: z.string().uuid().nullable().default(null),
+     version: z.number().int().positive(),
+     revokedAt: z.string().datetime().nullable(),
+   });
+-export type AuthorSharedActivityDto = z.infer<
+-  typeof authorSharedActivityDtoSchema
+->;
++export type AuthorSharedActivityDto = Omit<
++  z.infer<typeof authorSharedActivityDtoSchema>,
++  "activityKind" | "mealDetails" | "sourceMealId"
++> & {
++  activityKind?: "workout" | "meal";
++  mealDetails?: SharedMealDetails | null;
++  sourceMealId?: string | null;
++};
+ 
+ export const setCommunityReactionSchema = z
+   .object({
+@@ -644,6 +683,16 @@ export type WorkoutSharePreviewDto = z.infer<
+   typeof workoutSharePreviewDtoSchema
+ >;
+ 
++export const mealSharePreviewDtoSchema = z.object({
++  mealId: z.string().uuid(),
++  enrollmentGeneration: z.number().int().positive(),
++  existingActivity: authorSharedActivityDtoSchema.nullable(),
++  sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
++  mealDetails: sharedMealDetailsSchema,
++  followerCount: z.number().int().nonnegative(),
++});
++export type MealSharePreviewDto = z.infer<typeof mealSharePreviewDtoSchema>;
++
+ export const withdrawCommunityResponseSchema = z.object({
+   withdrawn: z.boolean(),
+ });
+diff --git a/packages/core/src/community.ts b/packages/core/src/community.ts
+index 39d23e8..37b8d93 100644
+--- a/packages/core/src/community.ts
++++ b/packages/core/src/community.ts
+@@ -85,10 +85,32 @@ export interface SharedWorkoutDetails {
+   }[];
+ }
+ 
++export interface SharedMealDetails {
++  readonly name: string;
++  readonly caloriesKcal: number | null;
++  readonly proteinG: number | null;
++  readonly carbsG: number | null;
++  readonly fatG: number | null;
++}
++export interface MealActivityPublication {
++  readonly sourceMealId: string;
++  readonly enrollmentGeneration: number;
++  readonly operationId: string;
++  readonly expectedVersion: number;
++  readonly expectedRevoked: boolean;
++  readonly sharedDay: string;
++  readonly mealDetails: SharedMealDetails;
++  readonly currentSourceMealDetails: SharedMealDetails;
++  readonly currentSourceDay: string;
++}
++
+ export interface StoredSharedActivity {
+   readonly id: string;
+   readonly userId: UserId;
+-  readonly sourceWorkoutId: string;
++  readonly sourceWorkoutId: string | null;
++  readonly sourceMealId?: string | null;
++  readonly activityKind?: "workout" | "meal";
++  readonly mealDetails?: SharedMealDetails | null;
+   readonly category: WorkoutCategory;
+   readonly sharedDay: string;
+   readonly durationSeconds: number | null;
+@@ -565,6 +587,22 @@ export interface CommunityRepository {
+     options: { readonly accessToken: string },
+   ): Promise<StoredSharedActivity | null>;
+ 
++  getActivityByMealId(
++    mealId: string,
++    authorUserId: UserId,
++    options: { readonly accessToken: string },
++  ): Promise<StoredSharedActivity | null>;
++  publishMealActivity(
++    userId: UserId,
++    activity: MealActivityPublication,
++    options: { readonly accessToken: string },
++  ): Promise<StoredSharedActivity>;
++  revokeActivitiesForMeal(
++    mealId: string,
++    authorUserId: UserId,
++    options: { readonly accessToken: string },
++  ): Promise<void>;
++
+   publishActivity(
+     userId: UserId,
+     activity: {
+diff --git a/status.md b/status.md
+index f2c5032..1e51365 100644
+--- a/status.md
++++ b/status.md
+@@ -15,18 +15,16 @@
+ - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
+ - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
+ 
+-## Running — #216 / RUN-01–05
++## Running and usability acceptance
+ 
+-**#210/#211/#213:** usability fixes/reviews/full gatePASS (mobile1476); fresh Dev simulator sign-in/meal/batch/resume/AX and live fonts verified. Physical/max-font/VoiceOver exits open. [Evidence](docs/USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
++**#216/RUN-01–05:** source/Dev evidence and native/import/GPS exits retained below. #210/#211/#213 automatic/usability gate and Dev simulatorPASS; physical/max-font/VoiceOver remain open. #214 workflow/source/full-gatePASS; #207 navigation and physical/provider gates retained. [Preserved detail](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md#preserved-prior-runningusability-handoff).
+ 
+-**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. [Evidence](docs/SIMULATOR_WORKFLOW_EVIDENCE_2026-10-06.md).
+-
+-**Retained gates:** #210/#211/#213 usability/#207 navigation source and physical/max-font/VoiceOver/provider exits: [prior status](docs/archive/status/STATUS_PRE_RUNNING_2026-10-06.md).
+-
+-**Next:** accept #210/#213 physical/accessibility/max-font journeys on this candidate. Release: accept version9 native journeys, then manual IPA/AAB upload; test native workout status. #27/#32 native/Store exits open. Community closed; photos/App Preview Dev-only; no agent upload; broader gates remain.
++**Next retained release checks:** version9 native workout journeys, physical/accessibility acceptance, then Adam's manual IPA/AAB upload. #27/#32 Store exits open; Community prior closure does not accept this new meal extension. Photos/App Preview remain Dev-only.
+ 
+ ## Local follow-ups awaiting acceptance
+ 
++- **#238 meals:** implemented; Community608/typecheckPASS; isolated SQL/review/full gate next. iOS simulator deferred by Adam; Dev/Prod unrun. [Evidence](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md).
++
+ - **#234/#235:** Dev81.67%; Material1.14/resizable; build/gate/API36 rotation PASS; RN/older/device/Play open. [Evidence](docs/ANDROID_WINDOW_DEV_EVIDENCE_2026-10-11.md).
+ 
+ - **#182:** combined source/reviewPASS; installed latest Dev above. Tab/offline/account/native acceptance next. [Evidence](docs/STARTUP_OFFLINE_CACHE_EVIDENCE_2026-10-09.md).

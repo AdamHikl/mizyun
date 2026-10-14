@@ -1,0 +1,14 @@
+
+> @mizyun/mobile@1.0.0 test /private/tmp/mizyun-community-meals-20261012/candidate/apps/mobile
+> vitest run --passWithNoTests src/features/community/comments/screen.test.tsx
+
+
+ RUN  v3.2.7 /private/tmp/mizyun-community-meals-20261012/candidate/apps/mobile
+
+ ✓ src/features/community/comments/screen.test.tsx (4 tests) 21ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  15:58:57
+   Duration  592ms (transform 173ms, setup 0ms, collect 259ms, tests 21ms, environment 0ms, prepare 56ms)
+

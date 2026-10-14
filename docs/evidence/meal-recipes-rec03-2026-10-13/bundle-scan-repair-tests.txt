@@ -1,0 +1,14 @@
+
+ RUN  v3.2.7 /private/tmp/mizyun-rec03-20261013-01a12b31
+
+ ✓ packages/config/src/mobile-public.test.ts (14 tests) 10377ms
+   ✓ ios Hermes bundle purity > contains no server secret literals or secret key prefixes  1055ms
+   ✓ ios Hermes bundle purity > contains no service-role, user-session or malformed JWT credentials  590ms
+   ✓ android Hermes bundle purity > contains no server secret literals or secret key prefixes  1239ms
+   ✓ android Hermes bundle purity > contains no service-role, user-session or malformed JWT credentials  635ms
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  10:07:47
+   Duration  17.35s (transform 3.86s, setup 0ms, collect 4.96s, tests 10.38s, environment 0ms, prepare 357ms)
+

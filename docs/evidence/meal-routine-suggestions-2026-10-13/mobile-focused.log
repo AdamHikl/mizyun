@@ -1,0 +1,25 @@
+
+> @mizyun/mobile@1.0.0 test /Users/adam/Documents/mizyun/apps/mobile
+> vitest run --passWithNoTests src/features/recurring-meals src/features/auth/auth-analytics-lifecycle.test.tsx src/features/settings/account-data-management.test.ts src/features/dashboard/dashboard-screen.test.tsx src/features/log-meal/meal-list-screen.test.tsx
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/apps/mobile
+
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-card.test.tsx (14 tests) 13ms
+ ✓ src/features/recurring-meals/recurring-meal-data.test.ts (8 tests) 32ms
+ ✓ src/features/recurring-meals/recurring-meal-retry.test.ts (3 tests) 31ms
+ ✓ src/features/recurring-meals/recurring-meals-screen.test.tsx (12 tests) 39ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-retry.test.ts (17 tests) 25ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-hook.test.ts (3 tests) 23ms
+ ✓ src/features/dashboard/dashboard-screen.test.tsx (44 tests) 181ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-controls.test.tsx (6 tests) 5ms
+ ✓ src/features/auth/auth-analytics-lifecycle.test.tsx (6 tests) 5ms
+ ✓ src/features/settings/account-data-management.test.ts (28 tests) 13ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-data.test.ts (17 tests) 79ms
+ ✓ src/features/log-meal/meal-list-screen.test.tsx (30 tests) 344ms
+
+ Test Files  12 passed (12)
+      Tests  188 passed (188)
+   Start at  21:26:14
+   Duration  2.71s (transform 2.20s, setup 0ms, collect 9.10s, tests 793ms, environment 1ms, prepare 920ms)
+

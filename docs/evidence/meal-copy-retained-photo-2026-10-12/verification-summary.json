@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-12",
+  "issue": 237,
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidate": "/tmp/mizyun-photo-copy-candidate-20261012",
+  "fullGate": "PASS",
+  "inputSha256": "9b64f4e4dea7ad59ba7a14757f090add17c2dff9257ed89f6b9f2b30475af720",
+  "primaryFocused": 438,
+  "candidateFocused": 431,
+  "mobileFull": 2182,
+  "apiFull": 980,
+  "apiSkipped": 15,
+  "review": "Independent High final repair review: no findings. Earlier blockers repaired with regressions.",
+  "native": "Not installed/tested; user deferred Dev installation.",
+  "git": "Uncommitted; no push/deployment",
+  "record": "Post-check receipt; added after the full gate. Source unchanged; document checks rerun."
+}

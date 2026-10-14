@@ -1,0 +1,46 @@
+REC-05 final isolated full gate, 2026-10-13
+Command: npm_config_workspace_concurrency=1 VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=1 VITEST_MIN_FORKS=1 pnpm check
+Candidate: /private/tmp/mizyun-rec05-20261013-01a12b31
+Runtime/owned source correspondence verified against pre-gate SHA-256 hashes.
+Raw local log: /tmp/rec05-full-check.log
+
+[check] Running all check:steps gates; input SHA-256 d5c2964b2e85ce5762d963f66e76b67eb8e39c616e79ef0d94e6dd40360ba861.
+  PASS: Feature map structure and path references are valid.
+  PASS: All internal markdown links resolve.
+  PASS: Pure core, provider neutrality, and mobile boundaries strictly respected.
+  PASS: Current snapshot 94f1d2225beecaf5fc51f7e0eceb147d45248a3c8fcc9e65e35a84eae6bf5958; 1642 files / 3462 source edges / 16 workspace packages.
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  29 passed (29)
+      Tests  345 passed (345)
+ Test Files  38 passed (38)
+      Tests  532 passed (532)
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+ Test Files  4 passed (4)
+      Tests  53 passed (53)
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+ Test Files  27 passed (27)
+      Tests  233 passed (233)
+ Test Files  4 passed (4)
+      Tests  95 passed (95)
+ Test Files  5 passed (5)
+      Tests  73 passed (73)
+ Test Files  7 passed (7)
+      Tests  94 passed (94)
+ Test Files  195 passed (195)
+      Tests  2338 passed (2338)
+ Test Files  5 passed (5)
+      Tests  109 passed (109)
+ Test Files  74 passed | 3 skipped (77)
+      Tests  1064 passed | 15 skipped (1079)
+All build matrix, native identity, and environment isolation checks PASSED!
+PASS: Apple capability boundaries (7 checks); concurrent unique discovery paths; success, denied-device and HUP/INT/TERM cleanup
+[check] PASS: all gates completed for input SHA-256 d5c2964b2e85ce5762d963f66e76b67eb8e39c616e79ef0d94e6dd40360ba861.

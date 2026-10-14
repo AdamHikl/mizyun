@@ -1,0 +1,291 @@
+
+> mizyun@0.1.0 check /private/tmp/mizyun-community-meals-20261012/candidate
+> node scripts/run-check.mjs
+
+[check] Running all check:steps gates; input SHA-256 5d8dddf017c482d2e25bdd92d954eeb69737472d63fc0e78182e0c81a6b408cd.
+
+> mizyun@0.1.0 check:steps /private/tmp/mizyun-community-meals-20261012/candidate
+> pnpm test:check-runner && pnpm navigation:check && pnpm test:navigation && pnpm test:exercise-catalog && pnpm test:coach-feature-knowledge && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:analytics-dashboard && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:android-release-optimization && pnpm test:android-window-support && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:community-operations && pnpm test:dev-ios-apple-auth && pnpm test:ios-simulator
+
+
+> mizyun@0.1.0 test:check-runner /private/tmp/mizyun-community-meals-20261012/candidate
+> node --test scripts/run-check.test.mjs
+
+✔ default lock is stable across cwd and TMPDIR (0.837166ms)
+✔ EPERM group probe with empty member inspection (548.771583ms)
+✔ EPERM group probe with zombie member inspection (491.418125ms)
+✔ EPERM group probe with live member inspection (477.9895ms)
+✔ EPERM group probe with unavailable member inspection (468.497833ms)
+✔ real competing processes serialize all gates and release their lock (1750.682792ms)
+✔ gate failure preserves its exit code and allows the next run (1253.406333ms)
+✔ different repository copies share the same lock queue (1749.176125ms)
+✔ read-only status distinguishes unlocked, active and stale ownership (932.697541ms)
+✔ a source directory named build is still checked (916.765792ms)
+✔ source mutation makes otherwise passing gates stale (1016.979459ms)
+✔ an edit restored during the gate still invalidates evidence (950.478584ms)
+✔ generated caches and build output do not invalidate a run (615.7675ms)
+✔ ignored native configuration and environment inputs are monitored (916.852791ms)
+✔ native project configuration edits make passing evidence stale (943.841375ms)
+✔ SIGKILL leaves an owned lock and contenders refuse to steal it (1464.005875ms)
+✔ signal retains lock until surviving gate descendants stop (1920.940125ms)
+✔ cancelling a waiter cannot remove the active owner's lock (1413.585ms)
+✔ stale or malformed locks fail visibly without stealing (268.359166ms)
+✔ CLI rejects bypass options before running any gates (79.860042ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18280.620417
+
+> mizyun@0.1.0 navigation:check /private/tmp/mizyun-community-meals-20261012/candidate
+> node scripts/navigation/check.mjs
+
+=== Mizyun Navigation & Boundary Checks ===
+
+1. Validating feature-map.json structure and references...
+  PASS: Feature map structure and path references are valid.
+  WARN: Feature 'meal-logging': 107 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'workouts-sets': 71 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'profile-goals-energy': 20 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'body-media': 13 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'auth': 24 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'account-lifecycle': 47 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'coach-consent-budgets': 41 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'user-feedback': 3 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'environment-build-deployment': 67 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'contracts-shared': 47 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'contracts-shared': 2 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'database-schema': 85 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'database-schema': 2 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'composition-roots': 90 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'composition-roots': 3 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'analytics-observability': 38 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'legal-compliance': 2 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'health-steps': 13 owned path(s) changed after reviewed SHA f8b02575. Review SHA may need refresh.
+  WARN: Feature 'community': 181 owned path(s) changed after reviewed SHA d81c10f6. Review SHA may need refresh.
+  WARN: Feature 'community': 44 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'agent-navigation': 21 owned path(s) changed after reviewed SHA 3eb87357. Review SHA may need refresh.
+  WARN: Feature 'health-preview': 20 owned path(s) changed after reviewed SHA f40e8941. Review SHA may need refresh.
+  WARN: Feature 'health-exports': 31 owned path(s) changed after reviewed SHA 3984c35f. Review SHA may need refresh.
+  WARN: Feature 'workout-companions': 37 owned path(s) changed after reviewed SHA 0d9da8a4. Review SHA may need refresh.
+
+2. Checking mapped source coverage...
+  WARN: Mapped source coverage: 168/1105 relevant source files are unmapped. Examples: apps/api/src/account-deletion.e2e.test.ts, apps/api/src/account-repository.ts, apps/api/src/ai-consent-repository.ts, apps/api/src/ai-eligibility.test.ts, apps/api/src/ai-eligibility.ts, apps/api/src/auth.e2e.test.ts, apps/api/src/beta-pro-repository.ts, apps/api/src/body-measurement-repository.ts, apps/api/src/conversation-repository.ts, apps/api/src/errors.test.ts, apps/api/src/errors.ts, apps/api/src/exercise-repository.ts, and 156 more. Generated output, snapshots, declarations, dependencies, and build artifacts are exempt.
+
+3. Measuring normal startup context size...
+  INFO: 275 lines / 32102 bytes across AGENTS.md, status.md, and docs/START_HERE.md.
+
+4. Validating local markdown links and anchors in navigation docs...
+  PASS: All internal markdown links resolve.
+
+5. Validating architectural import boundaries...
+  PASS: Pure core, provider neutrality, and mobile boundaries strictly respected.
+
+6. Refreshing source/config discovery...
+  PASS: Current snapshot 1cf8b0ccc6431e853e6603a5dd1699f95304c57cd87d623d0ae49f542e6c2d76; 1559 files / 3205 source edges / 15 workspace packages.
+  INFO: 1480 unresolved imports (includes external/nonliteral imports; static graph is advisory).
+--------------------------------------------------------------------------------
+Checks PASSED: 0 errors, 25 warning(s).
+
+> mizyun@0.1.0 test:navigation /private/tmp/mizyun-community-meals-20261012/candidate
+> node --test scripts/navigation/test/*.test.mjs
+
+✔ medians retain fractional values and do not mutate samples (3.990209ms)
+✔ benchmark rejects excessive work, duplicate and unknown options (3.190542ms)
+✔ validateFeatureMapStructure passes on canonical repository manifest (1545.803291ms)
+✔ validateMarkdownLinks passes on canonical active navigation documents (50.531792ms)
+✔ validateImportBoundaries passes on canonical source codebase (161.004375ms)
+✔ status line limit is enforced while total startup size remains advisory (1.63125ms)
+✔ status byte limit rejects long UTF-8 lines at the actual byte boundary (2.726ms)
+✔ mapped source coverage includes shared code, scripts, and tests with narrow generated exemptions (5.905209ms)
+✔ validateFeatureMapStructure catches non-existent paths in synthetic fixtures (0.81975ms)
+✔ validateFeatureMapStructure catches dangling relation targets (0.686416ms)
+✔ boundary check catches forbidden import of @mizyun/adapter-supabase-server in apps/mobile (3.008166ms)
+✔ boundary check catches dynamic import of vendor SDK inside packages/core (2.493ms)
+✔ validateFeatureMapStructure catches invalid SHA, invalid relation type, missing migration, and missing doc (1.07425ms)
+✔ validateFeatureMapStructure catches symlink escaping the repository root (3.060958ms)
+✔ validateMarkdownLinks catches broken relative markdown links and missing heading anchors (6.063375ms)
+✔ validateMarkdownLinks validates canonical pattern source paths in docs/patterns/README.md for disk existence (3.715084ms)
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: will change to "main" in Git 3.0. To configure the initial branch name
+hint: to use in all of your new repositories, which will suppress this warning,
+hint: call:
+hint:
+hint: 	git config --global init.defaultBranch <name>
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint: 	git branch -m <name>
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: will change to "main" in Git 3.0. To configure the initial branch name
+hint: to use in all of your new repositories, which will suppress this warning,
+hint: call:
+hint:
+hint: 	git config --global init.defaultBranch <name>
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint: 	git branch -m <name>
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+✔ loadFeatureMap loads valid manifest from repository root (1.800083ms)
+✔ findFeature resolves exact feature ID (0.452041ms)
+✔ findFeature resolves exact alias (0.334959ms)
+✔ findFeature returns nonzero suggestions for unknown feature without fabricating (1.199666ms)
+✔ context CLI renders real typo and ambiguous-alias suggestions (3415.694541ms)
+✔ getFeaturesForPath maps paths to matching features (2.624541ms)
+✔ duplicate feature ID in manifest throws descriptive error (1.299625ms)
+✔ discoverNestedInstructions discovers apps/mobile/AGENTS.md for features touching apps/mobile/ (14.606ms)
+✔ discoverNestedInstructions walks real ancestors, deduplicates, and ignores unrelated directories (5.592084ms)
+✔ discoverNestedInstructions ignores mapped symlinks that resolve outside the repository (1.76475ms)
+✔ review state reports local mapped changes separately from committed drift (461.746334ms)
+✔ review state preserves local drift when the reviewed SHA is unavailable (195.213875ms)
+✔ formatContext formats Requirements & Work Items and Open Acceptance Gates & Findings (1.27275ms)
+✔ formatContext truncates output at <= 120 lines when feature has many components unless isAll = true (2.282667ms)
+✔ real source graph reaches same-package reexports, multiple hops and unlisted tests (720.296959ms)
+✔ type alias imports stay distinguishable from runtime consumers (623.766792ms)
+✔ source cycles terminate and bounds report truncation explicitly (687.467625ms)
+✔ cold deleted relative target surfaces conservative importers and multi-hop tests (517.270375ms)
+✔ staged move preserves old target consumers without cached historical edges (622.951917ms)
+✔ root configuration change reports coarse scope and test coverage (681.171833ms)
+✔ successive analyses refresh edited, added and removed source edges (1847.455958ms)
+✔ a concrete changed dependency does not hide a deleted dependency's conservative reason (697.191792ms)
+✔ deleted alias target reaches its consumers and tests on a cold snapshot (674.06225ms)
+✔ deleted relative target preserves consumers when directory index fallback resolves (494.621208ms)
+✔ deleted workspace export target retains package consumers and discovered tests (557.230083ms)
+✔ impact rejects a feature map changed between reading routing and capturing source (291.34675ms)
+✔ impact rejects changed file inventory introduced during source capture (513.199125ms)
+✔ selected paths exclude unrelated staged, unstaged and untracked seeds (471.269875ms)
+✔ working tree inclusion is explicit and no-path since keeps legacy change scope (1198.50775ms)
+✔ selected deletion and configuration retain their own advisory boundary (722.965875ms)
+✔ impact argument parser accepts deliberate scopes and rejects unknown, duplicate or conflicting flags (0.653417ms)
+✔ human impact output respects UTF-8 bytes and lines with exact omissions and early tests (418.662583ms)
+✔ CLI exposes selected scope as JSON and rejects flags before repository work (1762.401ms)
+✔ analyzeImpact executes safely against repository HEAD (3266.590917ms)
+✔ synthetic fixture: ownership, manifest references, and reverse dependencies remain distinct (665.368583ms)
+✔ synthetic fixture: unrelated package files remain explicitly unmapped without package fanout (618.815833ms)
+✔ synthetic fixture: missing comparison base fails closed (227.208ms)
+✔ synthetic fixture: suggested commands are returned and printed but never executed (641.31975ms)
+✔ synthetic fixture: producer package change triggers reverse dependency impact on consumer without manual dependsOn (759.035958ms)
+✔ synthetic fixture: renamed files are correctly parsed and mapped (1227.414583ms)
+✔ synthetic fixture: untracked non-ignored files are captured and mapped (489.438167ms)
+✔ synthetic fixture: filenames containing whitespace are safely handled without splitting errors (491.928334ms)
+✔ synthetic fixture: forward semantic affects edges propagate downstream (431.703292ms)
+✔ synthetic fixture: circular relationship cycles (A affects B, B affects A) terminate cleanly without infinite loop (453.741584ms)
+✔ task packets find symbols and consumer tests, preserve intent and expose local review drift (396.342625ms)
+✔ query discovery refreshes after untracked additions and uses documentation headings (450.185042ms)
+✔ packet budget protects gates and early checks when one component line is enormous (12.688875ms)
+✔ mandatory acceptance is never silently dropped to satisfy a budget (0.411ms)
+✔ feature CLI rejects a replaced intent map instead of rendering gates from an older map (1548.527542ms)
+✔ unsafe and missing path selections and unknown symbols fail explicitly (517.02975ms)
+✔ CI ownership gates new and renamed sources while retaining visible legacy gaps (653.7905ms)
+✔ curated documentation and migration references preserve feature intent association (183.065625ms)
+✔ new workspace roots inherit the CI ownership gate as repository topology grows (572.077792ms)
+✔ exact AST boundary preserves full function and JSDoc but excludes same-line siblings (18.310834ms)
+✔ variable and destructured names select the full containing declaration statement (3.649583ms)
+✔ ambiguous overloads and malformed source fail without guessing boundaries (2.477792ms)
+✔ TSX and JS config parsing stays inert and does not read or execute config (4.969708ms)
+✔ complete heading section includes nested acceptance gates and excludes next peer (3.236ms)
+✔ outline inventories ATX and setext headings but skips fenced fake headings (4.159291ms)
+✔ missing and duplicate headings fail with explicit choices (1.57075ms)
+✔ line intervals are inclusive, current, and never silently clamped (4.237125ms)
+✔ selectors enforce supported document/source formats (3.684ms)
+✔ byte cap includes Unicode source and all metadata; larger explicit budget succeeds (2.700458ms)
+✔ line cap includes wrapper and refuses partial declaration, section, interval or outline (5.316917ms)
+✔ secrets, archives, traversal, outside files and unsupported formats are rejected (4.276208ms)
+✔ internal, external and directory symlinks never expose target content (1.50475ms)
+✔ AGENTS and SKILL instruction files always require full reads including outlines (2.4765ms)
+✔ current hash and boundaries reflect edits without index or cache (2.284833ms)
+✔ concurrent in-place write retries and returns only a stable fresh snapshot (1.682334ms)
+✔ atomic replacement after selection is detected even for same bytes (1.981833ms)
+✔ repeated concurrent writes fail closed after three attempts (2.208541ms)
+✔ selection errors are retried when source concurrently changes to a valid selection (1.854916ms)
+✔ input cap, invalid UTF8 and binary text fail before selection (3.248375ms)
+✔ strict arguments reject conflicts, duplicates, malformed budgets and unknown flags (0.416584ms)
+✔ CLI emits no partial gate on budget failure and successful output fits actual caps (723.470708ms)
+✔ fence closing markers and existing ATX headings cannot become setext titles (1.722917ms)
+✔ render escapes terminal controls while provenance still hashes the original bytes (1.374792ms)
+✔ HTML comments cannot introduce fake section boundaries; other HTML blocks fail visibly (5.206583ms)
+✔ multiline setext title includes every original title line (1.472667ms)
+✔ fence markers inside HTML comments do not hide later real headings (2.193625ms)
+✔ source index resolves workspace exports, aliases, barrels, literal calls and types (328.464875ms)
+✔ warm cache reuses parses while dirty and untracked edits retain current provenance (558.680375ms)
+✔ deleted and renamed files disappear and formerly missing directory indexes resolve (390.54425ms)
+✔ inherited path and package export edits refresh resolution without reparsing unchanged source (337.057625ms)
+✔ unsafe files and escaping source/config symlinks are never read or cached (289.762583ms)
+✔ corrupt cache and unsafe cache directory gracefully fall back to current parsing (451.230458ms)
+✔ branches and Git worktrees keep SHA, content and cache roots isolated (502.375375ms)
+✔ workspace exclusions and unsupported workspace syntax are explicit (379.29975ms)
+✔ safe installed config inheritance and lockfile changes contribute current provenance (512.97775ms)
+✔ snapshot revalidation retries a concurrent edit and fails after persistent edits (692.654875ms)
+✔ conditional exports route import, require and type dependencies to their actual source targets (479.198958ms)
+✔ deleted relative, alias and workspace candidates remain visible when an alternate index resolves (402.111041ms)
+✔ warm graph cache performs zero resolutions and cache:false neither reads nor writes caches (483.859042ms)
+✔ same-size same-time installed inherited config edits invalidate the warm graph (851.691792ms)
+✔ negative installed configuration lookups invalidate when a missing config appears (499.869209ms)
+✔ higher-priority installed config directory appearance invalidates an ancestor fallback (379.921959ms)
+✔ installed config symlink retargets invalidate and external config contents remain unread (631.473916ms)
+✔ corrupt/version/root graph cache entries rebuild and warm reuse never overwrites them (921.17525ms)
+✔ warm graph revalidates concurrent source and inherited config edits before returning (544.249ms)
+✔ unavailable configuration dependencies bypass graph persistence and recover safely (335.40575ms)
+✔ persistently changing inherited configuration fails after bounded warm retries (389.699792ms)
+ℹ tests 117
+ℹ suites 0
+ℹ pass 117
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14019.42975
+
+> mizyun@0.1.0 test:exercise-catalog /private/tmp/mizyun-community-meals-20261012/candidate
+> node --test scripts/import-exercise-catalog.test.mjs
+
+✔ missing/changed source schema, blank form content and duplicate IDs fail closed (3.642209ms)
+✔ CLI rejects changed source bytes before writing any catalog (107.071708ms)
+✔ equipment is not inferred from missing supplier field or broad safety tags (11.371167ms)
+✔ overhead and impact controls remain conservative without blanket cardio exclusions (8.078375ms)
+✔ corrected pike steps remove the erroneous source wall equipment requirement (8.485042ms)
+✔ cue adaptations respect kneeling vs standing movements and preserve exact variants (8.396375ms)
+✔ render is deterministic, retains attribution, leaves review and media acceptance pending (17.874666ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 291.534459
+
+> mizyun@0.1.0 test:coach-feature-knowledge /private/tmp/mizyun-community-meals-20261012/candidate
+> node --test scripts/check-coach-feature-knowledge.test.mjs && node --import tsx scripts/check-coach-feature-knowledge.mjs
+
+✔ accepts complete explicit coverage and shared feature ownership (1.8535ms)
+✔ a new repository feature requires an explicit knowledge decision (0.139542ms)
+✔ a new mobile route requires a capability owner (0.098416ms)
+✔ removing or renaming a route rejects stale catalog directions (0.142416ms)
+✔ rejects empty user guidance and internal classification explanations (0.107333ms)
+✔ rejects dangling feature references and internal entries (0.077833ms)
+✔ rejects duplicate ids, routes, and local feature references (0.1075ms)
+✔ rejects classifying a user-facing feature as internal as well (0.063291ms)
+✔ wildcard routes cannot silently cover future screens (0.098042ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 101.429125
+Coach feature knowledge check failed:
+Mobile route has no Coach capability owner: community/share-meal.tsx
+ ELIFECYCLE  Command failed with exit code 1.
+ ELIFECYCLE  Command failed with exit code 1.
+ ELIFECYCLE  Command failed with exit code 1.

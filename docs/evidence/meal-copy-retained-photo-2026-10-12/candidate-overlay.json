@@ -1,0 +1,39 @@
+{
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidate": "/tmp/mizyun-photo-copy-candidate-20261012",
+  "owned": [
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
+    "apps/mobile/src/features/log-meal/meal-photo-retention.ts",
+    "apps/mobile/src/features/log-meal/meal-photo-retention.test.ts",
+    "docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md",
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.ts",
+    "apps/mobile/src/features/log-meal/meal-list-screen.tsx",
+    "apps/mobile/src/features/dashboard/dashboard-screen.tsx",
+    "apps/mobile/src/features/log-meal/meal-list-screen.test.tsx",
+    "apps/mobile/src/features/dashboard/dashboard-screen.test.tsx",
+    "docs/RESEARCH_LOG.md",
+    "status.md",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.ts",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.test.ts",
+    "apps/mobile/src/features/log-meal/public-data.ts"
+  ],
+  "excluded": "Concurrent cache, AGENTS/session-guide and Oct11 delivery overlays",
+  "hashes": {
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts": "4743e3916e030fb369434b3779ffa2e3fae6abecaf6990cb0effdd992f5cf70e",
+    "apps/mobile/src/features/log-meal/meal-photo-retention.ts": "53359e46b7e6ce679cb3f3b93e50e66fc00579b0fe88a21cd56e281c1a09ac4c",
+    "apps/mobile/src/features/log-meal/meal-photo-retention.test.ts": "119723c9e28a7e45eec9c8de969bde637ab32378523df2a172efb12294f4bba8",
+    "docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md": "dcf94c9f265dfca7dd053855388eabcc635de9678e5673e68a4c973df22c9d4b",
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.ts": "5bcc70c8df3e3cd0f98ee8889333110c14a0fa85ddf2ac1b138d0426eecd0380",
+    "apps/mobile/src/features/log-meal/meal-list-screen.tsx": "cc46fb492bb8259d6bdb36c7d5d68fab2d4a804cf3ccfa2c764d454bc39594bc",
+    "apps/mobile/src/features/dashboard/dashboard-screen.tsx": "6ced062107b5e05a5b3438573e8c1fce108fb7f7cf4705d283a63c42da153708",
+    "apps/mobile/src/features/log-meal/meal-list-screen.test.tsx": "d5d088fa9b1a99e9e501806db76c11475db52f78a0c372815dc9b6e912fce7a7",
+    "apps/mobile/src/features/dashboard/dashboard-screen.test.tsx": "894102bd5ebf3d363ffbea538f8bee35369c879405838bc228f51c3d7a912229",
+    "docs/RESEARCH_LOG.md": "4f5176e10448ddab9bd67034259afa954f45aa7ae6de51cc4318df395c2ded20",
+    "status.md": "afda4047e062a3374eccacd5de5bb3198a7a51a2ec3ad793a16350732e5b44d4",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.ts": "61ce4baa4315bde94f709983d544238305ac97f9118f34855e7c68db57300864",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.test.ts": "f9f6dfed9812827e0853d69ceff55b39c1d92ae0628f1990d36e13287824efac",
+    "apps/mobile/src/features/log-meal/public-data.ts": "9c5779dad909ac334596a90e7220ad61239849dd270e7f053bd26f033b193c11"
+  },
+  "source_correspondence": "Six exclusive source/test files match primary; five shared-path owned function/caller/test deltas isolated from cache overlays. Candidate431 focused PASS; primary438 focused PASS; candidate mobile typecheck PASS.",
+  "independent_review": "High non-author initial and two bounded repair reviews; final no findings. Source paths frozen."
+}

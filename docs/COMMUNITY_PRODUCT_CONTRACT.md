@@ -2,13 +2,15 @@
 
 **Design revision:** COMM-01 / [#140](https://github.com/AdamHikl/mizyun/issues/140), 2026-09-30. This revision supersedes the September 29 contract and its conflicting defaults. Product rules below are implementation requirements, not claims about working screens, staff coverage or release acceptance. Target-user validation remains unrun; see [the validation pack](COMMUNITY_UX_VALIDATION_2026-09-30.md).
 
+**Meal extension (2026-10-12):** [#238](https://github.com/AdamHikl/mizyun/issues/238) and [ADR-0056](adr/0056-explicit-community-meal-publication.md) extend deliberate publication to confirmed meals. This bounded extension supersedes workout-only publication and nutrition exclusions only for an explicitly previewed meal name/day and separately selected calories/protein/carbs/fat. The audience, lifecycle, safety, retention and rollout gates below apply equally to meals. Simulator acceptance is deferred by Adam; no deployment or release acceptance is implied.
+
 **Parent:** [#137](https://github.com/AdamHikl/mizyun/issues/137). **Architecture:** [ADR-0030](adr/0030-explicit-community-publication.md). **Inventory and per-issue plans:** [master implementation plan](COMMUNITY_IMPLEMENTATION_PLAN_2026-09-29.md). **Current code evidence:** [September 30 review](COMMUNITY_REVIEW_EVIDENCE_2026-09-30.md).
 
 ## 1. Scope and permissions
 
-Community lets consenting adult friends encourage each other through deliberately published workout completion cards. Private tracking remains the primary product. Community stays outside the first-beta follower exclusion until its own pilot gates are accepted; this document changes neither roadmap sequencing nor Production availability.
+Community lets consenting adult friends encourage each other through deliberately published meal and workout completion cards. Private tracking remains the primary product. Community stays outside the first-beta follower exclusion until its own pilot gates are accepted; this document changes neither roadmap sequencing nor Production availability.
 
-- Joining, exact-handle discovery, each follow approval, each publication and push permission are separate choices. Discovery, duration and detailed workout sharing default off. Enrollment copies no private profile fields into social identity.
+- Joining, exact-handle discovery, each follow approval, each publication and push permission are separate choices. Discovery, duration, detailed workout sharing and meal nutrition sharing default off. Enrollment copies no private profile fields into social identity.
 - Refusing Community, declining a request or withdrawing preserves private tracking, paid entitlement and Coach access. AI consent/admission, analytics consent, HealthKit/Health Connect permission and notification permission remain independent. Community has no access to private health integrations or Coach context.
 - Pilot scope: separate social profile; approved directional following; exact lookup or invitation; chronological feed; five predefined encouragement reactions; owner controls; block/mute/report; staffed moderation; inbox; lifecycle/export and operational safety.
 - No public profiles/feed, follower-count ranking, recommendations, contact uploads, email/phone lookup, custom workout titles, captions, comments, mentions, photos, groups, challenges, direct messages or routine imports in this pilot. Issues #156–162 retain separate post-pilot decisions and gates.

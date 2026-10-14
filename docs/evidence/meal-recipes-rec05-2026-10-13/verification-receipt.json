@@ -1,0 +1,81 @@
+{
+  "workPackage": "REC-05 / #241",
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidatePath": "/private/tmp/mizyun-rec05-20261013-01a12b31",
+  "dependencyFullGateFingerprint": "e877a50ffff34f48812db4df17e1fb84cf28a273bc65084260dba4a76095bd0f",
+  "verifiedAt": "2026-10-13T13:40:16.795214+00:00",
+  "fullGate": {
+    "command": "pnpm check",
+    "environment": {
+      "npm_config_workspace_concurrency": "1",
+      "VITEST_MAX_THREADS": "1",
+      "VITEST_MIN_THREADS": "1",
+      "VITEST_MAX_FORKS": "1",
+      "VITEST_MIN_FORKS": "1"
+    },
+    "exitCode": 0,
+    "inputSha256": "d5c2964b2e85ce5762d963f66e76b67eb8e39c616e79ef0d94e6dd40360ba861",
+    "evidence": "full-check-summary.txt",
+    "iosAndAndroidBundleExports": "passed",
+    "providerLiveTests": "not run"
+  },
+  "focused": {
+    "candidateBeforeFinalCollisionRepair": {
+      "files": 30,
+      "tests": 491,
+      "result": "pass"
+    },
+    "finalCollisionRepair": {
+      "files": 1,
+      "tests": 8,
+      "result": "pass"
+    },
+    "saveTransportRepair": {
+      "files": 3,
+      "tests": 94,
+      "result": "pass"
+    },
+    "analyticsMockRepair": {
+      "tests": 2,
+      "result": "pass"
+    },
+    "countsAreOverlapping": "Do not sum these focused runs."
+  },
+  "independentReview": {
+    "result": "accepted after repairs",
+    "model": "GPT-6.1 Sol",
+    "reasoning": "High",
+    "evidence": "independent-review.txt",
+    "reviewedHashesUnchanged": true
+  },
+  "credentialGatedApiSuites": {
+    "skippedSuites": 3,
+    "skippedTests": 15,
+    "names": ["account-deletion.e2e", "auth.e2e", "persistence.e2e"],
+    "reason": "Required disposable Auth/Storage/database credentials are unavailable; skipped tests are not passes."
+  },
+  "scope": {
+    "sourcePaths": 75,
+    "wholeFileOverlays": 63,
+    "sharedOwnedRanges": 10,
+    "workspaceLinksRebound": 36,
+    "exclusions": "Concurrent Community/cache/analytics/meal-copy/Coach runtime, unrelated migrations and unrelated continuity edits",
+    "runtimeSourceChangedAfterGate": false,
+    "postGateDocumentationChecks": "recorded in handoff-check-summary.txt"
+  },
+  "openAcceptance": [
+    "REC-04/05 native Keychain capacity, photo/multipart, app-kill/restart, signed-in iOS/Android and accessibility",
+    "Qualified nutrition and food-safety review",
+    "REC-06 offline corpus, permitted live-provider/cost/latency and Dev acceptance",
+    "Separate deployment and Production release gates"
+  ],
+  "delivery": {
+    "committed": false,
+    "pushed": false,
+    "devDeployed": false,
+    "deviceInstalled": false,
+    "productionReleased": false,
+    "liveRecipesDefaultEnabled": false
+  },
+  "gateHistory": "Initial sandbox process inspection was denied; elevated required check succeeded. Reused REC-04 receipt had a formatting-only repair. One earlier run stopped safely for explicit-consent recovery. One failed on two legacy analytics mocks, then repaired. A subsequent passing run predates the final two-file collision fix and is superseded by this fingerprint. No gate, timeout, assertion, module isolation or threshold relaxed."
+}

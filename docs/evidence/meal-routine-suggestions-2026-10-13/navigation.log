@@ -1,0 +1,62 @@
+
+> mizyun@0.1.0 navigation:check /private/tmp/mizyun-mrs-242-candidate
+> node scripts/navigation/check.mjs --since HEAD
+
+=== Mizyun Navigation & Boundary Checks ===
+
+1. Validating feature-map.json structure and references...
+  PASS: Feature map structure and path references are valid.
+  WARN: Feature 'meal-logging': 107 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'meal-logging': 50 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'workouts-sets': 71 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'workouts-sets': 4 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'profile-goals-energy': 20 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'profile-goals-energy': 7 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'body-media': 13 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'auth': 24 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'auth': 2 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'account-lifecycle': 47 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'account-lifecycle': 10 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'coach-consent-budgets': 41 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'coach-consent-budgets': 14 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'user-feedback': 3 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'environment-build-deployment': 67 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'environment-build-deployment': 1 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'contracts-shared': 47 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'contracts-shared': 13 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'database-schema': 85 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'database-schema': 6 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'composition-roots': 90 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'composition-roots': 11 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'analytics-observability': 38 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'analytics-observability': 9 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'legal-compliance': 2 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'health-steps': 13 owned path(s) changed after reviewed SHA f8b02575. Review SHA may need refresh.
+  WARN: Feature 'community': 181 owned path(s) changed after reviewed SHA d81c10f6. Review SHA may need refresh.
+  WARN: Feature 'community': 48 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'agent-navigation': 21 owned path(s) changed after reviewed SHA 3eb87357. Review SHA may need refresh.
+  WARN: Feature 'health-preview': 20 owned path(s) changed after reviewed SHA f40e8941. Review SHA may need refresh.
+  WARN: Feature 'health-exports': 31 owned path(s) changed after reviewed SHA 3984c35f. Review SHA may need refresh.
+  WARN: Feature 'workout-companions': 37 owned path(s) changed after reviewed SHA 0d9da8a4. Review SHA may need refresh.
+  WARN: Feature 'meal-recipes': 82 owned path(s) have local staged, unstaged, or untracked changes.
+
+2. Checking mapped source coverage...
+  WARN: Mapped source coverage: 168/1217 relevant source files are unmapped. Examples: apps/api/src/account-deletion.e2e.test.ts, apps/api/src/account-repository.ts, apps/api/src/ai-consent-repository.ts, apps/api/src/ai-eligibility.test.ts, apps/api/src/ai-eligibility.ts, apps/api/src/auth.e2e.test.ts, apps/api/src/beta-pro-repository.ts, apps/api/src/body-measurement-repository.ts, apps/api/src/conversation-repository.ts, apps/api/src/errors.test.ts, apps/api/src/errors.ts, apps/api/src/exercise-repository.ts, and 156 more. Generated output, snapshots, declarations, dependencies, and build artifacts are exempt.
+  PASS: 123 new source paths have intent ownership since 01352287.
+
+3. Measuring normal startup context size...
+  INFO: 286 lines / 34217 bytes across AGENTS.md, status.md, and docs/START_HERE.md.
+  WARN: Startup size advisory: normal startup set has 34217 bytes (target <= 32768).
+
+4. Validating local markdown links and anchors in navigation docs...
+  PASS: All internal markdown links resolve.
+
+5. Validating architectural import boundaries...
+  PASS: Pure core, provider neutrality, and mobile boundaries strictly respected.
+
+6. Refreshing source/config discovery...
+  PASS: Current snapshot 1bbb6ed0bf75594a71b3454a79fc5a2bdba17d70414121601d3402363b61453b; 1705 files / 3653 source edges / 16 workspace packages.
+  INFO: 1607 unresolved imports (includes external/nonliteral imports; static graph is advisory).
+  WARN: TypeScript config apps/mobile/tsconfig.json: File 'expo/tsconfig.base' not found.
+--------------------------------------------------------------------------------
+Checks PASSED: 0 errors, 36 warning(s).

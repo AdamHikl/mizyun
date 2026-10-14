@@ -1,0 +1,55 @@
+BEGIN
+UPDATE 1
+CREATE EXTENSION
+SET
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+SET
+SET
+SET
+SET
+ce000000-0000-4000-8000-000000000001|publish_controls|Author|AU||f|active|1|2026-10-12 11:12:08.166336+00|2026-10-12 11:12:08.166336+00|2026-09-30|2026-10-12 11:12:08.166336+00|2026-10-12 11:12:08.166336+00
+ok 1 - First confirmation creates version1
+ok 2 - Lost response retry precedes expected-state comparison
+UPDATE 1
+ok 3 - Lost-response retry preserves original duration after private duration/day source edit
+UPDATE 1
+ok 4 - Null state cannot bypass atomic confirmation
+ok 5 - Null PATCH version denied
+ok 6 - Narrow edit advances content version
+ok 7 - Old preview cannot overwrite another edit
+ok 8 - Old PATCH preview cannot overwrite another edit
+ok 9 - Old unpublish cannot revoke current incarnation
+RESET
+SET
+SET
+UPDATE 1
+ok 10 - Only successful creation/edit consumed quota
+SET
+SET
+SET
+1c0bbc92-2904-4e53-9eb4-d0750f33a65b|ce000000-0000-4000-8000-000000000001|de000000-0000-4000-8000-000000000001|other|2026-10-12||3|2026-10-12 10:12:08.166336+00||1||workout||
+ok 11 - Refresh preserves feed chronology
+
+ok 12 - Old live preview cannot republish withdrawn card
+1c0bbc92-2904-4e53-9eb4-d0750f33a65b|ce000000-0000-4000-8000-000000000001|de000000-0000-4000-8000-000000000001|other|2026-10-12||4|2026-10-12 11:12:08.166336+00||1||workout||
+ok 13 - Explicit tombstone confirmation publishes anew
+ok 14 - Future date cannot be shared
+ok 15 - 20 combined publications/edits allowed
+ok 16 - 21st mutation fails
+
+ok 17 - Revocation retry allowed after quota exhausted
+1
+RESET
+SET
+3|t
+SET
+SET
+ce000000-0000-4000-8000-000000000001|publish_controls|Author|AU||f|active|2|2026-10-12 11:12:08.166336+00|2026-10-12 11:12:08.166336+00|2026-09-30|2026-10-12 11:12:08.166336+00|2026-10-12 11:12:08.166336+00
+ok 18 - Social cleanup cannot reset publication quota
+RESET
+SET
+ok 19 - Counter survives social cleanup
+1..19
+ROLLBACK

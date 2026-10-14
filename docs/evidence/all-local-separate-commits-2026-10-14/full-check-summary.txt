@@ -1,0 +1,48 @@
+All-local final combined gate, 2026-10-14
+Candidate:/private/tmp/mizyun-all-local-20261014-01a12b31
+Command:npm_config_workspace_concurrency=1 VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=1 VITEST_MIN_FORKS=1 pnpm check
+Exit0; unchanged reviewed runtime inputs.
+
+[check] Running all check:steps gates; input SHA-256 9e712a1fa9255c7a69c9bde4a0c2ede556731e2107838f8e184ee43da92a8216.
+  PASS: Feature map structure and path references are valid.
+  PASS: All internal markdown links resolve.
+  PASS: Pure core, provider neutrality, and mobile boundaries strictly respected.
+  PASS: Current snapshot e0305464deeb55156f0455208f18f260a5e474f3f286ddac2f719c562435f03f; 1716 files / 3670 source edges / 16 workspace packages.
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  30 passed (30)
+      Tests  351 passed (351)
+ Test Files  39 passed (39)
+      Tests  557 passed (557)
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+ Test Files  4 passed (4)
+      Tests  53 passed (53)
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+ Test Files  28 passed (28)
+      Tests  248 passed (248)
+ Test Files  4 passed (4)
+      Tests  95 passed (95)
+ Test Files  6 passed (6)
+      Tests  76 passed (76)
+ Test Files  7 passed (7)
+      Tests  94 passed (94)
+ Test Files  208 passed (208)
+      Tests  2584 passed (2584)
+ Test Files  5 passed (5)
+      Tests  109 passed (109)
+ Test Files  78 passed | 3 skipped (81)
+      Tests  1109 passed | 15 skipped (1124)
+All build matrix, native identity, and environment isolation checks PASSED!
+Recipe evaluation offline: 81 reference checks PASS; corpus 4f3c65dfe1b3cac2db3078c96b5c547e459b8852a80c957e6732ac608e55f289
+23 synthetic photo scenarios; 4 scripted abstentions. Scripted metrics are not provider accuracy.
+Live feasibility, recognition, latency/cost, qualified review, Dev/native and pilot: NOT EVALUATED.
+PASS: Apple capability boundaries (7 checks); concurrent unique discovery paths; success, denied-device and HUP/INT/TERM cleanup
+[check] PASS: all gates completed for input SHA-256 9e712a1fa9255c7a69c9bde4a0c2ede556731e2107838f8e184ee43da92a8216.

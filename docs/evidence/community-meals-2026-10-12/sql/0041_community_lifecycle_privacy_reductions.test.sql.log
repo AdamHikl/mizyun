@@ -1,0 +1,61 @@
+BEGIN
+CREATE EXTENSION
+SET
+UPDATE 1
+UPDATE 7
+SET
+INSERT 0 2
+UPDATE 2
+INSERT 0 2
+INSERT 0 2
+INSERT 0 2
+INSERT 0 2
+INSERT 0 1
+INSERT 0 2
+INSERT 0 2
+INSERT 0 1
+SET
+SET
+SET
+ok 1 - Participant owns no challenge and need not make a contribution
+ok 2 - Export includes own joined challenge consent even without contributions
+ok 3 - Membership export excludes other participant identities and private challenge payload
+ok 4 - Membership export bounds each page
+ok 5 - Membership keyset reaches the remaining row
+ok 6 - Own comment setting export excludes foreign owner settings
+ok 7 - Comment setting export identifies only caller-owned activity
+ok 8 - Comment setting export has only the declared sanitized fields
+ok 9 - Comment setting cursor cannot repeat prior row
+ok 10 - New export wrapper rejects unbounded reads
+ok 11 - Caller cannot bypass new export wrapper
+ok 12 - Caller cannot invoke reduction capture
+ok 13 - Worker cannot bypass extended replay validation
+RESET
+SET
+UPDATE 1
+ok 14 - Detailed to summary sharing emits a scoped artifact reduction
+ok 15 - Capture preserves live summary share behavior
+UPDATE 1
+ok 16 - No-op content/version change creates no reduction event
+INSERT 0 1
+UPDATE 1
+ok 17 - Edited-away comment text emits a content-free reduction
+INSERT 0 1
+UPDATE 1
+ok 18 - Edited-away message text emits a sender-generation reduction
+INSERT 0 1
+ok 19 - Mute addition records recipient preference and concrete generation
+INSERT 0 1
+UPDATE 1
+ok 20 - Mention consent narrowing records recipient-generation barrier
+UPDATE 1
+ok 21 - Per-card comment disabling records exact owned artifact
+INSERT 0 1
+ok 22 - Initial saved delivery opt-out narrows enabled defaults
+UPDATE 1
+ok 23 - Quiet-hour addition records conservative delivery reduction
+UPDATE 1
+ok 24 - Pure preference widening creates no reduction event
+ok 25 - Extended replay remains denied on live/default database
+1..25
+ROLLBACK

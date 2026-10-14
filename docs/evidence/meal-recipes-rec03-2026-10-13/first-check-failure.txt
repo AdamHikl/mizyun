@@ -1,0 +1,8 @@
+[check] Running all check:steps gates; input SHA-256 b14c230d6dd3a0c69bf8589262c3a62694e7f6e62349396b4530876cf8f7616a.
+packages/config test:  ❯ src/mobile-public.test.ts (14 tests | 1 failed) 15637ms
+packages/config test:      → Test timed out in 5000ms.
+packages/config test: Error: Test timed out in 5000ms.
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mizyun/config@0.1.0 test: `vitest run`
+Exit status 1
+
+The same unchanged bundle scan passed independently:14tests; iOS scan4.34seconds/Android4.10seconds under the existing5second timeout. The full-gate retry preserves the source and every test/gate, with npm_config_workspace_concurrency=1.

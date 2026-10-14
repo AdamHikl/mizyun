@@ -1,0 +1,84 @@
+BEGIN
+UPDATE 1
+CREATE EXTENSION
+SET
+INSERT 0 3
+UPDATE 3
+INSERT 0 1
+SET
+SET
+SET
+SET
+ok 1 - Unclaimed handle reports available before enrollment
+ok 2 - Never-enrolled self lookup is empty rather than null row
+ca000000-0000-4000-8000-000000000001|retry_author|Author|AU|Author bio|f|active|1|2026-10-12 11:12:07.993134+00|2026-10-12 11:12:07.993134+00|2026-09-30|2026-10-12 11:12:07.993134+00|2026-10-12 11:12:07.993134+00
+dbbb7399-0322-4af6-8c04-ed01e0b019d7|AbCdEf0123456789_-AbCd|ca000000-0000-4000-8000-000000000001|2026-10-19 11:12:07.993134+00||2026-10-12 11:12:07.993134+00|1
+SET
+ok 3 - Hidden handle reservation exposes boolean only
+ca000000-0000-4000-8000-000000000002|retry_follower|Follower|FO|Follower bio|f|active|1|2026-10-12 11:12:07.993134+00|2026-10-12 11:12:07.993134+00|2026-09-30|2026-10-12 11:12:07.993134+00|2026-10-12 11:12:07.993134+00
+ok 4 - Guessed hidden identity is not a follow capability
+ok 5 - Valid token can request hidden author
+ok 6 - Follow retry returns original edge
+f0a2dd71-157b-4db8-8c3c-aa600596956f|ca000000-0000-4000-8000-000000000002|ca000000-0000-4000-8000-000000000001|pending|2026-10-12 11:12:07.993134+00|2026-10-12 11:12:07.993134+00
+ok 7 - Repeated follow has no duplicate edge
+UPDATE 1
+DELETE 0
+ok 8 - Raw delete cannot erase canceled request cooldown
+ok 9 - Cancel/delete/retry cannot bypass cooldown
+RESET
+SET
+SET
+UPDATE 1
+SET
+SET
+SET
+SET
+UPDATE 1
+ok 10 - Author can manage hidden approved follower
+ok 11 - Reverse approved edge does not reveal follower bio
+03f7e087-1f31-4586-86a6-a508871670bd|ca000000-0000-4000-8000-000000000001|da000000-0000-4000-8000-000000000001|strength|2026-10-12|3600|1|2026-10-12 11:12:07.993134+00||1||workout||
+ok 12 - Lost publication response retries stable version
+ok 13 - Operation UUID cannot be reused with changed payload
+SET
+INSERT 0 1
+SET
+03f7e087-1f31-4586-86a6-a508871670bd|ca000000-0000-4000-8000-000000000001|da000000-0000-4000-8000-000000000001|strength|2026-10-12||2|2026-10-12 11:12:07.993134+00||1||workout||
+ok 14 - Duration edit advances snapshot version
+RESET
+SET
+SET
+ok 15 - Duration edit invalidates all follower reactions
+SET
+SET
+SET
+SET
+ok 16 - Old operation cannot replay after snapshot edit
+UPDATE 1
+ok 17 - Raw owner update cannot resurrect revoked publication
+ok 18 - Revoked operation remains rejected
+ok 19 - New explicit operation may republish revoked source
+
+RESET
+SET
+7|t
+SET
+SET
+ca000000-0000-4000-8000-000000000001|retry_author|Author|AU||f|active|2|2026-10-12 11:12:07.993134+00|2026-10-12 11:12:07.993134+00|2026-09-30|2026-10-12 11:12:07.993134+00|2026-10-12 11:12:07.993134+00
+ok 20 - Explicit reenrollment advances generation
+ok 21 - Old generation confirmation fails
+a11f4fa3-5f61-41e6-87cb-28c6330ff8d6|ca000000-0000-4000-8000-000000000001|da000000-0000-4000-8000-000000000001|strength|2026-10-12||1|2026-10-12 11:12:07.993134+00||2||workout||
+DELETE 1
+RESET
+SET
+SET
+INSERT 0 1
+SET
+SET
+SET
+SET
+ok 22 - Deleted source retains operation tombstone even if UUID recreated
+ok 23 - Reporter cannot forge moderator status
+UPDATE 1
+ok 24 - Loss of adult eligibility withdraws social state
+1..24
+ROLLBACK

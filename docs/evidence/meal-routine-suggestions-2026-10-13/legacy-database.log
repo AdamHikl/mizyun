@@ -1,0 +1,55 @@
+PASS: forward migration with permissive Supabase function defaults
+PASS: same-operation replay
+PASS: internal snapshot denied under permissive defaults
+PASS: internal admission denied
+PASS: ordinary user cannot run worker
+PASS: anonymous internal snapshot denied
+PASS: foreign source denied
+PASS: changed replay conflicts
+PASS: invalid direct RPC time
+PASS: invalid direct RPC timezone
+PASS: non-client timezone denied Factory
+PASS: non-client timezone denied localtime
+PASS: non-client timezone denied posix/Etc/UTC
+PASS: duplicate weekdays denied
+PASS: RLS hides foreign schedules
+PASS: foreign update hidden
+PASS: foreign stop denied
+PASS: foreign skip denied
+PASS: direct schedule write denied
+PASS: tick creates one meal
+PASS: duplicate tick creates nothing
+PASS: null nutrients and automatic provenance preserved
+PASS: deleted occurrence cannot resurrect
+PASS: ledger survives meal deletion
+PASS: RLS hides foreign ledger
+PASS: pause prevents generation
+PASS: resume never backfills earlier days
+PASS: weekday selection respected
+PASS: custom time not early
+PASS: selected weekday at edited time
+PASS: equal patch retry preserves activation time
+PASS: skip before/after tick 2
+PASS: skip durable and removes generated meal 2
+PASS: skip before/after tick 3
+PASS: skip durable and removes generated meal 3
+PASS: stopped creation replay never resurrects
+PASS: DST not early 4
+PASS: DST materializes gap/fold 4
+PASS: DST expected instant 4
+PASS: DST once per local day 4
+PASS: DST not early 5
+PASS: DST materializes gap/fold 5
+PASS: DST expected instant 5
+PASS: DST once per local day 5
+PASS: lapsed entitlement omits advanced nutrients
+PASS: current paid entitlement copies advanced nutrients
+PASS: concurrent ticks log once
+PASS: four concurrent workers return one total insert
+PASS: skip vs tick leaves no logged occurrence
+PASS: account deletion admission closes all schedules
+PASS: deleting account cannot generate later meals
+PASS: deleting user cannot add schedules
+PASS: Auth erasure cascades schedules and ledger
+PASS: 52 real SQL assertions; synthetic fixtures only
+Removed disposable local database mizyun_recurring_scratch_471973fa0922

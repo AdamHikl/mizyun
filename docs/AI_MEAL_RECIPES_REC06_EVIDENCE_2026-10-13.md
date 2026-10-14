@@ -1,0 +1,25 @@
+# AI meal recipes — REC-06 offline evaluation evidence
+
+> Local offline package under[#241](https://github.com/AdamHikl/mizyun/issues/241), baseline0135228778059dc25c1a4925738f0b6934ed4f0c plus accepted REC-01–05 dependencies. Source remains uncommitted. Live providers, deployment, native/device and Production release are unrun.
+
+## Implemented
+
+[Frozen protocol](AI_MEAL_RECIPES_REC06_EVALUATION_2026-10-13.md) and [ADR0063](adr/0063-frozen-offline-recipe-evaluation.md) define58 deterministic recipe/context cases, eight fixed source/weight nutrition vectors and23 original synthetic ingredient-photo scenarios. A SHA-256 manifest pins corpus, scene bytes, catalog/source metadata and thresholds before any live observations. The offline runner rejects tampering and unsafe/escaping scene members, tests public deterministic boundaries, and exposes full/partial abstention and null undefined precision/recall. It reports blocked templates separately from successful suggestions, and all actual provider/feasibility/cost/latency/qualified/native/pilot metrics remain unmeasured. No release threshold or runtime recipe switch was lowered.
+
+The new server evaluation tests exercise actual authenticated composition with fake providers: consent/adult/auth/kill-switch/budget denials, forged context, same-ID owner isolation, contaminated repository reads, forbidden selections and no intake mutation. `test:ai-eval` now includes the offline recipe checks in the required full gate.
+
+## Automatic verification
+
+Coordinator `pnpm test:meal-recipe-eval`:11 scorer/tamper/CLI tests and81 fixed reference checks PASS(58recipe/context+23photo).23template cases yielded supported recipes;11were blocked or clarification cases, not successful generations. Photo output has2full/2partial scripted abstentions and deliberate false positives; it is not actual vision accuracy. Frozen corpus fingerprint4f3c65dfe1b3cac2db3078c96b5c547e459b8852a80c957e6732ac608e55f289.
+
+Coordinator new API evaluation29tests PASS; helper API typecheck PASS.23deny requests made zero fake generation/recognition calls; three malicious selections failed502 after one fake call each. Same-ID owners retained separate intake/diet contexts; accepted suggestion/recognition changed no intake. Fake calls total6generation/1recognition;fetch0. Initial local corpus validation corrected a fixture ID and clarified partial-vs-full abstention semantics without changing thresholds or production behavior. Native/photo/provider accuracy was not tested.
+
+Independent non-author Sol High frozen-scope review accepted all37owned paths with unchanged hashes; separately recomputed all eight nutrition vectors and12scored ranking orders and checked scene annotation/ground-truth correspondence. Reviewer reran11scorer tests,81reference checks and29server tests, all PASS. Settled isolated full `pnpm check` PASS; input SHA-256 `3323b77fcd7297be67375d75064f266d3a0ce8d242375b700d7f8c789e63321e`. Both mobile bundle exports and all required tooling gates passed. Three credential-gated API suites/15tests were skipped, not passed. [Receipt](evidence/meal-recipes-rec06-2026-10-13/verification-receipt.json), [full-gate summary](evidence/meal-recipes-rec06-2026-10-13/full-check-summary.txt), [offline report](evidence/meal-recipes-rec06-2026-10-13/offline-report.json), [review](evidence/meal-recipes-rec06-2026-10-13/independent-review.txt), [manifest](evidence/meal-recipes-rec06-2026-10-13/candidate-manifest.json) and [post-check records](evidence/meal-recipes-rec06-2026-10-13/handoff-check-summary.txt) define the qualified scope. The candidate `/private/tmp/mizyun-rec06-20261013-01a12b31` derives from the exact accepted REC-05 fingerprint `d5c2964b2e85ce5762d963f66e76b67eb8e39c616e79ef0d94e6dd40360ba861`; concurrent Community/cache/analytics/meal-copy/Coach/routine runtime and unrelated migrations remain preserved and excluded.
+
+## Open gates and next exact action
+
+REC-06 offline engineering is distinct from the complete REC-06 stage. Qualified nutrition/food-safety, exact authorized provider image/ground-truth freeze, live feasibility/precision/recall/latency/cost and aggregate spend evidence, Dev deployment and both-platform standalone native/accessibility/lifecycle acceptance remain open. BEFORE_TESTING/#29/#36/#25/#26 remain authoritative. Recipes stay disabled. This turn authorizes no provider request, deployment, installation, participant pilot or Production release.
+
+After source verification, beginREC06-Q01 with a named qualified nutrition/food-safety reviewer using the pinned catalog/templates and acceptance protocol. In parallel prepare the provider checklist and supported-image dataset without dispatching live requests. Keep#241open.
+
+Final gate source and candidate runtime hashes stayed unchanged. Only final receipts and continuity annotations were added after the gate and separately checked. Initial candidate navigation found the inherited compact-status byte limit; only the recipe package summary was shortened to preserve every authority/open gate before full verification. No assertion, threshold, test isolation or full-gate requirement was relaxed.

@@ -1,0 +1,79 @@
+{
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidatePath": "/private/tmp/mizyun-rec03-20261013-01a12b31",
+  "sourceCorrespondence": true,
+  "focused": {
+    "candidateSuite": 239,
+    "repairAndAffectedCallers": 77,
+    "changedImageTestRerun": 3,
+    "allModifiedTestsCovered": true,
+    "typecheckedPackages": 9,
+    "bundleScanAfterRepair": 14
+  },
+  "database": {
+    "target": "separate local schema-only PostgreSQL17.6 database",
+    "migration": "20261013090000_recipe_request_reservations",
+    "pgtapAssertions": 50,
+    "independentSessions": "duplicate single-charge, terminal identity and waiting consent/deletion fences passed"
+  },
+  "independentReview": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "initialBlockers": 1,
+    "resolvedBlockers": 1,
+    "remainingBlockers": 0,
+    "finalStableHashes": 67,
+    "safeguardPreparationReview": "accepted; unchanged classifiers/assertions and hook failure cannot falsely succeed"
+  },
+  "delivery": {
+    "committed": false,
+    "pushed": false,
+    "devDeployed": false,
+    "productionReleased": false,
+    "nativeInstalled": false,
+    "liveProviderCalls": 0,
+    "liveFeatureDefault": "disabled"
+  },
+  "openGates": [
+    "REC04 persisted mobile identities/photo acquisition/ingredient confirmation",
+    "REC05/06 selection/logging/live/native acceptance",
+    "qualified nutrition and food safety review",
+    "live Supabase HTTP lifecycle/isolation and provider cost/quality evaluation",
+    "Dev migration/deployment and physical device acceptance"
+  ],
+  "fullGate": {
+    "status": "passed",
+    "command": "npm_config_workspace_concurrency=1 pnpm check",
+    "initialInputSha256": "b14c230d6dd3a0c69bf8589262c3a62694e7f6e62349396b4530876cf8f7616a",
+    "firstRun": {
+      "status": "failed",
+      "reason": "existing iOS bundle secret scan timed out at5seconds under workspace parallel test load; no assertion failure",
+      "focusedRerun": "14passed; iOS4.34seconds, Android4.10seconds; no source/test timeout changes"
+    },
+    "rerunCommand": "npm_config_workspace_concurrency=1 pnpm check",
+    "secondRun": {
+      "status": "failed",
+      "reason": "same existing iOS disassembly-in-assertion5second timeout at5.55seconds despite serializedworkspace"
+    },
+    "repair": "Complete string-table preparation moved to per-platformbeforeAll under the existing30second compiler limit; assertions/defaulttimeouts/classifiers unchanged; independently reviewed",
+    "finalRunCommand": "npm_config_workspace_concurrency=1 pnpm check",
+    "inputSha256": "d8f14c7227276ace7ff5d50a378c384f67928e4db00cdead2a4979f829393ae6",
+    "mainCounts": {
+      "core": 530,
+      "contracts": 338,
+      "runtime": 95,
+      "mobile": 2157,
+      "api": 1052,
+      "apiClient": 61,
+      "supabaseAdapter": 233,
+      "geminiProvider": 109,
+      "imageAdapter": 3,
+      "config": 94
+    },
+    "credentialGatedApiSkipped": 15,
+    "skippedSuites": 3,
+    "bothMobileBundleExports": "passed",
+    "allToolingGates": "passed"
+  },
+  "postCheckDocumentation": "Receipts, stage/status/plan outcome and issue update finalized after full gate; reviewed source unchanged; separate documentation checks."
+}

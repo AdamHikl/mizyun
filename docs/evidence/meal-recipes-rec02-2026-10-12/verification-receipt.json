@@ -1,0 +1,66 @@
+{
+  "recordType": "post-check evidence, not part of gate fingerprint",
+  "date": "2026-10-12",
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidatePath": "/private/tmp/mizyun-rec02-20261012-01a12b31",
+  "inputSha256": "f07197c8772c5c4873f80ae66ccd8eb3145a10787ef508b8ffc7ddc84256679f",
+  "command": "pnpm check",
+  "exitCode": 0,
+  "scope": "REC-01 dependencies + REC-02 owned code/docs on isolated baseline; unrelated concurrent work excluded",
+  "newFocusedTests": {
+    "core": 26,
+    "api": 25,
+    "publicBoundary": 2
+  },
+  "allRecipeFocusedTests": 122,
+  "mainFullGateCounts": {
+    "packages/core": {
+      "passed": 521,
+      "skipped": 0
+    },
+    "packages/contracts": {
+      "passed": 323,
+      "skipped": 0
+    },
+    "packages/agent-runtime": {
+      "passed": 91,
+      "skipped": 0
+    },
+    "apps/mobile": {
+      "passed": 2157,
+      "skipped": 0
+    },
+    "apps/api": {
+      "passed": 1005,
+      "skipped": 15
+    }
+  },
+  "skippedSuites": {
+    "AuthE2E": 5,
+    "PersistenceE2E": 8,
+    "AccountDeletionE2E": 2
+  },
+  "skipReason": "Missing disposable test Auth/database credentials; these checks are not accepted.",
+  "bundleExports": {
+    "ios": "PASS",
+    "android": "PASS"
+  },
+  "deploymentSafeguardFixtures": {
+    "passed": 74,
+    "failed": 0
+  },
+  "independentReview": "Fresh Sol Medium non-author review; 14 frozen hashes at start/end, no findings; not qualified nutrition/food-safety acceptance.",
+  "coordinatorImportVerification": "Original archive/four member hashes,29foods/116nutrients; reproducible semantic JSON and byte-identical formatted catalog TS; corrupted archive rejected before output mutation.",
+  "openGates": [
+    "Qualified nutrition/food-safety review before broader use",
+    "REC-03 guarded provider/owned context/durable budgets",
+    "REC-04\u201306 photos/mobile/provider/native/Dev/Production acceptance"
+  ],
+  "repository": "Local uncommitted/unpushed; no route, provider call, DB mutation, install, deployment or Production release.",
+  "postCheckDocumentVerification": {
+    "navigation": "PASS;0errors/33advisory warnings on shared tree",
+    "ownedFormatting": "PASS",
+    "diffWhitespace": "PASS",
+    "sourceHashCorrespondence": "All14 reviewed shared runtime/source hashes unchanged after final documents and issue update."
+  }
+}

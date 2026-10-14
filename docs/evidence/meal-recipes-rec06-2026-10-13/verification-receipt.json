@@ -1,0 +1,76 @@
+{
+  "workPackage": "REC-06 offline / #241",
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidatePath": "/private/tmp/mizyun-rec06-20261013-01a12b31",
+  "dependencyFullGateFingerprint": "d5c2964b2e85ce5762d963f66e76b67eb8e39c616e79ef0d94e6dd40360ba861",
+  "verifiedAt": "2026-10-13T19:47:13.956192+00:00",
+  "fullGate": {
+    "command": "pnpm check",
+    "exitCode": 0,
+    "inputSha256": "3323b77fcd7297be67375d75064f266d3a0ce8d242375b700d7f8c789e63321e",
+    "evidence": "full-check-summary.txt",
+    "iosAndroidBundleExports": "passed",
+    "scope": "Offline evaluation source plus accepted REC-01\u201305; no Dev/device/live/Production acceptance"
+  },
+  "focused": {
+    "referenceChecks": 81,
+    "recipeContextCases": 58,
+    "photoScenarios": 23,
+    "nutritionVectors": 8,
+    "scorerTamperCliTests": 11,
+    "serverCompositionTests": 29,
+    "successfulTemplateCases": 23,
+    "blockedClarificationTemplateCases": 11,
+    "fullScriptedAbstentions": 2,
+    "partialScriptedAbstentions": 2,
+    "corpusFingerprint": "4f3c65dfe1b3cac2db3078c96b5c547e459b8852a80c957e6732ac608e55f289",
+    "countsOverlapFullGate": "Do not sum repeated focused/full runs."
+  },
+  "independentReview": {
+    "nonAuthor": true,
+    "model": "GPT-6.1 Sol",
+    "reasoning": "High",
+    "findings": "none actionable",
+    "hashesUnchanged": 37,
+    "evidence": "independent-review.txt"
+  },
+  "syntheticServerRequests": {
+    "deniedWithZeroFakeCalls": 23,
+    "forbiddenSelectionsRejectedAfterFakeCall": 3,
+    "fakeGenerationCalls": 6,
+    "fakeRecognitionCalls": 1,
+    "fetchCalls": 0,
+    "knownUnauthorizedOrCrossOwnerOrForbiddenSuccesses": 0,
+    "acceptedSuggestionOrRecognitionIntakeWrites": 0,
+    "qualification": "InMemory and fake provider route checks, not real Auth/RLS/Storage or provider safety"
+  },
+  "credentialGatedApi": {
+    "skippedSuites": 3,
+    "skippedTests": 15,
+    "reason": "Required Auth/Storage/database E2E environment is not configured; not counted as passed"
+  },
+  "openAcceptance": [
+    "Named qualified nutrition/food-safety review",
+    "Supported image-byte/independent ground-truth pre-live freeze and current provider checklist",
+    "Authorized live feasibility/precision/recall/cost/retry/p95 and aggregate spend evidence",
+    "Exact Dev deployment and standalone physical iOS/Android text/photo/Keychain/restart/accessibility journeys",
+    "Separate adult pilot/product validation and Production/Store milestones"
+  ],
+  "delivery": {
+    "committed": false,
+    "pushed": false,
+    "devDeployed": false,
+    "deviceInstalled": false,
+    "liveProviderCalls": 0,
+    "recipesEnabled": false,
+    "productionReleased": false
+  },
+  "candidateScope": {
+    "sourcePaths": 51,
+    "reviewedEvaluationPaths": 37,
+    "workspaceLinksRebound": 36,
+    "exclusions": "Concurrent Community/cache/analytics/meal-copy/Coach/routine runtime, unrelated migrations and continuity; accepted REC-05 inherited unchanged",
+    "runtimeInputsChangedAfterGate": false
+  },
+  "postGateDocumentation": "Final receipt/report/manifest and continuity annotations are post-check records; targeted format/navigation/hash checks recorded in handoff-check-summary.txt."
+}

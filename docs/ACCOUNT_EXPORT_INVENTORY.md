@@ -203,6 +203,12 @@ The Mizyun account export delivers a versioned JSON document of the implemented 
 
 ---
 
+### 2.11 Recurring meals and private suggestions
+
+`recurringMeals` includes owned schedules/occurrences plus `suggestionStates`, `suggestionPreferences` and `suggestionReceipts`. New tables use authenticated owner reads and deterministic500-row pagination by their actual primary keys (`family_key`, `user_id`, `operation_id`), without assuming an `id` column. Receipts include private frozen schedule inputs/results for recovery. Account erasure clears suggestion state before schedules and database admission blocks recreation during deletion.
+
+Mobile account export additionally includes `localRecurringMealSetup` from the active owner's encrypted operation journal; local account erasure retires callbacks and removes manifest/journal/chunks. Signout retains owner-keyed recovery for later same-owner resolution but cannot display or submit it as another account. These optional categories are present as arrays; the legacy summary manifest counts do not enumerate every optional category.
+
 ## 3. Deliberate & Justified Exclusions
 
 | Excluded Resource                              | Justification                                                                                                                                                                                        |

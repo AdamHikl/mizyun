@@ -1,0 +1,97 @@
+service_role
+ok 1 - Family controls have RLS
+ok 2 - Preferences have RLS
+ok 3 - Immutable receipts have RLS
+ok 4 - Anonymous cannot read health-derived families
+ok 5 - Owners cannot bypass decision validation
+ok 6 - Owners cannot rewrite acceptance links
+ok 7 - Owners cannot erase immutable retry receipts directly
+ok 8 - Anonymous acceptance denied
+ok 9 - Private evidence validator not callable
+ok 10 - NFC/JS whitespace/ASCII family normalization
+ok 11 - Turkish dotted I preserved with ASCII case fold
+ok 12 - Greek uppercase sigma copied-name key stays stable
+ok 13 - Non-ASCII case variants conservatively remain distinct
+ok 14 - Canonical exact number/null identity
+ok 15 - Small-number JSON.stringify parity
+ok 16 - FNV consistency fixture parity
+authenticated
+a2440000-0000-4000-8000-000000000001
+authenticated
+ok 17 - Shown records one durable private impression
+ok 18 - Shown replay is idempotent
+ok 19 - Owner reads only their state
+ok 20 - Acceptance creates and skips atomically
+ok 21 - One accepted schedule
+ok 22 - Today skipped without a food entry
+ok 23 - Acceptance never creates today food
+ok 24 - Lost-response same-operation replay succeeds
+ok 25 - Changed immutable replay conflicts
+ok 26 - Suggestion-first equivalent manual create conflicts under owner lock
+ok 27 - Receipt freezes first creation
+ok 28 - Stop succeeds
+ok 29 - Stopped lost-response replay stays stopped
+ok 30 - Another operation cannot restart stopped accepted family
+ok 31 - Reset succeeds
+ok 32 - Reset preserves accepted stopped suppression
+a2440000-0000-4000-8000-000000000002
+ok 33 - Owner B cannot read A state
+ok 34 - Owner B cannot read A receipt
+ok 35 - Foreign owner proposal cannot authorize acceptance
+ok 36 - Not now persists family cooldown
+ok 37 - Not now cooldown is thirty days
+ok 38 - Cooldown blocks stale acceptance
+ok 39 - Global suggestions disabled
+ok 40 - User re-enables and resets dismissal
+ok 41 - Never persists across policy changes
+ok 42 - Permanent family dismissal persisted
+a2440000-0000-4000-8000-000000000003
+ok 43 - Manual-first schedule created
+ok 44 - Pause manual equivalent
+ok 45 - Manual-first paused schedule reused
+ok 46 - Existing equivalent is never skipped
+ok 47 - Manual-first acceptance has one schedule
+
+service_role
+authenticated
+a2440000-0000-4000-8000-000000000004
+ok 48 - Even microsecond source change rejects frozen nutrition
+ok 49 - Stale failure leaves no partial schedule
+ok 50 - Stale failure leaves no partial receipt
+
+service_role
+authenticated
+a2440000-0000-4000-8000-000000000005
+ok 51 - Ledger rejects generated source after client marker removal
+ok 52 - Private context uses authoritative ledger
+
+service_role
+authenticated
+a2440000-0000-4000-8000-000000000005
+ok 53 - Confirmed intentional copy without automatic provenance qualifies
+
+service_role
+authenticated
+a2440000-0000-4000-8000-000000000005
+ok 54 - Accepted replay survives source deletion
+
+service_role
+authenticated
+a2440000-0000-4000-8000-000000000006
+ok 55 - Deleting owner cannot accept
+ok 56 - Deleting owner cannot record decisions
+ok 57 - Deleting owner cannot write preferences
+ok 58 - Deletion-aware erasure remains retryable
+
+service_role
+ok 59 - Restore cannot bypass erasure barrier
+ok 60 - Cross-owner schedule foreign key rejects forged links
+1..60
+PASS: role/RPC/microsecond/replay/provenance/deletion fixtures
+PASS: TypeScript detector proposals use real PostgreSQL evidence revisions
+PASS: concurrent same-operation acceptance has one schedule/receipt/skip
+PASS: manual-versus-acceptance races serialize to one equivalent schedule
+PASS: worker-versus-acceptance never materializes today
+PASS: source-delete race leaves either no accepted state or one complete receipt
+PASS: account-deletion admission wins against future generation
+PASS: 5 real concurrent-state assertions

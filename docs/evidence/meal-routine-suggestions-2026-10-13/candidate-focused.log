@@ -1,0 +1,22 @@
+
+> @mizyun/mobile@1.0.0 test /private/tmp/mizyun-mrs-242-candidate/apps/mobile
+> vitest run --passWithNoTests src/features/recurring-meals src/features/auth/auth-analytics-lifecycle.test.tsx
+
+
+ RUN  v3.2.7 /private/tmp/mizyun-mrs-242-candidate/apps/mobile
+
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-card.test.tsx (14 tests) 13ms
+ ✓ src/features/recurring-meals/recurring-meal-data.test.ts (8 tests) 18ms
+ ✓ src/features/recurring-meals/recurring-meal-retry.test.ts (3 tests) 19ms
+ ✓ src/features/recurring-meals/recurring-meals-screen.test.tsx (12 tests) 39ms
+ ✓ src/features/auth/auth-analytics-lifecycle.test.tsx (6 tests) 5ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-controls.test.tsx (6 tests) 6ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-retry.test.ts (17 tests) 26ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-hook.test.ts (3 tests) 23ms
+ ✓ src/features/recurring-meals/recurring-meal-suggestion-data.test.ts (17 tests) 81ms
+
+ Test Files  9 passed (9)
+      Tests  86 passed (86)
+   Start at  21:29:10
+   Duration  1.40s (transform 1.42s, setup 0ms, collect 6.23s, tests 229ms, environment 1ms, prepare 797ms)
+

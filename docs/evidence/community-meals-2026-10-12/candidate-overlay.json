@@ -1,0 +1,422 @@
+{
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "excludedInitialPaths": [
+    "AGENTS.md",
+    "apps/mobile/src/composition/api-client.ts",
+    "apps/mobile/src/composition/personal-read-recovery.test.ts",
+    "apps/mobile/src/composition/session-read-cache.test.ts",
+    "apps/mobile/src/composition/session-read-cache.ts",
+    "apps/mobile/src/features/analytics/ui-screen-analytics.test.tsx",
+    "apps/mobile/src/features/coach/coach-data.test.ts",
+    "apps/mobile/src/features/coach/coach-data.ts",
+    "apps/mobile/src/features/coach/coach-setup-screen.test.tsx",
+    "apps/mobile/src/features/coach/coach-setup-screen.tsx",
+    "apps/mobile/src/features/community/feed/controller.ts",
+    "apps/mobile/src/features/community/state/read-cache.test.ts",
+    "apps/mobile/src/features/community/state/read-cache.ts",
+    "apps/mobile/src/features/community/use-community-profile.ts",
+    "apps/mobile/src/features/dashboard/dashboard-data.ts",
+    "apps/mobile/src/features/dashboard/dashboard-screen.test.tsx",
+    "apps/mobile/src/features/dashboard/dashboard-screen.tsx",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.test.ts",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.ts",
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.ts",
+    "apps/mobile/src/features/log-meal/meal-list-screen.test.tsx",
+    "apps/mobile/src/features/log-meal/meal-list-screen.tsx",
+    "apps/mobile/src/features/log-meal/meal-photo-retention.test.ts",
+    "apps/mobile/src/features/log-meal/meal-photo-retention.ts",
+    "apps/mobile/src/features/log-meal/public-data.ts",
+    "apps/mobile/src/features/workouts/workouts-hub-data.test.ts",
+    "apps/mobile/src/features/workouts/workouts-hub-data.ts",
+    "apps/mobile/src/features/workouts/workouts-hub-screen.test.tsx",
+    "apps/mobile/src/features/workouts/workouts-hub-screen.tsx",
+    "docs/DEV_BACKEND_MAIN_DEPLOYMENT_2026-10-11.md",
+    "docs/DEV_IPHONE_MAIN_DELIVERY_2026-10-11.md",
+    "docs/FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md",
+    "docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md",
+    "docs/SESSION_GUIDE.md",
+    "docs/evidence/dev-backend-main-2026-10-11/",
+    "docs/evidence/dev-iphone-main-2026-10-11/",
+    "docs/evidence/first-render-cache-2026-10-12/",
+    "docs/evidence/meal-copy-retained-photo-2026-10-12/"
+  ],
+  "paths": [
+    {
+      "path": "apps/api/src/app.ts",
+      "sharedSha256": "d44239de378bcd6a12e0affdd6250f6895db68c837583ab89bb066334c6d1291",
+      "candidateSha256": "d44239de378bcd6a12e0affdd6250f6895db68c837583ab89bb066334c6d1291",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/community-repository.ts",
+      "sharedSha256": "d36f49c226a802116d7d6aa6b74c5a37218000aec72f5366fa181dc4b92572ab",
+      "candidateSha256": "d36f49c226a802116d7d6aa6b74c5a37218000aec72f5366fa181dc4b92572ab",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/food-entry-repository.ts",
+      "sharedSha256": "a2da4bfaa7f67f0b712c455f6ec124a3364ad69613e605ac7d53c80ed8174ece",
+      "candidateSha256": "a2da4bfaa7f67f0b712c455f6ec124a3364ad69613e605ac7d53c80ed8174ece",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/logging.test.ts",
+      "sharedSha256": "aead9548e32b37795a0809b30e420729b1bf4974ad675680661b2a353f5193e1",
+      "candidateSha256": "aead9548e32b37795a0809b30e420729b1bf4974ad675680661b2a353f5193e1",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/logging.ts",
+      "sharedSha256": "34ebf0eb8955243cf2a7f79accb1ec92da50181c056f0459484c986c0db5f3b9",
+      "candidateSha256": "34ebf0eb8955243cf2a7f79accb1ec92da50181c056f0459484c986c0db5f3b9",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/modules/community/feed-routes.ts",
+      "sharedSha256": "71c83556e7735d99dab2ce9af9a2d75a6b95d5a50502bc182a85e81f3018ca6a",
+      "candidateSha256": "71c83556e7735d99dab2ce9af9a2d75a6b95d5a50502bc182a85e81f3018ca6a",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/modules/community/meal-publication-routes.test.ts",
+      "sharedSha256": "256ed995c9db5a687f114b40cf477e145df47ff5b03ab82499b1ecc4b7786be0",
+      "candidateSha256": "256ed995c9db5a687f114b40cf477e145df47ff5b03ab82499b1ecc4b7786be0",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/modules/community/meal-publication-routes.ts",
+      "sharedSha256": "e768fc08789e3078819ad63f3483f2d250aebaa35676a7a6edbecbdf784327c9",
+      "candidateSha256": "e768fc08789e3078819ad63f3483f2d250aebaa35676a7a6edbecbdf784327c9",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/modules/community/profile-activity-routes.ts",
+      "sharedSha256": "9118031edf4c5b70d0e76bcbaeba21341b7ed9524885237f9b8179f4130ac06c",
+      "candidateSha256": "9118031edf4c5b70d0e76bcbaeba21341b7ed9524885237f9b8179f4130ac06c",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/modules/community/publication-routes.ts",
+      "sharedSha256": "39c655e3cf39043fb7406705bf5887d490c5c3f32160f1bfcc92fd3148fae45d",
+      "candidateSha256": "39c655e3cf39043fb7406705bf5887d490c5c3f32160f1bfcc92fd3148fae45d",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/api/src/modules/community/reaction-routes.ts",
+      "sharedSha256": "92fcbd3aa0890013de07900d881f4c933a8be7fdf32be05a4321295cb7b5c16f",
+      "candidateSha256": "92fcbd3aa0890013de07900d881f4c933a8be7fdf32be05a4321295cb7b5c16f",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/app/community/rules.tsx",
+      "sharedSha256": "69844a0073d856706c11969a02d03df886c6bf0732864639ada1d604f2227e32",
+      "candidateSha256": "69844a0073d856706c11969a02d03df886c6bf0732864639ada1d604f2227e32",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/app/community/share-meal.tsx",
+      "sharedSha256": "18cd84b182cf599eaaa4a1bd9d0597c13436f58205d4ce60c2dec199232d36cb",
+      "candidateSha256": "18cd84b182cf599eaaa4a1bd9d0597c13436f58205d4ce60c2dec199232d36cb",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/comments/controller.ts",
+      "sharedSha256": "01a738d9e74787d528fb4b5c139f60dd0933a69fa499c0218fce120db4de69b2",
+      "candidateSha256": "01a738d9e74787d528fb4b5c139f60dd0933a69fa499c0218fce120db4de69b2",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/comments/screen.test.tsx",
+      "sharedSha256": "84e8a37a26bd0496f3f79f1f510f8823679247990543e212cbaf4bc4d85c8a44",
+      "candidateSha256": "84e8a37a26bd0496f3f79f1f510f8823679247990543e212cbaf4bc4d85c8a44",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/comments/screen.tsx",
+      "sharedSha256": "47736d5e24d52bbefc76c6a878e0c439343877084d6bb74af68b7fdaf46e729e",
+      "candidateSha256": "47736d5e24d52bbefc76c6a878e0c439343877084d6bb74af68b7fdaf46e729e",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/community-client.test.ts",
+      "sharedSha256": "57d27ed3a94c15f97776959218823384c1cb870dbff39beccee7b5de462eeb88",
+      "candidateSha256": "57d27ed3a94c15f97776959218823384c1cb870dbff39beccee7b5de462eeb88",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/community-client.ts",
+      "sharedSha256": "0083c6913427175cb75494d8652812b2e60d3ad9ddd04e651d7f56b16f9dddb8",
+      "candidateSha256": "0083c6913427175cb75494d8652812b2e60d3ad9ddd04e651d7f56b16f9dddb8",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/community-settings-screen.tsx",
+      "sharedSha256": "7c8cf9ff7ab5bc98afd5f267ca6f2315135019143a54e51dfdfeadecb58b3e69",
+      "candidateSha256": "7c8cf9ff7ab5bc98afd5f267ca6f2315135019143a54e51dfdfeadecb58b3e69",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/discovery/screen.tsx",
+      "sharedSha256": "5aee28894ce5b4bf15b925a71dd9e22b50b93443bf0b0afbfe03acd691f36f7b",
+      "candidateSha256": "5aee28894ce5b4bf15b925a71dd9e22b50b93443bf0b0afbfe03acd691f36f7b",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/feed/activity-card.test.ts",
+      "sharedSha256": "5195a00ab09c74c0a10bb4f36f5876f91e391bed7ef965deedf5d1911a8b154b",
+      "candidateSha256": "5195a00ab09c74c0a10bb4f36f5876f91e391bed7ef965deedf5d1911a8b154b",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/feed/activity-card.tsx",
+      "sharedSha256": "df68eb4c9ec6f505f920254f121a4dadc2cf68104f962c0354674a0bd6b94348",
+      "candidateSha256": "df68eb4c9ec6f505f920254f121a4dadc2cf68104f962c0354674a0bd6b94348",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/feed/activity-detail-screen.test.tsx",
+      "sharedSha256": "f0f9b13ca7c4124c32842f9b07ffb8eb723b360ff6c9f97923acdce6d54c1d53",
+      "candidateSha256": "f0f9b13ca7c4124c32842f9b07ffb8eb723b360ff6c9f97923acdce6d54c1d53",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/feed/activity-detail-screen.tsx",
+      "sharedSha256": "311b158185e465f0d9496a7167f2fb2135697d20ab4e58e649e37dc464b55459",
+      "candidateSha256": "311b158185e465f0d9496a7167f2fb2135697d20ab4e58e649e37dc464b55459",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/feed/controller.test.ts",
+      "sharedSha256": "3108b3115e096dc70d38999bb1c304255f4b27370c5154a0405d20929863cfd6",
+      "candidateSha256": "3108b3115e096dc70d38999bb1c304255f4b27370c5154a0405d20929863cfd6",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/feed/feed-screen.test.tsx",
+      "sharedSha256": "3c9b4c539b355aa579f9d2e11d488db1e118ca8eb2a6202e693cded3312a2c54",
+      "candidateSha256": "c0cc689e07d1f33cbaec02d3f827ac4e5d11306b21c36acfa55f6a290709e740",
+      "excludedPreexistingOverlay": true,
+      "resolvedOverlay": true
+    },
+    {
+      "path": "apps/mobile/src/features/community/feed/feed-screen.tsx",
+      "sharedSha256": "7bf7a38147cbd453118b24bb8e0bfbf530dd0b15d13e33e92dd6bd8f0560fd31",
+      "candidateSha256": "8ea5ee5164d4638bc9eb8d339a3f9eca97397ee1c0a4747bdf3fdfcbf30cfb9a",
+      "excludedPreexistingOverlay": true
+    },
+    {
+      "path": "apps/mobile/src/features/community/groups/screen.tsx",
+      "sharedSha256": "59f94631eca5edcfc9a362a763597dce26fd61b55b42bc11d4d956889e78e908",
+      "candidateSha256": "59f94631eca5edcfc9a362a763597dce26fd61b55b42bc11d4d956889e78e908",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/index.ts",
+      "sharedSha256": "41e26a91cf47cda82b76d62eb011be6c8385252a352448e83ef8502188edd49d",
+      "candidateSha256": "82e999e54c1b485936cfd00753be7d26018e91abb0958f371ad63fc2b123839d",
+      "excludedPreexistingOverlay": true
+    },
+    {
+      "path": "apps/mobile/src/features/community/profiles/screen.test.tsx",
+      "sharedSha256": "1060eaf269398a86bec87e4a4f43a23a78b177a561db9f8dc564ff8e573a87c4",
+      "candidateSha256": "1060eaf269398a86bec87e4a4f43a23a78b177a561db9f8dc564ff8e573a87c4",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/profiles/screen.tsx",
+      "sharedSha256": "9ba7c880e640a82418dd3e0cc81964d06ec2d71e4ed7a3964ce3528617769e7f",
+      "candidateSha256": "9ba7c880e640a82418dd3e0cc81964d06ec2d71e4ed7a3964ce3528617769e7f",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/reactions/reaction-bar.test.ts",
+      "sharedSha256": "909cb0fde14b55f21c0f82e34aae448858a1c4694f9798d2a96d954904427c77",
+      "candidateSha256": "909cb0fde14b55f21c0f82e34aae448858a1c4694f9798d2a96d954904427c77",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/reactions/reaction-bar.tsx",
+      "sharedSha256": "39cd1f080b56fb8acc5f7c7acdc836fd186b5afdc56066f138aefa12d66e226e",
+      "candidateSha256": "39cd1f080b56fb8acc5f7c7acdc836fd186b5afdc56066f138aefa12d66e226e",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/relationships/controller.ts",
+      "sharedSha256": "4c47bbdd800efb7d36b2a620996165e5eaa5674084699ef45071f13219928625",
+      "candidateSha256": "4c47bbdd800efb7d36b2a620996165e5eaa5674084699ef45071f13219928625",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/relationships/screen.tsx",
+      "sharedSha256": "a2cd7906130e6fcca6c6d9c400b60e52915e08d77c56846e559a29887a55f150",
+      "candidateSha256": "a2cd7906130e6fcca6c6d9c400b60e52915e08d77c56846e559a29887a55f150",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/safety/report-modal.tsx",
+      "sharedSha256": "59ab509cade4b4d5b587cfb6e06801480efa12287fa9b627bc0eb999bd901fbc",
+      "candidateSha256": "59ab509cade4b4d5b587cfb6e06801480efa12287fa9b627bc0eb999bd901fbc",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/share-meal-actions.test.ts",
+      "sharedSha256": "646ce4f03c01342a7f50ec9ae4b8cbe2b83b90a179e941cc9efa8ca7403e8d3d",
+      "candidateSha256": "646ce4f03c01342a7f50ec9ae4b8cbe2b83b90a179e941cc9efa8ca7403e8d3d",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/share-meal-actions.ts",
+      "sharedSha256": "d98cf91a95993a7f0e8b6fd5c5d83b8f3f61667f0090848d63f10d69e0eca288",
+      "candidateSha256": "d98cf91a95993a7f0e8b6fd5c5d83b8f3f61667f0090848d63f10d69e0eca288",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/share-meal-modal.test.tsx",
+      "sharedSha256": "f4cf039d7cd7eb5bbabc75acc51e0afb075d518c9d3f0243b4b42b06e6b62261",
+      "candidateSha256": "f4cf039d7cd7eb5bbabc75acc51e0afb075d518c9d3f0243b4b42b06e6b62261",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/share-meal-modal.tsx",
+      "sharedSha256": "a5399fb342b61840c9b49fb7453301871e389413204763250e096d6a60a0eef4",
+      "candidateSha256": "a5399fb342b61840c9b49fb7453301871e389413204763250e096d6a60a0eef4",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/share-meal-screen.test.tsx",
+      "sharedSha256": "3008e502e5e8ea8e93f42b760e974d05350d903d6e25a019febc9a7e0cac7076",
+      "candidateSha256": "3008e502e5e8ea8e93f42b760e974d05350d903d6e25a019febc9a7e0cac7076",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/share-meal-screen.tsx",
+      "sharedSha256": "c7e34467464e8fa0076fb99544bd48d3b3da9d23c721a99e02ff71266735a469",
+      "candidateSha256": "c7e34467464e8fa0076fb99544bd48d3b3da9d23c721a99e02ff71266735a469",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/share-workout-actions.test.ts",
+      "sharedSha256": "6dd7f9854cbe751a2c2c012d950cf604e82751c91bcdda91f5f7324a4f8abc9e",
+      "candidateSha256": "6dd7f9854cbe751a2c2c012d950cf604e82751c91bcdda91f5f7324a4f8abc9e",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/shared-meal-details.test.tsx",
+      "sharedSha256": "79cd12dc86bb8f172d98e36854c1eb1807f6b0a246e528e7d056ee2d3a0bdcc8",
+      "candidateSha256": "79cd12dc86bb8f172d98e36854c1eb1807f6b0a246e528e7d056ee2d3a0bdcc8",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "apps/mobile/src/features/community/shared-meal-details.tsx",
+      "sharedSha256": "c2a45ea4b3f83a01e80b342b494793538e07fa1b7245915f239bbe1ebc46b407",
+      "candidateSha256": "c2a45ea4b3f83a01e80b342b494793538e07fa1b7245915f239bbe1ebc46b407",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md",
+      "sharedSha256": "478bb0ccd8a9ecfd6a4d2b5ca2dc2d636dfe489f841f1688c5369f36f2250e80",
+      "candidateSha256": "478bb0ccd8a9ecfd6a4d2b5ca2dc2d636dfe489f841f1688c5369f36f2250e80",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "docs/COMMUNITY_PRODUCT_CONTRACT.md",
+      "sharedSha256": "8dfbfe04a9ad083168a47f87f27b985430eb1a5fcca55638082cccecc1a87202",
+      "candidateSha256": "8dfbfe04a9ad083168a47f87f27b985430eb1a5fcca55638082cccecc1a87202",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "docs/LOGGING_POLICY.md",
+      "sharedSha256": "5dd07ef220e9e3e7ec2a1d59268e322ce2339dfc8f819c70740699a495680c45",
+      "candidateSha256": "5dd07ef220e9e3e7ec2a1d59268e322ce2339dfc8f819c70740699a495680c45",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "docs/PRODUCT_REQUIREMENTS.md",
+      "sharedSha256": "6ca3b4564843ebc1a99df14d71afe46ca51205996b4943f1b91ef2b7b9d136a1",
+      "candidateSha256": "6ca3b4564843ebc1a99df14d71afe46ca51205996b4943f1b91ef2b7b9d136a1",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "docs/RESEARCH_LOG.md",
+      "sharedSha256": "e84ad3d4a70c210b36519b4bd174f7c3be81c3076dee2e7812577066f260c4ce",
+      "candidateSha256": "b90dde5f1358c5c8dd3f76b57769990b3c5ae64fb2fce80b8595dc6b98713462",
+      "excludedPreexistingOverlay": true,
+      "resolvedOverlay": true
+    },
+    {
+      "path": "docs/adr/0056-explicit-community-meal-publication.md",
+      "sharedSha256": "6eb497f68cc787fa91c34ca50fecb0f4658be573141b444738bb1c32455e1f0f",
+      "candidateSha256": "6eb497f68cc787fa91c34ca50fecb0f4658be573141b444738bb1c32455e1f0f",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "docs/adr/README.md",
+      "sharedSha256": "587458439e1fd956d2fcd865acd87e00bc1e48a6e1ef04fbb33340df0ca481ee",
+      "candidateSha256": "587458439e1fd956d2fcd865acd87e00bc1e48a6e1ef04fbb33340df0ca481ee",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "docs/feature-map.json",
+      "sharedSha256": "b5786a9d850235033e8d03749169d2007433503dd5eca25edbeb21647da35a8a",
+      "candidateSha256": "b5786a9d850235033e8d03749169d2007433503dd5eca25edbeb21647da35a8a",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "packages/adapters/supabase-server/src/community-repository.test.ts",
+      "sharedSha256": "61501752a6823193a5229b2c6dc8eaf8c2448ea9c2ea2c355a4c85008d160299",
+      "candidateSha256": "61501752a6823193a5229b2c6dc8eaf8c2448ea9c2ea2c355a4c85008d160299",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "packages/adapters/supabase-server/src/community-repository.ts",
+      "sharedSha256": "c0f26e9610f8569c99cc89511aa7bd8fbaf23cc3572cf825d267d919ac2b4e7a",
+      "candidateSha256": "c0f26e9610f8569c99cc89511aa7bd8fbaf23cc3572cf825d267d919ac2b4e7a",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "packages/agent-runtime/src/app-capabilities.ts",
+      "sharedSha256": "11f060b564669bb15661696a70440e40870d3d7aad1ae8a44ae6ce348dbc068d",
+      "candidateSha256": "11f060b564669bb15661696a70440e40870d3d7aad1ae8a44ae6ce348dbc068d",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "packages/contracts/src/community.test.ts",
+      "sharedSha256": "b67c59a47308a18993cfe002e093e1bf59f8258bb673f570dfeb0651ddc5fe17",
+      "candidateSha256": "b67c59a47308a18993cfe002e093e1bf59f8258bb673f570dfeb0651ddc5fe17",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "packages/contracts/src/community.ts",
+      "sharedSha256": "679b7a146f9523408772d824a56bf8bee359f1c2649d16d492b7be4d0a515ac9",
+      "candidateSha256": "679b7a146f9523408772d824a56bf8bee359f1c2649d16d492b7be4d0a515ac9",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "packages/core/src/community.ts",
+      "sharedSha256": "68e2cb00e84f8fd5231c77f21ccea298920f45c4022da710eed3bc4630242702",
+      "candidateSha256": "68e2cb00e84f8fd5231c77f21ccea298920f45c4022da710eed3bc4630242702",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "status.md",
+      "sharedSha256": "8a7232d51008f635088f4c05abb695cf33e3a6b857fdd91a3ce129e8849426dd",
+      "candidateSha256": "5f8c35815e50f997f79393e28fe63c42dbbb12a9a84a0028b398ecf59b7b4a5b",
+      "excludedPreexistingOverlay": true,
+      "resolvedOverlay": true
+    },
+    {
+      "path": "supabase/migrations/20261012120000_community_meal_sharing.sql",
+      "sharedSha256": "70cb0a3749e8e90b1cd90c2de45dd9ae6e279015f205fb062b5b51358ed6394b",
+      "candidateSha256": "70cb0a3749e8e90b1cd90c2de45dd9ae6e279015f205fb062b5b51358ed6394b",
+      "excludedPreexistingOverlay": false
+    },
+    {
+      "path": "supabase/tests/database/0042_community_meal_sharing.test.sql",
+      "sharedSha256": "7a5ae95b75987b4d5335e520189ec90b843c8545f4c21b796921bc0862cebdd9",
+      "candidateSha256": "7a5ae95b75987b4d5335e520189ec90b843c8545f4c21b796921bc0862cebdd9",
+      "excludedPreexistingOverlay": false
+    }
+  ],
+  "conflicts": []
+}

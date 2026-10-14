@@ -1,0 +1,25 @@
+{
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "ownedSourceHashes": {
+    "packages/core/src/meal-recipe.ts": "38861d0dde67494f12f164c406fa22033e61378fc401709a4d37c42bc2f8ec64",
+    "packages/core/src/meal-recipe.test.ts": "afe022ff04e49917ae45c9897f96a0533739be49c9a205bd15ad6d489b1892a7",
+    "packages/core/src/index.ts": "cb9cc12d8b98236995715b6aa290f4c2f84d5b397d4023b46a944b6f9801b28f",
+    "packages/contracts/src/meal-recipe.ts": "d9d287b34b1329fed47e7620927cf7c4c317c50adcd4dcee28b279115b0d949a",
+    "packages/contracts/src/meal-recipe.test.ts": "b49b4819bd59d89d848f32cdc4fa20655f1926d97d725922f092520eff99cc3b",
+    "packages/contracts/src/index.ts": "ae18fc9cb973486c7e8bb33d93e9d72cd3505be83582d6f84030711401152ee7",
+    "scripts/test-meal-recipe-foundation.mjs": "36696ecf1820012258dd5959309bdf6b9e740a932fb504ff1a8e1d390f92b92a"
+  },
+  "documentationDependencies": [
+    "docs/plans/mizyun-differentiation-2026-10-12/02-actionable-coach-suggestions.md",
+    "docs/DIFFERENTIATION_IMPLEMENTATION_PLANS_2026-10-12.md",
+    "docs/plans/mizyun-differentiation-2026-10-12/01-connected-weekly-review.md"
+  ],
+  "excluded": "All pre-existing runtime/code/migration changes and unrelated continuity updates. Docs overlays reconstructed from baseline plus recipe-owned entries. External dependencies reused; workspace links bind candidate source.",
+  "partialSourceOverlays": {
+    "packages/agent-runtime/src/app-capabilities.ts": {
+      "candidateSha256": "2d60ae0c285bfb95a6e1427c20201d08e00fcd175061f369387d26f75187f839",
+      "ownedAddition": "  {\n    id: \"meal-recipes\",\n    reason:\n      \"REC-01 supplies only recipe contracts and macro ranking; no recipe screen, ingredient recognition or guarded generation is available yet.\",\n  },\n",
+      "excluded": "Pre-existing Community capability/version changes in the shared file; only recipe internal-classification hunk applied to baseline."
+    }
+  }
+}

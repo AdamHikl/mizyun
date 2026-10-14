@@ -1,0 +1,16 @@
+
+> @mizyun/api@0.1.0 test /private/tmp/mizyun-community-meals-20261012/candidate/apps/api
+> vitest run src/logging.test.ts src/modules/community/meal-publication-routes.test.ts src/modules/community/reaction-routes.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/mizyun-community-meals-20261012/candidate
+
+ ✓ apps/api/src/logging.test.ts (12 tests) 153ms
+ ✓ apps/api/src/modules/community/reaction-routes.test.ts (7 tests) 109ms
+ ✓ apps/api/src/modules/community/meal-publication-routes.test.ts (5 tests) 162ms
+
+ Test Files  3 passed (3)
+      Tests  24 passed (24)
+   Start at  13:19:55
+   Duration  3.93s (transform 2.65s, setup 0ms, collect 6.20s, tests 424ms, environment 0ms, prepare 211ms)
+

@@ -1,0 +1,49 @@
+REC-06 final isolated full gate, 2026-10-13
+Candidate: /private/tmp/mizyun-rec06-20261013-01a12b31
+Command: npm_config_workspace_concurrency=1 VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=1 VITEST_MIN_FORKS=1 pnpm check
+Exit0; runtime source and candidate hashes unchanged.
+
+[check] Running all check:steps gates; input SHA-256 3323b77fcd7297be67375d75064f266d3a0ce8d242375b700d7f8c789e63321e.
+  PASS: Feature map structure and path references are valid.
+  PASS: All internal markdown links resolve.
+  PASS: Pure core, provider neutrality, and mobile boundaries strictly respected.
+  PASS: Current snapshot 3335c0925ad06885985a4daf7f3bd239fbd295605cdfa276f7102a0a063f5b79; 1650 files / 3479 source edges / 16 workspace packages.
+Checks PASSED: 0 errors, 34 warning(s).
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  29 passed (29)
+      Tests  345 passed (345)
+ Test Files  38 passed (38)
+      Tests  532 passed (532)
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+ Test Files  4 passed (4)
+      Tests  53 passed (53)
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+ Test Files  27 passed (27)
+      Tests  233 passed (233)
+ Test Files  4 passed (4)
+      Tests  95 passed (95)
+ Test Files  5 passed (5)
+      Tests  73 passed (73)
+ Test Files  7 passed (7)
+      Tests  94 passed (94)
+ Test Files  195 passed (195)
+      Tests  2338 passed (2338)
+ Test Files  5 passed (5)
+      Tests  109 passed (109)
+ Test Files  75 passed | 3 skipped (78)
+      Tests  1093 passed | 15 skipped (1108)
+All build matrix, native identity, and environment isolation checks PASSED!
+Recipe evaluation offline: 81 reference checks PASS; corpus 4f3c65dfe1b3cac2db3078c96b5c547e459b8852a80c957e6732ac608e55f289
+23 synthetic photo scenarios; 4 scripted abstentions. Scripted metrics are not provider accuracy.
+Live feasibility, recognition, latency/cost, qualified review, Dev/native and pilot: NOT EVALUATED.
+PASS: Apple capability boundaries (7 checks); concurrent unique discovery paths; success, denied-device and HUP/INT/TERM cleanup
+[check] PASS: all gates completed for input SHA-256 3323b77fcd7297be67375d75064f266d3a0ce8d242375b700d7f8c789e63321e.

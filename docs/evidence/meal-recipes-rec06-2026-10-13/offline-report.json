@@ -1,0 +1,757 @@
+{
+  "version": "recipe-evaluation-report-v1",
+  "mode": "offline",
+  "corpusFingerprint": "4f3c65dfe1b3cac2db3078c96b5c547e459b8852a80c957e6732ac608e55f289",
+  "referenceChecks": {
+    "passed": 81,
+    "failed": 0,
+    "passRate": 1
+  },
+  "recipeContext": {
+    "cases": [
+      {
+        "id": "all-reviewed-templates",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 8
+      },
+      {
+        "id": "rice-confirmed",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "vegan-no-animal",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "vegan-and-soy",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 3
+      },
+      {
+        "id": "vegetarian",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 7
+      },
+      {
+        "id": "exclude-milk",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 6
+      },
+      {
+        "id": "exclude-gluten",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 7
+      },
+      {
+        "id": "exclude-tree-nuts",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 7
+      },
+      {
+        "id": "exclude-eggs",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 7
+      },
+      {
+        "id": "exclude-soy",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 7
+      },
+      {
+        "id": "rice-family-alias",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "chicken-raw-family",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 3
+      },
+      {
+        "id": "oil-not-inventory",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 2
+      },
+      {
+        "id": "oil-not-confirmed",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 2
+      },
+      {
+        "id": "rice-not-enough",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "no_feasible_recipe",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "oil-not-enough",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "no_feasible_recipe",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "oil-marked-missing",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "no_feasible_recipe",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "raw-rice-not-cooked",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "no_feasible_recipe",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "tofu-unconfirmed",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 3
+      },
+      {
+        "id": "unknown-oil-quantity",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "oil-volume-not-weight",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "yogurt-count-not-weight",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 2
+      },
+      {
+        "id": "prep-five-minutes",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 2
+      },
+      {
+        "id": "prep-one-minute",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "no_feasible_recipe",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "two-servings",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "twelve-servings",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "small-servings",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "large-servings",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "ready",
+        "successfulSuggestion": true,
+        "recipeCount": 4
+      },
+      {
+        "id": "unsupported-allergy",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "clarification_needed",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "unsupported-renal-diet",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "clarification_needed",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "unreviewed-cuisine",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "clarification_needed",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "raw-cooked-mismatch",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "clarification_needed",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "unknown-brand",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "clarification_needed",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "duplicate-ingredient-id",
+        "kind": "template",
+        "outcome": "reference_pass",
+        "disposition": "invalid_input",
+        "successfulSuggestion": false,
+        "recipeCount": 0
+      },
+      {
+        "id": "adam-reference",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "protein-dominant",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "fat-energy-dominant",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "balanced",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "carbs-only",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "protein-only",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "fat-only",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "zero-protein-gap",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "zero-carb-gap",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "fat-overshoot",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "protein-overshoot",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "small-gaps",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "ready"
+      },
+      {
+        "id": "unknown-fat",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "unknown"
+      },
+      {
+        "id": "no-summary",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "unknown"
+      },
+      {
+        "id": "unfinished-intake",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "unknown"
+      },
+      {
+        "id": "unknown-coverage",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "unknown"
+      },
+      {
+        "id": "unavailable-targets",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "unknown"
+      },
+      {
+        "id": "expired-context",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "stale"
+      },
+      {
+        "id": "local-day-changed",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "stale"
+      },
+      {
+        "id": "goal-revision-changed",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "stale"
+      },
+      {
+        "id": "intake-revision-changed",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "stale"
+      },
+      {
+        "id": "constraints-revision-changed",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "stale"
+      },
+      {
+        "id": "profile-revision-changed",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "stale"
+      },
+      {
+        "id": "all-gaps-exhausted",
+        "kind": "context",
+        "outcome": "reference_pass",
+        "recommendationState": "no_remaining_gaps"
+      }
+    ],
+    "successfulTemplateCases": 23,
+    "blockedOrClarificationCases": 11
+  },
+  "photoScoring": {
+    "source": "scripted_fixture_only_not_model_accuracy",
+    "cases": [
+      {
+        "id": "lean-carb-two-view",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "protein-with-fat",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "measured-oil-cup",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "hidden-back-row",
+        "truePositives": 2,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "ambiguous-white-block",
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": true,
+        "abstentionState": "partial",
+        "disposition": "clarification_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "duplicate-tomatoes",
+        "truePositives": 2,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "duplicate-photo",
+        "truePositives": 2,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "raw-cooked-rice",
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "clarification_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "labelled-leftovers",
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "milk-exclusion",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "soy-exclusion",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "gluten-exclusion",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "nut-exclusion",
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "egg-exclusion",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "vegan-mixed-fridge",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "empty-shelves",
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null,
+        "abstained": true,
+        "abstentionState": "full",
+        "disposition": "insufficient_ingredients",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "only-seasoning",
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "insufficient_ingredients",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "unlabelled-containers",
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null,
+        "abstained": true,
+        "abstentionState": "full",
+        "disposition": "clarification_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "image-text-injection",
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "partial-occluded-can",
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "precision": 1,
+        "recall": 0.5,
+        "abstained": true,
+        "abstentionState": "partial",
+        "disposition": "clarification_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "freezer-unknown-state",
+        "truePositives": 1,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.5,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "clarification_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "ingredient-specific-exclusion",
+        "truePositives": 3,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.75,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      },
+      {
+        "id": "fat-dominant-supplies",
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "abstained": false,
+        "abstentionState": "none",
+        "disposition": "review_required",
+        "source": "scripted_fixture_only"
+      }
+    ],
+    "micro": {
+      "truePositives": 48,
+      "falsePositives": 5,
+      "falseNegatives": 1,
+      "precision": 0.9056603773584906,
+      "recall": 0.9795918367346939
+    },
+    "abstentions": 4,
+    "fullAbstentions": 2,
+    "partialAbstentions": 2
+  },
+  "liveAcceptance": {
+    "status": "not_evaluated",
+    "feasibleRecipeRate": null,
+    "visibleIngredientPrecision": null,
+    "visibleIngredientRecall": null,
+    "providerOperationP95Milliseconds": null,
+    "twoPhotoAndGenerationCost": null,
+    "retryCost": null,
+    "aggregateSpendLimit": null,
+    "qualifiedReview": "open",
+    "nativeDevAcceptance": "open",
+    "pilot": "not_run",
+    "thresholds": {
+      "eligibleIndependentlyFeasibleRecipeRate": 0.9,
+      "visibleIngredientPrecision": 0.9,
+      "providerOperationP95Milliseconds": 15000,
+      "recall": "report with abstentions; no unmeasured inventory-completeness claim",
+      "cost": "record actual two-photo, generation and explicit retries; compare with permitted per-user caps and an evidenced aggregate spend limit",
+      "requiredAcceptance": [
+        "qualified nutrition and food-safety review",
+        "current AI checklist and provider/cost/latency acceptance",
+        "exact Dev deployment and physical iOS/Android text/photo/restart/accessibility acceptance",
+        "separately authorized adult pilot and product validation",
+        "separate Production and Store release"
+      ]
+    }
+  },
+  "limits": [
+    "No provider calls or real image recognition",
+    "Scripted scoring is evaluator verification, not provider precision/recall",
+    "Blocked cases are not successful generation",
+    "Offline templates and synthetic route tests do not accept real Auth/DB/native behavior",
+    "No food-safety, allergy guarantee, clinical or intake-completeness claim"
+  ]
+}

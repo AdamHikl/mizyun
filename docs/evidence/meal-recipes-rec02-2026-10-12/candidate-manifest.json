@@ -1,0 +1,49 @@
+{
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidatePath": "/private/tmp/mizyun-rec02-20261012-01a12b31",
+  "reviewedSourceHashes": {
+    "packages/core/src/recipe-nutrition.ts": "6659eb84a58c842086ae5c76e004e00e05832d79f59f1b26c9a1e0271e407369",
+    "packages/core/src/recipe-nutrition.test.ts": "87013c281ee8eb97a87c29438b1b52b7c7d092ba49435f5dca389ab6dee92d0a",
+    "packages/core/src/index.ts": "a16e5e4339cfb6f1e72f08958796583d1d3d3b787a76761098b93f69864c9660",
+    "scripts/test-meal-recipe-catalog.mjs": "0e24de6c992664e772e80c4766c21905b9536b3c29f41e53bc9024af8916f785",
+    "scripts/import-recipe-catalog.py": "05945508dd742273e3ca82300248e8ad713cc884047079d3efaa716a849beec4",
+    "packages/agent-runtime/src/app-capabilities.ts": "22311481539d5a78e5a577c1d5c6cb48bd4cf43327785460baa3fcb2f3daf065",
+    "apps/api/src/modules/meal-recipes/catalog.test.ts": "6d982a2c7648d2b95e4c0b8dd693f08870946e96c170e25a5d49a70f029e4b5f",
+    "apps/api/src/modules/meal-recipes/templates.test.ts": "179aa123f59fd70c3a6b610cac2c7258adc90057068ee135ec55d28f620e964b",
+    "apps/api/src/modules/meal-recipes/catalog-data.ts": "8245f753f8c40277cd7be471d405ade62b5c2cd8be1e282583e8f59674f0adbd",
+    "apps/api/src/modules/meal-recipes/templates.ts": "ae92946ac69cc725b899ff72bdc2020c24c3a55e62843c470d9b69c5e5235c0a",
+    "apps/api/src/modules/meal-recipes/index.ts": "ea3153fe47eb9f01995b55864194f4ad5c530e4114f22efcde3d8dd5550804bc",
+    "apps/api/src/modules/meal-recipes/catalog-source.json": "610d4679c7fb376df9570487610853e834d3b3fa0e8009ca13a4dc59b3d5a82c",
+    "apps/api/src/modules/meal-recipes/catalog.ts": "1adfc78cb9cabf00b3888efa0906785ef3842f90a63805dc2681572787a3957b",
+    "apps/api/src/modules/meal-recipes/data/source-records.json": "0b292b2f90c13b76e3fa1d99049984bae59077fcad48e9825c3d245cdaaaa47a"
+  },
+  "candidateSourceHashes": {
+    "packages/core/src/recipe-nutrition.ts": "6659eb84a58c842086ae5c76e004e00e05832d79f59f1b26c9a1e0271e407369",
+    "packages/core/src/recipe-nutrition.test.ts": "87013c281ee8eb97a87c29438b1b52b7c7d092ba49435f5dca389ab6dee92d0a",
+    "packages/core/src/index.ts": "a16e5e4339cfb6f1e72f08958796583d1d3d3b787a76761098b93f69864c9660",
+    "scripts/test-meal-recipe-catalog.mjs": "0e24de6c992664e772e80c4766c21905b9536b3c29f41e53bc9024af8916f785",
+    "scripts/import-recipe-catalog.py": "05945508dd742273e3ca82300248e8ad713cc884047079d3efaa716a849beec4",
+    "packages/agent-runtime/src/app-capabilities.ts": "2cf25df3e55808441da2682a322dc53e3a37f86a39911a9736673863a37b1ccf",
+    "apps/api/src/modules/meal-recipes/catalog.test.ts": "6d982a2c7648d2b95e4c0b8dd693f08870946e96c170e25a5d49a70f029e4b5f",
+    "apps/api/src/modules/meal-recipes/templates.test.ts": "179aa123f59fd70c3a6b610cac2c7258adc90057068ee135ec55d28f620e964b",
+    "apps/api/src/modules/meal-recipes/catalog-data.ts": "8245f753f8c40277cd7be471d405ade62b5c2cd8be1e282583e8f59674f0adbd",
+    "apps/api/src/modules/meal-recipes/templates.ts": "ae92946ac69cc725b899ff72bdc2020c24c3a55e62843c470d9b69c5e5235c0a",
+    "apps/api/src/modules/meal-recipes/index.ts": "ea3153fe47eb9f01995b55864194f4ad5c530e4114f22efcde3d8dd5550804bc",
+    "apps/api/src/modules/meal-recipes/catalog-source.json": "610d4679c7fb376df9570487610853e834d3b3fa0e8009ca13a4dc59b3d5a82c",
+    "apps/api/src/modules/meal-recipes/catalog.ts": "1adfc78cb9cabf00b3888efa0906785ef3842f90a63805dc2681572787a3957b",
+    "apps/api/src/modules/meal-recipes/data/source-records.json": "0b292b2f90c13b76e3fa1d99049984bae59077fcad48e9825c3d245cdaaaa47a"
+  },
+  "dependency": "REC-01 exact isolated candidate at /private/tmp/mizyun-rec01-20261012-01a12b31; prior manifest retained separately",
+  "excluded": "Concurrent Community/cache/analytics/Coach runtime, migrations and unrelated continuity changes; only recipe-owned app-capabilities hunk overlaid.",
+  "dependencyLinks": "External installed libs reused; absolute workspace links redirected to this candidate. Ignored Expo declaration scaffolding retained; no credentials/env copied.",
+  "rec01DependencyHashes": {
+    "packages/core/src/meal-recipe.ts": "38861d0dde67494f12f164c406fa22033e61378fc401709a4d37c42bc2f8ec64",
+    "packages/core/src/meal-recipe.test.ts": "afe022ff04e49917ae45c9897f96a0533739be49c9a205bd15ad6d489b1892a7",
+    "packages/core/src/index.ts": "a16e5e4339cfb6f1e72f08958796583d1d3d3b787a76761098b93f69864c9660",
+    "packages/contracts/src/meal-recipe.ts": "d9d287b34b1329fed47e7620927cf7c4c317c50adcd4dcee28b279115b0d949a",
+    "packages/contracts/src/meal-recipe.test.ts": "b49b4819bd59d89d848f32cdc4fa20655f1926d97d725922f092520eff99cc3b",
+    "packages/contracts/src/index.ts": "ae18fc9cb973486c7e8bb33d93e9d72cd3505be83582d6f84030711401152ee7",
+    "scripts/test-meal-recipe-foundation.mjs": "36696ecf1820012258dd5959309bdf6b9e740a932fb504ff1a8e1d390f92b92a"
+  },
+  "preflightRepairs": "Copied workspace links initially resolved through /tmp alias to prior REC01; all35 resolved links rebound before final API/public/type checks. Ownership glob corrected to directory; own status compacted before broad gate."
+}

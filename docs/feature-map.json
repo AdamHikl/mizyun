@@ -6,14 +6,15 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving. Pro-only meal visual display and photo retention with server/RPC/Storage downgrade fencing; common food catalog reuse avoids per-meal generation.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving. Pro-only meal visual display and photo retention with server/RPC/Storage downgrade fencing; common food catalog reuse avoids per-meal generation. Private deterministic three-day routine suggestions count explicit meal copies and require one-tap authorization to start tomorrow.",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
         "apps/mobile/src/features/log-meal/index.ts",
         "apps/api/src/modules/recurring-meals/routes.ts",
         "apps/mobile/src/features/recurring-meals/index.ts",
-        "apps/api/src/modules/meal-illustrations/routes.ts"
+        "apps/api/src/modules/meal-illustrations/routes.ts",
+        "apps/api/src/modules/recurring-meal-suggestions/routes.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/food-entries",
@@ -53,19 +54,36 @@
         "apps/api/src/meal-visual-access.ts",
         "packages/core/src/meal-image-path.ts",
         "packages/core/src/meal-image-path.test.ts",
-        "packages/contracts/src/meal-image-path.test.ts"
+        "packages/contracts/src/meal-image-path.test.ts",
+        "apps/api/src/modules/recurring-meal-suggestions/index.ts",
+        "apps/api/src/modules/recurring-meal-suggestions/routes.test.ts",
+        "apps/api/src/modules/recurring-meal-suggestions/routes.ts",
+        "apps/api/src/recurring-meal-suggestion-repository.test.ts",
+        "apps/api/src/recurring-meal-suggestion-repository.ts",
+        "packages/adapters/supabase-server/src/recurring-meal-suggestion-repository.test.ts",
+        "packages/adapters/supabase-server/src/recurring-meal-suggestion-repository.ts",
+        "packages/api-client/src/recurring-meal-suggestion-api.test.ts",
+        "packages/api-client/src/recurring-meal-suggestion-api.ts",
+        "packages/contracts/src/recurring-meal-suggestion.test.ts",
+        "packages/contracts/src/recurring-meal-suggestion.ts",
+        "packages/core/src/recurring-meal-suggestion.test.ts",
+        "packages/core/src/recurring-meal-suggestion.ts",
+        "scripts/test-recurring-meal-suggestions-db.py",
+        "supabase/tests/database/0044_recurring_meal_suggestions.test.sql"
       ],
       "contracts": [
         "packages/contracts/src/food-entry.ts",
         "packages/contracts/src/recurring-meal.ts",
-        "packages/contracts/src/meal-illustration.ts"
+        "packages/contracts/src/meal-illustration.ts",
+        "packages/contracts/src/recurring-meal-suggestion.ts"
       ],
       "domainPort": [
         "packages/core/src/food-entry.ts",
         "packages/core/src/nutrition-per100g.ts",
         "packages/core/src/energy.ts",
         "packages/core/src/recurring-meal.ts",
-        "packages/core/src/meal-illustration.ts"
+        "packages/core/src/meal-illustration.ts",
+        "packages/core/src/recurring-meal-suggestion.ts"
       ],
       "api": [
         "apps/api/src/modules/food-entries/routes.ts",
@@ -73,7 +91,8 @@
         "apps/api/src/modules/recurring-meals/routes.ts",
         "apps/api/src/modules/food-entries/photo-routes.ts",
         "apps/api/src/modules/meal-illustrations/routes.ts",
-        "apps/api/src/modules/food-entries/visual-routes.ts"
+        "apps/api/src/modules/food-entries/visual-routes.ts",
+        "apps/api/src/modules/recurring-meal-suggestions/routes.ts"
       ],
       "ui": [
         "apps/mobile/src/app/(tabs)/meals.tsx",
@@ -89,7 +108,8 @@
         "packages/adapters/supabase-server/src/food-entry-repository.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
         "packages/adapters/supabase-server/src/meal-photos.ts",
-        "packages/adapters/supabase-server/src/meal-illustrations.ts"
+        "packages/adapters/supabase-server/src/meal-illustrations.ts",
+        "packages/adapters/supabase-server/src/recurring-meal-suggestion-repository.ts"
       ],
       "dataTables": [
         "food_entries",
@@ -100,7 +120,10 @@
         "meal_illustrations",
         "meal_illustration_environment_usage",
         "meal_illustration_user_usage",
-        "food_media_paths"
+        "food_media_paths",
+        "recurring_meal_suggestion_states",
+        "recurring_meal_suggestion_preferences",
+        "recurring_meal_suggestion_receipts"
       ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
@@ -109,7 +132,8 @@
         "supabase/migrations/20261003100000_recurring_meals.sql",
         "supabase/migrations/20261006200000_retained_meal_photos.sql",
         "supabase/migrations/20261009120000_meal_illustrations.sql",
-        "supabase/migrations/20261009150000_pro_meal_visuals.sql"
+        "supabase/migrations/20261009150000_pro_meal_visuals.sql",
+        "supabase/migrations/20261013120000_recurring_meal_suggestions.sql"
       ],
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",
@@ -139,7 +163,14 @@
         "packages/adapters/supabase-server/src/meal-illustrations.test.ts",
         "packages/providers/gemini/src/meal-illustration.test.ts",
         "packages/config/src/meal-illustration.test.ts",
-        "packages/api-client/src/meal-illustration.test.ts"
+        "packages/api-client/src/meal-illustration.test.ts",
+        "apps/api/src/modules/recurring-meal-suggestions/routes.test.ts",
+        "apps/api/src/recurring-meal-suggestion-repository.test.ts",
+        "packages/adapters/supabase-server/src/recurring-meal-suggestion-repository.test.ts",
+        "packages/api-client/src/recurring-meal-suggestion-api.test.ts",
+        "packages/contracts/src/recurring-meal-suggestion.test.ts",
+        "packages/core/src/recurring-meal-suggestion.test.ts",
+        "supabase/tests/database/0044_recurring_meal_suggestions.test.sql"
       ],
       "relations": [
         {
@@ -172,7 +203,10 @@
         "docs/adr/0038-recurring-meal-logging.md",
         "docs/RECURRING_MEALS_PLAN_2026-10-03.md",
         "docs/adr/0049-private-meal-thumbnails.md",
-        "docs/MEAL_PHOTOS_DEV_EVIDENCE_2026-10-06.md"
+        "docs/MEAL_PHOTOS_DEV_EVIDENCE_2026-10-06.md",
+        "docs/adr/0062-private-recurring-meal-suggestions.md",
+        "docs/MEAL_ROUTINE_SUGGESTIONS_PLAN_2026-10-13.md",
+        "docs/MEAL_ROUTINE_SUGGESTIONS_EVIDENCE_2026-10-13.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/food-entries",
@@ -188,11 +222,13 @@
         "NUT-09",
         "REL-AUD-007",
         "NUTR-REC-001",
-        "NUT-10"
+        "NUT-10",
+        "NUTR-REC-002"
       ],
       "openAcceptance": [
         "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops",
-        "MEAL-PHOTO-001/#218: exact Dev/native thumbnail, retry, deletion and accessibility acceptance"
+        "MEAL-PHOTO-001/#218: exact Dev/native thumbnail, retry, deletion and accessibility acceptance",
+        "NUTR-REC-002: exact-candidate Dev migration/client delivery and iOS/Android native accessibility, travel, app-closed generation and recovery acceptance; pilot thresholds remain unvalidated."
       ]
     },
     {
@@ -1217,7 +1253,9 @@
       ],
       "ui": [
         "apps/mobile/src/features/analytics/local-analytics-storage.ts",
-        "apps/mobile/src/features/analytics/network-analytics-client.ts"
+        "apps/mobile/src/features/analytics/network-analytics-client.ts",
+        "apps/mobile/src/features/analytics/consent-reminder-prompt.tsx",
+        "apps/mobile/src/features/settings/analytics-card.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/product-analytics-repository.ts"
@@ -1248,7 +1286,11 @@
         "apps/mobile/src/features/onboarding/onboarding-analytics.test.tsx",
         "apps/mobile/src/features/log-meal/log-meal-analytics.test.tsx",
         "apps/mobile/src/features/log-workout/log-workout-analytics.test.tsx",
-        "apps/mobile/src/features/log-weight/log-weight-analytics.test.tsx"
+        "apps/mobile/src/features/log-weight/log-weight-analytics.test.tsx",
+        "apps/mobile/src/features/analytics/consent-reminder-preferences.test.ts",
+        "apps/mobile/src/features/analytics/consent-reminder-prompt.test.tsx",
+        "apps/mobile/src/composition/analytics-consent-reminder-bridge.test.tsx",
+        "apps/mobile/src/features/settings/analytics-discovery.test.ts"
       ],
       "relations": [
         {
@@ -1274,7 +1316,10 @@
         "docs/LOGGING_POLICY.md",
         "docs/OBSERVABILITY.md",
         "docs/adr/0039-private-aggregate-developer-dashboard.md",
-        "docs/DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md"
+        "docs/DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md",
+        "docs/ANALYTICS_REGISTRATION_ZERO_DAYS_2026-10-12.md",
+        "docs/adr/0057-discoverable-analytics-consent-reminders.md",
+        "docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/observability test",
@@ -1380,7 +1425,7 @@
       "openAcceptance": [
         "Physical iPhone and Android granted/denied/revoked checks",
         "Public privacy policy and Google Play Health declarations before release",
-        "ACT-02\u201304 source provenance and idempotent persisted sync remain future scope"
+        "ACT-02–04 source provenance and idempotent persisted sync remain future scope"
       ]
     },
     {
@@ -1417,14 +1462,15 @@
     },
     {
       "id": "community",
-      "title": "Community & Friend Workout Sharing",
+      "title": "Community & Friend Meal and Workout Sharing",
       "summary": "Opt-in friends, comments, private groups, cooperative challenges, mutual messages, quarantined photos, deliberate routine snapshots and bounded consent-based discovery on Dev.",
       "aliases": [
         "community",
         "social",
         "friends",
         "following",
-        "share workout"
+        "share workout",
+        "share meal"
       ],
       "entryPoints": [
         "packages/contracts/src/community.ts",
@@ -1882,8 +1928,8 @@
         "COMM-04 physical relationship/graph/block/mute/account-switch acceptance and reporting/delivery/retention dependencies",
         "COMM-05 installed cold/warm/login/QR/environment/account-switch and not-installed fallback acceptance",
         "COMM-06 physical preview/publish/edit/unpublish/source-delete acceptance and feed/delivery dependencies",
-        "COMM-07\u201316 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
-        "COMM-17\u201323 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
+        "COMM-07–16 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
+        "COMM-17–23 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
       ]
     },
     {
@@ -2174,6 +2220,195 @@
         "Suspension/restart/offline/account/unpair/restore matrix on native Dev candidate",
         "Privacy/platform declaration and explicit release before Production"
       ]
+    },
+    {
+      "id": "meal-recipes",
+      "title": "Ingredient Meal Recipes and Macro Balance",
+      "summary": "REC-01–05 macro ranking, catalog/templates, guarded generation, photo review and shared Meals/Coach recipe flow with durable consumed-serving handoff; live recipes default disabled.",
+      "aliases": [
+        "recipe",
+        "recipes",
+        "fridge",
+        "pantry",
+        "what can I cook",
+        "macro balance"
+      ],
+      "entryPoints": [
+        "packages/core/src/meal-recipe.ts",
+        "packages/contracts/src/meal-recipe.ts",
+        "packages/core/src/recipe-nutrition.ts",
+        "apps/api/src/modules/meal-recipes/index.ts",
+        "apps/mobile/src/app/meal-recipes.tsx",
+        "apps/mobile/src/features/meal-recipes/screen.tsx",
+        "apps/api/src/modules/meal-recipes/session-service.ts",
+        "scripts/run-meal-recipe-evaluation.mjs"
+      ],
+      "ownedPaths": [
+        "packages/core/src/meal-recipe.ts",
+        "packages/core/src/meal-recipe.test.ts",
+        "packages/contracts/src/meal-recipe.ts",
+        "packages/contracts/src/meal-recipe.test.ts",
+        "scripts/test-meal-recipe-foundation.mjs",
+        "packages/core/src/recipe-nutrition.ts",
+        "packages/core/src/recipe-nutrition.test.ts",
+        "apps/api/src/modules/meal-recipes",
+        "scripts/import-recipe-catalog.py",
+        "scripts/test-meal-recipe-catalog.mjs",
+        "packages/core/src/recipe-request.ts",
+        "packages/core/src/recipe-request.test.ts",
+        "packages/contracts/src/meal-recipe-generation.ts",
+        "packages/contracts/src/meal-recipe-generation.test.ts",
+        "packages/agent-runtime/src/meal-recipe.ts",
+        "packages/agent-runtime/src/meal-recipe.test.ts",
+        "packages/providers/gemini/src/meal-recipe.ts",
+        "packages/providers/gemini/src/meal-recipe.test.ts",
+        "packages/adapters/image-processing",
+        "packages/adapters/supabase-server/src/recipe-request-ledger.ts",
+        "packages/adapters/supabase-server/src/recipe-request-ledger.test.ts",
+        "packages/api-client/src/meal-recipe-api.ts",
+        "packages/api-client/src/meal-recipe-api.test.ts",
+        "packages/core/src/recipe-serving.ts",
+        "packages/core/src/recipe-serving.test.ts",
+        "packages/contracts/src/meal-recipe-session.ts",
+        "packages/contracts/src/meal-recipe-session.test.ts",
+        "packages/api-client/src/meal-recipe-session-api.ts",
+        "packages/api-client/src/meal-recipe-session-api.test.ts",
+        "apps/mobile/src/features/meal-recipes",
+        "apps/mobile/src/app/meal-recipes.tsx",
+        "apps/mobile/src/features/log-meal/meal-draft-handoff.ts",
+        "apps/mobile/src/features/log-meal/meal-draft-handoff.test.ts",
+        "scripts/recipe-evaluation",
+        "scripts/run-meal-recipe-evaluation.mjs",
+        "scripts/freeze-meal-recipe-evaluation.mjs"
+      ],
+      "contracts": [
+        "packages/contracts/src/meal-recipe.ts",
+        "packages/contracts/src/meal-recipe-generation.ts",
+        "packages/contracts/src/meal-recipe-session.ts"
+      ],
+      "domainPort": [
+        "packages/core/src/meal-recipe.ts",
+        "packages/core/src/recipe-nutrition.ts",
+        "packages/core/src/recipe-request.ts",
+        "packages/agent-runtime/src/meal-recipe.ts"
+      ],
+      "api": [
+        "apps/api/src/modules/meal-recipes/index.ts",
+        "apps/api/src/modules/meal-recipes/routes.ts",
+        "apps/api/src/modules/meal-recipes/service.ts",
+        "apps/api/src/modules/meal-recipes/context.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/features/meal-recipes/ingredient-review.tsx",
+        "apps/mobile/src/features/meal-recipes/ingredient-review-session.tsx"
+      ],
+      "adapters": [
+        "packages/providers/gemini/src/meal-recipe.ts",
+        "packages/adapters/supabase-server/src/recipe-request-ledger.ts",
+        "packages/adapters/image-processing/src/index.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-photos.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-review-storage.ts"
+      ],
+      "dataTables": ["public.ai_recipe_requests"],
+      "migrationPaths": [
+        "supabase/migrations/20261013090000_recipe_request_reservations.sql"
+      ],
+      "tests": [
+        "packages/core/src/meal-recipe.test.ts",
+        "packages/contracts/src/meal-recipe.test.ts",
+        "scripts/test-meal-recipe-foundation.mjs",
+        "packages/core/src/recipe-nutrition.test.ts",
+        "apps/api/src/modules/meal-recipes/catalog.test.ts",
+        "apps/api/src/modules/meal-recipes/templates.test.ts",
+        "scripts/test-meal-recipe-catalog.mjs",
+        "apps/api/src/modules/meal-recipes/routes.test.ts",
+        "apps/api/src/modules/meal-recipes/in-memory-request-ledger.test.ts",
+        "apps/api/src/modules/meal-recipes/logging.test.ts",
+        "packages/core/src/recipe-request.test.ts",
+        "packages/contracts/src/meal-recipe-generation.test.ts",
+        "packages/agent-runtime/src/meal-recipe.test.ts",
+        "packages/providers/gemini/src/meal-recipe.test.ts",
+        "packages/adapters/supabase-server/src/recipe-request-ledger.test.ts",
+        "packages/adapters/image-processing/src/index.test.ts",
+        "packages/api-client/src/meal-recipe-api.test.ts",
+        "supabase/tests/database/0043_recipe_request_reservations.test.sql",
+        "apps/mobile/src/features/meal-recipes/ingredient-account-export.test.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-photos.test.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-review-controller.test.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-review-lifecycle.test.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-review-session.test.tsx",
+        "apps/mobile/src/features/meal-recipes/ingredient-review-storage.test.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-review.test.tsx",
+        "apps/mobile/src/features/meal-recipes/ingredient-transport.test.ts",
+        "apps/mobile/src/features/log-meal/meal-photo.test.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-review-boundaries.test.ts",
+        "apps/mobile/src/features/meal-recipes/ingredient-normalization-boundary.test.ts",
+        "apps/mobile/src/features/meal-recipes/recipe-controller.test.ts",
+        "apps/mobile/src/features/meal-recipes/recipe-storage.test.ts",
+        "apps/mobile/src/features/meal-recipes/screen.test.tsx",
+        "apps/mobile/src/features/log-meal/meal-draft-handoff.test.ts",
+        "scripts/recipe-evaluation/evaluation.test.mjs",
+        "apps/api/src/modules/meal-recipes/evaluation.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "profile-goals-energy",
+          "reason": "Reuse Home EnergySummary daily macro targets without changing formulas."
+        },
+        {
+          "type": "relatedTo",
+          "target": "meal-logging",
+          "reason": "Known logged local-day totals; later explicit consumed-serving handoff."
+        },
+        {
+          "type": "relatedTo",
+          "target": "coach-consent-budgets",
+          "reason": "Later shared Coach entry, exclusions and guarded provider generation."
+        }
+      ],
+      "docs": [
+        "docs/AI_MEAL_RECIPES_PLAN_2026-10-12.md",
+        "docs/PRODUCT_REQUIREMENTS.md",
+        "docs/AI_MEAL_RECIPES_REC01_EVIDENCE_2026-10-12.md",
+        "docs/AI_MEAL_RECIPES_REC02_EVIDENCE_2026-10-12.md",
+        "docs/adr/0058-pinned-recipe-nutrition-catalog.md",
+        "docs/adr/0059-durable-recipe-request-budgets.md",
+        "docs/AI_MEAL_RECIPES_REC03_EVIDENCE_2026-10-13.md",
+        "docs/adr/0060-transient-recipe-ingredient-review.md",
+        "docs/AI_MEAL_RECIPES_REC04_EVIDENCE_2026-10-13.md",
+        "docs/adr/0061-recipe-session-and-consumed-meal-handoff.md",
+        "docs/AI_MEAL_RECIPES_REC05_EVIDENCE_2026-10-13.md",
+        "docs/AI_MEAL_RECIPES_REC06_EVALUATION_2026-10-13.md",
+        "docs/AI_MEAL_RECIPES_REC06_EVIDENCE_2026-10-13.md",
+        "docs/adr/0063-frozen-offline-recipe-evaluation.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/core test src/meal-recipe.test.ts",
+        "pnpm --filter @mizyun/contracts test src/meal-recipe.test.ts",
+        "node --import tsx --test scripts/test-meal-recipe-foundation.mjs",
+        "pnpm --filter @mizyun/core test src/recipe-nutrition.test.ts",
+        "pnpm --filter @mizyun/api test src/modules/meal-recipes",
+        "node --import tsx --test scripts/test-meal-recipe-catalog.mjs",
+        "pnpm --filter @mizyun/mobile exec vitest run src/features/meal-recipes src/features/log-meal/meal-photo.test.ts",
+        "pnpm test:meal-recipe-eval",
+        "pnpm --filter @mizyun/api exec vitest run src/modules/meal-recipes/evaluation.test.ts --maxWorkers=1"
+      ],
+      "requirements": [
+        "NUT-RECIPES-01",
+        "NUT-RECIPES-02",
+        "NUT-RECIPES-03",
+        "NUT-RECIPES-04",
+        "NUT-RECIPES-05",
+        "NUT-RECIPES-06"
+      ],
+      "openAcceptance": [
+        "REC-04/05 native picker, multipart, cleanup, shared Meals/Coach selection/logging, restart and accessibility on both platforms; REC-06 live/provider evaluation.",
+        "Qualified nutrition/food-safety catalog/template review, AI checklist and Dev deployment before broader use."
+      ],
+      "lastReviewedSha": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+      "lastReviewedDate": "2026-10-13",
+      "limitations": "REC-01–05 and REC-06 offline engineering automatically verified locally; independent High review and isolated full gate passed. Synthetic scoring is not model accuracy. Live recipes disabled; qualified nutrition/food-safety, supported-image/live provider cost/latency, Dev/native/accessibility/pilot and Production gates remain open."
     }
   ]
 }

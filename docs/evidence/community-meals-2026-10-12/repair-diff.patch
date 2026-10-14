@@ -1,0 +1,277 @@
+--- a/apps/api/src/logging.ts
++++ b/apps/api/src/logging.ts
+@@ -44,6 +44,12 @@
+   "req.body.text",
+   "req.body.body",
+   "req.body.name",
++  "req.body.mealId",
++  "body.mealId",
++  "mealId",
++  "req.body.expectedMealDetails",
++  "body.expectedMealDetails",
++  "expectedMealDetails",
+   "req.body.rules",
+   "req.body.title",
+   "req.body.prefix",
+--- a/apps/api/src/logging.test.ts
++++ b/apps/api/src/logging.test.ts
+@@ -102,6 +102,34 @@
+ });
+ 
+ describe("redaction against a live Fastify instance", () => {
++  it("redacts private meal source and confirmed nutrition in diagnostic payloads", () => {
++    const { app, lines } = buildAppWithCapturedLogger();
++    apps.push(app);
++    const mealId = "d2380000-0000-4000-8000-000000000009";
++    const expectedMealDetails = {
++      name: "SYNTHETIC_PRIVATE_MEAL_NAME",
++      caloriesKcal: 9876.543,
++      proteinG: 321.123,
++      carbsG: null,
++      fatG: null,
++    };
++    app.log.info(
++      { mealId, expectedMealDetails, body: { mealId, expectedMealDetails } },
++      "meal publication diagnostic",
++    );
++    expect(lines).toHaveLength(1);
++    expect(lines[0]).not.toContain(mealId);
++    expect(lines[0]).not.toContain(expectedMealDetails.name);
++    expect(lines[0]).not.toContain("9876.543");
++    const entry = JSON.parse(lines[0]!);
++    expect(entry.mealId).toBe("[Redacted]");
++    expect(entry.expectedMealDetails).toBe("[Redacted]");
++    expect(entry.body.mealId).toBe("[Redacted]");
++    expect(entry.body.expectedMealDetails).toBe("[Redacted]");
++    expect(redactPaths).toContain("req.body.mealId");
++    expect(redactPaths).toContain("req.body.expectedMealDetails");
++  });
++
+   it("replaces the Authorization header value with [Redacted] in the request log line", async () => {
+     const { app, lines } = buildAppWithCapturedLogger();
+     apps.push(app);
+--- a/apps/api/src/modules/community/reaction-routes.ts
++++ b/apps/api/src/modules/community/reaction-routes.ts
+@@ -223,7 +223,7 @@
+         request,
+         403,
+         "FORBIDDEN",
+-        "Authors cannot react to their own shared workouts.",
++        "Authors cannot react to their own shared activities.",
+       );
+     }
+ 
+--- a/apps/mobile/src/features/community/comments/controller.ts
++++ b/apps/mobile/src/features/community/comments/controller.ts
+@@ -335,8 +335,8 @@
+           schema: communityCommentSettingsSchema,
+         }),
+       enabled
+-        ? "Comments opened for this workout."
+-        : "Comments closed for this workout.",
++        ? "Comments opened for this activity."
++        : "Comments closed for this activity.",
+     );
+   }
+ }
+--- a/apps/mobile/src/features/community/comments/screen.tsx
++++ b/apps/mobile/src/features/community/comments/screen.tsx
+@@ -305,7 +305,7 @@
+             {!activityId &&
+               state.mentions.map((mention) => (
+                 <View key={mention.id}>
+-                  {button("Open mentioned workout", () =>
++                  {button("Open mentioned activity", () =>
+                     router.push(
+                       `/community/comments?activityId=${encodeURIComponent(mention.activityId)}` as Href,
+                     ),
+@@ -317,13 +317,13 @@
+                 {state.canManage &&
+                   button(
+                     state.enabled
+-                      ? "Close comments on this workout"
+-                      : "Open comments on this workout",
++                      ? "Close comments on this activity"
++                      : "Open comments on this activity",
+                     () => void controller.settings(!state.enabled),
+                   )}
+                 {!state.busy && !state.error && !state.enabled && (
+                   <ThemedText>
+-                    Comments are closed on this workout. The author can choose
++                    Comments are closed on this activity. The author can choose
+                     to open them.
+                   </ThemedText>
+                 )}
+@@ -443,7 +443,7 @@
+                     {state.candidates.length > 0 && (
+                       <ThemedText>
+                         Optional mentions: only approved friends who opted in
+-                        and can see this workout.
++                        and can see this activity.
+                       </ThemedText>
+                     )}
+                     {state.candidates.map((candidate) =>
+@@ -467,7 +467,7 @@
+                       Your preview: {body || "Write your comment above."}
+                     </ThemedText>
+                     {toggle(
+-                      "I choose to share this text with everyone who can see this workout, including followers added later",
++                      "I choose to share this text with everyone who can see this activity, including followers added later",
+                       accepted,
+                       () => setAccepted(!accepted),
+                     )}
+--- a/apps/mobile/src/features/community/comments/screen.test.tsx
++++ b/apps/mobile/src/features/community/comments/screen.test.tsx
+@@ -103,7 +103,7 @@
+ vi.mock("../community-presentation", () => ({ CommunityIntro: "Intro" }));
+ import { CommunityCommentsScreen } from "./screen";
+ const audience =
+-  "I choose to share this text with everyone who can see this workout, including followers added later";
++  "I choose to share this text with everyone who can see this activity, including followers added later";
+ const author = {
+   userId: "other",
+   handle: "friend",
+--- a/apps/mobile/src/features/community/reactions/reaction-bar.tsx
++++ b/apps/mobile/src/features/community/reactions/reaction-bar.tsx
+@@ -44,7 +44,7 @@
+     if (totalReactions > 0) {
+       return `${label}, ${countLabel}. Tap to view who reacted.`;
+     }
+-    return `${label}, 0 reactions. Cannot react to your own workout.`;
++    return `${label}, 0 reactions. Cannot react to your own activity.`;
+   }
+ 
+   if (isSelected) {
+--- a/apps/mobile/src/features/community/reactions/reaction-bar.test.ts
++++ b/apps/mobile/src/features/community/reactions/reaction-bar.test.ts
+@@ -214,7 +214,7 @@
+         totalReactions: 0,
+       });
+       expect(label).toBe(
+-        "Thumbs up, 0 reactions. Cannot react to your own workout.",
++        "Thumbs up, 0 reactions. Cannot react to your own activity.",
+       );
+     });
+   });
+@@ -761,7 +761,7 @@
+       expect(clapBtn.props.disabled).toBe(true);
+       expect(clapBtn.props.accessibilityState.disabled).toBe(true);
+       expect(clapBtn.props.accessibilityLabel).toBe(
+-        "Clap, 0 reactions. Cannot react to your own workout.",
++        "Clap, 0 reactions. Cannot react to your own activity.",
+       );
+     });
+   });
+--- a/apps/mobile/src/features/community/safety/report-modal.tsx
++++ b/apps/mobile/src/features/community/safety/report-modal.tsx
+@@ -291,7 +291,7 @@
+                   style={[styles.infoText, { color: colors.textSecondary }]}
+                 >
+                   • You have blocked {targetLabel}. They cannot view your
+-                  profile or workouts.
++                  profile or shared activities.
+                 </Text>
+               ) : null}
+               {alsoBlock && !blocked && (
+@@ -527,7 +527,8 @@
+                     style={[styles.blockDesc, { color: colors.textSecondary }]}
+                   >
+                     You will lose mutual follow connections. Neither of you will
+-                    be able to see each other&apos;s profile or workouts.
++                    be able to see each other&apos;s profile or shared
++                    activities.
+                   </Text>
+                 </View>
+               </Pressable>
+--- a/apps/mobile/src/features/community/community-settings-screen.tsx
++++ b/apps/mobile/src/features/community/community-settings-screen.tsx
+@@ -194,7 +194,7 @@
+       if (!enrollment.success) return;
+       const result = await actions.enroll(enrollment.data);
+       if (result.ok) {
+-        setMessage("You joined Community. No workouts were shared.");
++        setMessage("You joined Community. No meals or workouts were shared.");
+       }
+     }
+   };
+@@ -262,8 +262,9 @@
+         {!editing && (
+           <Section title="Always your choice">
+             <ThemedText>
+-              Joining shares no saved workouts and requests no notification
+-              permission. Your private tracking works without Community.
++              Joining shares no saved meals or workouts and requests no
++              notification permission. Your private tracking works without
++              Community.
+             </ThemedText>
+             <ThemedText type="small">
+               Community changes no analytics, AI or health permissions.
+--- a/apps/mobile/src/features/community/profiles/screen.tsx
++++ b/apps/mobile/src/features/community/profiles/screen.tsx
+@@ -153,7 +153,7 @@
+       follow:
+         "They must approve before you can see their shared meals and workouts. This does not give them access to yours.",
+       approve:
+-        "They can see your still-published workout cards, including past cards. This does not follow them back.",
++        "They can see your still-published meal and workout cards, including past cards. This does not follow them back.",
+       remove:
+         "Removes their access to your shared meals and workouts and prior interactions.",
+       unfollow: "Ends your access to their shared meals and workouts.",
+@@ -412,7 +412,7 @@
+               </>
+             ) : (
+               <CommunityState
+-                title="Shared workouts need their approval"
++                title="Shared meals and workouts need their approval"
+                 description="A follow request gives no access until approved."
+               />
+             )}
+--- a/apps/mobile/src/features/community/relationships/screen.tsx
++++ b/apps/mobile/src/features/community/relationships/screen.tsx
+@@ -339,7 +339,7 @@
+   const confirm = (action: RelationshipAction, row: RelationshipRow) => {
+     const explanations: Partial<Record<RelationshipAction, string>> = {
+       approve:
+-        "They can see your still-published workout cards, including past cards. This does not follow them back.",
++        "They can see your still-published meal and workout cards, including past cards. This does not follow them back.",
+       block:
+         "Blocks interaction in both directions and removes both follows and pending requests. Unblocking restores nothing.",
+       remove:
+--- a/apps/mobile/src/features/community/groups/screen.tsx
++++ b/apps/mobile/src/features/community/groups/screen.tsx
+@@ -374,9 +374,9 @@
+     >
+       <CommunityPage title="Private groups" backHref="/community/more">
+         <Text style={{ color: theme.textSecondary }}>
+-          A separate space for small friend groups. Your workout diary stays
+-          private. New members see posts made after they join. Blocking hides
+-          shared-group content from that person.
++          A separate space for small friend groups. Your meal and workout
++          diaries stay private. New members see posts made after they join.
++          Blocking hides shared-group content from that person.
+         </Text>
+         {!principal && (
+           <Text style={{ color: theme.text }}>
+@@ -549,8 +549,9 @@
+             {group.state === "member" && (
+               <>
+                 <Text style={{ color: theme.text }}>
+-                  Posts go only to this group. There is no automatic workout
+-                  sharing. Removing a post cannot retract copies already seen.
++                  Posts go only to this group. There is no automatic meal or
++                  workout sharing. Removing a post cannot retract copies already
++                  seen.
+                 </Text>
+                 {button("Cooperative goals · add progress yourself", () =>
+                   router.push(
+--- a/docs/LOGGING_POLICY.md
++++ b/docs/LOGGING_POLICY.md
+@@ -39,7 +39,7 @@
+ 
+ Apple authorization codes, deletion confirmation receipts, encrypted revocation tokens, refresh tokens and server signing/encryption keys are covered by the central redaction list. Provider cleanup uses fixed errors; provider response bodies and causes never enter deletion jobs or public errors.
+ 
+-Community request URLs are reduced to `/v1/community/[redacted]`. Confidential report and appeal notes/reasons, staff/reviewer notes, target IDs and interaction receipt IDs are also covered by body redaction paths; normal request serialization omits bodies entirely. Staff case evidence lives in the restricted database audit, never generic API logs.
++Community request URLs are reduced to `/v1/community/[redacted]`. Confidential report and appeal notes/reasons, staff/reviewer notes, target IDs and interaction receipt IDs are also covered by body redaction paths; normal request serialization omits bodies entirely. Meal publication source identifiers (`mealId`) and confirmed name/nutrition snapshots (`expectedMealDetails`) are redacted at request-body, body and top-level diagnostic paths. Staff case evidence lives in the restricted database audit, never generic API logs.
+ 
+ The list is enforced by `apps/api/src/logging.test.ts` so removing a path is a deliberate code change, not a refactor side-effect.
+ 

@@ -89,3 +89,18 @@
 - [ADR-0054 — Dev phone-owned manual workout companions](0054-dev-workout-companions.md): accepted2026-10-09; explicit foreground binding, memory-only snapshots, bounded receipts and uncertain-outcome barriers; paired-device and Production acceptance remain open.
 
 - [ADR-0055 — Persistent personal startup reads](0055-persistent-personal-startup-reads.md): accepted for implementation2026-10-09; encrypted owner-scoped offline display reads, shared background refresh, cleanup fences and live AI/Community authority.
+
+- [ADR-0056 — Explicit Community meal publication](0056-explicit-community-meal-publication.md): accepted for implementation 2026-10-12; confirmed meal snapshots, optional nutrition and existing social authorization/lifecycle controls. Simulator testing deferred; release gates open.
+
+- [ADR-0057 — Discoverable analytics consent and reminders](0057-discoverable-analytics-consent-reminders.md): accepted for implementation2026-10-12; direct Account consent controls, account-scoped14-day Home reminders, explicit suppression and unchanged consent authority. Native/release gates open.
+
+- [ADR 0058: Pinned ingredient nutrition for meal recipes](0058-pinned-recipe-nutrition-catalog.md)
+
+- [ADR 0059: Durable recipe request budgets](0059-durable-recipe-request-budgets.md)
+
+- [ADR 0060: Transient recipe ingredient review](0060-transient-recipe-ingredient-review.md)
+- [0061 — Recipe sessions and consumed-meal handoff](0061-recipe-session-and-consumed-meal-handoff.md)
+
+- [0062 — Private recurring meal suggestions](0062-private-recurring-meal-suggestions.md): explicit opt-in after deterministic three-day detection; transactional receipts, owner-scoped recovery and account lifecycle. Dev/native/pilot acceptance remains open.
+
+- [0063 — Frozen offline recipe evaluation](0063-frozen-offline-recipe-evaluation.md) — REC-06 synthetic references, immutable thresholds and qualified provider/native acceptance.

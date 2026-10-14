@@ -1,0 +1,53 @@
+
+> @mizyun/api@0.1.0 test /Users/adam/Documents/mizyun/apps/api
+> vitest run src/logging.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun
+
+ ❯ apps/api/src/logging.test.ts (12 tests | 1 failed) 79ms
+   ✓ loggerConfig > disables the logger when env is 'test' 1ms
+   ✓ loggerConfig > uses info level in production 0ms
+   ✓ loggerConfig > uses debug level outside production and test 0ms
+   ✓ loggerConfig > includes the documented redact paths 1ms
+   ✓ loggerConfig > forwards the `req`, `res`, `err`, and `error` serializers 0ms
+   ✓ loggerConfig > redacts community invitation tokens and handle queries in request URLs 0ms
+   ✓ loggerConfig > safeErrorSerializer strips `cause` and `errors` chains from an error 3ms
+   ✓ loggerConfig > safeErrorSerializer preserves optional `code` and `statusCode` for diagnostic context 0ms
+   × redaction against a live Fastify instance > redacts private meal source and confirmed nutrition in diagnostic payloads 57ms
+     → expected '{"level":30,"time":1791803821162,"pid…' not to contain 'd2380000-0000-4000-8000-000000000009'
+   ✓ redaction against a live Fastify instance > replaces the Authorization header value with [Redacted] in the request log line 12ms
+   ✓ redaction against a live Fastify instance > replaces the Authorization header value with [Redacted] when the route throws 3ms
+   ✓ redaction against a live Fastify instance > strips error.cause from the log line so downstream secrets do not leak 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  apps/api/src/logging.test.ts > redaction against a live Fastify instance > redacts private meal source and confirmed nutrition in diagnostic payloads
+AssertionError: expected '{"level":30,"time":1791803821162,"pid…' not to contain 'd2380000-0000-4000-8000-000000000009'
+
+- Expected
++ Received
+
+- d2380000-0000-4000-8000-000000000009
++ {"level":30,"time":1791803821162,"pid":54793,"hostname":"Adams-MacBook-Pro.local","mealId":"d2380000-0000-4000-8000-000000000009","expectedMealDetails":{"name":"SYNTHETIC_PRIVATE_MEAL_NAME","caloriesKcal":9876.543,"proteinG":321.123,"carbsG":null,"fatG":null},"body":{"mealId":"d2380000-0000-4000-8000-000000000009","expectedMealDetails":{"name":"SYNTHETIC_PRIVATE_MEAL_NAME","caloriesKcal":9876.543,"proteinG":321.123,"carbsG":null,"fatG":null}},"msg":"meal publication diagnostic"}
++
+
+ ❯ apps/api/src/logging.test.ts:112:26
+    110|     app.log.info({ mealId, expectedMealDetails, body: { mealId, expect…
+    111|     expect(lines).toHaveLength(1);
+    112|     expect(lines[0]).not.toContain(mealId);
+       |                          ^
+    113|     expect(lines[0]).not.toContain(expectedMealDetails.name);
+    114|     expect(lines[0]).not.toContain("9876.543");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  13:17:00
+   Duration  437ms (transform 32ms, setup 0ms, collect 93ms, tests 79ms, environment 0ms, prepare 53ms)
+
+/Users/adam/Documents/mizyun/apps/api:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mizyun/api@0.1.0 test: `vitest run src/logging.test.ts`
+Exit status 1

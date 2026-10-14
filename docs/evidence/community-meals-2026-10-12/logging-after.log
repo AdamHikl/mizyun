@@ -1,0 +1,14 @@
+
+> @mizyun/api@0.1.0 test /Users/adam/Documents/mizyun/apps/api
+> vitest run src/logging.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun
+
+ ✓ apps/api/src/logging.test.ts (12 tests) 60ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  13:17:22
+   Duration  419ms (transform 29ms, setup 0ms, collect 75ms, tests 60ms, environment 0ms, prepare 46ms)
+

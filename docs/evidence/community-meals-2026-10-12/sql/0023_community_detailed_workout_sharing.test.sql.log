@@ -1,0 +1,42 @@
+BEGIN
+UPDATE 1
+CREATE EXTENSION
+SET
+INSERT 0 2
+UPDATE 2
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+SELECT 1
+GRANT
+CREATE TABLE
+GRANT
+SET
+SET
+SET
+c1670000-0000-4000-8000-000000000001|detail_author|Author|AU||f|active|1|2026-10-12 11:12:08.469532+00|2026-10-12 11:12:08.469532+00|2026-09-30|2026-10-12 11:12:08.469532+00|2026-10-12 11:12:08.469532+00
+ok 1 - Legacy publication stays minimal
+ok 2 - Minimal legacy receipt retry remains compatible
+ok 3 - Detailed snapshot includes only completed allowed set fields
+INSERT 0 1
+ok 4 - Owner export includes explicit snapshot
+ok 5 - Direct RPC rejects extra private field
+UPDATE 1
+ok 6 - Lost response retry returns original after private edit
+ok 7 - Fresh stale confirmation cannot expose changed source
+ok 8 - Narrow duration edit preserves detail snapshot
+SET
+c1670000-0000-4000-8000-000000000002|detail_viewer|Viewer|VI||f|active|1|2026-10-12 11:12:08.469532+00|2026-10-12 11:12:08.469532+00|2026-09-30|2026-10-12 11:12:08.469532+00|2026-10-12 11:12:08.469532+00
+ok 9 - Outsider cannot read detailed card
+RESET
+SET
+INSERT 0 1
+SET
+SET
+ok 10 - Approved follower sees exact published snapshot
+SET
+
+SET
+ok 11 - Unpublish revokes details from follower feed
+1..11
+ROLLBACK

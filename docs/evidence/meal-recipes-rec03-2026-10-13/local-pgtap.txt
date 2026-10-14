@@ -1,0 +1,70 @@
+BEGIN
+CREATE EXTENSION
+SET
+INSERT 0 2
+INSERT 0 2
+CREATE TABLE
+CREATE FUNCTION
+ok 1 - Migration readiness is present
+ok 2 - Authenticated admission bypass is forbidden
+ok 3 - Anonymous finalization is forbidden
+ok 4 - Readiness is service-only
+ok 5 - Service role has narrow admission grant
+ok 6 - Raw fingerprints and attempt IDs are unavailable to authenticated clients
+ok 7 - Ledger enables RLS
+ok 8 - Ownership has a user_id index
+ok 9 - First explicit request is admitted
+INSERT 0 1
+ok 10 - Coach RPC cannot acquire a recipe-held shared slot
+ok 11 - Denied Coach RPC leaves the active recipe slot unchanged
+ok 12 - Another recipe stays denied while the shared slot is held
+ok 13 - Shared concurrency denial does not charge another recipe
+ok 14 - Full estimate is charged upfront in existing shared token ledger
+ok 15 - Every attempt consumes the existing daily draft quota upfront
+ok 16 - Lost admission response cannot create a second attempt
+ok 17 - Changed inputs cannot reuse admitted identity
+ok 18 - Duplicate identities leave one durable record
+ok 19 - Duplicate does not spend a second shared minute slot
+ok 20 - Cross-owner settlement cannot refund another user
+ok 21 - Cross-owner settlement preserves charge
+ok 22 - Successful trustworthy usage can settle and publish
+ok 23 - Success refunds only unused estimate
+ok 24 - Repeated settlement is inert and cannot republish
+ok 25 - Completed output loss requires a new explicit identity
+ok 26 - Existing token usage gates recipe admission
+ok 27 - Denied budget never creates a provider attempt
+ok 28 - New explicit attempt admitted under remaining cap
+ok 29 - Ambiguous terminal failure cannot publish
+ok 30 - Failure retains complete conservative charge
+ok 31 - Failed identity cannot silently retry
+ok 32 - Third explicit attempt admitted
+UPDATE 1
+ok 33 - Restart with expired lease cannot repeat provider
+ok 34 - Expiry retains estimate
+ok 35 - Late provider response after expiry cannot publish/refund
+ok 36 - Fourth explicit attempt admitted
+INSERT 0 1
+UPDATE 1
+ok 37 - Live result settles frozen day
+ok 38 - Midnight settlement updates original ledger
+t|2600|0
+ok 39 - Existing pending Coach tokens also block recipe
+ok 40 - Existing shared draft quota blocks recipe
+ok 41 - Existing shared request window blocks recipe
+UPDATE 1
+ok 42 - Existing shared concurrency slot blocks recipe
+UPDATE 1
+ok 43 - Admission resumes with capacity
+UPDATE 1
+ok 44 - Consent revocation blocks an in-flight result
+ok 45 - Fresh consent revocation blocks new provider attempts
+UPDATE 1
+ok 46 - Explicit new identity admitted after current consent
+INSERT 0 1
+ok 47 - Accepted deletion blocks an in-flight result
+ok 48 - Accepted deletion blocks new recipe admission
+ok 49 - No provider content or fabricated conversation exists in operational ledger
+DELETE 1
+ok 50 - Auth erasure cascades recipe ledger
+1..50
+ROLLBACK

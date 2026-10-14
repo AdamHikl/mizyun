@@ -1,0 +1,54 @@
+{
+  "recordType": "post-check receipt; not part of passing source input",
+  "date": "2026-10-12",
+  "issue": 238,
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidate": "/private/tmp/mizyun-community-meals-20261012/candidate",
+  "candidateOverlaySha256": "ff8e39dab7c3ba2fca9ddb4100d9e48acbe31c12c15dd8b0cbafed6c717e3ae3",
+  "fullGate": {
+    "command": "pnpm check",
+    "exitCode": 0,
+    "inputSha256": "9fbb73393cb7d19f1e6ec824b7cb5ffefaba0a044069aa4c46f171fcff63bbda",
+    "mobileTests": 2194,
+    "apiTests": 986,
+    "apiCredentialGatedSkippedTests": 15,
+    "apiCredentialGatedSkippedSuites": [
+      "account-deletion.e2e",
+      "persistence.e2e",
+      "auth.e2e"
+    ],
+    "iosAndroidBundleCheck": "passed",
+    "nativeTest": "not run; simulator tool tests were mocked fixtures only"
+  },
+  "focused": {
+    "sharedCommunityTests": 608,
+    "candidateCommunityTests": 589,
+    "finalCandidateApiTests": 24,
+    "discussionTitleTests": 4,
+    "capabilityTests": 29,
+    "sqlAssertions": 148,
+    "sqlFiles": 6,
+    "independentReview": "both P2 findings repaired; repair review no blockers"
+  },
+  "remaining": [
+    "iOS simulator explicitly deferred by Adam",
+    "SQL concurrency and real PostgREST transport unrun",
+    "Dev migration/backend/mobile delivery unrun",
+    "Production/native/operator/pilot/privacy release gates retained"
+  ],
+  "repository": {
+    "committed": false,
+    "pushed": false,
+    "deployed": false,
+    "preexistingWorkPreserved": true,
+    "unownedPreexistingDriftAtCheck": []
+  },
+  "candidateOverlayOriginalReceipt": "candidate-overlay-original.txt",
+  "savedFormattedOverlaySha256": "ff8e39dab7c3ba2fca9ddb4100d9e48acbe31c12c15dd8b0cbafed6c717e3ae3",
+  "issueTracking": {
+    "number": 238,
+    "status": "ready",
+    "detailedRemoteReceiptPosted": false,
+    "reason": "Automatic approval review rejected publishing detailed internal implementation/test/privacy evidence to an unverified GitHub destination; status-only label update succeeded."
+  }
+}

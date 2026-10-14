@@ -39,7 +39,7 @@ The redact list in `apps/api/src/logging.ts` is the single source of truth. Toda
 
 Apple authorization codes, deletion confirmation receipts, encrypted revocation tokens, refresh tokens and server signing/encryption keys are covered by the central redaction list. Provider cleanup uses fixed errors; provider response bodies and causes never enter deletion jobs or public errors.
 
-Community request URLs are reduced to `/v1/community/[redacted]`. Confidential report and appeal notes/reasons, staff/reviewer notes, target IDs and interaction receipt IDs are also covered by body redaction paths; normal request serialization omits bodies entirely. Staff case evidence lives in the restricted database audit, never generic API logs.
+Community request URLs are reduced to `/v1/community/[redacted]`. Confidential report and appeal notes/reasons, staff/reviewer notes, target IDs and interaction receipt IDs are also covered by body redaction paths; normal request serialization omits bodies entirely. Meal publication source identifiers (`mealId`) and confirmed name/nutrition snapshots (`expectedMealDetails`) are redacted at request-body, body and top-level diagnostic paths. Staff case evidence lives in the restricted database audit, never generic API logs.
 
 The list is enforced by `apps/api/src/logging.test.ts` so removing a path is a deliberate code change, not a refactor side-effect.
 
@@ -111,3 +111,7 @@ The structured payload must not include request bodies, response bodies, or any 
 - `packages/contracts/src/index.ts` — `apiErrorSchema` definition.
 - `docs/QUALITY_GATES.md` — the pre-merge gate.
 - `docs/RESEARCH_LOG.md` — dated AUTH/OPS/OPS-001 research entries.
+
+Recipe routes never log inventory, model inputs/outputs, health context, normalized image bytes or provider exceptions. Diagnostic input/images/fingerprint/healthContext fields are redacted at supported request/body/top-level shapes. Provider/service failures use static normalized errors; the private operational ledger stores only bounded identity/status/usage metadata. Account export omits fingerprints and provider content.
+
+Recurring suggestion routes treat proposals, family keys, candidate IDs and evidence digests as private health-derived content. Redact them at top/body/request-body shapes. Request URL serialization and Pino message serialization remove the candidate path segment, including Fastify default unmatched-route messages. Use static errors; do not log the detection evidence or frozen schedule payload.

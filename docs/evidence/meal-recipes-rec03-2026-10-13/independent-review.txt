@@ -1,0 +1,10 @@
+Initial independent Sol High review, 2026-10-13:
+Frozen candidate HEAD0135228778059dc25c1a4925738f0b6934ed4f0c; all64source hashes matched at beginning/end.
+One P1 blocker: denied durable Coach chat/draft acquisitions called ai_release_in_flight although ai_acquire_in_flight did not increment on denial. This could release an active recipe slot. Actual limiter-method reproduction with SQL-semantics stub confirmed count1->0 on both denied paths. No other actionable blockers found; review made no source/database/provider/native mutations.
+Minimal fix and bounded independent repair review are pending this initial record. Full gate must follow repair acceptance.
+
+Bounded repair review, 2026-10-13:
+P1 resolved; no remaining blockers. Actual limiter reproduction confirmed denied chat/draft preserve the held recipe counter1 and issue no release RPC. Five added regressions and affected caller/image checks passed77tests; API typecheck passed;50pgTAP assertions passed. All66manifest hashes matched before/after; HEAD unchanged. No writes/database/provider/native operations. Full gate/live acceptance still open at review completion.
+
+Fresh bounded safeguard preparation review, 2026-10-13:
+No findings. Only beforeAll import/hook changed; both security assertions, complete string/count guards, artifact policy, compiler30second limit and sanitizederrors unchanged. Installed Vitest3.2.7 hook error and elapsed-time handling fails the suite; skipped children cannot falsely succeed. Focused14actualartifactchecks/configtypecheckpassed. All67hashes matched before/after, HEAD unchanged. SourceSHA2567f6bb0b904196ac59ea614d3416b49653bdbb4638935257dbbc48cf57a2e3117. No writes/tests/database/provider/native operations during review.

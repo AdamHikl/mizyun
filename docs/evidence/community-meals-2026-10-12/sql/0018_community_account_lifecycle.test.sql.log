@@ -1,0 +1,77 @@
+BEGIN
+UPDATE 1
+CREATE EXTENSION
+SET
+INSERT 0 2
+UPDATE 2
+SET
+SET
+SET
+c1800000-0000-4000-8000-000000000001|lifecycle_one|Lifecycle One|LO|own bio|t|active|1|2026-10-12 11:12:08.306308+00|2026-10-12 11:12:08.306308+00|2026-09-30|2026-10-12 11:12:08.306308+00|2026-10-12 11:12:08.306308+00
+SET
+c1800000-0000-4000-8000-000000000002|lifecycle_two|Lifecycle Two|LT|foreign bio|t|active|1|2026-10-12 11:12:08.306308+00|2026-10-12 11:12:08.306308+00|2026-09-30|2026-10-12 11:12:08.306308+00|2026-10-12 11:12:08.306308+00
+RESET
+SET
+INSERT 0 1
+INSERT 0 3
+INSERT 0 1
+SET
+SET
+SET
+ok 1 - Export scopes identity to caller
+ok 2 - Export omits foreign identity
+ok 3 - Invitation bearer tokens are excluded
+ok 4 - Report export excludes internal evidence and identifying authority
+ok 5 - Export page is bounded
+ok 6 - Export cursor advances without losing remaining rows
+ok 7 - No arbitrary table export
+ok 8 - Ordinary member cannot run retention erasure
+ok 9 - Ordinary member cannot run another generation cleanup
+
+ok 10 - Reenrollment blocked while captured generation cleanup is pending
+RESET
+SET
+ok 11 - Withdrawal captures original generation
+ok 12 - Bounded cleanup leaves resumable work
+ok 13 - First batch deletes exactly one invitation
+1|f
+ok 14 - Resumed cleanup completes durable generation
+ok 15 - Withdrawal preserves account-bound notification preferences
+SET
+SET
+ok 16 - Fresh enrollment succeeds after cleanup
+RESET
+SET
+ok 17 - Return has fresh generation
+INSERT 0 1
+0|t
+ok 18 - Old cleanup retry cannot erase a new generation
+ok 19 - Erasure requires matching live deletion lease
+INSERT 0 2
+1
+ok 20 - Expiry maintenance purges elapsed quarantine
+ok 21 - Maintenance preserves unexpired reservation
+ok 22 - Unresolved necessary case is not silently expired
+UPDATE 1
+ok 23 - Closing a case starts explicit180-day retention
+UPDATE 1
+INSERT 0 1
+1
+ok 24 - Active permanent sanction keeps minimal appealable case
+ok 25 - Expired sanction-linked case loses all evidence payload
+INSERT 0 1
+ok 26 - A stolen/old worker identity cannot erase data
+5|t
+ok 27 - Reporter erasure retains an anonymized minimal sanction case
+DELETE 1
+ok 28 - Auth cascade does not sever sanction appeal identity
+SELECT 1
+GRANT
+SET
+SET
+SET
+ok 29 - Sanction remains appealable after reporter Auth erasure
+RESET
+SET
+1..29
+ROLLBACK

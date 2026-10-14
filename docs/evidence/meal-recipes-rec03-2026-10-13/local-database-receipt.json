@@ -1,0 +1,15 @@
+{
+  "database": "mizyun_rec03_verify_final_20261013",
+  "schema": "schema-only local disposable DB; no production or dev records",
+  "pgtapAssertions": 50,
+  "independentSessionChecks": [
+    "concurrent duplicate reserved+busy",
+    "one durable row/token charge/minute slot",
+    "terminal identity unavailable in new backend session",
+    "revocation committed while admission waited blocks dispatch",
+    "accepted deletion committed while admission waited blocks dispatch",
+    "denials leave no new ledger row"
+  ],
+  "providerCalls": 0,
+  "additionalSharedConcurrencyAssertions": 4
+}

@@ -1,0 +1,25 @@
+{
+  "workPackage": "REC-04 / AI-RECIPES-001 / #241",
+  "baseline": "0135228778059dc25c1a4925738f0b6934ed4f0c",
+  "candidatePath": "/private/tmp/mizyun-rec04-20261013-01a12b31",
+  "verifiedAt": "2026-10-13T10:09:47.893380+00:00",
+  "fullGateInputSha256": "e877a50ffff34f48812db4df17e1fb84cf28a273bc65084260dba4a76095bd0f",
+  "command": "npm_config_workspace_concurrency=1 VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=1 VITEST_MIN_FORKS=1 pnpm check",
+  "exitCode": 0,
+  "focused": {
+    "testsPassed": 301,
+    "filesPassed": 19
+  },
+  "reviewedHashesStable": true,
+  "sourcePaths": 31,
+  "nativeBundles": ["ios", "android"],
+  "skippedAcceptance": "15credential-gated API tests/3suites, real Keychain/photos/multipart/device, live provider/evaluation, Dev/Production release",
+  "commit": "none; local uncommitted recipe package and concurrent work preserved",
+  "documentation": "Outcome/receipts/issue update after full gate; separate owned documentation checks, no runtime source change",
+  "postGateDocumentationChecks": {
+    "ownedFormatting": "pass",
+    "navigation": "pass;0errors/34existingwarnings",
+    "diffWhitespace": "pass",
+    "runtimeSourceChangesAfterGate": false
+  }
+}

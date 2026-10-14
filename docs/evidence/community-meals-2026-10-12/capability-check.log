@@ -1,0 +1,22 @@
+
+> mizyun@0.1.0 test:coach-feature-knowledge /Users/adam/Documents/mizyun
+> node --test scripts/check-coach-feature-knowledge.test.mjs && node --import tsx scripts/check-coach-feature-knowledge.mjs
+
+✔ accepts complete explicit coverage and shared feature ownership (1.650167ms)
+✔ a new repository feature requires an explicit knowledge decision (0.155584ms)
+✔ a new mobile route requires a capability owner (0.091708ms)
+✔ removing or renaming a route rejects stale catalog directions (0.155708ms)
+✔ rejects empty user guidance and internal classification explanations (0.184542ms)
+✔ rejects dangling feature references and internal entries (0.159375ms)
+✔ rejects duplicate ids, routes, and local feature references (0.138833ms)
+✔ rejects classifying a user-facing feature as internal as well (0.080166ms)
+✔ wildcard routes cannot silently cover future screens (0.108125ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 107.732792
+Coach feature knowledge covers 21 features and 46 mobile routes.

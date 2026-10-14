@@ -1,0 +1,47 @@
+[check] Running all check:steps gates; input SHA-256 d8f14c7227276ace7ff5d50a378c384f67928e4db00cdead2a4979f829393ae6.
+> pnpm test:check-runner && pnpm navigation:check && pnpm test:navigation && pnpm test:exercise-catalog && pnpm test:coach-feature-knowledge && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:analytics-dashboard && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:android-release-optimization && pnpm test:android-window-support && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:community-operations && pnpm test:dev-ios-apple-auth && pnpm test:ios-simulator
+Checks PASSED: 0 errors, 31 warning(s).
+All matched files use Prettier code style!
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  28 passed (28)
+      Tests  338 passed (338)
+ Test Files  37 passed (37)
+      Tests  530 passed (530)
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+ Test Files  4 passed (4)
+      Tests  53 passed (53)
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+ Test Files  27 passed (27)
+      Tests  233 passed (233)
+ Test Files  4 passed (4)
+      Tests  95 passed (95)
+ Test Files  4 passed (4)
+      Tests  61 passed (61)
+ Test Files  7 passed (7)
+      Tests  94 passed (94)
+ Test Files  178 passed (178)
+      Tests  2157 passed (2157)
+ Test Files  5 passed (5)
+      Tests  109 passed (109)
+ ↓ apps/api/src/account-deletion.e2e.test.ts (2 tests | 2 skipped)
+ ↓ apps/api/src/persistence.e2e.test.ts (8 tests | 8 skipped)
+ ↓ apps/api/src/auth.e2e.test.ts (5 tests | 5 skipped)
+ Test Files  73 passed | 3 skipped (76)
+      Tests  1052 passed | 15 skipped (1067)
+> mizyun@0.1.0 test:deployment-safeguards /private/tmp/mizyun-rec03-20261013-01a12b31
+> node scripts/test-deployment-safeguards.mjs
+Hetzner operations safeguards passed.
+OK
+OK
+OK
+PASS: Apple capability boundaries (7 checks); concurrent unique discovery paths; success, denied-device and HUP/INT/TERM cleanup
+[check] PASS: all gates completed for input SHA-256 d8f14c7227276ace7ff5d50a378c384f67928e4db00cdead2a4979f829393ae6.

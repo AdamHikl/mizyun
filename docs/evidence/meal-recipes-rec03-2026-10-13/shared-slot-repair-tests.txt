@@ -1,0 +1,15 @@
+
+ RUN  v3.2.7 /private/tmp/mizyun-rec03-20261013-01a12b31
+
+ ✓ packages/adapters/image-processing/src/index.test.ts (3 tests) 150ms
+ ✓ apps/api/src/modules/coach/limits.test.ts (23 tests) 27ms
+ ✓ apps/api/src/modules/coach/nutrition-photo-routes.test.ts (13 tests) 1327ms
+   ✓ Coach nutrition photo proposals > free photo proposals preserve only server-authorized extra estimates  385ms
+ ✓ apps/api/src/modules/coach/routes.test.ts (38 tests) 2589ms
+   ✓ coach routes > returns recurring-meal setup help through the send/replay boundary without a meal draft  419ms
+
+ Test Files  4 passed (4)
+      Tests  77 passed (77)
+   Start at  09:43:22
+   Duration  10.91s (transform 5.43s, setup 0ms, collect 18.00s, tests 4.09s, environment 2ms, prepare 1.15s)
+

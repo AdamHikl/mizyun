@@ -1,0 +1,8 @@
+[check] Running all check:steps gates; input SHA-256 b14c230d6dd3a0c69bf8589262c3a62694e7f6e62349396b4530876cf8f7616a.
+ ❯ src/mobile-public.test.ts (14 tests | 1 failed) 11477ms
+     → Test timed out in 5000ms.
+Error: Test timed out in 5000ms.
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mizyun/config@0.1.0 test: `vitest run`
+Exit status 1
+
+Serialized workspace retry failed the same existing iOS disassembly-in-test deadline at5.55seconds; no security assertion failed. A bounded setup/preparation repair is required before another full gate.
