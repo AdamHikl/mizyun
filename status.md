@@ -10,7 +10,7 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend (Oct15):**197774caf8e2f2086a8884f31d253e8f86d0f0e9 (#248 PR#251, clean worktree) via deploy:dev; driver gatePASS, migration20261015090000 applied, health200 11:17Z, weekly-review 401 unauth. Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
+- **Dev backend (Oct15):**37ffcca945680a50db8789130a33a27545830d5f (#252 on #248 PR#251, clean worktree) deploy:dev; gatePASS(2689mobile/1122API+15skips), migrations20261015090000+20261015120000, health200 13:21Z. Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
 - **iPhone Dev (Oct15):**781c849b (#248) installed on Adam's iPhone 00008140-001114501A86801C 12:28Z (com.mizyun.development); launch blocked by lock. Device acceptance open.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **AI:** Hetzner Dev/Prod; Pi encrypted recovery. Gemini-or-disabled; adult/consent/usage/kill switches; no email allowlist. Founder/partner shared-Gemini Dev exception; Qwen paused. `docs/BEFORE_TESTING.md`/live-provider gates retained.
@@ -53,7 +53,7 @@
 
 ## Earlier implemented packages with open exits
 
-- **#183 recurring:** Dev SQL; tick/reopen/totals, edit/delete/pause/resume/skip/stop; TZ/DST/network/two-account open. [Evidence](docs/RECURRING_MEALS_PLAN_2026-10-03.md). **#242:** copy fix in main283bf05. [Fix](docs/MEAL_ROUTINE_COPY_REFRESH_2026-10-14.md); client/native next. **#252:** any-time fix mig20261015120000; tests/review PASS, uncommitted.
+- **#183 recurring:** Dev SQL; tick/reopen/totals, edit/delete/pause/resume/skip/stop; TZ/DST/network/two-account open. [Evidence](docs/RECURRING_MEALS_PLAN_2026-10-03.md). **#242:** copy fix in main283bf05. [Fix](docs/MEAL_ROUTINE_COPY_REFRESH_2026-10-14.md); client/native next. **#252:** any-time fix Dev37ffcca9; device check open.
 - **#184 Coach envelopes** — fix `17c6c49a0886b9b191b178d25e2c7bdbfa6ea9de` integrated. Accept old/new replies on exact Dev/provider/device candidate. [Handoff][handoffs]
 - **#185 per100g nutrition** — source `b57b5aa3022eeca7d94dbe839b81bdb957fa031a` integrated. Accept weight/decimal keyboard, preview/Save/reopen, advanced nutrients, draft/lost-response retry and large text. [Handoff][handoffs]
 - **#186/#192 analytics:** Mac3034 real/3033 synthetic; manual collector. #240 CLOSED: SQL64/unit69/review/gate/livePASS; reload next. [Evidence](docs/ANALYTICS_REGISTRATION_ZERO_DAYS_2026-10-12.md).
