@@ -130,24 +130,16 @@ const minuteAt = (at: string, timeZone: string): number => {
     Number(parts.find((p) => p.type === "minute")!.value)
   );
 };
-const circularTime = (
+// Linear median, matching public.recurring_suggestion_validate. Copies are saved
+// when the user taps Copy, so the spread only ranks chains; it never rejects one.
+const chainTime = (
   minutes: readonly number[],
 ): { spread: number; rounded: number } => {
   const sorted = [...minutes].sort((a, b) => a - b);
-  let start = 0,
-    gap = -1;
-  for (let i = 0; i < sorted.length; i++) {
-    const next =
-      sorted[(i + 1) % sorted.length]! + (i === sorted.length - 1 ? 1440 : 0);
-    if (next - sorted[i]! > gap) {
-      gap = next - sorted[i]!;
-      start = (i + 1) % sorted.length;
-    }
-  }
-  const unwrapped = sorted
-    .slice(start)
-    .concat(sorted.slice(0, start).map((v) => v + 1440));
-  return { spread: 1440 - gap, rounded: Math.round(unwrapped[1]! / 15) * 15 };
+  return {
+    spread: sorted.at(-1)! - sorted[0]!,
+    rounded: Math.floor((sorted[1]! + 7) / 15) * 15,
+  };
 };
 
 /** Pure, bounded observation. Complete history and authoritative generated IDs are required. */
@@ -281,27 +273,12 @@ export const detectRecurringMealSuggestion = (
       )
         continue;
       if (offerCooldown && !decision?.firstShownAt) continue;
-      const sourceMinute = minutes.get(source.id)!;
-      const eligible = compact.slice(0, 2).map((bucket) =>
-        bucket.filter((entry) => {
-          const delta = Math.abs(minutes.get(entry.id)! - sourceMinute);
-          return Math.min(delta, 1440 - delta) <= 90;
-        }),
-      );
-      for (const a of eligible[0]!)
-        for (const b of eligible[1]!) {
+      for (const a of compact[0]!)
+        for (const b of compact[1]!) {
           const chain = [a, b, source],
-            timing = circularTime(chain.map((e) => minutes.get(e.id)!));
-          // A circular chain spanning midnight is ambiguous for a daily schedule.
-          if (
-            timing.spread > 90 ||
-            timing.rounded >= 1440 ||
-            timing.rounded < 0 ||
-            Math.max(...chain.map((e) => minutes.get(e.id)!)) -
-              Math.min(...chain.map((e) => minutes.get(e.id)!)) >
-              90
-          )
-            continue;
+            timing = chainTime(chain.map((e) => minutes.get(e.id)!));
+          // A median rounded up to midnight is ambiguous for a daily schedule.
+          if (timing.rounded >= 1440) continue;
           const localTime = `${String(Math.floor(timing.rounded / 60)).padStart(2, "0")}:${String(timing.rounded % 60).padStart(2, "0")}`;
           if (
             (input.existingSchedules ?? []).some(

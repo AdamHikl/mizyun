@@ -177,7 +177,7 @@ describe("meal routine suggestions", () => {
         ),
       ).toBeNull();
   });
-  it("rejects wide and date-crossing rounded time chains", () => {
+  it("accepts wide chains at the median time but rejects midnight-rounded ones", () => {
     expect(
       detectRecurringMealSuggestion(
         input({
@@ -187,8 +187,8 @@ describe("meal routine suggestions", () => {
             entries[2]!,
           ],
         }),
-      ),
-    ).toBeNull();
+      )?.localTime,
+    ).toBe("08:00");
     const midnight = entries.map((e) => ({
       ...e,
       consumedAt: e.consumedAt.replace("08:05", "23:58"),
@@ -349,4 +349,71 @@ it("fails closed when distinct minute combinations exceed the resource budget", 
     });
   });
   expect(detectRecurringMealSuggestion(input({ entries: diverse }))).toBeNull();
+});
+
+describe("copied meals saved at a different time of day", () => {
+  const coffee = (day: string, id: number, time: string) =>
+    entry(day, id, {
+      name: "Coffee with milk",
+      consumedAt: `${day}T${time}:00Z`,
+      createdAt: `${day}T${time}:30Z`,
+      updatedAt: `${day}T${time}:30Z`,
+      caloriesKcal: 40,
+      proteinG: 2,
+      carbohydrateG: 3,
+      fatG: 2,
+      details: {},
+    });
+  it("suggests the usual time when today's copy was saved hours later", () => {
+    const result = detectRecurringMealSuggestion(
+      input({
+        entries: [
+          coffee("2026-10-09", 1, "07:55"),
+          coffee("2026-10-10", 2, "08:10"),
+          coffee("2026-10-11", 3, "08:00"),
+          coffee("2026-10-12", 4, "08:05"),
+          // Copied from yesterday in the afternoon: consumedAt is the copy time.
+          coffee("2026-10-13", 5, "14:30"),
+        ],
+        referenceAt: new Date("2026-10-13T14:31:00Z"),
+      }),
+    );
+    expect(result).toMatchObject({
+      name: "Coffee with milk",
+      localTime: "08:00",
+      sourceEntryId: coffee("2026-10-13", 5, "14:30").id,
+      startLocalDate: "2026-10-14",
+    });
+  });
+  it("suggests the rounded median when every day was copied at a different time", () => {
+    const result = detectRecurringMealSuggestion(
+      input({
+        entries: [
+          coffee("2026-10-11", 1, "07:10"),
+          coffee("2026-10-12", 2, "12:40"),
+          coffee("2026-10-13", 3, "18:20"),
+        ],
+        referenceAt: new Date("2026-10-13T18:21:00Z"),
+      }),
+    );
+    expect(result?.localTime).toBe("12:45");
+  });
+  it("still prefers the tightest matching chain", () => {
+    const result = detectRecurringMealSuggestion(
+      input({
+        entries: [
+          coffee("2026-10-11", 1, "08:00"),
+          coffee("2026-10-11", 2, "16:00"),
+          coffee("2026-10-12", 3, "08:05"),
+          coffee("2026-10-12", 4, "16:10"),
+          coffee("2026-10-13", 5, "16:05"),
+        ],
+        referenceAt: new Date("2026-10-13T16:06:00Z"),
+      }),
+    );
+    expect(result?.evidence.map((e) => e.id)).toEqual(
+      [2, 4, 5].map((id) => coffee("2026-10-11", id, "00:00").id),
+    );
+    expect(result?.localTime).toBe("16:00");
+  });
 });

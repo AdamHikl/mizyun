@@ -4,7 +4,7 @@ Date: 2026-10-13. Status: accepted for source implementation; Dev/native/pilot a
 
 ## Decision
 
-Offer one contextual card on Home/Meals after three consecutive local days of exact confirmed meal identity and consumption times within90 minutes. Explicit copies count, including copies of automatic entries; server occurrence-ledger entries and surviving automatic markers do not. Detection is pure domain code and invokes no model/provider. Normalize NFC and explicit whitespace, fold ASCII case only, preserve missing nutrition versus zero, and use exact basic macros/grams. Compact same-minute duplicates and fail closed on incomplete or excessive search history.
+Offer one contextual card on Home/Meals after three consecutive local days of exact confirmed meal identity at any time of day; the proposed time is the rounded median (amended 2026-10-15, #252: copies are saved when Copy is tapped, so a 90-minute window missed real habits). Explicit copies count, including copies of automatic entries; server occurrence-ledger entries and surviving automatic markers do not. Detection is pure domain code and invokes no model/provider. Normalize NFC and explicit whitespace, fold ASCII case only, preserve missing nutrition versus zero, and use exact basic macros/grams. Compact same-minute duplicates and fail closed on incomplete or excessive search history.
 
 User authorization creates a schedule, rather than merely opening an editor. Daily begins tomorrow; Change previews custom time/weekdays and uses the same acceptance boundary. Profile/device timezone disagreement requires a choice and fresh detection. Accepted schedule timezone remains fixed across travel. Existing management handles pause, skip, stop and edits. Durable30-day/permanent family dismissal and global controls never disable existing schedules.
 
@@ -14,7 +14,7 @@ Owner-only RLS tables store family decisions, preferences and receipts. Account 
 
 ## Alternatives and consequences
 
-A card avoids new notification permissions and sensitive lock-screen content. Fuzzy meal matching, photo reuse, grouped meals, generalized automation and proactive advice remain outside v1. Exact matching may miss separately estimated servings. Three days and90 minutes are product hypotheses; changing policy requires coordinated truthful copy/contracts. Pilot analytics is deferred and must not count generated food records as deliberate engagement or confirmed intake.
+A card avoids new notification permissions and sensitive lock-screen content. Fuzzy meal matching, photo reuse, grouped meals, generalized automation and proactive advice remain outside v1. Exact matching may miss separately estimated servings. Three days is a product hypothesis; changing policy requires coordinated truthful copy/contracts. Pilot analytics is deferred and must not count generated food records as deliberate engagement or confirmed intake.
 
 ## Sources and evidence
 

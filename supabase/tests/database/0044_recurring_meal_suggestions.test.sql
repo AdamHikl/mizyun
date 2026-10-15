@@ -47,6 +47,17 @@ select isnt(public.recurring_suggestion_family(U&'\039F\03A3 OATS'),public.recur
 select is(public.recurring_suggestion_json('["meal",300.00,null,0,1.500,100]'::jsonb),'["meal",300,null,0,1.5,100]','Canonical exact number/null identity');
 select is(public.recurring_suggestion_json('[0.00000001020]'::jsonb),'[1.02e-8]','Small-number JSON.stringify parity');
 select is(public.recurring_suggestion_digest('hello'),'4f9f2cab','FNV consistency fixture parity');
+-- A copy is saved when the user taps Copy, so evidence hours apart stays valid at its median time.
+insert into auth.users(id,email) values('a2440000-0000-4000-8000-000000000007','wide-times@synthetic.invalid');
+insert into public.food_entries(id,user_id,name,consumed_at,created_at,updated_at,calories_kcal,protein_g,carbohydrate_g,fat_g,confirmed_by_user,details)
+select gen_random_uuid(),'a2440000-0000-4000-8000-000000000007','Oats with banana',
+ case d when 0 then date_trunc('minute',now()) when 1 then date_trunc('day',now())-interval '1 day'+interval '21 hours' else date_trunc('day',now())-interval '2 days'+interval '3 hours' end,
+ date_trunc('milliseconds',now()),date_trunc('milliseconds',now()),300.00,10,40,10,true,'{"grams":100}'::jsonb
+from generate_series(0,2) d;
+select lives_ok(format('select public.recurring_suggestion_validate(%L::uuid,%L::jsonb)','a2440000-0000-4000-8000-000000000007',
+ jsonb_set(pg_temp.mrs_proposal('a2440000-0000-4000-8000-000000000007'),'{localTime}',to_jsonb((select lpad((m/60)::text,2,'0')||':'||lpad((m%60)::text,2,'0')
+   from (select ((greatest(180,least(1260,extract(hour from now() at time zone 'UTC')::int*60+extract(minute from now() at time zone 'UTC')::int))+7)/15)*15 m) x)))),
+ 'Evidence logged hours apart validates at its rounded median time');
 
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
