@@ -34,6 +34,15 @@ import {
 const hasControlCharacters = (value: string) =>
   /[\u0000-\u001f\u007f]/.test(value.trim());
 
+const STATE_LABELS: Record<string, string> = {
+  member: "Member",
+  pending: "Pending approval",
+  invited: "Invited",
+  banned: "Removed and blocked",
+  removed: "Removed",
+};
+const stateLabel = (state: string) => STATE_LABELS[state] ?? state;
+
 export function GroupsScreen() {
   const { session } = useAuth();
   return (
@@ -312,10 +321,19 @@ function Content({ principal }: { principal: string | null }) {
   const base = group
     ? { groupId: group.id, membershipVersion: group.membershipVersion }
     : null;
-  const button = (label: string, action: () => void, disabled = false) => (
+  const button = (
+    label: string,
+    action: () => void,
+    disabled = false,
+    checked?: boolean,
+  ) => (
     <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled: busy || disabled }}
+      accessibilityRole={checked === undefined ? "button" : "checkbox"}
+      accessibilityState={
+        checked === undefined
+          ? { disabled: busy || disabled }
+          : { disabled: busy || disabled, checked }
+      }
       disabled={busy || disabled}
       onPress={action}
       style={{
@@ -422,7 +440,7 @@ function Content({ principal }: { principal: string | null }) {
           task === "list" &&
           groups.map((item) => (
             <View key={item.id} style={{ gap: 6 }}>
-              {button(`${item.name} · ${item.state}`, () =>
+              {button(`${item.name} · ${stateLabel(item.state)}`, () =>
                 selectGroup(item.id),
               )}
             </View>
@@ -595,6 +613,8 @@ function Content({ principal }: { principal: string | null }) {
                         ? "Group audience confirmed ✓"
                         : "Confirm this text is for the current group members",
                       () => setConfirmed(!confirmed),
+                      false,
+                      confirmed,
                     )}
                     {button(
                       "Publish this group post",
@@ -722,7 +742,7 @@ function Content({ principal }: { principal: string | null }) {
                       <View key={member.userId} style={{ gap: 6 }}>
                         <Text style={{ color: theme.text }}>
                           {member.displayName} · @{member.handle} ·{" "}
-                          {member.role} · {member.state}
+                          {member.role} · {stateLabel(member.state)}
                         </Text>
                         {group.role !== "member" &&
                           member.userId !== principal &&

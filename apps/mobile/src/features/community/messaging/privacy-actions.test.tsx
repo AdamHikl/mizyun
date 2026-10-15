@@ -192,6 +192,7 @@ describe("private Community actions", () => {
       false,
     );
     button(tree, "Delete my message for both people").props.onPress();
+    confirm();
     await settle();
     expect(mocks.run).toHaveBeenCalledWith({ operation: "delete", id: "mine" });
     button(tree, "Next page of my sent messages").props.onPress();
@@ -216,6 +217,7 @@ describe("private Community actions", () => {
       render(CommunityMessagingScreen),
       "Delete my message for both people",
     ).props.onPress();
+    confirm();
     await settle();
     expect(mocks.run.mock.calls.map(([command]) => command.operation)).toEqual([
       "delete",

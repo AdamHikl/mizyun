@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   focus: null as null | (() => () => void),
   appState: null as null | ((state: string) => void),
+  alert: vi.fn(),
 }));
 const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 let communityReadCache: CommunityReadCache;
@@ -43,6 +44,7 @@ vi.mock("react-native", () => ({
   Text: "Text",
   View: "View",
   ScrollView: "ScrollView",
+  Alert: { alert: mocks.alert },
   AppState: {
     currentState: "active",
     addEventListener: (_event: string, callback: (state: string) => void) => {
@@ -137,7 +139,11 @@ function button(tree: any, label: string): any {
 async function settle() {
   for (let i = 0; i < 5; i++) await Promise.resolve();
 }
+function confirm() {
+  mocks.alert.mock.calls.at(-1)![2][1].onPress();
+}
 beforeEach(() => {
+  mocks.alert.mockClear();
   // Composition registers a store so real invalidation retires navigation epochs.
   communityReadCache = new CommunityReadCache(
     {
@@ -373,6 +379,7 @@ describe("challenge privacy during growth freezes", () => {
   it("opens owner management without a group link and cancels through the owned read", async () => {
     const tree = await openMine();
     button(tree, "Cancel challenge").props.onPress();
+    confirm();
     await settle();
     expect(mocks.run).toHaveBeenCalledWith({
       operation: "cancel",
@@ -388,6 +395,7 @@ describe("challenge privacy during growth freezes", () => {
     const tree = await openMine();
     expect(button(tree, "Cancel challenge")).toBeUndefined();
     button(tree, "Remove declaration for 2026-10-01").props.onPress();
+    confirm();
     await settle();
     expect(mocks.run).toHaveBeenCalledWith({
       operation: "removeContribution",
@@ -395,6 +403,7 @@ describe("challenge privacy during growth freezes", () => {
       day: "2026-10-01",
     });
     button(tree, "Leave and remove my declarations").props.onPress();
+    confirm();
     await settle();
     expect(mocks.run).toHaveBeenCalledWith({
       operation: "leave",
@@ -410,6 +419,7 @@ describe("challenge privacy during growth freezes", () => {
     mocks.run.mockClear();
     mocks.run.mockResolvedValueOnce(null);
     button(tree, "Cancel challenge").props.onPress();
+    confirm();
     await settle();
     expect(mocks.run.mock.calls.map(([command]) => command.operation)).toEqual([
       "cancel",

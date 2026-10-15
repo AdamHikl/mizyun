@@ -306,6 +306,27 @@ describe("comments composer authority expiry", () => {
       false,
     );
   });
+  it("explains a paused reply and resumes the kept text when Reply is tapped again", async () => {
+    const texts = (tree: any) =>
+      nodes(tree, "Text")
+        .flatMap((node) => [node.props.children].flat())
+        .filter((child) => typeof child === "string")
+        .join(" ");
+    await start();
+    control(render(), "Reply to Friend").props.onPress();
+    render();
+    input(render()).props.onChangeText("My reply draft");
+    render();
+    await vi.advanceTimersByTimeAsync(10_000);
+    render();
+    let tree = render();
+    expect(texts(tree)).toContain("Your reply was paused");
+    control(tree, "Reply to Friend").props.onPress();
+    render();
+    tree = render();
+    expect(input(tree).props.value).toBe("My reply draft");
+    expect(texts(tree)).not.toContain("Your reply was paused");
+  });
 });
 
 vi.mock("../ui", () => ({

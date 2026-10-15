@@ -79,6 +79,11 @@ function CommentsContent({
   const [editing, setEditing] = useState<CommunityComment | null>(null);
   const [reply, setReply] = useState<string | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
+  // Explains why a reply/edit heading disappeared while the text stayed.
+  const [retiredContext, setRetiredContext] = useState<{
+    kind: "reply" | "edit";
+    targetId: string;
+  } | null>(null);
   const intent = useRef<{
     id: string;
     operationId: string;
@@ -91,15 +96,27 @@ function CommentsContent({
     setEditing(null);
     setReply(null);
     setReportId(null);
+    setRetiredContext(null);
     intent.current = null;
   }, []);
   const protectedDraft = useRef(false);
   protectedDraft.current =
     editing !== null || reply !== null || mentions.length > 0;
+  const draftContext = useRef<{
+    kind: "reply" | "edit";
+    targetId: string;
+  } | null>(null);
+  draftContext.current = editing
+    ? { kind: "edit", targetId: editing.id }
+    : reply
+      ? { kind: "reply", targetId: reply }
+      : null;
   const retireProtectedDraft = useCallback(() => {
     // A new plain-text draft belongs to its author. Audience-derived editing,
     // reply and recipient context expires with the delivered discussion.
     if (protectedDraft.current) setAccepted(false);
+    // Without this notice the kept text silently becomes a new root comment.
+    if (draftContext.current) setRetiredContext(draftContext.current);
     setMentions([]);
     setEditing(null);
     setReply(null);
@@ -195,12 +212,22 @@ function CommentsContent({
     </Pressable>
   );
   const compose = (comment: CommunityComment, edit: boolean) => {
+    const targetId = edit ? comment.id : (comment.parentId ?? comment.id);
+    // Resume the text kept from the same reply/edit after a recheck.
+    const resumed =
+      retiredContext?.kind === (edit ? "edit" : "reply") &&
+      retiredContext.targetId === targetId
+        ? body
+        : null;
     clearDraft();
     if (edit) {
       setEditing(comment);
-      setBody(comment.body);
+      setBody(resumed ?? comment.body);
       setMentions(comment.mentions.map((person) => person.userId));
-    } else setReply(comment.parentId ?? comment.id);
+    } else {
+      setReply(targetId);
+      if (resumed) setBody(resumed);
+    }
   };
   const bodyValidation = communityCommentTextSchema.safeParse(body);
   const submit = async () => {
@@ -411,6 +438,13 @@ function CommentsContent({
                           ? "Write a reply"
                           : "Write a supportive comment"}
                     </ThemedText>
+                    {retiredContext && body.trim() !== "" && (
+                      <ThemedText accessibilityLiveRegion="polite">
+                        {retiredContext.kind === "edit"
+                          ? "Your edit was paused while comments were rechecked. Your text is kept; tap Edit on your comment to continue, or it will post as a new comment."
+                          : "Your reply was paused while comments were rechecked. Your text is kept; tap Reply again to continue, or it will post as a new comment."}
+                      </ThemedText>
+                    )}
                     <TextInput
                       accessibilityLabel="Comment text"
                       multiline
@@ -419,6 +453,7 @@ function CommentsContent({
                       value={body}
                       onChangeText={(text) => {
                         setBody(text);
+                        if (!text.trim()) setRetiredContext(null);
                         setAccepted(false);
                       }}
                       placeholder="A little encouragement…"

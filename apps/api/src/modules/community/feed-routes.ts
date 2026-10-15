@@ -174,13 +174,17 @@ export const communityFeedRoutes: FastifyPluginAsync<
           { accessToken: principal.accessToken },
         );
 
-      const itemsWithReactions = validItems.map((item) => {
+      // A card missing from the map became unavailable after the page read.
+      const itemsWithReactions = validItems.flatMap((item) => {
         const reactions = reactionsMap.get(item.id);
-        return {
-          ...item,
-          reactionCounts: reactions?.reactionCounts ?? defaultReactionCounts,
-          viewerReaction: reactions?.viewerReaction ?? null,
-        };
+        if (!reactions) return [];
+        return [
+          {
+            ...item,
+            reactionCounts: reactions.reactionCounts,
+            viewerReaction: reactions.viewerReaction,
+          },
+        ];
       });
 
       return communityFeedResponseSchema.parse({

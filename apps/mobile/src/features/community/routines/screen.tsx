@@ -517,13 +517,23 @@ function RoutinesContent({ principal }: { principal: string | null }) {
                       </Text>
                     ))}
                     {s.isOwner ? (
-                      button(
-                        "Unshare routine",
-                        () =>
-                          void perform(
-                            () => unshareRoutine(client, s.id),
-                            "Routine no longer shared.",
-                          ),
+                      button("Unshare routine", () =>
+                        Alert.alert(
+                          "Unshare this routine?",
+                          "Followers will no longer be able to see or import this snapshot. Copies they already imported are kept.",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Unshare",
+                              style: "destructive",
+                              onPress: () =>
+                                void perform(
+                                  () => unshareRoutine(client, s.id),
+                                  "Routine no longer shared.",
+                                ),
+                            },
+                          ],
+                        ),
                       )
                     ) : (
                       <>

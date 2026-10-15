@@ -1,10 +1,14 @@
 import { communityEventId } from "./push-lifecycle";
+/** Resolution could not reach an authority decision (offline, 5xx, rate limit). */
+export const COMMUNITY_TAP_TRANSIENT = { transient: true } as const;
+export type CommunityTapResolution =
+  string | null | typeof COMMUNITY_TAP_TRANSIENT;
 export interface CommunityTapPorts {
   resolve(
     userId: string,
     eventId: string,
     isCurrent: () => boolean,
-  ): Promise<string | null>;
+  ): Promise<CommunityTapResolution>;
   markRead(
     userId: string,
     eventId: string,
@@ -70,13 +74,15 @@ export class CommunityTapController {
       this.principal === principal &&
       this.revision === revision &&
       this.ports.isPrincipalCurrent(principal);
-    let destination: string | null = null;
+    let resolution: CommunityTapResolution = null;
     try {
-      destination = await this.ports.resolve(principal, event, valid);
+      resolution = await this.ports.resolve(principal, event, valid);
     } catch {
       /* Generic unavailable state; no payload logging. */
     }
     if (!valid()) return; // Retain pending event for a fresh resume/account authorization.
+    const transient = resolution === COMMUNITY_TAP_TRANSIENT;
+    const destination = typeof resolution === "string" ? resolution : null;
     let readConfirmed = true;
     if (destination) {
       try {
@@ -92,9 +98,11 @@ export class CommunityTapController {
     this.consumed.add(event);
     this.ports.clearLastResponse();
     this.ports.navigate(
-      !readConfirmed
-        ? "/community/inbox?notice=read_unconfirmed"
-        : (destination ?? "/community/inbox?notice=unavailable"),
+      transient
+        ? "/community/inbox?notice=offline"
+        : !readConfirmed
+          ? "/community/inbox?notice=read_unconfirmed"
+          : (destination ?? "/community/inbox?notice=unavailable"),
     );
   }
 }

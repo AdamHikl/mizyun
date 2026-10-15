@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { CommunityTapController } from "./tap-controller";
+import {
+  COMMUNITY_TAP_TRANSIENT,
+  CommunityTapController,
+  type CommunityTapResolution,
+} from "./tap-controller";
 const eventId = "00000000-0000-4000-8000-000000000001";
 const flush = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve();
@@ -12,7 +16,9 @@ function deferred<T>() {
   return { promise, resolve };
 }
 function setup(
-  resolve = vi.fn(async () => "/community/relationships" as string | null),
+  resolve = vi.fn(
+    async (): Promise<CommunityTapResolution> => "/community/relationships",
+  ),
 ) {
   let principal: string | null = "alice";
   const ports = {
@@ -49,6 +55,17 @@ describe("native notification tap boundary", () => {
     await flush();
     expect(ports.navigate).not.toHaveBeenCalled();
     expect(ports.clearLastResponse).not.toHaveBeenCalled();
+  });
+  it("reports an offline tap as a connection problem, not an unavailable update", async () => {
+    const { taps, ports } = setup(vi.fn(async () => COMMUNITY_TAP_TRANSIENT));
+    taps.setPrincipal("alice");
+    taps.setForeground(true);
+    taps.receive({ communityEventId: eventId });
+    await flush();
+    expect(ports.markRead).not.toHaveBeenCalled();
+    expect(ports.navigate).toHaveBeenCalledWith(
+      "/community/inbox?notice=offline",
+    );
   });
   it("reports failed read acknowledgement honestly", async () => {
     const { taps, ports } = setup();

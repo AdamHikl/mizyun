@@ -137,6 +137,8 @@ export function ShareWorkoutModal({
   const selectionRevision = useRef(0);
   const publicationOperation = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Synchronous guard: two fast taps can both pass before `submitting` renders.
+  const inFlight = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedAction, setFailedAction] = useState<"publish" | "revoke">(
@@ -155,6 +157,7 @@ export function ShareWorkoutModal({
     setIncludeDuration(false);
     setIncludeWorkoutDetails(false);
     setSubmitting(false);
+    inFlight.current = false;
     if (!visible || !workoutId || !principalKey || !foreground.current) return;
     setLoading(true);
     const load = async () => {
@@ -240,31 +243,39 @@ export function ShareWorkoutModal({
       !preview ||
       preview.workoutId !== workoutId ||
       submitting ||
+      inFlight.current ||
       !isEnrolled ||
       !selectionIsCurrent()
     )
       return;
     const revision = selectionRevision.current;
+    inFlight.current = true;
     setSubmitting(true);
     setError(null);
 
     setFailedAction("publish");
     const enrollmentGeneration = preview.enrollmentGeneration;
     if (!enrollmentGeneration) {
+      inFlight.current = false;
       setSubmitting(false);
       setError("Reload the sharing preview before publishing.");
       return;
     }
     publicationOperation.current ??= randomUUID();
-    const res = await saveWorkoutShare(scopedClient, {
-      workoutId,
-      preview,
-      includeDuration,
-      includeWorkoutDetails,
-      existingActivityId: effectiveActivityId,
-      operationId: publicationOperation.current,
-      enrollmentGeneration,
-    });
+    let res: Awaited<ReturnType<typeof saveWorkoutShare>>;
+    try {
+      res = await saveWorkoutShare(scopedClient, {
+        workoutId,
+        preview,
+        includeDuration,
+        includeWorkoutDetails,
+        existingActivityId: effectiveActivityId,
+        operationId: publicationOperation.current,
+        enrollmentGeneration,
+      });
+    } finally {
+      inFlight.current = false;
+    }
     if (!selectionIsCurrent() || revision !== selectionRevision.current) return;
 
     setSubmitting(false);
@@ -287,17 +298,29 @@ export function ShareWorkoutModal({
   };
 
   const handleUnpublish = async () => {
-    if (!effectiveActivityId || submitting || !selectionIsCurrent()) return;
+    if (
+      !effectiveActivityId ||
+      submitting ||
+      inFlight.current ||
+      !selectionIsCurrent()
+    )
+      return;
     const revision = selectionRevision.current;
+    inFlight.current = true;
     setSubmitting(true);
     setError(null);
 
     setFailedAction("revoke");
-    const res = await unpublishActivity(
-      scopedClient,
-      effectiveActivityId,
-      preview?.existingActivity?.version,
-    );
+    let res: Awaited<ReturnType<typeof unpublishActivity>>;
+    try {
+      res = await unpublishActivity(
+        scopedClient,
+        effectiveActivityId,
+        preview?.existingActivity?.version,
+      );
+    } finally {
+      inFlight.current = false;
+    }
     if (!selectionIsCurrent() || revision !== selectionRevision.current) return;
     setSubmitting(false);
 

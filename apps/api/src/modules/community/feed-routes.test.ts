@@ -195,6 +195,45 @@ describe("GET /v1/community/feed", () => {
     expect(aliceRes.json().items).toHaveLength(1);
   });
 
+  it("drops a card that became unavailable during the reaction read instead of failing the feed", async () => {
+    const { app, communityRepository } = await setupTestApp();
+    await communityRepository.saveProfile(userAlice, {
+      handle: "alice",
+      displayName: "Alice",
+      isSearchable: true,
+    });
+    const publish = (n: number) =>
+      communityRepository.publishActivity(userAlice, {
+        sourceWorkoutId: `10000000-0000-4000-8000-00000000000${n}`,
+        category: "strength",
+        sharedDay: "2026-09-29",
+        durationSeconds: 600,
+        enrollmentGeneration: 1,
+        operationId: `20000000-0000-4000-8000-00000000000${n}`,
+      });
+    const kept = await publish(1);
+    const revoked = await publish(2);
+    const original =
+      communityRepository.getReactionsForActivities.bind(communityRepository);
+    vi.spyOn(
+      communityRepository,
+      "getReactionsForActivities",
+    ).mockImplementation(async (...args) => {
+      const map = await original(...args);
+      map.delete(revoked.id);
+      return map;
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/community/feed",
+      headers: { authorization: "Bearer token-alice" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(
+      response.json().items.map((item: { id: string }) => item.id),
+    ).toEqual([kept.id]);
+  });
+
   it("does not show activities from pending or unapproved relationships", async () => {
     const { app, communityRepository } = await setupTestApp();
     await communityRepository.saveProfile(userAlice, {

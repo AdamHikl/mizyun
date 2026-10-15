@@ -3,6 +3,7 @@ import { AppState, Platform } from "react-native";
 import { router, type Href } from "expo-router";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
+import { isTransientCommunityError } from "../community-client";
 import { scopeCommunityClient } from "../scoped-client";
 import { notificationDestinationPath } from "./controller";
 import {
@@ -10,7 +11,10 @@ import {
   readCommunityNotification,
 } from "./notification-client";
 import { communityPushLifecycle } from "./push-native";
-import { CommunityTapController } from "./tap-controller";
+import {
+  COMMUNITY_TAP_TRANSIENT,
+  CommunityTapController,
+} from "./tap-controller";
 
 /** Mount once inside the signed-in navigation root. Never trusts a push URL or target. */
 export function CommunityNotificationBridge() {
@@ -26,7 +30,11 @@ export function CommunityNotificationBridge() {
             scopeCommunityClient(apiClient, principal, valid),
             eventId,
           );
-          return result.ok ? notificationDestinationPath(result.value) : null;
+          if (result.ok) return notificationDestinationPath(result.value);
+          // Offline is not a denial: say so instead of "unavailable".
+          return isTransientCommunityError(result.error)
+            ? COMMUNITY_TAP_TRANSIENT
+            : null;
         },
         markRead: async (principal, eventId, valid) =>
           (

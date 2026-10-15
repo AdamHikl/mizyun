@@ -20,14 +20,18 @@ export function communityOperationGate(
       (path.includes("/discover") ||
         path === "/v1/community/search" ||
         path === "/v1/community/handles/check" ||
-        path.includes("/invitation") ||
+        // Only token resolution is discovery; listing your own invitations
+        // must stay available so they can be found and revoked.
+        path.startsWith("/v1/community/invitations/") ||
         path.includes("/handle/") ||
         path.includes("/profile/handle-availability"))) ||
     (method === "POST" && path === "/v1/community/invitations")
   )
     return "discovery";
   if (
-    (method === "POST" && path === "/v1/community/activities") ||
+    (method === "POST" &&
+      (path === "/v1/community/activities" ||
+        path === "/v1/community/meal-activities")) ||
     (["PUT", "PATCH"].includes(method) &&
       /^\/v1\/community\/activities\/[^/]+$/.test(path))
   )
@@ -128,6 +132,12 @@ export function communityExpansionOperationGate(
       : method === "GET"
         ? "browsing"
         : "publish";
+  // Viewing image bytes is a POST read, not a publication.
+  if (
+    method === "POST" &&
+    /^\/v1\/community\/media\/[^/]+\/content$/.test(path)
+  )
+    return "browsing";
   if (path.startsWith("/v1/community/media"))
     return method === "DELETE"
       ? null

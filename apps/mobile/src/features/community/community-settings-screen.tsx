@@ -693,14 +693,18 @@ function Action({
               : variant === "link"
                 ? "transparent"
                 : theme.border,
-          backgroundColor: variant === "primary" ? "#047857" : "transparent",
+          backgroundColor:
+            variant === "primary" ? theme.primary : "transparent",
           opacity: disabled ? 0.5 : 1,
         },
       ]}
     >
       <ThemedText
         style={[
-          variant === "primary" && [styles.primaryLabel, { color: "#FFFFFF" }],
+          variant === "primary" && [
+            styles.primaryLabel,
+            { color: theme.onPrimary },
+          ],
           variant === "destructive" && styles.destructiveLabel,
         ]}
       >

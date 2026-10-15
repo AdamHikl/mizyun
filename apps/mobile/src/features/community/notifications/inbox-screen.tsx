@@ -110,6 +110,12 @@ function InboxContent({ principal }: { principal: string | null }) {
           your updates and try again.
         </ThemedText>
       )}
+      {notice === "offline" && (
+        <ThemedText accessibilityLiveRegion="polite">
+          We couldn&apos;t reach Mizyun to open that update. When you&apos;re
+          back online, open it from this list.
+        </ThemedText>
+      )}
       {notice === "unavailable" && (
         <ThemedText accessibilityLiveRegion="polite">
           That Community update is unavailable. This list shows currently

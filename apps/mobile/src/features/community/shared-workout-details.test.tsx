@@ -65,6 +65,30 @@ describe("shared workout projection presentation", () => {
     expect(text).toContain("No measurements recorded");
     expect(text).not.toContain("null");
   });
+  it("numbers each set type separately so warm-ups do not shift working sets", () => {
+    const set = (setType: "warmup" | "normal") => ({
+      setType,
+      repetitions: 5,
+      loadKg: 60,
+      durationSeconds: null,
+    });
+    const text = labels(
+      SharedWorkoutDetails({
+        details: {
+          exercises: [
+            {
+              name: "Bench press",
+              sets: [set("warmup"), set("normal"), set("normal")],
+            },
+          ],
+        },
+      }),
+    );
+    expect(text).toContain("Warm-up 1");
+    expect(text).toContain("Set 1");
+    expect(text).toContain("Set 2");
+    expect(text).not.toContain("Set 3");
+  });
   it("keeps feed compact and puts detailed measurements behind the current-access detail view", () => {
     const text = labels(
       SharedWorkoutDetails({ details, compact: true }),

@@ -120,6 +120,8 @@ describe("Community operations", () => {
     ["GET", "/handles/check?handle=x", "discovery"],
     ["GET", "/profile/handle-availability", "discovery"],
     ["POST", "/invitations", "discovery"],
+    ["GET", "/invitations/token-value", "discovery"],
+    ["POST", "/meal-activities", "publish"],
     ["POST", "/relationships/follow", "engagement"],
     ["POST", "/relationships/requests", "engagement"],
     ["PATCH", "/activities/id", "publish"],
@@ -133,6 +135,25 @@ describe("Community operations", () => {
   ])("gates %s %s", (method, path, gate) =>
     expect(communityOperationGate(method!, `/v1/community${path}`)).toBe(gate),
   );
+  it("gates viewing media bytes as browsing, not publishing", () => {
+    expect(
+      communityExpansionOperationGate(
+        "POST",
+        "/v1/community/media/id/content",
+        {},
+      ),
+    ).toBe("browsing");
+    expect(
+      communityExpansionOperationGate("POST", "/v1/community/media", {}),
+    ).toBe("publish");
+    expect(
+      communityExpansionOperationGate(
+        "POST",
+        "/v1/community/media/reports/id/content",
+        {},
+      ),
+    ).toBeNull();
+  });
   it.each(["threads", "latest"])(
     "gates messaging %s as browsing",
     (operation) => {
@@ -152,6 +173,8 @@ describe("Community operations", () => {
     ["DELETE", "/activities/id"],
     ["GET", "/notifications/inbox"],
     ["DELETE", "/notifications/token/id"],
+    ["GET", "/invitations"],
+    ["DELETE", "/invitations/id"],
   ])("preserves %s %s", (method, path) =>
     expect(communityOperationGate(method!, `/v1/community${path}`)).toBeNull(),
   );

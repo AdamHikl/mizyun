@@ -67,6 +67,48 @@ describe("community inbox lifecycle", () => {
     expect(controller.getSnapshot().items).toEqual([]);
   });
 
+  it("keeps the list when opening an update fails offline", async () => {
+    const { controller } = setup(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          value: { items: [event], nextCursor: null },
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          error: { kind: "network_error", cause: new Error("offline") },
+        }),
+    );
+    await controller.load();
+    expect(await controller.open("event-1")).toBeNull();
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.items).toEqual([event]);
+    expect(snapshot.busy).toBe(false);
+    expect(snapshot.error).toMatch(/Unable to connect/);
+  });
+
+  it("keeps loaded pages and the retry cursor when load more fails offline", async () => {
+    const { controller } = setup(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          value: { items: [event], nextCursor: "page-2" },
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          error: { kind: "network_error", cause: new Error("offline") },
+        }),
+    );
+    await controller.load();
+    await controller.load(true);
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.items).toEqual([event]);
+    expect(snapshot.nextCursor).toBe("page-2");
+    expect(snapshot.error).toMatch(/Unable to connect/);
+  });
+
   it("clears cached references and cursor before refresh and after denied refresh", async () => {
     const { controller } = setup(
       vi

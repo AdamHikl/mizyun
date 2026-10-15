@@ -1,6 +1,9 @@
 import type { ApiClient } from "@mizyun/api-client";
 import { scopeCommunityClient } from "../scoped-client";
-import { humanizeCommunityError } from "../community-client";
+import {
+  humanizeCommunityError,
+  isTransientCommunityError,
+} from "../community-client";
 import {
   fetchCommunityInbox,
   readCommunityNotification,
@@ -77,7 +80,13 @@ export class InboxController {
     );
     if (!valid()) return;
     if (!result.ok) {
-      this.update({ ...empty(), error: humanizeCommunityError(result.error) });
+      // Keep already-loaded pages when only "load more" lost its connection.
+      const keep = more && isTransientCommunityError(result.error);
+      this.update({
+        ...empty(),
+        ...(keep ? { items: previous, nextCursor: cursor ?? null } : {}),
+        error: humanizeCommunityError(result.error),
+      });
       return;
     }
     const items = new Map(previous.map((item) => [item.id, item]));
@@ -100,6 +109,15 @@ export class InboxController {
     const result = await resolveCommunityNotification(client, id);
     if (!valid()) return null;
     if (!result.ok) {
+      // A connection failure says nothing about access; keep the list visible.
+      if (isTransientCommunityError(result.error)) {
+        this.update({
+          ...this.state,
+          busy: false,
+          error: humanizeCommunityError(result.error),
+        });
+        return null;
+      }
       this.update({
         ...empty(),
         error: "This Community update is unavailable. Refresh your inbox.",

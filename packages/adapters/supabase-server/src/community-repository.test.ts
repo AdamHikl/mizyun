@@ -830,16 +830,17 @@ describe("Bounded feed reaction reads", () => {
       });
   });
 
-  it("fails the entire page when a card becomes unauthorized", async () => {
+  it("omits cards that became unauthorized instead of substituting counts or failing the page", async () => {
     const { repository } = rpcRepository({});
     vi.spyOn(repository, "getReactionsForActivity").mockRejectedValue(
       new CommunityMutationError("unavailable"),
     );
-    await expect(
-      repository.getReactionsForActivities(["revoked", "other"], callerId, {
-        accessToken: callerToken,
-      }),
-    ).rejects.toThrow("unavailable");
+    const map = await repository.getReactionsForActivities(
+      ["revoked", "other"],
+      callerId,
+      { accessToken: callerToken },
+    );
+    expect(map.size).toBe(0);
   });
 });
 

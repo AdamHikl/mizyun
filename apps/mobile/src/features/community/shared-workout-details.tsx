@@ -88,7 +88,11 @@ export function SharedWorkoutDetails({
             ]
               .filter((value) => value !== null)
               .join(" · ");
-            const label = `${SET_LABELS[set.setType]} ${setIndex + 1}`;
+            // Number each set type separately: "Warm-up 1, Set 1, Set 2".
+            const typeOrdinal = exercise.sets
+              .slice(0, setIndex + 1)
+              .filter((candidate) => candidate.setType === set.setType).length;
+            const label = `${SET_LABELS[set.setType]} ${typeOrdinal}`;
             return (
               <View
                 key={setIndex}

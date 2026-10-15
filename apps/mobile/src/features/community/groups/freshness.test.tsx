@@ -166,7 +166,7 @@ describe("bounded private-group rendering", () => {
   it("expires group and post data without replaying commands", async () => {
     render();
     await settle();
-    control(render(), "Private title · member").props.onPress();
+    control(render(), "Private title · Member").props.onPress();
     render();
     await settle();
     expect(text(render())).toContain("Shared text");
@@ -189,7 +189,7 @@ describe("bounded private-group rendering", () => {
     });
     render();
     await settle();
-    control(render(), "Private title · member").props.onPress();
+    control(render(), "Private title · Member").props.onPress();
     render();
     await settle();
     control(render(), "Manage this group").props.onPress();
@@ -239,7 +239,7 @@ describe("bounded private-group rendering", () => {
     render();
     await settle();
     const focus = mocks.focus;
-    control(render(), "Private title · member").props.onPress();
+    control(render(), "Private title · Member").props.onPress();
     render();
     await settle();
     render();
@@ -295,7 +295,7 @@ describe("bounded private-group rendering", () => {
     });
     render();
     await settle();
-    control(render(), "Private title · member").props.onPress();
+    control(render(), "Private title · Member").props.onPress();
     render();
     await settle();
     expect(text(render())).toContain("Shared text");
@@ -320,7 +320,7 @@ describe("bounded private-group rendering", () => {
                 : { events: [] },
           },
     );
-    control(render(), "Private title · member").props.onPress();
+    control(render(), "Private title · Member").props.onPress();
     render();
     await settle();
     await vi.advanceTimersByTimeAsync(10000);

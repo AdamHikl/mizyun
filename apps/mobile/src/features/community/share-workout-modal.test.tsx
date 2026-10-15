@@ -235,6 +235,22 @@ describe("actual sharing modal selection and lifecycle", () => {
     expect(mocks.dismiss).toHaveBeenCalledOnce();
   });
 
+  it("sends one publication when Publish is tapped twice before re-rendering", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.save.mockReturnValueOnce(
+      new Promise((done) => {
+        finish = done;
+      }),
+    );
+    const tree = await load();
+    const button = publish(tree);
+    void button.props.onPress();
+    void button.props.onPress();
+    await Promise.resolve();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    finish({ ok: true, value: { id: "activity-a" } });
+  });
+
   it("does not discard a sharing choice on an unchanged active event", async () => {
     let tree = await load();
     checkbox(tree).props.onPress();

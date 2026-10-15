@@ -5,6 +5,7 @@ import {
 import { useAuth } from "@/features/auth/auth-context";
 import React, { useCallback, useRef, useState } from "react";
 import {
+  Alert,
   AppState,
   KeyboardAvoidingView,
   Platform,
@@ -457,20 +458,32 @@ function CommunityChallengesScreenContent() {
                       disabled={state.busy || workoutsBusy}
                       label={`Remove declaration for ${d.day}`}
                       onPress={() =>
-                        void state
-                          .run({
-                            operation: "removeContribution",
-                            id,
-                            day: d.day,
-                          })
-                          .then(
-                            (result) =>
-                              result &&
-                              state.run({
-                                operation: manage ? "getMine" : "get",
-                                id,
-                              }),
-                          )
+                        Alert.alert(
+                          "Remove this declaration?",
+                          `This removes your declaration for ${d.day} from the challenge.`,
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Remove",
+                              style: "destructive",
+                              onPress: () =>
+                                void state
+                                  .run({
+                                    operation: "removeContribution",
+                                    id,
+                                    day: d.day,
+                                  })
+                                  .then(
+                                    (result) =>
+                                      result &&
+                                      state.run({
+                                        operation: manage ? "getMine" : "get",
+                                        id,
+                                      }),
+                                  ),
+                            },
+                          ],
+                        )
                       }
                     />
                   </View>
@@ -479,13 +492,25 @@ function CommunityChallengesScreenContent() {
                   disabled={state.busy || workoutsBusy}
                   label="Leave and remove my declarations"
                   onPress={() =>
-                    void state.run({ operation: "leave", id }).then(
-                      (result) =>
-                        result &&
-                        state.run({
-                          operation: manage ? "getMine" : "get",
-                          id,
-                        }),
+                    Alert.alert(
+                      "Leave this challenge?",
+                      "This removes all of your declarations from the challenge.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Leave",
+                          style: "destructive",
+                          onPress: () =>
+                            void state.run({ operation: "leave", id }).then(
+                              (result) =>
+                                result &&
+                                state.run({
+                                  operation: manage ? "getMine" : "get",
+                                  id,
+                                }),
+                            ),
+                        },
+                      ],
                     )
                   }
                 />
@@ -494,13 +519,25 @@ function CommunityChallengesScreenContent() {
                     disabled={state.busy || workoutsBusy}
                     label="Cancel challenge"
                     onPress={() =>
-                      void state.run({ operation: "cancel", id }).then(
-                        (result) =>
-                          result &&
-                          state.run({
-                            operation: manage ? "getMine" : "get",
-                            id,
-                          }),
+                      Alert.alert(
+                        "Cancel this challenge?",
+                        "This cancels the challenge for every participant.",
+                        [
+                          { text: "Keep challenge", style: "cancel" },
+                          {
+                            text: "Cancel challenge",
+                            style: "destructive",
+                            onPress: () =>
+                              void state.run({ operation: "cancel", id }).then(
+                                (result) =>
+                                  result &&
+                                  state.run({
+                                    operation: manage ? "getMine" : "get",
+                                    id,
+                                  }),
+                              ),
+                          },
+                        ],
                       )
                     }
                   />

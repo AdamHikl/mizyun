@@ -343,14 +343,16 @@ export function ReportModal({
               style={[
                 styles.emergencyBanner,
                 {
-                  backgroundColor: "#FEF2F2",
-                  borderColor: "#FCA5A5",
+                  backgroundColor: colors.dangerLight,
+                  borderColor: colors.danger,
                 },
               ]}
               accessibilityRole="alert"
             >
-              <Text style={styles.emergencyHeading}>⚠️ Immediate danger?</Text>
-              <Text style={styles.emergencyBody}>
+              <Text style={[styles.emergencyHeading, { color: colors.danger }]}>
+                ⚠️ Immediate danger?
+              </Text>
+              <Text style={[styles.emergencyBody, { color: colors.text }]}>
                 If you or someone else is in immediate danger or needs emergency
                 help, please contact your local emergency services immediately.
                 Mizyun reporting is not an emergency response service.
@@ -363,13 +365,15 @@ export function ReportModal({
                 style={[
                   styles.errorBox,
                   {
-                    backgroundColor: "#FEF2F2",
-                    borderColor: "#F87171",
+                    backgroundColor: colors.dangerLight,
+                    borderColor: colors.danger,
                   },
                 ]}
                 accessibilityRole="alert"
               >
-                <Text style={styles.errorText}>{error}</Text>
+                <Text style={[styles.errorText, { color: colors.danger }]}>
+                  {error}
+                </Text>
               </View>
             ) : null}
 
@@ -405,7 +409,12 @@ export function ReportModal({
                     accessibilityState={{ selected: isSelected }}
                     accessibilityLabel={r.label}
                   >
-                    <View style={styles.radioOuter}>
+                    <View
+                      style={[
+                        styles.radioOuter,
+                        { borderColor: colors.textTertiary },
+                      ]}
+                    >
                       {isSelected ? (
                         <View
                           style={[
@@ -612,12 +621,10 @@ const styles = StyleSheet.create({
   emergencyHeading: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#991B1B",
   },
   emergencyBody: {
     fontSize: 13,
     lineHeight: 18,
-    color: "#7F1D1D",
   },
   errorBox: {
     padding: 12,
@@ -625,7 +632,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   errorText: {
-    color: "#B91C1C",
     fontSize: 14,
     lineHeight: 18,
   },
@@ -653,7 +659,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: "#9CA3AF",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,

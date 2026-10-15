@@ -636,12 +636,25 @@ function CommunityMessagingScreenContent({
                         label="Delete my message for both people"
                         disabled={state.busy || blockBusy}
                         onPress={() =>
-                          void state
-                            .run({ operation: "delete", id: m.id })
-                            .then(
-                              (result) =>
-                                result && state.run({ operation: "listMine" }),
-                            )
+                          Alert.alert(
+                            "Delete this message?",
+                            "This removes your message for both people. This cannot be undone.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Delete",
+                                style: "destructive",
+                                onPress: () =>
+                                  void state
+                                    .run({ operation: "delete", id: m.id })
+                                    .then(
+                                      (result) =>
+                                        result &&
+                                        state.run({ operation: "listMine" }),
+                                    ),
+                              },
+                            ],
+                          )
                         }
                       />
                     )}
@@ -742,8 +755,10 @@ function CommunityMessagingScreenContent({
                           marginTop: 6,
                         }}
                       >
-                        {m.userId === state.principal ? "You" : "Connection"} ·{" "}
-                        {new Date(m.createdAt).toLocaleString()}
+                        {m.userId === state.principal
+                          ? "You"
+                          : state.data?.peer?.displayName || "Connection"}{" "}
+                        · {new Date(m.createdAt).toLocaleString()}
                         {m.editedAt ? " · Edited" : ""}
                       </Text>
                     </View>
@@ -768,11 +783,24 @@ function CommunityMessagingScreenContent({
                             label="Delete for both people"
                             disabled={state.busy || blockBusy}
                             onPress={() =>
-                              void state
-                                .run({ operation: "delete", id: m.id })
-                                .then(
-                                  (result) => result && readConversation(peer),
-                                )
+                              Alert.alert(
+                                "Delete this message?",
+                                "This removes your message for both people. This cannot be undone.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Delete",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      void state
+                                        .run({ operation: "delete", id: m.id })
+                                        .then(
+                                          (result) =>
+                                            result && readConversation(peer),
+                                        ),
+                                  },
+                                ],
+                              )
                             }
                           />
                         </View>

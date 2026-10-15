@@ -118,11 +118,19 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
         options,
       );
       return communityFeedResponseSchema.parse({
-        items: items.map((item) => ({
-          ...item,
-          reactionCounts: reactions.get(item.id)?.reactionCounts ?? emptyCounts,
-          viewerReaction: reactions.get(item.id)?.viewerReaction ?? null,
-        })),
+        // A card missing from the map became unavailable after the page read.
+        items: items.flatMap((item) => {
+          const current = reactions.get(item.id);
+          return current
+            ? [
+                {
+                  ...item,
+                  reactionCounts: current.reactionCounts,
+                  viewerReaction: current.viewerReaction,
+                },
+              ]
+            : [];
+        }),
         nextCursor: encodeActivityCursor(
           page.nextCursor,
           principal.userId,

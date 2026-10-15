@@ -607,6 +607,16 @@ export function communityErrorCause(error: ApiError): ApiError {
   return error;
 }
 
+/** Connectivity, rate-limit or server failures that say nothing about access. */
+export function isTransientCommunityError(error: ApiError): boolean {
+  error = communityErrorCause(error);
+  return (
+    error.kind === "network_error" ||
+    (error.kind === "http_error" &&
+      (error.status >= 500 || error.status === 429))
+  );
+}
+
 export function humanizeCommunityError(
   error: ApiError,
   fallback = "An unexpected error occurred.",

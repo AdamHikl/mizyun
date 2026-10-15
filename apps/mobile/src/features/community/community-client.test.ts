@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
 import {
+  isTransientCommunityError,
   blockUser,
   checkHandleAvailability,
   createCommunityInvitation,
@@ -1052,5 +1053,28 @@ describe("meal publication client routes", () => {
       body: input,
     });
     expect(request.mock.calls[0]![0].schema).toBeDefined();
+  });
+});
+
+describe("transient Community error classification", () => {
+  const http = (status: number) => ({
+    kind: "http_error" as const,
+    status,
+    code: "X",
+    message: "x",
+  });
+  it.each([
+    [{ kind: "network_error" as const, cause: null }, true],
+    [http(500), true],
+    [http(503), true],
+    [http(429), true],
+    [{ kind: "context_changed" as const, cause: http(502) }, true],
+    [http(401), false],
+    [http(403), false],
+    [http(404), false],
+    [{ kind: "session_expired" as const }, false],
+    [{ kind: "context_changed" as const }, false],
+  ])("classifies %o as transient=%s", (error, expected) => {
+    expect(isTransientCommunityError(error)).toBe(expected);
   });
 });

@@ -427,6 +427,65 @@ export class SupabaseCommunityRepository implements CommunityRepository {
     return data ? followRelationshipFromRow(data) : null;
   }
 
+  /**
+   * Returns up to `limit` relationships whose peer profile is active. Inactive
+   * peers are skipped without shortening the page, so callers that detect
+   * "more" from a full page never lose later relationships.
+   */
+  async #activeRelationshipPage(
+    userId: UserId,
+    options: {
+      readonly accessToken: string;
+      readonly limit?: number;
+      readonly afterId?: string;
+    },
+    ownColumn: "target_user_id" | "follower_user_id",
+    status: "approved" | "pending",
+    peerColumn: "target_user_id" | "follower_user_id",
+  ): Promise<
+    readonly {
+      readonly relationship: StoredFollowRelationship;
+      readonly profile: StoredCommunityProfile;
+    }[]
+  > {
+    const client = this.#clientFor(options.accessToken);
+    const limit = options.limit ?? 50;
+    const results: {
+      readonly relationship: StoredFollowRelationship;
+      readonly profile: StoredCommunityProfile;
+    }[] = [];
+    let afterId = options.afterId;
+    // Bounded: each round reads at most `limit` rows.
+    for (let round = 0; round < 20 && results.length < limit; round++) {
+      let query = client
+        .from<CommunityRelationshipRow>("community_relationships")
+        .select("*")
+        .eq(ownColumn, userId)
+        .eq("status", status)
+        .order("id", { ascending: true })
+        .limit(limit);
+      if (afterId) query = query.gt("id", afterId);
+      const { data: rels, error: relError } = await query;
+      if (relError) {
+        this.#throwDatabaseError(relError);
+      }
+      if (!rels || rels.length === 0) break;
+      for (const r of rels) {
+        const prof = await this.getProfile(r[peerColumn] as UserId, options);
+        if (prof && prof.status === "active") {
+          results.push({
+            relationship: followRelationshipFromRow(r),
+            profile: prof,
+          });
+          if (results.length === limit) break;
+        }
+      }
+      if (rels.length < limit) break;
+      afterId = rels[rels.length - 1]!.id;
+    }
+    return results;
+  }
+
   async getFollowers(
     userId: UserId,
     options: {
@@ -440,37 +499,13 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       readonly profile: StoredCommunityProfile;
     }[]
   > {
-    const client = this.#clientFor(options.accessToken);
-    let query = client
-      .from<CommunityRelationshipRow>("community_relationships")
-      .select("*")
-      .eq("target_user_id", userId)
-      .eq("status", "approved")
-      .order("id", { ascending: true })
-      .limit(options.limit ?? 50);
-    if (options.afterId) query = query.gt("id", options.afterId);
-    const { data: rels, error: relError } = await query;
-
-    if (relError) {
-      this.#throwDatabaseError(relError);
-    }
-    if (!rels || rels.length === 0) return [];
-
-    const results: {
-      readonly relationship: StoredFollowRelationship;
-      readonly profile: StoredCommunityProfile;
-    }[] = [];
-
-    for (const r of rels) {
-      const prof = await this.getProfile(r.follower_user_id as UserId, options);
-      if (prof && prof.status === "active") {
-        results.push({
-          relationship: followRelationshipFromRow(r),
-          profile: prof,
-        });
-      }
-    }
-    return results;
+    return this.#activeRelationshipPage(
+      userId,
+      options,
+      "target_user_id",
+      "approved",
+      "follower_user_id",
+    );
   }
 
   async getFollowing(
@@ -486,37 +521,13 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       readonly profile: StoredCommunityProfile;
     }[]
   > {
-    const client = this.#clientFor(options.accessToken);
-    let query = client
-      .from<CommunityRelationshipRow>("community_relationships")
-      .select("*")
-      .eq("follower_user_id", userId)
-      .eq("status", "approved")
-      .order("id", { ascending: true })
-      .limit(options.limit ?? 50);
-    if (options.afterId) query = query.gt("id", options.afterId);
-    const { data: rels, error: relError } = await query;
-
-    if (relError) {
-      this.#throwDatabaseError(relError);
-    }
-    if (!rels || rels.length === 0) return [];
-
-    const results: {
-      readonly relationship: StoredFollowRelationship;
-      readonly profile: StoredCommunityProfile;
-    }[] = [];
-
-    for (const r of rels) {
-      const prof = await this.getProfile(r.target_user_id as UserId, options);
-      if (prof && prof.status === "active") {
-        results.push({
-          relationship: followRelationshipFromRow(r),
-          profile: prof,
-        });
-      }
-    }
-    return results;
+    return this.#activeRelationshipPage(
+      userId,
+      options,
+      "follower_user_id",
+      "approved",
+      "target_user_id",
+    );
   }
 
   async getIncomingFollowRequests(
@@ -532,37 +543,13 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       readonly profile: StoredCommunityProfile;
     }[]
   > {
-    const client = this.#clientFor(options.accessToken);
-    let query = client
-      .from<CommunityRelationshipRow>("community_relationships")
-      .select("*")
-      .eq("target_user_id", userId)
-      .eq("status", "pending")
-      .order("id", { ascending: true })
-      .limit(options.limit ?? 50);
-    if (options.afterId) query = query.gt("id", options.afterId);
-    const { data: rels, error: relError } = await query;
-
-    if (relError) {
-      this.#throwDatabaseError(relError);
-    }
-    if (!rels || rels.length === 0) return [];
-
-    const results: {
-      readonly relationship: StoredFollowRelationship;
-      readonly profile: StoredCommunityProfile;
-    }[] = [];
-
-    for (const r of rels) {
-      const prof = await this.getProfile(r.follower_user_id as UserId, options);
-      if (prof && prof.status === "active") {
-        results.push({
-          relationship: followRelationshipFromRow(r),
-          profile: prof,
-        });
-      }
-    }
-    return results;
+    return this.#activeRelationshipPage(
+      userId,
+      options,
+      "target_user_id",
+      "pending",
+      "follower_user_id",
+    );
   }
 
   async getOutgoingFollowRequests(
@@ -578,37 +565,13 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       readonly profile: StoredCommunityProfile;
     }[]
   > {
-    const client = this.#clientFor(options.accessToken);
-    let query = client
-      .from<CommunityRelationshipRow>("community_relationships")
-      .select("*")
-      .eq("follower_user_id", userId)
-      .eq("status", "pending")
-      .order("id", { ascending: true })
-      .limit(options.limit ?? 50);
-    if (options.afterId) query = query.gt("id", options.afterId);
-    const { data: rels, error: relError } = await query;
-
-    if (relError) {
-      this.#throwDatabaseError(relError);
-    }
-    if (!rels || rels.length === 0) return [];
-
-    const results: {
-      readonly relationship: StoredFollowRelationship;
-      readonly profile: StoredCommunityProfile;
-    }[] = [];
-
-    for (const r of rels) {
-      const prof = await this.getProfile(r.target_user_id as UserId, options);
-      if (prof && prof.status === "active") {
-        results.push({
-          relationship: followRelationshipFromRow(r),
-          profile: prof,
-        });
-      }
-    }
-    return results;
+    return this.#activeRelationshipPage(
+      userId,
+      options,
+      "follower_user_id",
+      "pending",
+      "target_user_id",
+    );
   }
 
   async sendFollowRequest(
@@ -1404,19 +1367,34 @@ export class SupabaseCommunityRepository implements CommunityRepository {
     >();
 
     // Each read still reauthorizes the card and filters blocked reactors.
-    // A denied/failed read rejects the page; never substitute stale counts.
+    // A card that became unavailable since the page read is omitted, so the
+    // caller drops it; any other failure rejects the page. Never substitute
+    // stale counts.
     for (let offset = 0; offset < activityIds.length; offset += 5) {
       const batch = await Promise.all(
-        activityIds.slice(offset, offset + 5).map(async (id) => ({
-          id,
-          reactions: await this.getReactionsForActivity(
-            id,
-            viewerUserId,
-            options,
-          ),
-        })),
+        activityIds.slice(offset, offset + 5).map(async (id) => {
+          try {
+            return {
+              id,
+              reactions: await this.getReactionsForActivity(
+                id,
+                viewerUserId,
+                options,
+              ),
+            };
+          } catch (error) {
+            if (
+              error instanceof CommunityMutationError &&
+              error.code === "unavailable"
+            )
+              return null;
+            throw error;
+          }
+        }),
       );
-      for (const { id, reactions } of batch) {
+      for (const entry of batch) {
+        if (!entry) continue;
+        const { id, reactions } = entry;
         result.set(id, {
           reactionCounts: reactions.reactionCounts,
           viewerReaction: reactions.viewerReaction,

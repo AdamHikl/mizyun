@@ -562,7 +562,7 @@ export function ActivityDetailScreen({
             accessibilityRole="button"
             accessibilityLabel="Block author"
           >
-            <Text style={[styles.actionText, { color: "#DC2626" }]}>
+            <Text style={[styles.actionText, { color: colors.danger }]}>
               Block @{activity.authorHandle}
             </Text>
           </Pressable>
