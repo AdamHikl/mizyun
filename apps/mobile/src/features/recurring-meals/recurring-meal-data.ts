@@ -45,6 +45,18 @@ export function isAutomaticallyLogged(
     typeof (marker as Record<string, unknown>).localDate === "string",
   );
 }
+function httpMessage(status: number): string {
+  switch (status) {
+    case 404:
+      return "That meal or schedule no longer exists.";
+    case 409:
+      return "This schedule request was already used or stopped. Refresh your recurring meals to see the current schedules.";
+    case 422:
+      return "Check the meal, time, days and time zone, or you may have reached the schedule limit.";
+    default:
+      return "Could not update recurring meals. Please retry.";
+  }
+}
 function message(error: ApiError): string {
   switch (error.kind) {
     case "no_session":
@@ -53,9 +65,7 @@ function message(error: ApiError): string {
     case "network_error":
       return "Could not confirm the change. Check your connection and retry.";
     case "http_error":
-      return error.status === 404
-        ? "That meal or schedule no longer exists."
-        : "Could not update recurring meals. Please retry.";
+      return httpMessage(error.status);
     default:
       return "Could not load recurring meals. Please retry.";
   }

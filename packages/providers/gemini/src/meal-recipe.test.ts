@@ -420,6 +420,58 @@ describe("Gemini ingredient recognition", () => {
     },
   );
 
+  it("downgrades a catalog match with unknown preparation and drops duplicate catalog IDs", async () => {
+    const fetch = mockFetch(
+      envelope({
+        ingredients: [
+          {
+            ingredientId: "rice",
+            name: "Leftover rice",
+            preparationState: "unknown",
+          },
+          { ingredientId: "rice", name: "Rice", preparationState: "cooked" },
+          {
+            ingredientId: "rice",
+            name: "More rice",
+            preparationState: "cooked",
+          },
+          { ingredientId: null, name: "Herbs", preparationState: "unknown" },
+          { ingredientId: null, name: "Herbs", preparationState: "unknown" },
+        ],
+      }),
+    );
+    expect(
+      await new GeminiIngredientRecognitionProvider(options(fetch)).recognize(
+        imageRequest,
+      ),
+    ).toEqual({
+      ingredients: [
+        {
+          ingredientId: null,
+          name: "Leftover rice",
+          preparationState: "unknown",
+        },
+        {
+          ingredientId: "rice",
+          name: "Rice, cooked",
+          preparationState: "cooked",
+        },
+        { ingredientId: null, name: "Herbs", preparationState: "unknown" },
+        { ingredientId: null, name: "Herbs", preparationState: "unknown" },
+      ],
+      tokensUsed: 130,
+    });
+  });
+
+  it("does not instruct the model to return an empty selection when recipes are eligible", async () => {
+    const fetch = mockFetch(envelope({ recipeIds: ["rice-bowl"] }));
+    await new GeminiRecipeGenerationProvider(options(fetch)).generate(request);
+    const body = JSON.parse(String(fetch.mock.calls[0]![1]?.body));
+    expect(body.systemInstruction.parts[0].text).not.toContain(
+      "Return an empty recipeIds array",
+    );
+  });
+
   it("rejects empty, excessive and oversized images before fetch or estimation", async () => {
     const fetch = mockFetch(envelope({ ingredients: [] }));
     const provider = new GeminiIngredientRecognitionProvider(options(fetch));

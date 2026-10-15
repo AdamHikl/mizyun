@@ -33,6 +33,18 @@ import { registerIngredientReviewRetirement } from "./ingredient-review-lifecycl
 import type { ReviewedIngredient } from "./ingredient-review-storage";
 import type { RecipeController } from "./recipe-controller";
 import { RecipeDetail, macroText } from "./recipe-detail";
+import {
+  balanceView,
+  bestFitRecipeId,
+  catalogMatches,
+  focusText,
+  orderedRecipes,
+  parsePrepMinutes,
+  preparationText,
+  recipeFitText,
+  splitList,
+  suggestedCatalogId,
+} from "./recipe-presentation";
 export function MealRecipesScreen() {
   const { session } = useAuth();
   const [consentGeneration, setConsentGeneration] = useState(0);
@@ -136,7 +148,8 @@ export function RecipeFlow({
   const [reviewing, setReviewing] = useState(false),
     [rows, setRows] = useState<readonly ReviewedIngredient[]>([]),
     [choices, setChoices] = useState<Record<string, string>>({}),
-    [search, setSearch] = useState("");
+    [searches, setSearches] = useState<Record<string, string>>({}),
+    [changing, setChanging] = useState<Record<string, boolean>>({});
   const [prep, setPrep] = useState(""),
     [size, setSize] = useState<"small" | "normal" | "large">("normal"),
     [allergens, setAllergens] = useState(""),
@@ -145,10 +158,20 @@ export function RecipeFlow({
     selected = controller.selected(),
     ranking = controller.ranking();
   const context = ranking?.context ?? snapshot.metadata?.context;
-  const freshContext =
-    context &&
-    isMealRecipeSnapshotFresh(context.snapshot, new Date(), context.snapshot) &&
-    context.state === "ready";
+  const balance = balanceView(
+    context,
+    !!context &&
+      isMealRecipeSnapshotFresh(context.snapshot, new Date(), context.snapshot),
+  );
+  const freshContext = balance.kind === "remaining" ? context : undefined;
+  const catalog = snapshot.metadata?.catalog ?? [];
+  const prepMinutes = parsePrepMinutes(prep);
+  const recipeFresh = controller.fresh();
+  const recipes = orderedRecipes(
+    snapshot.session?.result?.recipes ?? [],
+    ranking,
+  );
+  const bestFit = bestFitRecipeId(ranking, recipeFresh);
   const button = (
     label: string,
     onPress: () => void,
@@ -166,7 +189,7 @@ export function RecipeFlow({
         styles.button,
         {
           borderColor: primary ? "transparent" : theme.border,
-          backgroundColor: primary ? "#047857" : theme.backgroundElement,
+          backgroundColor: primary ? theme.primary : theme.backgroundElement,
           opacity: disabled ? 0.5 : 1,
         },
       ]}
@@ -180,12 +203,16 @@ export function RecipeFlow({
     </Pressable>
   );
   const saveInputs = async () => {
-    const catalog = snapshot.metadata?.catalog ?? [];
-    const ingredients = rows.map((row) =>
+    const matched = rows.map((row) =>
       catalog.find((item) => item.id === choices[row.id]),
     );
-    if (ingredients.some((row) => !row)) return;
-    const maximumPrepMinutes = prep.trim() ? Number(prep) : null;
+    if (matched.some((row) => !row) || !prepMinutes.ok) return;
+    // Two reviewed rows (e.g. typed "rice" and a photo's "white rice") can map
+    // to one catalog food; the input contract rejects duplicate IDs.
+    const ingredients = [
+      ...new Map(matched.map((item) => [item!.id, item])).values(),
+    ];
+    const maximumPrepMinutes = prepMinutes.value;
     const input: MealRecipeInput = {
       version: "meal-recipe-v1",
       ingredients: ingredients.map((item) => ({
@@ -199,14 +226,8 @@ export function RecipeFlow({
       })),
       exclusions: {
         ingredientIds: [],
-        allergens: allergens
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-        dietaryRestrictions: diet
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
+        allergens: splitList(allergens),
+        dietaryRestrictions: splitList(diet),
       },
       preferences: { maximumPrepMinutes, mealSize: size, cuisines: [] },
     };
@@ -226,7 +247,8 @@ export function RecipeFlow({
     ) {
       setRows([]);
       setChoices({});
-      setSearch("");
+      setSearches({});
+      setChanging({});
     }
   };
   const handoff = async (replace = false) => {
@@ -260,7 +282,11 @@ export function RecipeFlow({
             >
               <View style={styles.sectionHeader}>
                 <ThemedText type="smallBold">
-                  {freshContext ? "Left for today" : "Your daily balance"}
+                  {balance.kind === "remaining"
+                    ? "Left for today"
+                    : balance.kind === "met"
+                      ? "Targets met for today"
+                      : "Your daily balance"}
                 </ThemedText>
                 <Pressable
                   accessibilityRole="button"
@@ -280,18 +306,11 @@ export function RecipeFlow({
                 </Pressable>
               </View>
               <View style={styles.macros}>
-                {(
-                  [
-                    [
-                      "Protein",
-                      freshContext ? context.remaining.proteinG : null,
-                    ],
-                    [
-                      "Carbs",
-                      freshContext ? context.remaining.carbohydrateG : null,
-                    ],
-                    ["Fat", freshContext ? context.remaining.fatG : null],
-                  ] as const
+                {(balance.kind === "unknown"
+                  ? (["Protein", "Carbs", "Fat"] as const).map(
+                      (label) => [label, null] as const,
+                    )
+                  : balance.values
                 ).map(([label, value]) => (
                   <View key={label} style={styles.macro}>
                     <ThemedText type="small" themeColor="textSecondary">
@@ -309,11 +328,13 @@ export function RecipeFlow({
                 ))}
               </View>
               <ThemedText type="small" themeColor="textSecondary">
-                {freshContext
+                {balance.kind === "remaining"
                   ? "Based on what you’ve logged so far."
-                  : "Log meals and set targets to see your balance. You can still find recipes."}
+                  : balance.kind === "met"
+                    ? "You’ve reached today’s macro targets. Ideas aren’t ranked to fill a gap."
+                    : "Log meals and set targets to see your balance. You can still find recipes."}
               </ThemedText>
-              {freshContext && context.focus.length > 0 ? (
+              {freshContext && freshContext.focus.length > 0 ? (
                 <View
                   style={[
                     styles.focusBadge,
@@ -321,7 +342,7 @@ export function RecipeFlow({
                   ]}
                 >
                   <ThemedText type="small" themeColor="primary">
-                    {`Let’s focus on ${context.focus.map((value) => (value === "carbohydrate" ? "carbs" : value)).join(" and ")}`}
+                    {`Let’s focus on ${focusText(freshContext.focus)}`}
                   </ThemedText>
                 </View>
               ) : null}
@@ -431,7 +452,29 @@ export function RecipeFlow({
                 onConfirmed={(value) => {
                   invalidateInputs();
                   setRows(value.ingredients);
-                  setChoices({});
+                  // Preselect only unambiguous catalog foods; raw/cooked
+                  // ambiguity stays with the user.
+                  setChoices(
+                    Object.fromEntries(
+                      value.ingredients.flatMap((row) => {
+                        const id = suggestedCatalogId(row, catalog);
+                        return id ? [[row.id, id]] : [];
+                      }),
+                    ),
+                  );
+                  setSearches({});
+                  setChanging({});
+                  const saved = snapshot.session?.input;
+                  if (saved) {
+                    setPrep(
+                      saved.preferences.maximumPrepMinutes === null
+                        ? ""
+                        : String(saved.preferences.maximumPrepMinutes),
+                    );
+                    setSize(saved.preferences.mealSize);
+                    setAllergens(saved.exclusions.allergens.join(", "));
+                    setDiet(saved.exclusions.dietaryRestrictions.join(", "));
+                  }
                   setReviewing(false);
                 }}
               />
@@ -443,58 +486,130 @@ export function RecipeFlow({
                   Choose each food as you’ll use it, such as raw or cooked. This
                   helps estimate the meal’s macros.
                 </ThemedText>
-                <TextInput
-                  editable={!busy}
-                  accessibilityLabel="Search supported ingredients"
-                  value={search}
-                  onChangeText={setSearch}
-                  placeholder="Find a food"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[
-                    styles.input,
-                    { color: theme.text, borderColor: theme.border },
-                  ]}
-                />
-                {rows.map((row) => (
-                  <View key={row.id} style={styles.card}>
-                    <ThemedText>
-                      {row.name} · {row.preparationState.replaceAll("_", " ")}
-                    </ThemedText>
-                    <ThemedText type="small">
-                      {snapshot.metadata?.catalog.find(
-                        (item) => item.id === choices[row.id],
-                      )?.name ?? "Choose a food"}
-                    </ThemedText>
-                    {(snapshot.metadata?.catalog ?? [])
-                      .filter((item) =>
-                        item.name.toLowerCase().includes(search.toLowerCase()),
+                {rows.map((row) => {
+                  const chosen = catalog.find(
+                    (item) => item.id === choices[row.id],
+                  );
+                  const open = !chosen || changing[row.id] === true;
+                  const query = (searches[row.id] ?? "").trim().toLowerCase();
+                  const matches = catalogMatches(row, catalog);
+                  const options = query
+                    ? catalog.filter((item) =>
+                        item.name.toLowerCase().includes(query),
                       )
-                      .map((item) => (
-                        <Pressable
-                          key={item.id}
-                          accessibilityRole="button"
-                          disabled={busy}
-                          accessibilityState={{
-                            disabled: busy,
-                            selected: choices[row.id] === item.id,
-                          }}
-                          onPress={() => {
-                            invalidateInputs();
-                            setChoices((value) => ({
-                              ...value,
-                              [row.id]: item.id,
-                            }));
-                          }}
-                          style={[styles.button, { borderColor: theme.border }]}
-                        >
-                          <ThemedText type="small">
-                            {item.name} ·{" "}
-                            {item.preparationState.replaceAll("_", " ")}
+                    : matches.length
+                      ? matches
+                      : catalog;
+                  return (
+                    <View
+                      key={row.id}
+                      style={[styles.card, { borderColor: theme.border }]}
+                    >
+                      <View style={styles.sectionHeader}>
+                        <View style={styles.fill}>
+                          <ThemedText>{row.name}</ThemedText>
+                          <ThemedText
+                            type="small"
+                            themeColor={chosen ? "text" : "textSecondary"}
+                          >
+                            {chosen
+                              ? `${chosen.name} · ${preparationText(chosen.preparationState)}`
+                              : "Choose a food"}
                           </ThemedText>
-                        </Pressable>
-                      ))}
-                  </View>
-                ))}
+                        </View>
+                        {chosen ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Change food for ${row.name}`}
+                            accessibilityState={{
+                              disabled: busy,
+                              expanded: open,
+                            }}
+                            disabled={busy}
+                            onPress={() =>
+                              setChanging((value) => ({
+                                ...value,
+                                [row.id]: !open,
+                              }))
+                            }
+                            style={styles.textButton}
+                          >
+                            <ThemedText type="small" themeColor="primary">
+                              {open ? "Done" : "Change"}
+                            </ThemedText>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      {open ? (
+                        <>
+                          <TextInput
+                            editable={!busy}
+                            accessibilityLabel={`Search foods for ${row.name}`}
+                            value={searches[row.id] ?? ""}
+                            onChangeText={(value) =>
+                              setSearches((current) => ({
+                                ...current,
+                                [row.id]: value,
+                              }))
+                            }
+                            placeholder="Find a food"
+                            placeholderTextColor={theme.textSecondary}
+                            style={[
+                              styles.input,
+                              { color: theme.text, borderColor: theme.border },
+                            ]}
+                          />
+                          {!query && matches.length ? (
+                            <ThemedText type="small" themeColor="textSecondary">
+                              Closest matches. Search to see other foods.
+                            </ThemedText>
+                          ) : null}
+                          {options.length === 0 ? (
+                            <ThemedText type="small" themeColor="textSecondary">
+                              No supported food matches. Try a simpler name.
+                            </ThemedText>
+                          ) : null}
+                          {options.map((item) => (
+                            <Pressable
+                              key={item.id}
+                              accessibilityRole="button"
+                              disabled={busy}
+                              accessibilityState={{
+                                disabled: busy,
+                                selected: choices[row.id] === item.id,
+                              }}
+                              onPress={() => {
+                                invalidateInputs();
+                                setChoices((value) => ({
+                                  ...value,
+                                  [row.id]: item.id,
+                                }));
+                                setChanging((value) => ({
+                                  ...value,
+                                  [row.id]: false,
+                                }));
+                              }}
+                              style={[
+                                styles.button,
+                                {
+                                  borderColor:
+                                    choices[row.id] === item.id
+                                      ? theme.primary
+                                      : theme.border,
+                                },
+                              ]}
+                            >
+                              <ThemedText type="small">
+                                {item.name} ·{" "}
+                                {preparationText(item.preparationState)}
+                              </ThemedText>
+                            </Pressable>
+                          ))}
+                        </>
+                      ) : null}
+                    </View>
+                  );
+                })}
                 <TextInput
                   editable={!busy}
                   accessibilityLabel="Maximum prep minutes"
@@ -508,9 +623,20 @@ export function RecipeFlow({
                   placeholderTextColor={theme.textSecondary}
                   style={[
                     styles.input,
-                    { color: theme.text, borderColor: theme.border },
+                    {
+                      color: theme.text,
+                      borderColor: prepMinutes.ok ? theme.border : theme.danger,
+                    },
                   ]}
                 />
+                {!prepMinutes.ok ? (
+                  <ThemedText type="small" accessibilityRole="alert">
+                    {prepMinutes.error}
+                  </ThemedText>
+                ) : null}
+                <ThemedText type="small" themeColor="textSecondary">
+                  Meal size
+                </ThemedText>
                 <View style={styles.row}>
                   {(["small", "normal", "large"] as const).map((value) => (
                     <Pressable
@@ -575,7 +701,9 @@ export function RecipeFlow({
                 {button(
                   "Use these ingredients",
                   saveInputs,
-                  busy || rows.some((row) => !choices[row.id]),
+                  busy ||
+                    !prepMinutes.ok ||
+                    rows.some((row) => !choices[row.id]),
                   true,
                 )}
               </View>
@@ -594,63 +722,75 @@ export function RecipeFlow({
             <ThemedText type="small" themeColor="textSecondary">
               Estimated macros. Nothing is logged until you save a meal.
             </ThemedText>
-            {snapshot.session?.result?.recipes.length ? (
+            {recipes.length ? (
               <ThemedText style={styles.sectionTitle}>
                 Meal ideas for you
               </ThemedText>
             ) : null}
-            {snapshot.session?.result?.recipes.map((recipe) => (
-              <View
-                key={recipe.recipeId}
-                style={[
-                  styles.card,
-                  {
-                    borderColor: theme.border,
-                    backgroundColor: theme.backgroundElement,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.sectionTitle}>
-                  {recipe.name}
-                </ThemedText>
-                <ThemedText type="small">
-                  {recipe.prepMinutes} min · Estimated{" "}
-                  {recipe.caloriesKcal === null
-                    ? "unknown"
-                    : Math.round(recipe.caloriesKcal)}{" "}
-                  kcal · P {macroText(recipe.nutritionPerServing.proteinG)} · C{" "}
-                  {macroText(recipe.nutritionPerServing.carbohydrateG)} · F{" "}
-                  {macroText(recipe.nutritionPerServing.fatG)}
-                </ThemedText>
-                <ThemedText type="small">
-                  {controller.fresh() &&
-                  ranking?.ranked.find(
-                    (row) => row.recipeId === recipe.recipeId,
-                  )?.fitLoss !== null &&
-                  context?.state === "ready"
-                    ? `Focuses on ${context.focus.map((value) => (value === "carbohydrate" ? "carbs" : value)).join(" and ")}`
-                    : "Choose a meal that sounds good to you"}
-                </ThemedText>
-                {button(
-                  "View recipe",
-                  () => void controller.select(recipe.recipeId),
-                  busy,
-                  false,
-                  `View ${recipe.name}`,
-                )}
-              </View>
-            ))}
-            {selected ? (
-              <RecipeDetail
-                recipe={selected.recipe}
-                portion={snapshot.session?.portion ?? 1}
-                busy={busy || reviewing || rows.length > 0}
-                portionLocked={!!snapshot.session?.operationId}
-                canAct={controller.fresh() && !reviewing && rows.length === 0}
-                onPortion={(value) => void controller.portion(value)}
-                onLog={() => void handoff()}
-              />
-            ) : null}
+            {recipes.map((recipe) => {
+              const isSelected = selected?.recipe.recipeId === recipe.recipeId;
+              const fit = recipeFitText(recipe, context, recipeFresh);
+              return (
+                <View
+                  key={recipe.recipeId}
+                  style={[
+                    styles.card,
+                    {
+                      borderColor: isSelected ? theme.primary : theme.border,
+                      backgroundColor: theme.backgroundElement,
+                    },
+                  ]}
+                >
+                  {bestFit === recipe.recipeId ? (
+                    <View
+                      style={[
+                        styles.focusBadge,
+                        { backgroundColor: theme.primaryLight },
+                      ]}
+                    >
+                      <ThemedText type="small" themeColor="primary">
+                        Best fit for what’s left today
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                  <ThemedText style={styles.sectionTitle}>
+                    {recipe.name}
+                  </ThemedText>
+                  <ThemedText type="small">
+                    {recipe.prepMinutes} min · Estimated{" "}
+                    {recipe.caloriesKcal === null
+                      ? "unknown"
+                      : Math.round(recipe.caloriesKcal)}{" "}
+                    kcal · P {macroText(recipe.nutritionPerServing.proteinG)} ·
+                    C {macroText(recipe.nutritionPerServing.carbohydrateG)} · F{" "}
+                    {macroText(recipe.nutritionPerServing.fatG)}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {fit ?? "Choose a meal that sounds good to you"}
+                  </ThemedText>
+                  {isSelected && selected ? (
+                    <RecipeDetail
+                      recipe={selected.recipe}
+                      catalog={catalog}
+                      portion={snapshot.session?.portion ?? 1}
+                      busy={busy || reviewing || rows.length > 0}
+                      portionLocked={!!snapshot.session?.operationId}
+                      canAct={recipeFresh && !reviewing && rows.length === 0}
+                      onPortion={(value) => void controller.portion(value)}
+                      onLog={() => void handoff()}
+                    />
+                  ) : (
+                    button(
+                      "View recipe",
+                      () => void controller.select(recipe.recipeId),
+                      busy,
+                      false,
+                      `View ${recipe.name}`,
+                    )
+                  )}
+                </View>
+              );
+            })}
             {snapshot.session?.operationId
               ? button(
                   "Log this meal again",

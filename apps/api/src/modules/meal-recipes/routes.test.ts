@@ -12,7 +12,11 @@ import {
   mealRecipeSuggestionResponseSchema,
   ingredientRecognitionResponseSchema,
 } from "@mizyun/contracts";
-import { DEFAULT_COACHING_PREFERENCES, type UserId } from "@mizyun/core";
+import {
+  DEFAULT_COACHING_PREFERENCES,
+  rankMealRecipeCandidates,
+  type UserId,
+} from "@mizyun/core";
 import { authenticationPlugin } from "../../plugins/authentication.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryAiConsentRepository } from "../../ai-consent-repository.js";
@@ -23,7 +27,8 @@ import { InMemoryWorkoutRepository } from "../../workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
 import { buildApp } from "../../app.js";
 import { mealRecipeRoutes } from "./routes.js";
-import { loadOwnedRecipeContext } from "./context.js";
+import { loadOwnedRecipeContext, utcOffsetMinutesAt } from "./context.js";
+import { buildFeasibleRecipeTemplates } from "./templates.js";
 import { GeminiIngredientRecognitionProvider } from "@mizyun/provider-gemini";
 import { RECIPE_CATALOG_DATA } from "./catalog-data.js";
 import { getRecipeCatalogIngredient } from "./catalog.js";
@@ -49,6 +54,9 @@ const input = () => ({
       "chicken-breast-cooked",
       "lentils-cooked",
       "tofu-firm",
+      "chickpeas-cooked",
+      "cucumber-raw",
+      "tomato-raw",
       "tomato-puree",
       "olive-oil",
     ].map((ingredientId) => ({
@@ -166,9 +174,9 @@ async function fixture() {
     workoutRepository: new InMemoryWorkoutRepository(),
     workoutSetRepository: new InMemoryWorkoutSetRepository(),
   };
-  const account = {
+  const account: { getDeletionJob?: () => Promise<unknown> } = {
     getDeletionJob: async () => (deleting ? { status: "in_progress" } : null),
-  } as never;
+  };
   const tokenVerifier = {
     verify: async (token: string) =>
       token === "valid" || token === "other"
@@ -188,7 +196,7 @@ async function fixture() {
       prefix: "/v1/meal-recipes",
       repositories,
       consentRepository: consent,
-      accountRepository: account,
+      accountRepository: account as never,
       ledger: ledger(),
       generationProvider: generation,
       recognitionProvider: recognition,
@@ -224,6 +232,9 @@ async function fixture() {
       denied = true;
     },
     charges: () => charges,
+    withoutDeletionCheck: () => {
+      delete account.getDeletionJob;
+    },
   };
 }
 const send = (
@@ -337,7 +348,14 @@ describe("guarded recipe routes", () => {
       mealRecipeSuggestionResponseSchema.safeParse(response.json()).success,
     ).toBe(true);
     expect(response.json().recipes).toHaveLength(3);
-    expect(response.json().ranking.context.state).toBe("unknown");
+    // A complete, exhausted read of an empty day proves zero intake so far.
+    expect(response.json().ranking.context.state).toBe("ready");
+    expect(response.json().ranking.context.reason).toBe("logged_so_far");
+    expect(response.json().ranking.context.consumed).toEqual({
+      proteinG: 0,
+      carbohydrateG: 0,
+      fatG: 0,
+    });
     expect(JSON.stringify(f.generationSpy.mock.calls[0])).not.toContain(
       "private user food label",
     );
@@ -378,7 +396,7 @@ describe("guarded recipe routes", () => {
     expect((await send(f.app, request)).statusCode).toBe(422);
     expect(f.generationSpy).toHaveBeenCalledTimes(1);
   });
-  it("empty feasible results are honest and make no provider call", async () => {
+  it("empty feasible results are honest and make no provider call or budget charge", async () => {
     const f = await fixture();
     const request = input();
     request.input.ingredients = request.input.ingredients.filter(
@@ -388,6 +406,7 @@ describe("guarded recipe routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().recipes).toEqual([]);
     expect(f.generationSpy).not.toHaveBeenCalled();
+    expect(f.charges()).toBe(0);
   });
   it("concurrent duplicate, conflict and restart output loss never repeat provider", async () => {
     const f = await fixture();
@@ -731,5 +750,206 @@ describe("guarded recipe routes", () => {
     read.mockResolvedValue([entry, entry]);
     expect((await send(f.app)).statusCode).toBe(503);
     expect(f.generationSpy).not.toHaveBeenCalled();
+  });
+  it.each(["halal", "kosher"] as const)(
+    "a %s profile diet does not block suggestions and adds a check warning",
+    async (diet) => {
+      const f = await fixture();
+      f.profileRepository.__seedForTest({
+        ...f.profile,
+        coachingPreferences: {
+          ...DEFAULT_COACHING_PREFERENCES,
+          dietaryPreferences: [diet],
+        },
+      });
+      const response = await send(f.app);
+      expect(response.statusCode).toBe(200);
+      const recipes = response.json().recipes as { warnings: string[] }[];
+      expect(recipes.length).toBeGreaterThan(0);
+      for (const recipe of recipes)
+        expect(
+          recipe.warnings.some((warning) =>
+            warning.toLowerCase().includes(diet),
+          ),
+        ).toBe(true);
+      expect(f.generationSpy).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("still asks for review when a typed dietary restriction is unsupported", async () => {
+    const f = await fixture();
+    const request = input();
+    request.input.exclusions.dietaryRestrictions = ["halal"];
+    expect((await send(f.app, request)).json().error.code).toBe(
+      "RECIPE_INGREDIENTS_NEED_REVIEW",
+    );
+    expect(f.generationSpy).not.toHaveBeenCalled();
+  });
+  it("falls back to the deterministic top three when the model selects none", async () => {
+    const f = await fixture();
+    f.generationSpy.mockResolvedValue({ recipeIds: [], tokensUsed: 1 });
+    const response = await send(f.app);
+    expect(response.statusCode).toBe(200);
+    const body = mealRecipeSuggestionResponseSchema.parse(response.json());
+    const request = input();
+    const feasible = buildFeasibleRecipeTemplates(request.input, {
+      servings: request.servings,
+      now,
+    });
+    expect(feasible.recipes.length).toBeGreaterThan(3);
+    const context = await loadOwnedRecipeContext(
+      f.repositories,
+      user,
+      "valid",
+      f.profile,
+      now,
+    );
+    const expected = rankMealRecipeCandidates(
+      context,
+      feasible.recipes.map(({ candidate }) => candidate),
+      { now, current: context.snapshot },
+    )
+      .ranked.slice(0, 3)
+      .map(({ recipeId }) => recipeId);
+    const ids = (items: readonly { recipeId: string }[]) =>
+      items.map(({ recipeId }) => recipeId);
+    expect(ids(body.recipes)).toEqual(expected);
+    expect(ids(body.ranking.ranked)).toEqual(expected);
+    expect(f.generationSpy).toHaveBeenCalledTimes(1);
+    expect(f.charges()).toBe(1);
+  });
+  it("ranks three or fewer feasible recipes without a provider call or budget charge", async () => {
+    const f = await fixture();
+    const request = input();
+    request.input.ingredients = request.input.ingredients.filter(
+      (item) =>
+        !["tofu-firm", "chickpeas-cooked", "cucumber-raw"].includes(
+          item.ingredientId,
+        ),
+    );
+    const response = await send(f.app, request);
+    expect(response.statusCode).toBe(200);
+    const body = mealRecipeSuggestionResponseSchema.parse(response.json());
+    expect(
+      body.recipes
+        .map((recipe: { recipeId: string }) => recipe.recipeId)
+        .sort(),
+    ).toEqual(["chicken-rice-tomato", "lentil-rice-tomato"]);
+    expect(body.ranking.ranked).toHaveLength(2);
+    expect(f.generationSpy).not.toHaveBeenCalled();
+    expect(f.charges()).toBe(0);
+  });
+  it.each(["disable", "delete", "revoke", "underage"] as const)(
+    "%s denies the deterministic path with no output",
+    async (action) => {
+      const f = await fixture();
+      if (action === "disable") f.disable();
+      else if (action === "delete") f.delete();
+      else if (action === "revoke")
+        await f.consent.saveConsent(user, {
+          granted: false,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        });
+      else f.profileRepository.__seedForTest({ ...f.profile, birthYear: 2020 });
+      const request = input();
+      request.input.ingredients = request.input.ingredients.filter(
+        (item) => item.ingredientId !== "tofu-firm",
+      );
+      request.input.exclusions.ingredientIds = ["chicken-breast"];
+      const response = await send(f.app, request);
+      expect(response.statusCode).toBeGreaterThanOrEqual(400);
+      expect(response.json().recipes).toBeUndefined();
+      expect(f.generationSpy).not.toHaveBeenCalled();
+      expect(f.charges()).toBe(0);
+    },
+  );
+  it("fails closed on the deterministic path when deletion status cannot be read", async () => {
+    const f = await fixture();
+    f.withoutDeletionCheck();
+    const request = input();
+    request.input.ingredients = request.input.ingredients.filter(
+      (item) => item.ingredientId !== "tofu-firm",
+    );
+    request.input.exclusions.ingredientIds = ["chicken-breast"];
+    const response = await send(f.app, request);
+    expect(response.statusCode).toBe(503);
+    expect(response.json().recipes).toBeUndefined();
+    expect(f.generationSpy).not.toHaveBeenCalled();
+    expect(f.charges()).toBe(0);
+  });
+  it("suppresses a deterministic result when consent is revoked during the final read", async () => {
+    const f = await fixture();
+    const request = input();
+    request.input.ingredients = request.input.ingredients.filter(
+      (item) => item.ingredientId !== "tofu-firm",
+    );
+    request.input.exclusions.ingredientIds = ["chicken-breast"];
+    const list = f.food.list.bind(f.food);
+    let calls = 0;
+    vi.spyOn(f.food, "list").mockImplementation(async (...args) => {
+      // The first context load reads intake twice (recipe day + energy).
+      if (++calls === 3)
+        await f.consent.saveConsent(user, {
+          granted: false,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        });
+      return list(...args);
+    });
+    const response = await send(f.app, request);
+    expect(response.statusCode).toBe(403);
+    expect(response.json().recipes).toBeUndefined();
+    expect(f.generationSpy).not.toHaveBeenCalled();
+  });
+  it("derives the energy day from the profile timezone (UTC+10)", async () => {
+    const f = await fixture();
+    const profile = { ...f.profile, timezone: "Australia/Brisbane" };
+    const list = vi.spyOn(f.food, "list");
+    // 20:00Z on 13 Oct is 06:00 on 14 Oct in Brisbane.
+    const late = new Date("2026-10-13T20:00:00Z");
+    const context = await loadOwnedRecipeContext(
+      f.repositories,
+      user,
+      "valid",
+      profile,
+      late,
+    );
+    expect(context.snapshot.localDate).toBe("2026-10-14");
+    // Energy reads end at the Brisbane end of day, not the UTC one.
+    expect(
+      list.mock.calls.some(
+        ([, options]) =>
+          options.to?.toISOString() === "2026-10-14T13:59:59.999Z",
+      ),
+    ).toBe(true);
+    expect(
+      list.mock.calls.some(
+        ([, options]) =>
+          options.to?.toISOString() === "2026-10-13T23:59:59.999Z",
+      ),
+    ).toBe(false);
+  });
+  it("computes profile UTC offsets with DST and falls back to zero", () => {
+    expect(
+      utcOffsetMinutesAt(
+        new Date("2026-10-13T20:00:00Z"),
+        "Australia/Brisbane",
+      ),
+    ).toBe(600);
+    expect(
+      utcOffsetMinutesAt(new Date("2026-07-01T12:00:00Z"), "Europe/Bratislava"),
+    ).toBe(120);
+    expect(
+      utcOffsetMinutesAt(new Date("2026-01-01T12:00:00Z"), "Europe/Bratislava"),
+    ).toBe(60);
+    expect(
+      utcOffsetMinutesAt(new Date("2026-01-01T12:00:00Z"), "Asia/Kathmandu"),
+    ).toBe(345);
+    expect(
+      utcOffsetMinutesAt(new Date("2026-01-01T12:00:00Z"), "America/St_Johns"),
+    ).toBe(-210);
+    expect(
+      utcOffsetMinutesAt(new Date("2026-01-01T12:00:00Z"), "Not/AZone"),
+    ).toBe(0);
   });
 });

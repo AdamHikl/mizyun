@@ -66,6 +66,9 @@ const input = (): MealRecipeSuggestionRequest => ({
       "chicken-breast-cooked",
       "lentils-cooked",
       "tofu-firm",
+      "chickpeas-cooked",
+      "cucumber-raw",
+      "tomato-raw",
       "tomato-puree",
       "olive-oil",
     ].map((ingredientId) => ({

@@ -210,7 +210,12 @@ export interface RecipeTemplateResult {
 /** Offline templates only. No provider calls, routes, intake writes, or implicit pantry staples. */
 export function buildFeasibleRecipeTemplates(
   untrusted: unknown,
-  options: { readonly servings: number; readonly now: Date },
+  options: {
+    readonly servings: number;
+    readonly now: Date;
+    /** Server-authored advisories (e.g. unenforceable profile diets) added to every draft. */
+    readonly advisoryWarnings?: readonly string[];
+  },
 ): RecipeTemplateResult {
   const parsed = mealRecipeInputSchema.safeParse(untrusted);
   if (
@@ -351,6 +356,7 @@ export function buildFeasibleRecipeTemplates(
               "Start with safely stored already-cooked rice and other cooked ingredients; reheat leftovers to 74°C using a food thermometer.",
             ]
           : []),
+        ...(options.advisoryWarnings ?? []),
       ],
       provenance: {
         source: nutrition.estimateQuality,

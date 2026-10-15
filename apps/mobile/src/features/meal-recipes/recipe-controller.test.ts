@@ -274,3 +274,30 @@ it("refreshes initial missing-consent capability but cannot revive locally retir
   await f.controller.generate();
   expect(f.api.suggest).not.toHaveBeenCalled();
 });
+it("explains a definitive limit rejection and clears the unknown-outcome marker", async () => {
+  const f = fixture();
+  await f.controller.init();
+  vi.mocked(f.api.suggest).mockResolvedValueOnce(
+    err({
+      kind: "http_error",
+      status: 429,
+      code: "RECIPE_LIMIT_DRAFTS",
+      message: "limit",
+    }) as never,
+  );
+  await f.controller.generate();
+  const snapshot = f.controller.getSnapshot();
+  expect(snapshot.message).toContain("today’s meal ideas");
+  expect(snapshot.session?.pendingRequestId).toBeNull();
+});
+it("keeps the unknown-outcome marker after an ambiguous transport failure", async () => {
+  const f = fixture();
+  await f.controller.init();
+  vi.mocked(f.api.suggest).mockResolvedValueOnce(
+    err({ kind: "network_error", cause: Error("offline") }) as never,
+  );
+  await f.controller.generate();
+  const snapshot = f.controller.getSnapshot();
+  expect(snapshot.message).toContain("a retry creates a new request");
+  expect(snapshot.session?.pendingRequestId).toBe(requestId);
+});

@@ -1,7 +1,11 @@
 import { Pressable, StyleSheet, View } from "react-native";
-import type { MealRecipeDraft } from "@mizyun/contracts";
+import type {
+  MealRecipeDraft,
+  MealRecipeSessionCatalogItem,
+} from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { useTheme } from "@/hooks/use-theme";
+import { preparationText } from "./recipe-presentation";
 const numberText = (value: number | null): string =>
   value === null || !Number.isFinite(value)
     ? "Unknown"
@@ -12,6 +16,7 @@ export const macroText = (value: number | null) => {
 };
 export function RecipeDetail({
   recipe,
+  catalog = [],
   portion,
   canAct,
   busy,
@@ -20,6 +25,7 @@ export function RecipeDetail({
   onLog,
 }: {
   recipe: MealRecipeDraft;
+  catalog?: readonly MealRecipeSessionCatalogItem[];
   portion: number;
   canAct: boolean;
   busy: boolean;
@@ -30,7 +36,6 @@ export function RecipeDetail({
   const theme = useTheme();
   return (
     <View style={styles.detail}>
-      <ThemedText style={styles.title}>{recipe.name}</ThemedText>
       <ThemedText>
         Estimated for your selected serving:{" "}
         {recipe.caloriesKcal === null || !Number.isFinite(recipe.caloriesKcal)
@@ -91,12 +96,16 @@ export function RecipeDetail({
         ))}
       </View>
       <ThemedText type="smallBold">Ingredients · {portion}× serving</ThemedText>
-      {recipe.ingredients.map((row) => (
-        <ThemedText key={row.ingredientId} type="small">
-          {row.ingredientId.replaceAll("_", " ")} · {macroText(row.weightGrams)}{" "}
-          · {row.preparationState.replaceAll("_", " ")}
-        </ThemedText>
-      ))}
+      {recipe.ingredients.map((row) => {
+        const food = catalog.find((item) => item.id === row.ingredientId);
+        return (
+          <ThemedText key={row.ingredientId} type="small">
+            {food?.name ?? row.ingredientId.replaceAll(/[-_]/g, " ")} ·{" "}
+            {macroText(row.weightGrams)} ·{" "}
+            {preparationText(row.preparationState)}
+          </ThemedText>
+        );
+      })}
       <ThemedText type="smallBold">
         Preparation · {recipe.prepMinutes} min
       </ThemedText>
@@ -138,7 +147,6 @@ export function RecipeDetail({
 }
 const styles = StyleSheet.create({
   detail: { gap: 12 },
-  title: { fontSize: 24, lineHeight: 32, fontWeight: "600" },
   portions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   button: {
     minHeight: 44,

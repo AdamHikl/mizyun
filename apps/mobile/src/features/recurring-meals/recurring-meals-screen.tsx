@@ -23,6 +23,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { RecurringMealSuggestionControls } from "./recurring-meal-suggestion-controls";
 import {
   createSchedule,
+  deviceTimeZone,
   EVERY_DAY,
   loadSchedules,
   scheduleDate,
@@ -35,6 +36,12 @@ import {
   type ScheduleResult,
 } from "./recurring-meal-data";
 
+import {
+  canSkipToday,
+  describeNextOccurrence,
+  SPOKEN_WEEKDAYS,
+  timeZoneNote,
+} from "./recurring-meal-schedule";
 import {
   clearScheduleAttempt,
   persistScheduleAttempt,
@@ -72,6 +79,12 @@ export function RecurringMealsScreen() {
   const editor = displayOwner.current === owner ? editorState : null;
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // "Next:" and Skip today depend on the wall clock; re-render as it moves.
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
   const lifetime = useCallback(
     () => ({
       expectedUserId: userId ?? "",
@@ -293,11 +306,14 @@ export function RecurringMealsScreen() {
     onPress: () => void,
     selected = false,
     locked = false,
+    visible = label,
+    hint?: string,
   ) => (
     <Pressable
       key={label}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={hint}
       accessibilityState={{ disabled: busy || locked, selected }}
       disabled={busy || locked}
       onPress={onPress}
@@ -311,7 +327,7 @@ export function RecurringMealsScreen() {
         },
       ]}
     >
-      <ThemedText type="smallBold">{label}</ThemedText>
+      <ThemedText type="smallBold">{visible}</ThemedText>
     </Pressable>
   );
   return (
@@ -403,7 +419,7 @@ export function RecurringMealsScreen() {
                   <Pressable
                     key={day}
                     accessibilityRole="checkbox"
-                    accessibilityLabel={day}
+                    accessibilityLabel={SPOKEN_WEEKDAYS[index]}
                     accessibilityState={{
                       checked: editor.weekdays.includes(index),
                       disabled: busy || !!editor.attempted,
@@ -467,76 +483,111 @@ export function RecurringMealsScreen() {
           {!loading && schedules.length === 0 && userId ? (
             <ThemedText>No recurring meals yet.</ThemedText>
           ) : null}
-          {(displayOwner.current === owner ? schedules : []).map((schedule) => (
-            <ThemedView
-              key={schedule.id}
-              type="backgroundElement"
-              style={styles.card}
-            >
-              <ThemedText type="smallBold">{schedule.name}</ThemedText>
-              <ThemedText>
-                {schedule.localTime} · {scheduleDays(schedule.weekdays)}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {schedule.timeZone} · {schedule.enabled ? "Active" : "Paused"}
-              </ThemedText>
-              <View style={styles.row}>
-                {button(`Edit ${schedule.name}`, () => {
-                  setError(null);
-                  setEditor({
-                    id: schedule.id,
-                    name: schedule.name,
-                    localTime: schedule.localTime,
-                    timeZone: schedule.timeZone,
-                    weekdays: [...schedule.weekdays],
-                  });
-                })}
-                {button(
-                  `${schedule.enabled ? "Pause" : "Resume"} ${schedule.name}`,
-                  () => {
-                    const current = lifetime();
-                    void command(
-                      () =>
-                        updateSchedule(
-                          schedule.id,
-                          { enabled: !schedule.enabled },
-                          current,
-                        ),
-                      schedule.enabled
-                        ? "Schedule paused."
-                        : "Schedule resumed.",
-                    );
-                  },
-                )}
-                {button(`Skip today for ${schedule.name}`, () => {
-                  const current = lifetime();
-                  Alert.alert(
-                    "Skip today?",
-                    `Skip today's entry in ${schedule.timeZone}? If it has already been automatically logged, it will be removed.`,
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Skip today",
-                        onPress: () => {
-                          if (current.isCurrent())
-                            void command(
-                              () =>
-                                skipSchedule(
-                                  schedule.id,
-                                  scheduleDate(schedule.timeZone),
-                                  current,
-                                ),
-                              "Today's occurrence skipped.",
-                            );
+          {(displayOwner.current === owner ? schedules : []).map((schedule) => {
+            const next = describeNextOccurrence(schedule, now);
+            const zoneNote = timeZoneNote(schedule.timeZone, deviceTimeZone());
+            return (
+              <ThemedView
+                key={schedule.id}
+                type="backgroundElement"
+                style={styles.card}
+              >
+                <ThemedText type="smallBold">{schedule.name}</ThemedText>
+                <ThemedText>
+                  {schedule.localTime} · {scheduleDays(schedule.weekdays)}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {schedule.enabled ? "Active" : "Paused"}
+                </ThemedText>
+                {next ? <ThemedText type="small">{next}</ThemedText> : null}
+                {zoneNote ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {zoneNote}
+                  </ThemedText>
+                ) : null}
+                <View style={styles.row}>
+                  {button(
+                    `Edit ${schedule.name}`,
+                    () => {
+                      setError(null);
+                      setEditor({
+                        id: schedule.id,
+                        name: schedule.name,
+                        localTime: schedule.localTime,
+                        timeZone: schedule.timeZone,
+                        weekdays: [...schedule.weekdays],
+                      });
+                    },
+                    false,
+                    false,
+                    "Edit",
+                  )}
+                  {button(
+                    `${schedule.enabled ? "Pause" : "Resume"} ${schedule.name}`,
+                    () => {
+                      const current = lifetime();
+                      void command(
+                        () =>
+                          updateSchedule(
+                            schedule.id,
+                            { enabled: !schedule.enabled },
+                            current,
+                          ),
+                        schedule.enabled
+                          ? "Schedule paused."
+                          : "Schedule resumed.",
+                      );
+                    },
+                    false,
+                    false,
+                    schedule.enabled ? "Pause" : "Resume",
+                  )}
+                  {canSkipToday(schedule, now)
+                    ? button(
+                        `Skip today for ${schedule.name}`,
+                        () => {
+                          const current = lifetime();
+                          Alert.alert(
+                            "Skip today?",
+                            `Skip today's entry in ${schedule.timeZone}? If it has already been automatically logged, it will be removed.`,
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Skip today",
+                                onPress: () => {
+                                  if (current.isCurrent())
+                                    void command(
+                                      () =>
+                                        skipSchedule(
+                                          schedule.id,
+                                          scheduleDate(schedule.timeZone),
+                                          current,
+                                        ),
+                                      "Today's occurrence skipped.",
+                                    );
+                                },
+                              },
+                            ],
+                          );
                         },
-                      },
-                    ],
-                  );
-                })}
-                {button(`Stop ${schedule.name}`, () => confirmStop(schedule))}
-              </View>
-            </ThemedView>
-          ))}
+                        false,
+                        false,
+                        "Skip today",
+                        "Skips today's automatic entry and removes it if already logged.",
+                      )
+                    : null}
+                  {button(
+                    `Stop ${schedule.name}`,
+                    () => confirmStop(schedule),
+                    false,
+                    false,
+                    "Stop",
+                    "Stops this recurring meal. Previously logged meals remain.",
+                  )}
+                </View>
+              </ThemedView>
+            );
+          })}
           {userId ? button("Refresh recurring meals", () => void load()) : null}
         </ScrollView>
       </SafeAreaView>

@@ -124,6 +124,7 @@ it("labels unknown context and estimates; recipe browsing never navigates to log
     context: { ...metadata.context, state: "unknown" },
   });
   (controller.fresh as any) = () => false;
+  vi.mocked(controller.selected).mockReturnValue(null);
   const tree = render();
   expect(text(tree)).toContain("Your daily balance");
   expect(text(tree)).toContain("Unknown");
@@ -212,6 +213,9 @@ it("changing an exact catalog reference after validation immediately disables ol
     ],
   });
   vi.mocked(controller.invalidateInputs).mockClear();
+  // The only rice in the catalog is preselected; reopen it to change.
+  expect(text(render())).toContain("Cooked rice · cooked");
+  labelled(render(), "Change food for Rice").props.onPress();
   const choice = nodes(render()).find(
     (node) =>
       node.type === "Pressable" &&
@@ -310,10 +314,6 @@ it("keeps first-time reviewed ingredients editable before a food match is saved"
 
 it("closes food matching after a successful save so only Find meals remains primary", async () => {
   confirmPendingIngredient();
-  const match = nodes(render()).find(
-    (node) => node.type === "Pressable" && text(node).includes("Cooked rice"),
-  );
-  match.props.onPress();
   (controller.setInput as any) = vi.fn(async (input) => {
     snapshot = { ...snapshot, session: { ...recovery(), input } };
   });
@@ -324,11 +324,6 @@ it("closes food matching after a successful save so only Find meals remains prim
 
 it("keeps pending food matches available when saving ingredients fails", async () => {
   confirmPendingIngredient();
-  nodes(render())
-    .find(
-      (node) => node.type === "Pressable" && text(node).includes("Cooked rice"),
-    )
-    .props.onPress();
   (controller.setInput as any) = vi.fn(async () => {
     snapshot = { ...snapshot, persistenceReady: false };
   });
@@ -362,11 +357,6 @@ it("canceling ingredient editing preserves the saved meal draft and restores rec
 
 it("retains a newer dietary exclusion when an older ingredient save finishes late", async () => {
   confirmPendingIngredient();
-  nodes(render())
-    .find(
-      (node) => node.type === "Pressable" && text(node).includes("Cooked rice"),
-    )
-    .props.onPress();
   let finish!: () => void;
   (controller.setInput as any) = vi.fn((input) => {
     snapshot = { ...snapshot, phase: "working" };
@@ -392,4 +382,114 @@ it("retains a newer dietary exclusion when an older ingredient save finishes lat
   expect(labelled(render(), "Use these ingredients")).toBeTruthy();
   expect(labelled(render(), "Excluded allergens").props.value).toBe("nuts");
   expect(labelled(render(), "Suggest meals")).toBeUndefined();
+});
+
+it("shows known balances as targets met instead of unknown (#243)", () => {
+  vi.mocked(controller.ranking).mockReturnValue({
+    ...validated.ranking,
+    context: {
+      ...metadata.context,
+      consumed: { proteinG: 100, carbohydrateG: 210, fatG: 40 },
+      remaining: { proteinG: 0, carbohydrateG: -10, fatG: 0 },
+      positiveGaps: { proteinG: 0, carbohydrateG: 0, fatG: 0 },
+      state: "no_remaining_gaps",
+      reason: "no_remaining_gaps",
+      focus: [],
+    },
+    ranked: validated.ranking.ranked.map((row) => ({
+      ...row,
+      fitLoss: null,
+      desiredMacros: { proteinG: null, carbohydrateG: null, fatG: null },
+      reason: "no_remaining_gaps",
+    })),
+  });
+  const visible = text(render());
+  expect(visible).toContain("Targets met for today");
+  expect(visible).toContain("Protein 0 g");
+  expect(visible).toContain("Carbs 10 g over target");
+  expect(visible).not.toContain("Unknown");
+  expect(visible).not.toContain("Let’s focus");
+  expect(visible).not.toContain("Best fit");
+});
+
+it("marks the top-ranked fresh recipe and describes its own contribution", () => {
+  vi.mocked(controller.selected).mockReturnValue(null);
+  const visible = text(render());
+  expect(visible).toContain("Best fit for what’s left today");
+  expect(visible).toContain("56 of 150 g carbs left · 6 of 50 g protein left");
+});
+
+it("leaves raw versus cooked ambiguity for the user and shows catalog names in details", () => {
+  snapshot = {
+    ...snapshot,
+    metadata: {
+      ...metadata,
+      catalog: [
+        ...metadata.catalog,
+        {
+          ...metadata.catalog[0]!,
+          id: "rice-raw",
+          name: "Dry rice",
+          preparationState: "raw",
+        },
+      ],
+    },
+  };
+  confirmPendingIngredient();
+  const visible = text(render());
+  expect(visible).toContain("Choose a food");
+  expect(labelled(render(), "Use these ingredients").props.disabled).toBe(true);
+  const detail = RecipeDetail({
+    recipe: validated.recipes[0]!,
+    catalog: metadata.catalog,
+    portion: 1,
+    busy: false,
+    canAct: true,
+    onPortion: vi.fn(),
+    onLog: vi.fn(),
+  });
+  expect(text(detail)).toContain("Cooked rice");
+  expect(text(detail)).not.toContain("rice-cooked");
+});
+
+it("merges two reviewed rows that match one food instead of failing validation", async () => {
+  snapshot = { ...snapshot, session: null };
+  vi.mocked(controller.selected).mockReturnValue(null);
+  labelled(render(), "Add ingredients").props.onPress();
+  nodes(render())
+    .find((node) => node.type === "IngredientReview")
+    .props.onConfirmed({
+      ingredients: [
+        {
+          id: "a",
+          name: "Rice",
+          preparationState: "cooked",
+          ingredientId: null,
+        },
+        {
+          id: "b",
+          name: "cooked rice",
+          preparationState: "unknown",
+          ingredientId: null,
+        },
+      ],
+    });
+  (controller.setInput as any) = vi.fn(async () => undefined);
+  await labelled(render(), "Use these ingredients").props.onPress();
+  const sent = vi.mocked(controller.setInput).mock.calls[0]![0];
+  expect(sent.ingredients.map((row: any) => row.ingredientId)).toEqual([
+    "rice-cooked",
+  ]);
+});
+
+it("explains invalid prep minutes and blocks saving instead of sending NaN", () => {
+  confirmPendingIngredient();
+  labelled(render(), "Maximum prep minutes").props.onChangeText("abc");
+  const tree = render();
+  expect(text(tree)).toContain("Enter whole minutes");
+  expect(labelled(tree, "Use these ingredients").props.disabled).toBe(true);
+  labelled(render(), "Maximum prep minutes").props.onChangeText("25");
+  expect(labelled(render(), "Use these ingredients").props.disabled).toBe(
+    false,
+  );
 });

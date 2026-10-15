@@ -12,6 +12,42 @@ import {
 } from "../energy/index.js";
 export const recipeDigest = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
+/**
+ * UTC offset in whole minutes of an IANA zone at an instant, so the energy
+ * summary uses the same local day as the profile. Falls back to 0 (UTC) for
+ * an invalid or unsupported zone.
+ */
+export function utcOffsetMinutesAt(instant: Date, timeZone: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(instant);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      Number(parts.find((item) => item.type === type)?.value);
+    const local = Date.UTC(
+      part("year"),
+      part("month") - 1,
+      part("day"),
+      part("hour"),
+      part("minute"),
+      part("second"),
+    );
+    const wholeSecond = Math.floor(instant.getTime() / 1000) * 1000;
+    const offset = Math.round((local - wholeSecond) / 60_000);
+    return Number.isSafeInteger(offset) && Math.abs(offset) <= 18 * 60
+      ? offset
+      : 0;
+  } catch {
+    return 0;
+  }
+}
 export async function loadOwnedRecipeContext(
   repositories: EnergyRoutesOptions,
   userId: UserId,
@@ -60,6 +96,7 @@ export async function loadOwnedRecipeContext(
           entries.reduce((total, entry) => total + entry[field]!, 0) * 100,
         ) / 100
       : null;
+  // Only an exhausted read proves an empty day; otherwise intake stays unknown.
   const summary = entries.length
     ? {
         date: localDate,
@@ -68,12 +105,24 @@ export async function loadOwnedRecipeContext(
         carbohydrateG: sum("carbohydrateG"),
         fatG: sum("fatG"),
       }
-    : null;
+    : complete
+      ? {
+          date: localDate,
+          entryCount: 0,
+          proteinG: 0,
+          carbohydrateG: 0,
+          fatG: 0,
+        }
+      : null;
   const energy = await computeRouteSummary(
     repositories,
     userId,
     accessToken,
-    { activityLevel: null, sexAtBirth: null, utcOffsetMinutes: 0 },
+    {
+      activityLevel: null,
+      sexAtBirth: null,
+      utcOffsetMinutes: utcOffsetMinutesAt(now, timeZone),
+    },
     now,
   );
   const goal = await repositories.goalRepository.getActive(userId, {

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   clear: vi.fn(),
   persist: vi.fn(),
   reset: vi.fn(),
+  canSkip: vi.fn(),
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -119,6 +120,10 @@ vi.mock("@/composition/api-client", () => ({
   apiClient: {},
   invalidateSessionReads: vi.fn(),
 }));
+vi.mock("./recurring-meal-schedule", async (original) => ({
+  ...(await original<typeof import("./recurring-meal-schedule")>()),
+  canSkipToday: (...args: unknown[]) => mocks.canSkip(...args),
+}));
 import { RecurringMealsScreen } from "./recurring-meals-screen";
 function render(): any {
   hooks.index = 0;
@@ -178,6 +183,7 @@ beforeEach(() => {
   mocks.update.mockResolvedValue({ ok: true });
   mocks.skip.mockResolvedValue({ ok: true });
   mocks.stop.mockResolvedValue({ ok: true });
+  mocks.canSkip.mockReturnValue(true);
 });
 describe("recurring meals screen boundaries", () => {
   it("requires explicit Save, supports presets, and retries an ambiguous save with its original identity", async () => {
@@ -188,7 +194,7 @@ describe("recurring meals screen boundaries", () => {
     let tree = render();
     find(tree, "Evening · 19:00").props.onPress();
     tree = render();
-    find(tree, "Sun").props.onPress();
+    find(tree, "Sunday").props.onPress();
     mocks.create.mockResolvedValueOnce({
       ok: false,
       message: "Connection lost",
@@ -198,7 +204,7 @@ describe("recurring meals screen boundaries", () => {
     await settle();
     tree = render();
     expect(find(tree, "Scheduled time").props.editable).toBe(false);
-    expect(find(tree, "Sun").props.disabled).toBe(true);
+    expect(find(tree, "Sunday").props.disabled).toBe(true);
     find(tree, "Scheduled time").props.onChangeText("12:00");
     tree = render();
     find(tree, "Retry save").props.onPress();
@@ -323,7 +329,7 @@ it("restores an unresolved schedule after screen restart with frozen original se
   const tree = render();
   expect(find(tree, "Scheduled time").props.value).toBe("10:00");
   expect(find(tree, "Schedule time zone").props.value).toBe("America/New_York");
-  expect(find(tree, "Mon").props.disabled).toBe(true);
+  expect(find(tree, "Monday").props.disabled).toBe(true);
   find(tree, "Retry save").props.onPress();
   await settle();
   expect(mocks.create).toHaveBeenCalledWith(
@@ -464,4 +470,58 @@ it("does not close a new source editor when an older source save resolves for th
   await settle();
   expect(find(render(), "Scheduled time").props.value).toBe("19:00");
   expect(mocks.clear).not.toHaveBeenCalled();
+});
+
+const visibleText = (node: any): string =>
+  [node.props.children]
+    .flat()
+    .map((child: any) =>
+      typeof child === "string" ? child : visibleText(child),
+    )
+    .join("");
+
+it("shows short visible labels with the meal name kept in accessibility labels and hints", async () => {
+  mocks.source = undefined;
+  mocks.load.mockResolvedValue({ ok: true, recurringMeals: [schedule] });
+  render();
+  hooks.focus!();
+  await settle();
+  const tree = render();
+  const edit = find(tree, "Edit Oats");
+  expect(visibleText(edit)).toBe("Edit");
+  expect(visibleText(find(tree, "Pause Oats"))).toBe("Pause");
+  const skip = find(tree, "Skip today for Oats");
+  expect(visibleText(skip)).toBe("Skip today");
+  expect(skip.props.accessibilityHint).toMatch(/removes it if already logged/);
+  const stop = find(tree, "Stop Oats");
+  expect(visibleText(stop)).toBe("Stop");
+  expect(stop.props.accessibilityHint).toMatch(
+    /Previously logged meals remain/,
+  );
+  expect(visibleText(find(tree, "Refresh recurring meals"))).toBe(
+    "Refresh recurring meals",
+  );
+});
+
+it("hides Skip today when today is not a scheduled day or the schedule is paused, and shows next occurrence", async () => {
+  mocks.source = undefined;
+  mocks.canSkip.mockReturnValue(false);
+  mocks.load.mockResolvedValue({ ok: true, recurringMeals: [schedule] });
+  render();
+  hooks.focus!();
+  await settle();
+  const tree = render();
+  expect(find(tree, "Skip today for Oats")).toBeFalsy();
+  expect(find(tree, "Edit Oats")).toBeTruthy();
+  expect(JSON.stringify(tree)).toMatch(/Next: (Today|Tomorrow) 10:00/);
+});
+
+it("speaks full weekday names for weekday toggles", async () => {
+  render();
+  hooks.focus!();
+  await settle();
+  const tree = render();
+  const sunday = find(tree, "Sunday");
+  expect(sunday.props.accessibilityRole).toBe("checkbox");
+  expect(visibleText(sunday)).toBe("Sun");
 });

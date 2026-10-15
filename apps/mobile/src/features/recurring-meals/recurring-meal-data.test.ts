@@ -149,3 +149,26 @@ it.each([
     });
   },
 );
+
+it.each([
+  [409, /already used or stopped/],
+  [422, /Check the meal, time, days and time zone.*schedule limit/],
+  [404, /no longer exists/],
+  [503, /Please retry/],
+])("maps HTTP %s to specific copy", async (status, pattern) => {
+  const rejected: ApiClient = {
+    ...client,
+    request: async () => ({
+      ok: false,
+      error: {
+        kind: "http_error",
+        status: status as number,
+        code: "X",
+        message: "server text",
+      },
+    }),
+  };
+  const result = await skipSchedule(id, "2026-10-03", lifetime, rejected);
+  expect(result).toMatchObject({ ok: false });
+  expect((result as { message: string }).message).toMatch(pattern);
+});

@@ -7,7 +7,6 @@ import {
   ingredientRecognitionResponseSchema,
   mealRecipeSuggestionResponseSchema,
   type MealRecipeSuggestionRequest,
-  type MealRecipeInput,
 } from "@mizyun/contracts";
 import {
   rankMealRecipeCandidates,
@@ -19,6 +18,7 @@ import {
   type RecipeRequestOperation,
 } from "@mizyun/core";
 import {
+  RECIPE_GENERATION_MAX_RESULTS,
   RecipeProviderError,
   type RecipeGenerationProvider,
   type IngredientRecognitionProvider,
@@ -29,6 +29,7 @@ import { authorizeAiAccess } from "../../ai-eligibility.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import type { EnergyRoutesOptions } from "../energy/index.js";
 import { loadOwnedRecipeContext, recipeDigest } from "./context.js";
+import { applyProfileDiets } from "./profile-diet.js";
 import { buildFeasibleRecipeTemplates } from "./templates.js";
 import { RECIPE_CATALOG_DATA } from "./catalog-data.js";
 
@@ -61,7 +62,11 @@ export class MealRecipeService {
     this.now = options.now ?? (() => new Date());
   }
   async authorize(userId: UserId, accessToken: string): Promise<StoredProfile> {
-    const job = await this.options.accountRepository.getDeletionJob?.(userId);
+    // Fail closed: the deterministic suggestion path has no ledger SQL fence
+    // to catch deletion when the repository cannot report it.
+    if (!this.options.accountRepository.getDeletionJob)
+      throw new RecipeServiceError(503, "RECIPE_REQUEST_UNAVAILABLE");
+    const job = await this.options.accountRepository.getDeletionJob(userId);
     if (job && ["in_progress", "failed", "completed"].includes(job.status))
       throw new RecipeServiceError(403, "ACCOUNT_DELETION_IN_PROGRESS");
     const profile =
@@ -286,34 +291,66 @@ export class MealRecipeService {
       expiresAt: _e,
       ...identity
     }: typeof before.snapshot) => identity;
-    const input: MealRecipeInput = {
-      ...request.input,
-      exclusions: {
-        ...request.input.exclusions,
-        dietaryRestrictions: [
-          ...new Set([
-            ...request.input.exclusions.dietaryRestrictions,
-            ...profile.coachingPreferences.dietaryPreferences
-              .filter((diet) => diet !== "omnivore")
-              .map((diet) =>
-                diet === "pescatarian"
-                  ? "vegetarian"
-                  : diet === "lactose_free"
-                    ? "dairy_free"
-                    : diet,
-              ),
-          ]),
-        ],
-      },
-    };
+    const { input, warnings } = applyProfileDiets(request.input, profile);
     const feasible = buildFeasibleRecipeTemplates(input, {
       servings: request.servings,
       now: this.now(),
+      advisoryWarnings: warnings,
     });
     if (feasible.state === "clarification_needed")
       throw new RecipeServiceError(422, "RECIPE_INGREDIENTS_NEED_REVIEW");
     if (feasible.state === "invalid_input")
       throw new RecipeServiceError(400, "INVALID_RECIPE_REQUEST");
+    /**
+     * Ranks the provider's selection, or every feasible template when there
+     * is no selection, after re-checking access and the owned source context.
+     * Returns at most RECIPE_GENERATION_MAX_RESULTS deterministic drafts.
+     */
+    const complete = async (selectedIds: readonly string[] | null) => {
+      const pool =
+        selectedIds === null || selectedIds.length === 0
+          ? feasible.recipes
+          : feasible.recipes.filter(({ candidate }) =>
+              selectedIds.includes(candidate.recipeId),
+            );
+      const currentProfile = await this.authorize(userId, accessToken);
+      const after = await loadOwnedRecipeContext(
+        this.options.repositories,
+        userId,
+        accessToken,
+        currentProfile,
+        this.now(),
+      );
+      if (
+        recipeDigest(sourceIdentity(before.snapshot)) !==
+        recipeDigest(sourceIdentity(after.snapshot))
+      )
+        throw new RecipeServiceError(409, "RECIPE_CONTEXT_CHANGED");
+      const ranking = rankMealRecipeCandidates(
+        before,
+        pool.map(({ candidate }) => candidate),
+        { now: this.now(), current: after.snapshot },
+      );
+      const ranked = ranking.ranked.slice(0, RECIPE_GENERATION_MAX_RESULTS);
+      return mealRecipeSuggestionResponseSchema.parse({
+        version: "meal-recipe-v1",
+        requestId: request.requestId,
+        recipes: ranked.map(
+          ({ recipeId }) =>
+            pool.find(({ candidate }) => candidate.recipeId === recipeId)!
+              .draft,
+        ),
+        ranking: { ...ranking, ranked },
+      });
+    };
+    // Nothing for a model to choose between: rank deterministically without
+    // a provider call or an AI budget reservation. Access was required above
+    // and is re-checked during and after the final context read.
+    if (feasible.recipes.length <= RECIPE_GENERATION_MAX_RESULTS) {
+      const value = await complete(null);
+      await this.requireReady(userId, accessToken, "suggest");
+      return value;
+    }
     const projected = {
       eligibleRecipes: feasible.recipes.map(({ candidate }) => ({
         recipeId: candidate.recipeId,
@@ -327,9 +364,6 @@ export class MealRecipeService {
       },
       signal: new AbortController().signal,
     };
-    const estimated = feasible.recipes.length
-      ? this.options.generationProvider.estimateTokens(projected)
-      : 1;
     return this.attempt(
       userId,
       accessToken,
@@ -337,14 +371,13 @@ export class MealRecipeService {
       request.requestId,
       "suggest",
       recipeDigest(request),
-      estimated,
+      this.options.generationProvider.estimateTokens(projected),
       async (signal) => {
-        const output: RecipeGenerationResult = feasible.recipes.length
-          ? await this.options.generationProvider.generate({
-              ...projected,
-              signal,
-            })
-          : { recipeIds: [] };
+        const output: RecipeGenerationResult =
+          await this.options.generationProvider.generate({
+            ...projected,
+            signal,
+          });
         const selection = recipeTemplateSelectionSchema.safeParse(
           output.recipeIds,
         );
@@ -361,39 +394,8 @@ export class MealRecipeService {
           )
         )
           throw new RecipeProviderError("malformed_output");
-        const selected = feasible.recipes.filter(({ candidate }) =>
-          ids.includes(candidate.recipeId),
-        );
-        const currentProfile = await this.authorize(userId, accessToken);
-        const after = await loadOwnedRecipeContext(
-          this.options.repositories,
-          userId,
-          accessToken,
-          currentProfile,
-          this.now(),
-        );
-        if (
-          recipeDigest(sourceIdentity(before.snapshot)) !==
-          recipeDigest(sourceIdentity(after.snapshot))
-        )
-          throw new RecipeServiceError(409, "RECIPE_CONTEXT_CHANGED");
-        const ranking = rankMealRecipeCandidates(
-          before,
-          selected.map(({ candidate }) => candidate),
-          { now: this.now(), current: after.snapshot },
-        );
-        const recipes = ranking.ranked.map(
-          (ranked) =>
-            selected.find(
-              ({ candidate }) => candidate.recipeId === ranked.recipeId,
-            )!.draft,
-        );
-        const value = mealRecipeSuggestionResponseSchema.parse({
-          version: "meal-recipe-v1",
-          requestId: request.requestId,
-          recipes,
-          ranking,
-        });
+        // An empty selection falls back to the deterministic top results.
+        const value = await complete(ids);
         return {
           value,
           ...(output.tokensUsed !== undefined

@@ -1,4 +1,17 @@
-import type { MealRecipeApi, MealRecipeSessionApi } from "@mizyun/api-client";
+import type {
+  ApiError,
+  MealRecipeApi,
+  MealRecipeSessionApi,
+} from "@mizyun/api-client";
+import {
+  isDefinitiveRecipeRejection,
+  recipeRequestMessage,
+} from "./recipe-presentation";
+class RecipeRequestFailure extends Error {
+  constructor(readonly error: ApiError) {
+    super("Suggestion unavailable");
+  }
+}
 import {
   mealRecipeInputSchema,
   type MealRecipeInput,
@@ -257,7 +270,7 @@ export class RecipeController {
         },
       );
       if (!this.current(epoch) || this.aiRetired) return;
-      if (!response.ok) throw new Error("Suggestion unavailable");
+      if (!response.ok) throw new RecipeRequestFailure(response.error);
       if (response.value.recipes.length === 0) {
         await this.persist(
           this.revised({
@@ -302,13 +315,19 @@ export class RecipeController {
         }),
       );
       this.update({ phase: "idle", validated: true, message: null });
-    } catch {
+    } catch (error) {
+      if (!this.current(epoch)) return;
+      const failure =
+        error instanceof RecipeRequestFailure ? error.error : null;
+      if (isDefinitiveRecipeRejection(failure))
+        await this.persist(this.revised({ pendingRequestId: null })).catch(
+          () => undefined,
+        );
       if (this.current(epoch))
         this.update({
           phase: "idle",
           validated: false,
-          message:
-            "Suggestions could not be completed. Your saved request is retained; a retry creates a new request.",
+          message: recipeRequestMessage(failure),
         });
     }
   }

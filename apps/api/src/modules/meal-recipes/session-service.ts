@@ -2,7 +2,6 @@ import {
   mealRecipeRevalidationRequestSchema,
   mealRecipeRevalidationResponseSchema,
   mealRecipeSessionContextSchema,
-  type MealRecipeInput,
   type MealRecipeRevalidationRequest,
 } from "@mizyun/contracts";
 import {
@@ -15,6 +14,7 @@ import {
   RECIPE_CATALOG_REVISION,
 } from "./catalog-data.js";
 import { loadOwnedRecipeContext, recipeDigest } from "./context.js";
+import { applyProfileDiets } from "./profile-diet.js";
 import { buildFeasibleRecipeTemplates } from "./templates.js";
 import { RecipeServiceError, type RecipeServiceOptions } from "./service.js";
 
@@ -128,29 +128,14 @@ export class MealRecipeSessionService {
     if (request.catalogRevision !== RECIPE_CATALOG_REVISION)
       throw new RecipeServiceError(409, "RECIPE_CONTEXT_CHANGED");
     const before = await this.read(userId, accessToken);
-    const input: MealRecipeInput = {
-      ...request.input,
-      exclusions: {
-        ...request.input.exclusions,
-        dietaryRestrictions: [
-          ...new Set([
-            ...request.input.exclusions.dietaryRestrictions,
-            ...before.profile.coachingPreferences.dietaryPreferences
-              .filter((diet) => diet !== "omnivore")
-              .map((diet) =>
-                diet === "pescatarian"
-                  ? "vegetarian"
-                  : diet === "lactose_free"
-                    ? "dairy_free"
-                    : diet,
-              ),
-          ]),
-        ],
-      },
-    };
+    const { input, warnings } = applyProfileDiets(
+      request.input,
+      before.profile,
+    );
     const feasible = buildFeasibleRecipeTemplates(input, {
       servings: request.servings,
       now: this.now(),
+      advisoryWarnings: warnings,
     });
     if (
       feasible.state !== "ready" ||

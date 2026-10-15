@@ -189,7 +189,8 @@ describe("provider-free recipe session boundary", () => {
     const value = mealRecipeSessionContextSchema.parse(result.json());
     expect(value.context.state).toBe("unknown");
     expect(value.context.reason).toBe("targets_unavailable");
-    expect(value.context.consumed.proteinG).toBeNull();
+    // A complete read of an empty day proves zero intake; targets stay unknown.
+    expect(value.context.consumed.proteinG).toBe(0);
     expect(value.catalog.length).toBe(RECIPE_CATALOG_DATA.length);
     expect(Buffer.byteLength(result.body)).toBeLessThanOrEqual(16_384);
     expect(value.catalog[0]).not.toHaveProperty("fdcId");
@@ -256,6 +257,27 @@ describe("provider-free recipe session boundary", () => {
       (await post(f.app, { ...request(), recipeIds: ["lentil-rice-tomato"] }))
         .statusCode,
     ).toBe(200);
+  });
+  it("revalidates a halal profile without claiming compliance or asking for review", async () => {
+    const f = await fixture();
+    f.profileRepository.__seedForTest({
+      ...f.profile,
+      coachingPreferences: {
+        ...f.profile.coachingPreferences,
+        dietaryPreferences: ["halal", "vegetarian"],
+      },
+    });
+    const response = await post(f.app, {
+      ...request(),
+      recipeIds: ["lentil-rice-tomato"],
+    });
+    expect(response.statusCode).toBe(200);
+    const body = mealRecipeRevalidationResponseSchema.parse(response.json());
+    expect(body.recipes[0]!.warnings).toContain(
+      "Check your ingredients meet halal requirements; recipe filtering does not verify halal status.",
+    );
+    // Vegetarian still excludes chicken alongside the halal advisory.
+    expect((await post(f.app)).statusCode).toBe(422);
   });
   it("forwards the authenticated owner and token to repository reads", async () => {
     const f = await fixture();
