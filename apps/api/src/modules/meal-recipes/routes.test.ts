@@ -88,7 +88,7 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
-async function fixture() {
+async function fixture({ timeoutMs = 25 }: { timeoutMs?: number } = {}) {
   const profileRepository = new InMemoryProfileRepository({
     defaultTimezone: "UTC",
     defaultUnitSystem: "metric",
@@ -202,7 +202,7 @@ async function fixture() {
       recognitionProvider: recognition,
       enabled: () => enabled,
       now: () => now,
-      timeoutMs: 25,
+      timeoutMs,
     });
     await app.ready();
     return app;
@@ -409,7 +409,9 @@ describe("guarded recipe routes", () => {
     expect(f.charges()).toBe(0);
   });
   it("concurrent duplicate, conflict and restart output loss never repeat provider", async () => {
-    const f = await fixture();
+    // Idempotency, not timeout: the held provider must outlive two full
+    // requests even on a loaded machine. The timeout test keeps 25 ms.
+    const f = await fixture({ timeoutMs: 5_000 });
     const entered = deferred<void>(),
       finish = deferred<{ recipeIds: string[] }>();
     f.generationSpy.mockImplementation(async () => {
