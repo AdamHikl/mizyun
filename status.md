@@ -10,8 +10,8 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend (Oct15):**1642d9ddb65c031a988b0d4bfb63c4fdbac92c81 (#253–#257+Coach fix) deploy:dev; gatePASS(2783mobile/1123API+15skips), migration20261015130000, health200 15:01Z. [Evidence](docs/COACH_SESSION_READ_RETRY_EVIDENCE_2026-10-15.md). Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
-- **iPhone Dev (Oct15):**1642d9dd installed+launched on Adam's iPhone 00008140-001114501A86801C 15:02Z. Device acceptance open.
+- **Dev backend (Oct15):**b9166d8553e5f2a8049d18d870fe8dc993a5835a (meals+Community) deploy:dev; gatePASS(2838mobile/1143API+15skips), DB current20261015130000, health200 19:57Z. [Evidence](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md). Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
+- **iPhone Dev (Oct15):**b9166d85 installed on iPhone 00008140-001114501A86801C 19:58Z; launch blocked (locked). Device acceptance open.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **AI:** Hetzner Dev/Prod; Pi encrypted recovery. Gemini-or-disabled; adult/consent/usage/kill switches; no email allowlist. Founder/partner shared-Gemini Dev exception; Qwen paused. `docs/BEFORE_TESTING.md`/live-provider gates retained.
 

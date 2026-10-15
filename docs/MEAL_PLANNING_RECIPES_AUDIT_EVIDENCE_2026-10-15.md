@@ -97,3 +97,19 @@ suites, not accepted), core 633, contracts 353, supabase-server 260, Gemini
 re-hashed to the same tree before committing; commits `3513d0d8` (meals) and
 `8b9fc0d5` (Community) have exactly that tree. Not deployed; no device or
 native acceptance.
+
+## Dev delivery
+
+- The first `pnpm deploy:dev d8b3ba20` stopped at its own gate. In
+  `routes.test.ts`, "concurrent duplicate, conflict and restart output loss
+  never repeat provider" returned 504 under load: it sends two full requests
+  inside a 25 ms held-provider deadline. Nothing reached Hetzner. Commit
+  `b9166d85` gives that idempotency test a 5 s provider timeout; the dedicated
+  timeout test keeps 25 ms.
+- `pnpm deploy:dev b9166d8553e5f2a8049d18d870fe8dc993a5835a`: gate PASS
+  (fingerprint `51d372b5a2dcd455740982b851fc930316cdeea9d17f328422422d5722a7ebd1`;
+  mobile 2838, API 1143 + 15 skipped), remote database already up to date (no
+  new migrations), public health 200 at 2026-10-15T19:57:38Z.
+- iPhone `00008140-001114501A86801C`: `pnpm mobile:install:ios:dev` built and
+  installed `com.mizyun.development` at 19:58:38Z. Launch was refused twice
+  because the phone was locked, so launch and device acceptance are open.
