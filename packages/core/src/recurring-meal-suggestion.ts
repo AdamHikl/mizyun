@@ -36,7 +36,7 @@ export interface RecurringMealSuggestionProposal {
   readonly fatG: number | null;
   readonly grams: number | null;
   readonly policyVersion: string;
-  readonly reasonCode: "three_consecutive_days";
+  readonly reasonCode: "three_consecutive_days" | "weekly_pattern";
   readonly localTime: string;
   readonly timeZone: string;
   readonly weekdays: readonly number[];
@@ -130,19 +130,40 @@ const minuteAt = (at: string, timeZone: string): number => {
     Number(parts.find((p) => p.type === "minute")!.value)
   );
 };
-// Linear median, matching public.recurring_suggestion_validate. Copies are saved
-// when the user taps Copy, so the spread only ranks chains; it never rejects one.
+// Rounded median, matching public.recurring_suggestion_validate and
+// public.recurring_suggestion_validate_weekly. For an even count this is the
+// LOWER median, sorted[floor((n - 1) / 2)] (SQL: minutes[(n + 1) / 2]); for the
+// three-day chain it is the middle value. Copies are saved when the user taps
+// Copy, so the spread only ranks chains; it never rejects one.
 const chainTime = (
   minutes: readonly number[],
 ): { spread: number; rounded: number } => {
   const sorted = [...minutes].sort((a, b) => a - b);
   return {
     spread: sorted.at(-1)! - sorted[0]!,
-    rounded: Math.floor((sorted[1]! + 7) / 15) * 15,
+    rounded:
+      Math.floor((sorted[Math.floor((sorted.length - 1) / 2)]! + 7) / 15) * 15,
   };
 };
+/** Local days of history detection needs, including today (two of each weekday). */
+export const recurringMealSuggestionWindowDays = 14;
+const dailyPolicyVersion = "mrs-exact-3-v1";
+const weeklyPolicyVersion = "mrs-weekly-2w-v1";
+const searchBudget = 250_000;
+const formatMinute = (minute: number): string =>
+  `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
 
-/** Pure, bounded observation. Complete history and authoritative generated IDs are required. */
+/**
+ * Pure, bounded observation. Complete history and authoritative generated IDs are required.
+ *
+ * Daily (`three_consecutive_days`, mrs-exact-3-v1): the exact identity on today and
+ * the two previous local days. Weekly (`weekly_pattern`, mrs-weekly-2w-v1): within
+ * the last 14 local days, W is the set of weekdays (0 = Sunday) on which the
+ * identity occurs on BOTH occurrences; 2 <= |W| <= 6 and today's weekday must be
+ * in W. Priority: a weekly proposal whose every weekday slot is cleanly on or off
+ * (none seen exactly once) wins over daily; otherwise daily, else weekly. Either
+ * way the source is today's fresh save.
+ */
 export const detectRecurringMealSuggestion = (
   input: RecurringMealSuggestionInput,
 ): RecurringMealSuggestionProposal | null => {
@@ -158,8 +179,12 @@ export const detectRecurringMealSuggestion = (
     })
   )
     return null;
+  // days[13] is today; days[i] and days[i + 7] share a weekday.
   const today = recurringMealLocalDateAt(input.referenceAt, input.timeZone),
-    days = [addDays(today, -2), addDays(today, -1), today];
+    days = Array.from({ length: recurringMealSuggestionWindowDays }, (_, i) =>
+      addDays(today, i - (recurringMealSuggestionWindowDays - 1)),
+    ),
+    todayIndex = days.length - 1;
   const generated = new Set(input.generatedEntryIds);
   const minutes = new Map<string, number>();
   const groups = new Map<string, RecurringMealSuggestionEntry[][]>();
@@ -201,7 +226,7 @@ export const detectRecurringMealSuggestion = (
     if (index < 0) continue;
     minutes.set(entry.id, minuteAt(entry.consumedAt, input.timeZone));
     const identity = recurringMealSuggestionIdentityKey(entry),
-      buckets = groups.get(identity) ?? [[], [], []];
+      buckets = groups.get(identity) ?? days.map(() => []);
     buckets[index]!.push(entry);
     groups.set(identity, buckets);
   }
@@ -213,73 +238,167 @@ export const detectRecurringMealSuggestion = (
       recurringMealLocalDateAt(new Date(d.firstShownAt), input.timeZone) <=
         today,
   );
-  const candidates: {
+  const isFreshToday = (entry: RecurringMealSuggestionEntry): boolean => {
+    const created = Date.parse(entry.createdAt);
+    return (
+      recurringMealLocalDateAt(new Date(created), input.timeZone) === today &&
+      now - created <= 86400000
+    );
+  };
+  // Same-minute duplicates cannot improve timing. Retain the freshest eligible
+  // save today, and latest consumption on earlier dates, independent of input order.
+  const compactBucket = (
+    bucket: readonly RecurringMealSuggestionEntry[],
+    isToday: boolean,
+  ): RecurringMealSuggestionEntry[] => {
+    const byMinute = new Map<number, RecurringMealSuggestionEntry>();
+    for (const entry of bucket) {
+      const created = Date.parse(entry.createdAt);
+      if (isToday && !isFreshToday(entry)) continue;
+      const minute = minutes.get(entry.id)!;
+      const previous = byMinute.get(minute);
+      const preferred =
+        !previous ||
+        (isToday && created > Date.parse(previous.createdAt)) ||
+        ((!isToday || created === Date.parse(previous.createdAt)) &&
+          (Date.parse(entry.consumedAt) > Date.parse(previous.consumedAt) ||
+            (entry.consumedAt === previous.consumedAt &&
+              entry.id < previous.id)));
+      if (preferred) byMinute.set(minute, entry);
+    }
+    return [...byMinute.values()].sort(
+      (a, b) => minutes.get(a.id)! - minutes.get(b.id)!,
+    );
+  };
+  // Returns the family decision when an offer is allowed, or false when suppressed.
+  const admissible = (
+    familyKey: string,
+  ): RecurringMealSuggestionDecision | undefined | false => {
+    const decision = decisions.find((d) => d.familyKey === familyKey);
+    if (
+      decision?.never ||
+      decision?.accepted ||
+      (decision?.cooldownUntil && Date.parse(decision.cooldownUntil) > now) ||
+      (decision?.expiresAt &&
+        Date.parse(decision.expiresAt) <= now &&
+        now < Date.parse(decision.expiresAt) + 30 * 86400000)
+    )
+      return false;
+    if (offerCooldown && !decision?.firstShownAt) return false;
+    return decision;
+  };
+  type Candidate = {
     proposal: RecurringMealSuggestionProposal;
+    breadth: number;
     spread: number;
     freshness: number;
     chainLatest: number;
-  }[] = [];
-  for (const [identity, buckets] of groups) {
+  };
+  // Weekly only: more weekdays first. Daily candidates all have breadth 7.
+  const rank = (a: Candidate, b: Candidate) =>
+    b.breadth - a.breadth ||
+    a.spread - b.spread ||
+    b.freshness - a.freshness ||
+    b.chainLatest - a.chainLatest ||
+    a.proposal.candidateId.localeCompare(b.proposal.candidateId);
+  const candidate = (
+    policyVersion: string,
+    reasonCode: RecurringMealSuggestionProposal["reasonCode"],
+    identity: string,
+    chain: readonly RecurringMealSuggestionEntry[],
+    chainDays: readonly string[],
+    decision: RecurringMealSuggestionDecision | undefined,
+    timing: { spread: number; rounded: number },
+    weekdays: readonly number[],
+  ): Candidate => {
+    const source = chain.at(-1)!,
+      sourceCreated = Date.parse(source.createdAt);
+    const evidence = chain.map((e, i) => ({
+      id: e.id,
+      updatedAt: e.updatedAt,
+      localDate: chainDays[i]!,
+    }));
+    const evidenceDigest = recurringMealSuggestionDigest(
+      JSON.stringify(evidence.map((e) => [e.id, e.updatedAt, e.localDate])),
+    );
+    const candidateId = `mrs1-${recurringMealSuggestionDigest(JSON.stringify([policyVersion, input.timeZone, identity, evidence.map((e) => [e.id, e.updatedAt, e.localDate])]))}`;
+    const activeExpiry =
+      decision?.expiresAt && Date.parse(decision.expiresAt) > now
+        ? decision.expiresAt
+        : undefined;
+    const expiresAt =
+      activeExpiry ??
+      new Date(
+        (decision?.firstShownAt && activeExpiry
+          ? Date.parse(decision.firstShownAt)
+          : sourceCreated) +
+          7 * 86400000,
+      ).toISOString();
+    return {
+      breadth: weekdays.length,
+      spread: timing.spread,
+      freshness: sourceCreated,
+      chainLatest: chain.reduce((sum, e) => sum + Date.parse(e.consumedAt), 0),
+      proposal: {
+        candidateId,
+        familyKey: recurringMealSuggestionFamilyKey(source.name),
+        sourceEntryId: source.id,
+        sourceUpdatedAt: source.updatedAt,
+        evidence,
+        evidenceDigest,
+        name: source.name,
+        caloriesKcal: source.caloriesKcal,
+        proteinG: source.proteinG,
+        carbohydrateG: source.carbohydrateG,
+        fatG: source.fatG,
+        grams: gramsOf(source),
+        policyVersion,
+        reasonCode,
+        localTime: formatMinute(timing.rounded),
+        timeZone: input.timeZone,
+        weekdays,
+        startLocalDate: addDays(today, 1),
+        expiresAt,
+      },
+    };
+  };
+  // Keep only the best result per kind, so the bounded search also has bounded memory.
+  const best: {
+    daily: Candidate | null;
+    weekly: Candidate | null;
+    cleanWeekly: Candidate | null;
+  } = { daily: null, weekly: null, cleanWeekly: null };
+  const consider = (kind: keyof typeof best, next: Candidate) => {
+    const current = best[kind];
+    if (!current || rank(next, current) < 0) best[kind] = next;
+  };
+
+  // Daily: today and the two previous local days.
+  const dailyDays = days.slice(todayIndex - 2);
+  for (const [identity, allBuckets] of groups) {
+    const buckets = allBuckets.slice(todayIndex - 2);
     if (buckets.some((b) => b.length === 0)) continue;
-    // Same-minute duplicates cannot improve timing. Retain the freshest eligible
-    // save today, and latest consumption on earlier dates, independent of input order.
-    const compact = buckets.map((bucket, dayIndex) => {
-      const byMinute = new Map<number, RecurringMealSuggestionEntry>();
-      for (const entry of bucket) {
-        const created = Date.parse(entry.createdAt);
-        if (
-          dayIndex === 2 &&
-          (recurringMealLocalDateAt(new Date(created), input.timeZone) !==
-            today ||
-            now - created > 86400000)
-        )
-          continue;
-        const minute = minutes.get(entry.id)!;
-        const previous = byMinute.get(minute);
-        const preferred =
-          !previous ||
-          (dayIndex === 2 && created > Date.parse(previous.createdAt)) ||
-          ((dayIndex !== 2 || created === Date.parse(previous.createdAt)) &&
-            (Date.parse(entry.consumedAt) > Date.parse(previous.consumedAt) ||
-              (entry.consumedAt === previous.consumedAt &&
-                entry.id < previous.id)));
-        if (preferred) byMinute.set(minute, entry);
-      }
-      return [...byMinute.values()].sort(
-        (a, b) => minutes.get(a.id)! - minutes.get(b.id)!,
-      );
-    });
+    const compact = buckets.map((bucket, dayIndex) =>
+      compactBucket(bucket, dayIndex === 2),
+    );
     // Explicit resource ceiling after semantic compaction. Never prune history
     // arbitrarily to produce an apparently complete result.
-    if (compact.reduce((count, bucket) => count * bucket.length, 1) > 250_000)
+    if (
+      compact.reduce((count, bucket) => count * bucket.length, 1) > searchBudget
+    )
       return null;
     for (const source of compact[2]!) {
-      const sourceCreated = Date.parse(source.createdAt),
-        familyKey = recurringMealSuggestionFamilyKey(source.name);
-      if (
-        recurringMealLocalDateAt(new Date(sourceCreated), input.timeZone) !==
-          today ||
-        now - sourceCreated > 86400000
-      )
-        continue;
-      const decision = decisions.find((d) => d.familyKey === familyKey);
-      if (
-        decision?.never ||
-        decision?.accepted ||
-        (decision?.cooldownUntil && Date.parse(decision.cooldownUntil) > now) ||
-        (decision?.expiresAt &&
-          Date.parse(decision.expiresAt) <= now &&
-          now < Date.parse(decision.expiresAt) + 30 * 86400000)
-      )
-        continue;
-      if (offerCooldown && !decision?.firstShownAt) continue;
+      const decision = admissible(
+        recurringMealSuggestionFamilyKey(source.name),
+      );
+      if (decision === false) continue;
       for (const a of compact[0]!)
         for (const b of compact[1]!) {
           const chain = [a, b, source],
             timing = chainTime(chain.map((e) => minutes.get(e.id)!));
           // A median rounded up to midnight is ambiguous for a daily schedule.
           if (timing.rounded >= 1440) continue;
-          const localTime = `${String(Math.floor(timing.rounded / 60)).padStart(2, "0")}:${String(timing.rounded % 60).padStart(2, "0")}`;
+          const localTime = formatMinute(timing.rounded);
           if (
             (input.existingSchedules ?? []).some(
               (s) =>
@@ -292,79 +411,107 @@ export const detectRecurringMealSuggestion = (
             )
           )
             continue;
-          const evidence = chain.map((e, i) => ({
-            id: e.id,
-            updatedAt: e.updatedAt,
-            localDate: days[i]!,
-          }));
-          const evidenceDigest = recurringMealSuggestionDigest(
-              JSON.stringify(
-                evidence.map((e) => [e.id, e.updatedAt, e.localDate]),
-              ),
+          consider(
+            "daily",
+            candidate(
+              input.policyVersion ?? dailyPolicyVersion,
+              "three_consecutive_days",
+              identity,
+              chain,
+              dailyDays,
+              decision,
+              timing,
+              [0, 1, 2, 3, 4, 5, 6],
             ),
-            policyVersion = input.policyVersion ?? "mrs-exact-3-v1";
-          const candidateId = `mrs1-${recurringMealSuggestionDigest(JSON.stringify([policyVersion, input.timeZone, identity, evidence.map((e) => [e.id, e.updatedAt, e.localDate])]))}`;
-          const activeExpiry =
-            decision?.expiresAt && Date.parse(decision.expiresAt) > now
-              ? decision.expiresAt
-              : undefined;
-          const expiresAt =
-            activeExpiry ??
-            new Date(
-              (decision?.firstShownAt && activeExpiry
-                ? Date.parse(decision.firstShownAt)
-                : sourceCreated) +
-                7 * 86400000,
-            ).toISOString();
-          candidates.push({
-            spread: timing.spread,
-            freshness: sourceCreated,
-            chainLatest: chain.reduce(
-              (sum, e) => sum + Date.parse(e.consumedAt),
-              0,
-            ),
-            proposal: {
-              candidateId,
-              familyKey,
-              sourceEntryId: source.id,
-              sourceUpdatedAt: source.updatedAt,
-              evidence,
-              evidenceDigest,
-              name: source.name,
-              caloriesKcal: source.caloriesKcal,
-              proteinG: source.proteinG,
-              carbohydrateG: source.carbohydrateG,
-              fatG: source.fatG,
-              grams: gramsOf(source),
-              policyVersion,
-              reasonCode: "three_consecutive_days",
-              localTime,
-              timeZone: input.timeZone,
-              weekdays: [0, 1, 2, 3, 4, 5, 6],
-              startLocalDate: addDays(today, 1),
-              expiresAt,
-            },
-          });
-          // Keep only the best result, so the bounded search also has bounded memory.
-          candidates.sort(
-            (a, b) =>
-              a.spread - b.spread ||
-              b.freshness - a.freshness ||
-              b.chainLatest - a.chainLatest ||
-              a.proposal.candidateId.localeCompare(b.proposal.candidateId),
           );
-          candidates.splice(1);
         }
     }
   }
-  candidates.sort(
-    (a, b) =>
-      a.spread - b.spread ||
-      b.freshness - a.freshness ||
-      b.chainLatest - a.chainLatest ||
-      a.proposal.candidateId.localeCompare(b.proposal.candidateId),
-  );
-  return candidates[0]?.proposal ?? null;
+
+  // Weekly. Each weekday slot is "on" (both occurrences), "off" (neither) or
+  // "mixed" (exactly one). A clean rhythm (no mixed slot) beats daily, so a
+  // Mon–Fri habit is not offered as every day; otherwise daily keeps priority.
+  let weeklyOverBudget = false;
+  for (const [identity, buckets] of groups) {
+    if (
+      buckets[todayIndex]!.length === 0 ||
+      buckets[todayIndex - 7]!.length === 0
+    )
+      continue;
+    const compact = buckets.map((bucket, i) =>
+      compactBucket(bucket, i === todayIndex),
+    );
+    // Weekday slots i (first week) and i + 7 (second week) both observed.
+    const slots = [0, 1, 2, 3, 4, 5, 6].filter(
+      (i) => compact[i]!.length > 0 && compact[i + 7]!.length > 0,
+    );
+    if (!slots.includes(todayIndex - 7) || slots.length < 2 || slots.length > 6)
+      continue;
+    const clean = [0, 1, 2, 3, 4, 5, 6].every(
+      (i) => compact[i]!.length > 0 === compact[i + 7]!.length > 0,
+    );
+    const dateIndexes = slots.flatMap((i) => [i, i + 7]).sort((a, b) => a - b);
+    const supporting = dateIndexes.filter((i) => i !== todayIndex);
+    if (
+      compact[todayIndex]!.length *
+        supporting.reduce((count, i) => count + compact[i]!.length, 0) >
+      searchBudget
+    ) {
+      weeklyOverBudget = true;
+      break;
+    }
+    const weekdays = slots
+      .map((i) => new Date(`${days[i]}T12:00:00Z`).getUTCDay())
+      .sort((a, b) => a - b);
+    if (
+      (input.existingSchedules ?? []).some(
+        (s) =>
+          !s.stopped &&
+          s.identityKey === identity &&
+          s.timeZone === input.timeZone &&
+          weekdays.every((day) => s.weekdays.includes(day)),
+      )
+    )
+      continue;
+    for (const source of compact[todayIndex]!) {
+      const decision = admissible(
+        recurringMealSuggestionFamilyKey(source.name),
+      );
+      if (decision === false) continue;
+      const sourceMinute = minutes.get(source.id)!;
+      // One entry per supporting date: the closest minute to today's save
+      // (ties: the later minute). Deterministic regardless of input order.
+      const chain = dateIndexes.map((i) => {
+        if (i === todayIndex) return source;
+        let chosen = compact[i]![0]!;
+        for (const e of compact[i]!) {
+          const distance = Math.abs(minutes.get(e.id)! - sourceMinute),
+            chosenDistance = Math.abs(minutes.get(chosen.id)! - sourceMinute);
+          if (distance <= chosenDistance) chosen = e;
+        }
+        return chosen;
+      });
+      const timing = chainTime(chain.map((e) => minutes.get(e.id)!));
+      if (timing.rounded >= 1440) continue;
+      consider(
+        clean ? "cleanWeekly" : "weekly",
+        candidate(
+          weeklyPolicyVersion,
+          "weekly_pattern",
+          identity,
+          chain,
+          dateIndexes.map((i) => days[i]!),
+          decision,
+          timing,
+          weekdays,
+        ),
+      );
+    }
+  }
+  // An over-budget weekly search never invents a weekly result; it keeps the
+  // pre-weekly behaviour (the daily proposal, if any) and otherwise fails closed.
+  if (weeklyOverBudget) return best.daily?.proposal ?? null;
+  return (best.cleanWeekly ?? best.daily ?? best.weekly)?.proposal ?? null;
 };
 
 export class RecurringMealSuggestionRepositoryError extends Error {

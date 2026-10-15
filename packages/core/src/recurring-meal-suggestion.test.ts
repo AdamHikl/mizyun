@@ -417,3 +417,321 @@ describe("copied meals saved at a different time of day", () => {
     expect(result?.localTime).toBe("16:00");
   });
 });
+
+describe("weekly patterns over the last two weeks", () => {
+  // 2026-10-19 is a Monday; weekdays use 0 = Sunday like Date#getUTCDay and PostgreSQL dow.
+  const oats = (day: string, id: number, time = "07:45") =>
+    entry(day, id, {
+      name: "Oats",
+      consumedAt: `${day}T${time}:00Z`,
+      createdAt: `${day}T${time}:30Z`,
+      updatedAt: `${day}T${time}:30Z`,
+    });
+  const at = (day: string, time = "09:00") => new Date(`${day}T${time}:00Z`);
+  const days = (...list: string[]) => list.map((day, i) => oats(day, i + 1));
+  const monToFri = days(
+    "2026-10-06",
+    "2026-10-07",
+    "2026-10-08",
+    "2026-10-09",
+    "2026-10-12",
+    "2026-10-13",
+    "2026-10-14",
+    "2026-10-15",
+    "2026-10-16",
+    "2026-10-19",
+  );
+  it("proposes Mon–Fri on Monday after two working weeks", () => {
+    const result = detectRecurringMealSuggestion(
+      input({ entries: monToFri, referenceAt: at("2026-10-19") }),
+    )!;
+    expect(result).toMatchObject({
+      reasonCode: "weekly_pattern",
+      policyVersion: "mrs-weekly-2w-v1",
+      weekdays: [1, 2, 3, 4, 5],
+      localTime: "07:45",
+      startLocalDate: "2026-10-20",
+      sourceEntryId: monToFri.at(-1)!.id,
+      sourceUpdatedAt: monToFri.at(-1)!.updatedAt,
+    });
+    expect(result.evidence.map((e) => e.localDate)).toEqual(
+      monToFri.map((e) => e.consumedAt.slice(0, 10)),
+    );
+    expect(result.candidateId).toMatch(/^mrs1-[0-9a-f]{8}$/);
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: [...monToFri].reverse(),
+          referenceAt: at("2026-10-19"),
+        }),
+      ),
+    ).toEqual(result);
+  });
+  const mwf = days(
+    "2026-10-05",
+    "2026-10-07",
+    "2026-10-09",
+    "2026-10-12",
+    "2026-10-14",
+    "2026-10-16",
+  );
+  it("proposes Mon/Wed/Fri shakes", () => {
+    expect(
+      detectRecurringMealSuggestion(
+        input({ entries: mwf, referenceAt: at("2026-10-16") }),
+      ),
+    ).toMatchObject({ weekdays: [1, 3, 5], startLocalDate: "2026-10-17" });
+  });
+  it("drops a weekday seen only once and needs at least two weekdays including today", () => {
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: mwf.filter((e) => !e.consumedAt.startsWith("2026-10-07")),
+          referenceAt: at("2026-10-16"),
+        }),
+      )?.weekdays,
+    ).toEqual([1, 5]);
+    // Only Friday repeats: |W| = 1.
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: days("2026-10-07", "2026-10-09", "2026-10-16"),
+          referenceAt: at("2026-10-16"),
+        }),
+      ),
+    ).toBeNull();
+    // Mon/Wed repeat but today's Friday occurred once: today is not in W.
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: mwf.filter((e) => !e.consumedAt.startsWith("2026-10-09")),
+          referenceAt: at("2026-10-16"),
+        }),
+      ),
+    ).toBeNull();
+    // Entries outside the 14-day window never pair.
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: days(
+            "2026-10-02",
+            "2026-10-07",
+            "2026-10-09",
+            "2026-10-14",
+            "2026-10-16",
+          ),
+          referenceAt: at("2026-10-23"),
+        }),
+      ),
+    ).toBeNull();
+  });
+  it("keeps daily priority with byte-identical daily proposals when a weekday was seen once", () => {
+    const result = detectRecurringMealSuggestion(
+      input({ entries: monToFri.slice(0, 7), referenceAt: at("2026-10-14") }),
+    )!;
+    expect(result).toMatchObject({
+      reasonCode: "three_consecutive_days",
+      policyVersion: "mrs-exact-3-v1",
+      weekdays: [0, 1, 2, 3, 4, 5, 6],
+    });
+    expect(result.evidence).toHaveLength(3);
+    // Seven weekdays in both weeks is daily territory, never weekly.
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: Array.from({ length: 14 }, (_, i) =>
+            oats(`2026-10-${String(6 + i).padStart(2, "0")}`, i + 1),
+          ),
+          referenceAt: at("2026-10-19"),
+        }),
+      )?.reasonCode,
+    ).toBe("three_consecutive_days");
+  });
+  it("prefers a clean two-week Mon–Fri rhythm over the three-day daily chain", () => {
+    // Wednesday 2026-10-14: window 10-01 (Thu) … 10-14; weekends empty in both weeks.
+    const clean = days(
+      "2026-10-01",
+      "2026-10-02",
+      "2026-10-05",
+      "2026-10-06",
+      "2026-10-07",
+      "2026-10-08",
+      "2026-10-09",
+      "2026-10-12",
+      "2026-10-13",
+      "2026-10-14",
+    );
+    const result = detectRecurringMealSuggestion(
+      input({ entries: clean, referenceAt: at("2026-10-14") }),
+    );
+    expect(result).toMatchObject({
+      reasonCode: "weekly_pattern",
+      weekdays: [1, 2, 3, 4, 5],
+    });
+    expect(result?.evidence).toHaveLength(10);
+    // An unaccepted daily offer already shown for the family does not block it.
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: clean,
+          referenceAt: at("2026-10-14"),
+          decisions: [
+            {
+              familyKey: "oats",
+              firstShownAt: "2026-10-13T09:00:00.000Z",
+              expiresAt: "2026-10-20T09:00:00.000Z",
+            },
+          ],
+        }),
+      ),
+    ).toMatchObject({
+      reasonCode: "weekly_pattern",
+      expiresAt: "2026-10-20T09:00:00.000Z",
+    });
+  });
+  it("keeps daily for a daily logger who missed one day last week, and for fourteen straight days", () => {
+    const allDays = Array.from({ length: 14 }, (_, i) =>
+      oats(`2026-10-${String(6 + i).padStart(2, "0")}`, i + 1),
+    );
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: allDays.filter(
+            (e) => !e.consumedAt.startsWith("2026-10-09"),
+          ),
+          referenceAt: at("2026-10-19"),
+        }),
+      )?.reasonCode,
+    ).toBe("three_consecutive_days");
+    expect(
+      detectRecurringMealSuggestion(
+        input({ entries: allDays, referenceAt: at("2026-10-19") }),
+      )?.reasonCode,
+    ).toBe("three_consecutive_days");
+  });
+  it("uses the lower median for an even number of evidence times", () => {
+    const result = detectRecurringMealSuggestion(
+      input({
+        entries: [
+          oats("2026-10-07", 1, "07:00"),
+          oats("2026-10-09", 2, "07:30"),
+          oats("2026-10-14", 3, "08:00"),
+          oats("2026-10-16", 4, "08:30"),
+        ],
+        referenceAt: at("2026-10-16"),
+      }),
+    );
+    expect(result?.weekdays).toEqual([3, 5]);
+    expect(result?.localTime).toBe("07:30");
+  });
+  it("uses named-zone dates and offsets across DST", () => {
+    // Europe/Bratislava leaves summer time on 2026-10-25: 08:05 local is 06:05Z, then 07:05Z.
+    const local = (day: string, id: number, utc: string) =>
+      entry(day, id, {
+        name: "Oats",
+        consumedAt: `${day}T${utc}:00Z`,
+        createdAt: `${day}T${utc}:30Z`,
+        updatedAt: `${day}T${utc}:30Z`,
+      });
+    const result = detectRecurringMealSuggestion(
+      input({
+        entries: [
+          local("2026-10-14", 1, "06:05"),
+          local("2026-10-19", 2, "06:05"),
+          local("2026-10-21", 3, "06:05"),
+          local("2026-10-26", 4, "07:05"),
+        ],
+        timeZone: "Europe/Bratislava",
+        referenceAt: at("2026-10-26"),
+      }),
+    );
+    expect(result).toMatchObject({ weekdays: [1, 3], localTime: "08:00" });
+    // A Monday 22:30Z save is Tuesday 00:30 in Bratislava, so Monday occurs once.
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: [
+            local("2026-10-14", 1, "06:05"),
+            local("2026-10-19", 2, "22:30"),
+            local("2026-10-21", 3, "06:05"),
+            local("2026-10-26", 4, "07:05"),
+          ],
+          timeZone: "Europe/Bratislava",
+          referenceAt: at("2026-10-26"),
+        }),
+      ),
+    ).toBeNull();
+  });
+  it("suppresses an active schedule covering the same weekdays and identity", () => {
+    const identityKey = recurringMealSuggestionIdentityKey(mwf[0]!);
+    for (const weekdays of [
+      [1, 3, 5],
+      [0, 1, 2, 3, 4, 5, 6],
+    ])
+      expect(
+        detectRecurringMealSuggestion(
+          input({
+            entries: mwf,
+            referenceAt: at("2026-10-16"),
+            existingSchedules: [
+              { identityKey, localTime: "06:30", timeZone: "UTC", weekdays },
+            ],
+          }),
+        ),
+      ).toBeNull();
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: mwf,
+          referenceAt: at("2026-10-16"),
+          existingSchedules: [
+            { identityKey, localTime: "07:45", timeZone: "UTC", weekdays: [1] },
+          ],
+        }),
+      ),
+    ).not.toBeNull();
+  });
+  it("fails closed when the weekly search exceeds the resource budget", () => {
+    const minutes = (day: string, base: number, count: number) =>
+      Array.from({ length: count }, (_, i) => {
+        const m = 300 + i;
+        const time = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+        return oats(day, base + i, time);
+      });
+    const fresh = (count: number) =>
+      minutes("2026-10-16", 50_000, count).map((e) => ({
+        ...e,
+        createdAt: "2026-10-16T20:00:00Z",
+        updatedAt: "2026-10-16T20:00:00Z",
+      }));
+    const history = (count: number) => [
+      ...minutes("2026-10-07", 10_000, count),
+      ...minutes("2026-10-09", 20_000, count),
+      ...minutes("2026-10-14", 30_000, count),
+    ];
+    const ref = at("2026-10-16", "21:00");
+    expect(
+      detectRecurringMealSuggestion(
+        input({ entries: [...history(20), ...fresh(20)], referenceAt: ref }),
+      )?.reasonCode,
+    ).toBe("weekly_pattern");
+    expect(
+      detectRecurringMealSuggestion(
+        input({ entries: [...history(500), ...fresh(500)], referenceAt: ref }),
+      ),
+    ).toBeNull();
+    // An over-budget weekly search keeps an available daily proposal.
+    expect(
+      detectRecurringMealSuggestion(
+        input({
+          entries: [
+            ...history(500),
+            ...fresh(500),
+            oats("2026-10-15", 90_000, "05:00"),
+          ],
+          referenceAt: ref,
+        }),
+      )?.reasonCode,
+    ).toBe("three_consecutive_days");
+  });
+});

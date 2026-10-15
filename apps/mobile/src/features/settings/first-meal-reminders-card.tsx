@@ -18,6 +18,8 @@ import {
   type FirstMealReminderSettings,
 } from "@/features/log-meal/first-meal-reminders";
 import { saveFirstMealReminderPreferences } from "./first-meal-reminder-preferences";
+import { ReminderTimeSuggestionRow } from "./reminder-time-suggestion-row";
+import { useReminderTimeSuggestion } from "./use-reminder-time-suggestion";
 
 export function FirstMealRemindersCard({
   userId,
@@ -30,6 +32,12 @@ export function FirstMealRemindersCard({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // The last persisted schedule; suggestions compare against it, not the picker.
+  const [saved, setSaved] = useState({
+    enabled: false,
+    hour: DEFAULT_FIRST_MEAL_REMINDERS.hour,
+    minute: DEFAULT_FIRST_MEAL_REMINDERS.minute,
+  });
   const theme = useTheme();
   const owner = useRef(userId);
   owner.current = userId;
@@ -40,10 +48,20 @@ export function FirstMealRemindersCard({
     setLoading(true);
     setSaving(false);
     setSettings(DEFAULT_FIRST_MEAL_REMINDERS);
+    setSaved({
+      enabled: false,
+      hour: DEFAULT_FIRST_MEAL_REMINDERS.hour,
+      minute: DEFAULT_FIRST_MEAL_REMINDERS.minute,
+    });
     setMessage(null);
     void loadFirstMealReminders(userId).then((stored) => {
       if (!active) return;
       setSettings(stored);
+      setSaved({
+        enabled: stored.enabled,
+        hour: stored.hour,
+        minute: stored.minute,
+      });
       setLoading(false);
     });
     return () => {
@@ -51,13 +69,20 @@ export function FirstMealRemindersCard({
     };
   }, [userId]);
 
-  const save = async () => {
+  const { suggestion, dismiss } = useReminderTimeSuggestion({
+    userId,
+    kind: "first-meal",
+    enabled: saved.enabled,
+    saved,
+  });
+
+  const save = async (next: FirstMealReminderSettings = settings) => {
     if (pending.current) return;
     pending.current = true;
     const capturedOwner = userId;
     setSaving(true);
     setMessage(null);
-    const result = await saveFirstMealReminderPreferences(userId, settings);
+    const result = await saveFirstMealReminderPreferences(userId, next);
     pending.current = false;
     if (capturedOwner !== owner.current) return;
     setSaving(false);
@@ -70,6 +95,11 @@ export function FirstMealRemindersCard({
       return;
     }
     setSettings(result.settings);
+    setSaved({
+      enabled: result.settings.enabled,
+      hour: result.settings.hour,
+      minute: result.settings.minute,
+    });
     setMessage(
       result.settings.enabled
         ? `First-meal reminder scheduled for ${formatTime12(result.settings.hour, result.settings.minute)}.`
@@ -141,6 +171,26 @@ export function FirstMealRemindersCard({
                 />
               </View>
             </ListGroup>
+          ) : null}
+
+          {suggestion !== null ? (
+            <ReminderTimeSuggestionRow
+              kind="first-meal"
+              suggestion={suggestion}
+              busy={saving}
+              onApply={() => {
+                // Same confirmed save path as a manual change.
+                const next = {
+                  ...settings,
+                  enabled: true,
+                  hour: suggestion.hour,
+                  minute: suggestion.minute,
+                };
+                setSettings(next);
+                void save(next);
+              }}
+              onDismiss={() => void dismiss()}
+            />
           ) : null}
 
           <Button

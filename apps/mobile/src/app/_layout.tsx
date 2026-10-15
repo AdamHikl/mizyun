@@ -31,6 +31,8 @@ import { StartupDataBridge } from "@/composition/startup-data-bridge";
 import { MealNotificationRouter } from "@/features/log-meal/meal-notification-router";
 import { WEEKLY_REVIEW_ROUTE } from "@/features/weekly-review/weekly-review-notification";
 import { FirstMealReminderSessionBridge } from "@/composition/first-meal-reminder-session-bridge";
+import { WeighInReminderSessionBridge } from "@/composition/weigh-in-reminder-session-bridge";
+import { WeighInNotificationRouter } from "@/features/log-weight/weigh-in-notification-router";
 import {
   AuthProvider,
   SessionGate,
@@ -295,6 +297,42 @@ function MealNotificationBridge() {
   return null;
 }
 
+function WeighInNotificationBridge() {
+  const { session } = useAuth();
+  const navigation = useRootNavigationState();
+  const [revision, setRevision] = useState(0);
+  const bridge = useRef<WeighInNotificationRouter | null>(null);
+  if (!bridge.current)
+    bridge.current = new WeighInNotificationRouter({
+      push: (route) => router.push(route as Href),
+      clear: () => Notifications.clearLastNotificationResponse(),
+    });
+  useEffect(() => {
+    const receive = (notification: Notifications.Notification) => {
+      bridge.current!.receive({
+        id: notification.request.identifier,
+        data: notification.request.content.data ?? {},
+      });
+      setRevision((current) => current + 1);
+    };
+    const initial = Notifications.getLastNotificationResponse();
+    if (initial?.notification) receive(initial.notification);
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => receive(response.notification),
+    );
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
+    bridge.current!.flush(
+      session && session.accessToken !== "preview-token"
+        ? session.user.id
+        : null,
+      Boolean(navigation?.key),
+    );
+  }, [session?.user.id, session?.accessToken, navigation?.key, revision]);
+  return null;
+}
+
 function PushRegistrationBridge() {
   const { session } = useAuth();
 
@@ -350,6 +388,7 @@ function TabLayoutContent() {
         <CommunityReadLifecycle />
         <DeepLinkBridge />
         <FirstMealReminderSessionBridge />
+        <WeighInReminderSessionBridge />
         <SessionGate>
           <StartupDataBridge />
           <RecipeSessionPruneBridge />
@@ -359,6 +398,7 @@ function TabLayoutContent() {
           <CoachNotificationBridge />
           <WorkoutNotificationBridge />
           <MealNotificationBridge />
+          <WeighInNotificationBridge />
           <WeeklyReviewNotificationBridge />
           <ActiveWorkoutProvider>
             <AnalyticsConsentReminderBridge />

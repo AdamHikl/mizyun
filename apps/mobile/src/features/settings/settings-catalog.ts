@@ -52,6 +52,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategoryDefinition[] = [
       "First-meal reminder",
       "Evening catch-up reminder",
       "Weekly calorie check-in",
+      "Weigh-in reminder",
     ],
   },
   {
@@ -579,6 +580,33 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     targetType: "setting-detail",
     settingDetailKey: "reminders",
     anchorId: "weekly-review",
+    availabilityRule: "signed-in",
+  },
+
+  {
+    id: "weigh-in-reminder",
+    destinationId: "reminders",
+    label: "Weigh-in reminder",
+    description:
+      "Optional reminder to weigh in on the days and time you choose",
+    categoryId: "workouts-reminders",
+    categoryLabel: "Workouts & reminders",
+    breadcrumb: "Account → Workouts & reminders",
+    aliases: [
+      "weigh in reminder",
+      "weight reminder",
+      "scale reminder",
+      "body weight reminder",
+    ],
+    intentPhrases: [
+      "remind me to weigh myself",
+      "weigh in notification",
+      "stop weigh in reminders",
+      "stop notifications",
+    ],
+    targetType: "setting-detail",
+    settingDetailKey: "reminders",
+    anchorId: "weigh-in",
     availabilityRule: "signed-in",
   },
 

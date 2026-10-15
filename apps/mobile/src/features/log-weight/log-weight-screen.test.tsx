@@ -18,7 +18,10 @@ const mocks = vi.hoisted(() => ({
   set: vi.fn(),
   delete: vi.fn(),
   request: vi.fn(),
+  read: vi.fn(),
   back: vi.fn(),
+  history: [] as unknown[],
+  markLogged: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("react", async (original) => ({
@@ -94,7 +97,15 @@ vi.mock("expo-secure-store", () => ({
   deleteItemAsync: mocks.delete,
 }));
 vi.mock("@/composition/api-client", () => ({
-  apiClient: { request: mocks.request, status: () => ({ configured: true }) },
+  apiClient: {
+    request: (options: RequestOptions) =>
+      options.method === "GET" ? mocks.read(options) : mocks.request(options),
+    status: () => ({ configured: true }),
+  },
+}));
+
+vi.mock("./weigh-in-reminders", () => ({
+  markWeighInLoggedToday: mocks.markLogged,
 }));
 
 import { LogWeightScreen } from "./log-weight-screen";
@@ -116,7 +127,9 @@ const saveButton = (tree = render()) =>
   find(
     tree,
     (node) =>
-      node.type === "Button" && node.props.label !== "Retry draft recovery",
+      node.type === "Button" &&
+      node.props.label !== "Retry draft recovery" &&
+      node.props.label !== "Same as last",
   );
 const field = (tree: any, id: string) =>
   find(tree, (node) => node.props?.testID === id);
@@ -166,6 +179,12 @@ beforeEach(() => {
   mocks.delete.mockImplementation(async (draftKey: string) => {
     mocks.store.delete(draftKey);
   });
+  mocks.history = [];
+  mocks.markLogged.mockClear();
+  mocks.read.mockReset().mockImplementation(async () => ({
+    ok: true,
+    value: { bodyMeasurements: mocks.history },
+  }));
   mocks.request.mockImplementation(async (options: RequestOptions) => {
     mocks.requests.push(options);
     const body = options.body as { clientOperationId: string };
@@ -305,4 +324,91 @@ it("does not send A's command or expose its fields after an account switch durin
   expect(
     JSON.parse(mocks.store.get(key())!).pending.clientOperationId,
   ).toBeTruthy();
+});
+
+const entry = (over: Record<string, unknown>) => ({
+  id: "00000000-0000-4000-8000-0000000000aa",
+  userId: "00000000-0000-4000-8000-0000000000bb",
+  measuredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+  weightKg: 82.4,
+  measurements: {},
+  source: "manual",
+  createdAt: new Date().toISOString(),
+  ...over,
+});
+const hintOf = (tree: any) =>
+  find(tree, (node) => node.props?.testID === "body-weight-last-hint");
+const sameAsLast = (tree: any) =>
+  find(
+    tree,
+    (node) => node.type === "Button" && node.props.label === "Same as last",
+  );
+
+it("hints the last weight as a placeholder, never as a prefilled value", async () => {
+  mocks.store.clear();
+  mocks.history = [entry({ measurements: { waist_cm: 90 } })];
+  const tree = await open();
+  const weight = field(tree, "body-weight-input");
+  expect(weight.props.value).toBe("");
+  expect(weight.props.placeholder).toBe("82.4");
+  expect(field(tree, "body-waist-input").props.placeholder).toBe("90");
+  expect(field(tree, "body-chest-input").props.placeholder).toBe("100");
+  expect(hintOf(tree).props.children).toBe("Last: 82.4 kg · 3 days ago");
+  // Nothing is sent or saved by merely showing the hint.
+  expect(mocks.requests).toHaveLength(0);
+});
+
+it("fills the weight only when Same as last is tapped, and the user still saves", async () => {
+  mocks.store.clear();
+  mocks.history = [entry({})];
+  await open();
+  const tapped = sameAsLast(render());
+  expect(tapped.props.disabled).toBe(false);
+  tapped.props.onPress();
+  const tree = render();
+  expect(field(tree, "body-weight-input").props.value).toBe("82.4");
+  expect(sameAsLast(tree).props.disabled).toBe(true);
+  expect(mocks.requests).toHaveLength(0);
+  saveButton(tree).props.onPress();
+  await settle();
+  expect(mocks.requests).toHaveLength(1);
+  expect((mocks.requests[0]!.body as { weightKg: number }).weightKg).toBe(82.4);
+  expect(mocks.markLogged).toHaveBeenCalledWith("owner-a");
+});
+
+it("uses the entry unit system for the hint and fill", async () => {
+  mocks.store.clear();
+  mocks.unitSystem = "imperial";
+  mocks.history = [entry({ weightKg: 80, measurements: { chest_cm: 101.6 } })];
+  const tree = await open();
+  expect(hintOf(tree).props.children).toBe("Last: 176.4 lb · 3 days ago");
+  expect(field(tree, "body-chest-input").props.placeholder).toBe("40");
+});
+
+it("shows no hint when there is no previous weight or the read fails", async () => {
+  mocks.store.clear();
+  mocks.history = [entry({ weightKg: null, measurements: { waist_cm: 88 } })];
+  let tree = await open();
+  expect(hintOf(tree)).toBeFalsy();
+  expect(field(tree, "body-weight-input").props.placeholder).toBe("72.5");
+  expect(field(tree, "body-waist-input").props.placeholder).toBe("88");
+  restart();
+  mocks.read.mockImplementation(async () => ({
+    ok: false,
+    error: { kind: "network_error" },
+  }));
+  tree = await open();
+  expect(hintOf(tree)).toBeFalsy();
+  expect(field(tree, "body-weight-input").props.placeholder).toBe("72.5");
+});
+
+it("does not show another account's last weight after an account switch", async () => {
+  mocks.store.clear();
+  mocks.history = [entry({})];
+  await open();
+  expect(hintOf(render())).toBeTruthy();
+  mocks.owner = "owner-b";
+  mocks.history = [];
+  const tree = render();
+  expect(hintOf(tree)).toBeFalsy();
 });

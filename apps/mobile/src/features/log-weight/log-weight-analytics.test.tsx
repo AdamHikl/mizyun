@@ -104,6 +104,9 @@ vi.mock("@/features/logging-draft-storage", () => ({
   saveLoggingDraft: vi.fn().mockResolvedValue(true),
   clearLoggingDraft: vi.fn(),
 }));
+vi.mock("./weigh-in-reminders", () => ({
+  markWeighInLoggedToday: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("./log-weight-data", async (original) => ({
   ...(await original<typeof import("./log-weight-data")>()),
   submitLogWeight: mocks.submit,

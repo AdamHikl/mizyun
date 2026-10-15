@@ -439,3 +439,8 @@ export * from "./recipe-request";
 export { scaleRecipeServing } from "./recipe-serving";
 
 export * from "./recurring-meal-suggestion";
+export * from "./meal-quick-add";
+
+export * from "./workout-routine-suggestion";
+
+export * from "./reminder-timing";

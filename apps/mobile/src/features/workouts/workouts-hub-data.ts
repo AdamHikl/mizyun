@@ -88,6 +88,8 @@ export interface CreateWorkoutPayload {
   readonly name: string;
   readonly notes?: string | null;
   readonly startedAt?: string;
+  /** Idempotency key so a retried create cannot duplicate the routine. */
+  readonly clientOperationId?: string;
   readonly plannedExercises?: ReadonlyArray<PlannedExerciseItem>;
 }
 
@@ -629,6 +631,9 @@ export const createCustomWorkout = async (
   const exercises = payload.plannedExercises ?? [];
 
   const body = {
+    ...(payload.clientOperationId
+      ? { clientOperationId: payload.clientOperationId }
+      : {}),
     name,
     ...(payload.notes && payload.notes.trim().length > 0
       ? { notes: payload.notes.trim() }

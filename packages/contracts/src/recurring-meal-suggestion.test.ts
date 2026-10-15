@@ -67,6 +67,76 @@ describe("routine suggestion contracts", () => {
         }).success,
       ).toBe(false);
   });
+  it("accepts a weekly pattern with both occurrences of each weekday", () => {
+    const weeklyIds = Array.from(
+      { length: 6 },
+      (_, n) => `00000000-0000-4000-8000-${String(n + 10).padStart(12, "0")}`,
+    );
+    const dates = [
+      "2026-10-05",
+      "2026-10-07",
+      "2026-10-09",
+      "2026-10-12",
+      "2026-10-14",
+      "2026-10-16",
+    ];
+    const weekly = {
+      ...proposal,
+      policyVersion: "mrs-weekly-2w-v1",
+      reasonCode: "weekly_pattern",
+      sourceEntryId: weeklyIds[5],
+      sourceUpdatedAt: "2026-10-16T08:00:00Z",
+      evidence: weeklyIds.map((id, i) => ({
+        id,
+        updatedAt: `${dates[i]}T08:00:00Z`,
+        localDate: dates[i],
+      })),
+      weekdays: [5, 1, 3],
+    };
+    expect(
+      recurringMealSuggestionProposalSchema.parse(weekly).weekdays,
+    ).toEqual([1, 3, 5]);
+    for (const patch of [
+      { weekdays: [1, 3] },
+      { weekdays: [0, 1, 2, 3, 4, 5, 6] },
+      { evidence: weekly.evidence.slice(1) },
+      { evidence: weekly.evidence.slice(2), weekdays: [3, 5] },
+      { reasonCode: "three_consecutive_days" },
+      { reasonCode: "weekly" },
+      {
+        evidence: [...weekly.evidence, ...weekly.evidence].map((e, i) => ({
+          ...e,
+          id: `00000000-0000-4000-8000-${String(i + 30).padStart(12, "0")}`,
+          localDate: `2026-10-${String(i + 1).padStart(2, "0")}`,
+        })),
+      },
+    ])
+      expect(
+        recurringMealSuggestionProposalSchema.safeParse({ ...weekly, ...patch })
+          .success,
+      ).toBe(false);
+  });
+  it("keeps daily proposals at exactly three days and every weekday", () => {
+    for (const patch of [
+      { weekdays: [1, 2, 3, 4, 5] },
+      {
+        evidence: [
+          ...proposal.evidence,
+          {
+            id: "00000000-0000-4000-8000-000000000009",
+            updatedAt: "2026-10-10T08:00:00Z",
+            localDate: "2026-10-10",
+          },
+        ],
+      },
+    ])
+      expect(
+        recurringMealSuggestionProposalSchema.safeParse({
+          ...proposal,
+          ...patch,
+        }).success,
+      ).toBe(false);
+  });
   it("rejects invalid zones/times/dates and invalid nutrition", () => {
     for (const patch of [
       { timeZone: "Mars/Foo" },

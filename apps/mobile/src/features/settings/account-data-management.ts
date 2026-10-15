@@ -39,6 +39,11 @@ import {
   type EveningReminderScheduler,
 } from "../log-meal/evening-catch-up-reminders";
 import {
+  clearWeighInReminders,
+  type WeighInReminderScheduler,
+} from "../log-weight/weigh-in-reminders";
+import { clearReminderSuggestionDismissals } from "./reminder-time-suggestion";
+import {
   clearWeeklyReviewReminder,
   type WeeklyReviewReminderScheduler,
 } from "../weekly-review/weekly-review-notification";
@@ -49,6 +54,7 @@ import {
 } from "../log-meal/food-day-completion";
 import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
+import { routineSuggestionKeyFor } from "../workouts/workout-routine-suggestion-store";
 import { healthStepsPreferenceKey } from "../health-steps/health-steps-key";
 import {
   loadMealCompletionReceipt,
@@ -256,6 +262,7 @@ export interface ClearLocalUserDataOptions {
   readonly eveningReminderScheduler?: EveningReminderScheduler;
   readonly eveningReminderStore?: ReminderStore;
   readonly weeklyReviewReminderScheduler?: WeeklyReviewReminderScheduler;
+  readonly weighInReminderScheduler?: WeighInReminderScheduler;
   readonly dayCompletionStore?: DayCompletionStore;
   readonly additionalDraftKinds?: readonly LoggingDraftKind[];
   readonly challengeStore?: SecureKeyValueStore;
@@ -361,6 +368,15 @@ export const clearLocalUserData = async (
       options.weeklyReviewReminderScheduler,
       options.eveningReminderStore ?? options.reminderStore,
     ),
+    clearWeighInReminders(
+      userId,
+      options.weighInReminderScheduler,
+      options.eveningReminderStore ?? options.reminderStore,
+    ),
+    clearReminderSuggestionDismissals(
+      userId,
+      options.eveningReminderStore ?? options.reminderStore,
+    ),
     clearWeeklyReviewSeen(userId, options.reminderStore),
     clearFoodDayCompletions(
       userId,
@@ -380,6 +396,9 @@ export const clearLocalUserData = async (
     ),
     Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(healthStepsPreferenceKey(userId)),
+    ),
+    Promise.resolve().then(() =>
+      workoutStore.deleteItemAsync(routineSuggestionKeyFor(userId)),
     ),
     ...matchedFiles.map(async (file) => {
       await file.delete();

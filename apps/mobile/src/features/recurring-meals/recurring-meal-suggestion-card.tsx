@@ -38,6 +38,44 @@ export interface RecurringMealSuggestionPresentation {
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const SPOKEN_DAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
+
+// "Mon–Fri" for runs of three or more days, otherwise "Mon, Wed, Fri".
+// Pass spoken=true for screen readers, which may read the en dash literally.
+export function describeWeekdays(
+  weekdays: readonly number[],
+  spoken = false,
+): string {
+  const names = spoken ? SPOKEN_DAYS : DAYS;
+  const ordered = MONDAY_FIRST.filter((day) => weekdays.includes(day));
+  const parts: string[] = [];
+  for (let i = 0; i < ordered.length;) {
+    let end = i;
+    while (
+      end + 1 < ordered.length &&
+      MONDAY_FIRST.indexOf(ordered[end + 1]!) ===
+        MONDAY_FIRST.indexOf(ordered[end]!) + 1
+    )
+      end++;
+    if (end - i >= 2)
+      parts.push(
+        `${names[ordered[i]!]}${spoken ? " to " : "–"}${names[ordered[end]!]}`,
+      );
+    else for (let j = i; j <= end; j++) parts.push(names[ordered[j]!]!);
+    i = end + 1;
+  }
+  return parts.join(", ");
+}
 
 // A calendar-only preview. The server revalidates the actual first date at Save.
 function firstSelectedDate(tomorrow: string, weekdays: number[]): string {
@@ -100,6 +138,12 @@ export function RecurringMealSuggestionCardView(props: {
   if (model.status === "idle" || model.status === "loading") return null;
   const start = candidate
     ? firstSelectedDate(candidate.startLocalDate, weekdays)
+    : "";
+  // Weekly proposals start on the next proposed weekday after today.
+  const weekly = candidate?.reasonCode === "weekly_pattern";
+  const proposedDays = candidate ? describeWeekdays(candidate.weekdays) : "";
+  const proposedStart = candidate
+    ? firstSelectedDate(candidate.startLocalDate, candidate.weekdays)
     : "";
   const valid =
     /^([01]\d|2[0-3]):[0-5]\d$/.test(localTime) && weekdays.length > 0;
@@ -222,26 +266,43 @@ export function RecurringMealSuggestionCardView(props: {
         </>
       ) : candidate ? (
         <>
-          <ThemedText type="small">
-            You logged “{candidate.name}” for 3 days in a row.
-          </ThemedText>
-          <ThemedText type="small">
-            Auto-log this serving every day at {candidate.localTime}, starting
-            tomorrow ({candidate.startLocalDate}). You can skip or pause it any
-            time.
-          </ThemedText>
+          {weekly ? (
+            <ThemedText type="small">
+              You’ve had “{candidate.name}” on {proposedDays} for two weeks. Log
+              it automatically on those days at {candidate.localTime}, starting{" "}
+              {proposedStart}? You can skip or pause it any time.
+            </ThemedText>
+          ) : (
+            <>
+              <ThemedText type="small">
+                You logged “{candidate.name}” for 3 days in a row.
+              </ThemedText>
+              <ThemedText type="small">
+                Auto-log this serving every day at {candidate.localTime},
+                starting tomorrow ({candidate.startLocalDate}). You can skip or
+                pause it any time.
+              </ThemedText>
+            </>
+          )}
           <ThemedText type="small">
             Timezone: {candidate.timeZone}
             {model.timezoneChoice ? " (your chosen timezone)" : ""}
           </ThemedText>
           <View style={styles.actions}>
             {!expanded
-              ? action(
-                  "Auto-log daily",
-                  () => void model.accept(),
-                  !actionable,
-                  `Auto-log ${candidate.name} every day at ${candidate.localTime} starting ${candidate.startLocalDate} in ${candidate.timeZone}`,
-                )
+              ? weekly
+                ? action(
+                    "Auto-log these days",
+                    () => void model.accept(),
+                    !actionable,
+                    `Auto-log ${candidate.name} on ${describeWeekdays(candidate.weekdays, true)} at ${candidate.localTime} starting ${proposedStart} in ${candidate.timeZone}`,
+                  )
+                : action(
+                    "Auto-log daily",
+                    () => void model.accept(),
+                    !actionable,
+                    `Auto-log ${candidate.name} every day at ${candidate.localTime} starting ${candidate.startLocalDate} in ${candidate.timeZone}`,
+                  )
               : null}
             {action(
               expanded ? "Close details" : "Change",

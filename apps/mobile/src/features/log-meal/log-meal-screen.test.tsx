@@ -445,6 +445,9 @@ describe("manual per-100-g meal entry", () => {
     mocks.history.mockResolvedValue({
       entries: [
         {
+          id: "00000000-0000-4000-8000-000000000001",
+          consumedAt: new Date(Date.now() - 3_600_000).toISOString(),
+          confirmedByUser: true,
           name: "Synthetic recent food",
           caloriesKcal: 250,
           proteinG: 12,
@@ -471,6 +474,79 @@ describe("manual per-100-g meal entry", () => {
     await submit();
     expect(mocks.submit.mock.calls[0]?.[0].caloriesKcal).toBe(250);
     expect(mocks.submit.mock.calls[0]?.[0].healthExportFirstParty).toBe(false);
+  });
+  describe("quick-add chips", () => {
+    const DAY = 86_400_000;
+    const meal = (id: number, name: string, ageMs: number) => ({
+      id: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
+      consumedAt: new Date(Date.now() - ageMs).toISOString(),
+      confirmedByUser: true,
+      name,
+      caloriesKcal: 100 + id,
+      proteinG: 5,
+      carbohydrateG: 10,
+      fatG: 2,
+      details: {},
+    });
+    const chips = (): any[] => {
+      const out: any[] = [];
+      const walk = (n: any) => {
+        if (!n || typeof n !== "object") return;
+        if (Array.isArray(n)) return n.forEach(walk);
+        if (
+          n.type === "Pressable" &&
+          String(n.props?.accessibilityLabel).startsWith("Reuse meal ")
+        )
+          out.push(n);
+        walk(n.props?.children);
+      };
+      walk(render());
+      return out;
+    };
+    const load = async (entries: unknown[]) => {
+      hooks.slots = [];
+      hooks.effects = [];
+      mocks.history.mockResolvedValue({ entries });
+      render();
+      await flush();
+    };
+    it("ranks habits first, labels the usual-now item and caps at six", async () => {
+      await load([
+        meal(1, "One-off", 3_600_000),
+        meal(2, "Habit", 1 * DAY),
+        meal(3, "Habit", 2 * DAY),
+        meal(4, "Habit", 3 * DAY),
+        ...[5, 6, 7, 8, 9, 10].map((i) =>
+          meal(i, `Filler ${i}`, i * 3_600_000),
+        ),
+      ]);
+      const list = chips();
+      expect(list).toHaveLength(6);
+      expect(list[0].props.accessibilityLabel).toBe(
+        "Reuse meal Habit, usual now",
+      );
+      expect(list[1].props.accessibilityLabel).not.toContain("usual now");
+      expect(mocks.history).toHaveBeenCalledWith({ limit: 200 });
+    });
+    it("shows a single Usual now label and reuses the chip selection path", async () => {
+      await load([meal(2, "Habit", DAY), meal(3, "Habit", 2 * DAY)]);
+      const [chip] = chips();
+      expect(
+        find(chip, (n) => n.props?.testID === "quick-meal-reason"),
+      ).toBeTruthy();
+      chip.props.onPress();
+      expect(byId("meal-name-input").props.value).toBe("Habit");
+    });
+    it("shows no chips when history fails or rejects", async () => {
+      await load([]);
+      expect(chips()).toHaveLength(0);
+      hooks.slots = [];
+      hooks.effects = [];
+      mocks.history.mockRejectedValue(new Error("offline"));
+      render();
+      await flush();
+      expect(chips()).toHaveLength(0);
+    });
   });
   it("uses serving totals after a replacement AI draft without retaining label values", async () => {
     mocks.textDraft.mockResolvedValue({

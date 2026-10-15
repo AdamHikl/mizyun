@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   tokenVersion: 0,
   activeWorkout: null as { id: string } | null,
   version: "0:today:0",
+  startRepeat: vi.fn(),
+  saveRoutine: vi.fn(),
+  startRoutine: vi.fn(),
+  secure: new Map<string, string>(),
   appState: null as ((state: string) => void) | null,
   readListeners: new Set<(path: string) => void>(),
 }));
@@ -164,7 +168,27 @@ vi.mock("./workouts-hub-data", () => ({
   peekWorkoutsHubData: mocks.peek,
   createBlankWorkout: mocks.createBlank,
   deleteWorkout: vi.fn(),
-  startRoutineSession: vi.fn(),
+  startRoutineSession: mocks.startRoutine,
+  createCustomWorkout: vi.fn(),
+  isReusableRoutine: (w: { details: Record<string, any> }) =>
+    w.details?.workoutLifecycle?.kind === "routine",
+}));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: async (key: string) => mocks.secure.get(key) ?? null,
+  setItemAsync: async (key: string, value: string) => {
+    mocks.secure.set(key, value);
+  },
+  deleteItemAsync: async (key: string) => {
+    mocks.secure.delete(key);
+  },
+}));
+vi.mock("@/features/health-exports", () => ({
+  markFirstPartyWorkout: (details: unknown) => details,
+}));
+vi.mock("./workout-repeat", async (original) => ({
+  ...(await original<typeof import("./workout-repeat")>()),
+  startRepeatSession: mocks.startRepeat,
+  saveSuggestedRoutine: mocks.saveRoutine,
 }));
 
 import { WorkoutsHubScreen } from "./workouts-hub-screen";
@@ -232,6 +256,10 @@ beforeEach(() => {
     value: { runs: [], nextCursor: null },
   });
   mocks.createBlank.mockReset();
+  mocks.startRepeat.mockReset();
+  mocks.saveRoutine.mockReset();
+  mocks.startRoutine.mockReset();
+  mocks.secure.clear();
   mocks.push.mockReset();
   mocks.refresh.mockReset();
   mocks.owner = "user-a";
@@ -649,5 +677,209 @@ describe("target load display", () => {
     expect(formatTargetLoad("62.5 kg")).toBe("62.5 kg");
     expect(formatTargetLoad("100 kg")).toBe("100 kg");
     expect(formatTargetLoad("RPE 8")).toBe("RPE 8");
+  });
+});
+
+describe("repeat last workout and routine suggestion", () => {
+  const done = (
+    id: string,
+    day: string,
+    names: string[],
+    details: Record<string, unknown> = {
+      sessionMode: "one_time",
+      workoutLifecycle: { kind: "session" },
+    },
+  ): ProcessedWorkout => ({
+    ...workout(id),
+    workout: {
+      ...workout(id).workout,
+      name: "One-time Workout",
+      startedAt: `${day}T09:00:00Z`,
+      completedAt: `${day}T10:00:00Z`,
+      details,
+    },
+    status: "completed",
+    plannedExercises: names.map((name) => ({ name })),
+    exerciseSummaries: names.map((name) => ({
+      exerciseId: `ex-${name}`,
+      exerciseName: name,
+      setCount: 3,
+      topLoadKg: 50,
+    })),
+  });
+  const today = new Date();
+  const daysAgo = (n: number) =>
+    new Date(today.getTime() - n * 86_400_000).toISOString().slice(0, 10);
+  const data = (completed: ProcessedWorkout[]): WorkoutsHubResult => ({
+    activeAndPlanned: [],
+    completed,
+    exercises: ["Squat", "Bench"].map((name) => ({
+      id: `ex-${name}`,
+      userId: "user-a",
+      name,
+      instructions: null,
+      metadata: {},
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedAt: "2026-09-01T00:00:00Z",
+    })),
+    message: null,
+  });
+  const three = () => [
+    done("s1", daysAgo(9), ["Squat", "Bench"]),
+    done("s2", daysAgo(5), ["Bench", "Squat"]),
+    done("s3", daysAgo(2), ["Squat", "Bench"]),
+  ];
+  const byTitle = (tree: any, prefix: string) =>
+    find(
+      tree,
+      (node) =>
+        typeof node.props?.title === "string" &&
+        node.props.title.startsWith(prefix),
+    );
+  const byLabel = (tree: any, label: string) =>
+    find(tree, (node) => node.props?.accessibilityLabel === label);
+
+  it("repeats the latest workout with the same exercises in the same order", async () => {
+    mocks.peek.mockReturnValue(
+      data([
+        done("old", daysAgo(9), ["Row"]),
+        done("last", daysAgo(1), ["Squat", "Bench", "Row"]),
+      ]),
+    );
+    mocks.startRepeat.mockResolvedValue({
+      ok: true,
+      workout: workout("fresh").workout,
+    });
+    const row = byTitle(render(), "Repeat");
+    expect(row).toBeTruthy();
+    await row.props.onPress();
+    const plan = mocks.startRepeat.mock.calls[0][0];
+    expect(plan.exercises.map((e: { name: string }) => e.name)).toEqual([
+      "Squat",
+      "Bench",
+      "Row",
+    ]);
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/log-workout",
+      params: { workoutId: "fresh" },
+    });
+  });
+
+  it("hides Repeat while a workout is active so the resume action is the only start", () => {
+    mocks.activeWorkout = { id: "live" };
+    mocks.peek.mockReturnValue(
+      data([done("last", daysAgo(1), ["Squat", "Bench"])]),
+    );
+    const tree = render();
+    expect(byTitle(tree, "Repeat")).toBeFalsy();
+    expect(byLabel(tree, "Resume workout")).toBeTruthy();
+    expect(mocks.startRepeat).not.toHaveBeenCalled();
+  });
+
+  it("shares one in-flight guard between Start workout and Repeat", async () => {
+    mocks.peek.mockReturnValue(
+      data([done("last", daysAgo(1), ["Squat", "Bench"])]),
+    );
+    let resolve!: (value: unknown) => void;
+    mocks.createBlank.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    mocks.startRepeat.mockResolvedValue({
+      ok: true,
+      workout: workout("repeat").workout,
+    });
+    const first = byLabel(render(), "Start one-time workout").props.onPress();
+    await byTitle(render(), "Repeat").props.onPress();
+    expect(mocks.startRepeat).not.toHaveBeenCalled();
+    expect(byTitle(render(), "Repeat").props.disabled).toBe(true);
+    resolve({ ok: true, workout: workout("blank").workout });
+    await first;
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses the operation id when a Repeat start is retried after a failure", async () => {
+    mocks.peek.mockReturnValue(
+      data([done("last", daysAgo(1), ["Squat", "Bench"])]),
+    );
+    mocks.startRepeat
+      .mockResolvedValueOnce({ ok: false, message: "Response lost" })
+      .mockResolvedValueOnce({ ok: true, workout: workout("again").workout });
+    await byTitle(render(), "Repeat").props.onPress();
+    await byTitle(render(), "Repeat").props.onPress();
+    expect(mocks.startRepeat).toHaveBeenCalledTimes(2);
+    expect(mocks.startRepeat.mock.calls[0][1]).toBeTruthy();
+    expect(mocks.startRepeat.mock.calls[0][1]).toBe(
+      mocks.startRepeat.mock.calls[1][1],
+    );
+  });
+
+  it("starts the routine when the last workout was a routine session", async () => {
+    const routine = {
+      ...workout("routine-1"),
+      workout: {
+        ...workout("routine-1").workout,
+        details: { workoutLifecycle: { kind: "routine" } },
+      },
+    };
+    mocks.peek.mockReturnValue({
+      ...data([
+        done("last", daysAgo(1), ["Squat"], {
+          workoutLifecycle: { kind: "session", routineId: "routine-1" },
+        }),
+      ]),
+      activeAndPlanned: [routine],
+    });
+    mocks.startRoutine.mockResolvedValue({
+      ok: true,
+      workout: workout("from-routine").workout,
+    });
+    await byTitle(render(), "Repeat").props.onPress();
+    expect(mocks.startRoutine.mock.calls[0][0].id).toBe("routine-1");
+    expect(mocks.startRepeat).not.toHaveBeenCalled();
+  });
+
+  it("offers Save as routine, saves only on tap and calls the creation path", async () => {
+    mocks.peek.mockReturnValue(data(three()));
+    mocks.fetch.mockResolvedValue(data(three()));
+    mocks.saveRoutine.mockResolvedValue({
+      ok: true,
+      workout: workout("r").workout,
+    });
+    render();
+    await settle();
+    const tree = render();
+    const save = byLabel(tree, "Save these exercises as a routine");
+    expect(save).toBeTruthy();
+    expect(mocks.saveRoutine).not.toHaveBeenCalled();
+    await save.props.onPress();
+    expect(mocks.saveRoutine).toHaveBeenCalledTimes(1);
+    expect(mocks.saveRoutine.mock.calls[0][1]).toBeTruthy();
+    // Hidden immediately after a successful save, even before reload settles.
+    expect(byLabel(render(), "Save these exercises as a routine")).toBeFalsy();
+    expect(
+      mocks.saveRoutine.mock.calls[0][0].exercises.map(
+        (e: { name: string }) => e.name,
+      ),
+    ).toEqual(["Squat", "Bench"]);
+  });
+
+  it("persists Not now per user and does not leak to another account", async () => {
+    mocks.peek.mockReturnValue(data(three()));
+    render();
+    await settle();
+    const dismiss = byLabel(render(), "Dismiss routine suggestion");
+    dismiss.props.onPress();
+    for (let i = 0; i < 8; i++) await settle();
+    expect([...mocks.secure.keys()]).toEqual([
+      "mizyun.workout-routine-suggestion.user-a",
+    ]);
+    expect(byLabel(render(), "Dismiss routine suggestion")).toBeFalsy();
+    mocks.owner = "user-b";
+    render();
+    await settle();
+    await settle();
+    expect(byLabel(render(), "Dismiss routine suggestion")).toBeTruthy();
   });
 });

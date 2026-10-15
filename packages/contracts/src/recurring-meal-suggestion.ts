@@ -7,6 +7,26 @@ import {
   recurringMealWeekdaysSchema,
 } from "./recurring-meal";
 const number = z.number().finite().nonnegative().max(20_000).nullable();
+const dayNumber = (localDate: string): number =>
+  Date.parse(`${localDate}T12:00:00Z`) / 86400000;
+// Each date pairs with the same weekday seven days away, and weekdays (0 = Sunday)
+// are exactly the observed weekdays.
+const weeklyEvidenceMatches = (
+  dates: readonly string[],
+  weekdays: readonly number[],
+): boolean => {
+  const days = new Set(dates.map(dayNumber));
+  const observed = [
+    ...new Set(dates.map((d) => new Date(`${d}T12:00:00Z`).getUTCDay())),
+  ].sort((a, b) => a - b);
+  return (
+    dates.every(
+      (d) => days.has(dayNumber(d) + 7) || days.has(dayNumber(d) - 7),
+    ) &&
+    observed.length === dates.length / 2 &&
+    observed.join() === [...weekdays].sort((a, b) => a - b).join()
+  );
+};
 export const recurringMealSuggestionProposalSchema = z
   .object({
     candidateId: z.string().regex(/^mrs1-[0-9a-f]{8}$/),
@@ -23,7 +43,8 @@ export const recurringMealSuggestionProposalSchema = z
           })
           .strict(),
       )
-      .length(3),
+      .min(3)
+      .max(12),
     evidenceDigest: z.string().regex(/^[0-9a-f]{8}$/),
     name: z
       .string()
@@ -36,7 +57,7 @@ export const recurringMealSuggestionProposalSchema = z
     fatG: number,
     grams: number,
     policyVersion: z.string().min(1).max(100),
-    reasonCode: z.literal("three_consecutive_days"),
+    reasonCode: z.enum(["three_consecutive_days", "weekly_pattern"]),
     localTime: recurringMealLocalTimeSchema,
     timeZone: recurringMealTimeZoneSchema,
     weekdays: recurringMealWeekdaysSchema,
@@ -45,13 +66,30 @@ export const recurringMealSuggestionProposalSchema = z
   })
   .strict()
   .superRefine((p, ctx) => {
+    const count = p.evidence.length;
     if (
-      new Set(p.evidence.map((e) => e.id)).size !== 3 ||
-      new Set(p.evidence.map((e) => e.localDate)).size !== 3
+      new Set(p.evidence.map((e) => e.id)).size !== count ||
+      new Set(p.evidence.map((e) => e.localDate)).size !== count
     )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Evidence must contain three distinct entries and dates",
+        message: "Evidence must contain distinct entries and dates",
+      });
+    // Daily: three days, every weekday. Weekly: both occurrences of 2–6
+    // weekdays in the last two weeks. The server re-derives both exactly.
+    if (
+      p.reasonCode === "three_consecutive_days"
+        ? count !== 3 || p.weekdays.length !== 7
+        : count < 4 ||
+          count % 2 !== 0 ||
+          !weeklyEvidenceMatches(
+            p.evidence.map((e) => e.localDate),
+            p.weekdays,
+          )
+    )
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Evidence does not match the suggestion pattern",
       });
     if (
       !p.evidence.some(

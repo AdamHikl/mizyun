@@ -74,6 +74,31 @@ describe("owner meal suggestion adapter", () => {
       p_entry_ids: rows.map((r) => r.id),
     });
   });
+  it("loads fourteen local days so a two-week weekday pattern is complete", async () => {
+    // Tue 2026-10-13: Thursday 10-01/10-08 and Tuesday 10-06/10-13.
+    const weekly = ["01", "06", "08", "13"].map((day, index) => ({
+      ...rows[0]!,
+      id: `23000000-0000-4000-8000-00000000000${index + 1}`,
+      consumed_at: `2026-10-${day}T08:00:00+00:00`,
+      created_at: `2026-10-${day}T08:00:00.123456+00:00`,
+      updated_at: `2026-10-${day}T08:00:00.123456+00:00`,
+    }));
+    const { repo, query } = setup([[...weekly].reverse()]);
+    const result = await repo.getForUser(
+      uid,
+      { timeZone: "UTC" },
+      { accessToken: "v" },
+    );
+    expect(query.gte).toHaveBeenCalledWith(
+      "consumed_at",
+      "2026-09-28T22:00:00.000Z",
+    );
+    expect(result.suggestion).toMatchObject({
+      reasonCode: "weekly_pattern",
+      weekdays: [2, 4],
+    });
+    expect(result.suggestion?.evidence).toHaveLength(4);
+  });
   it("follows full pages and rejects a repeated cursor instead of offering partial evidence", async () => {
     const full = Array.from({ length: 500 }, (_, index) => ({
       ...rows[index % 3]!,

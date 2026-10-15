@@ -62,6 +62,20 @@ import {
   type ProcessedWorkout,
   type WorkoutsHubResult,
 } from "./workouts-hub-data";
+import {
+  deriveRoutineSuggestion,
+  findRepeatableWorkout,
+  planRepeat,
+  repeatLabel,
+  saveSuggestedRoutine,
+  startRepeatSession,
+  type ResolvedRoutineSuggestion,
+} from "./workout-repeat";
+import {
+  dismissRoutineSuggestion,
+  isRoutineSuggestionDismissed,
+  loadDismissedRoutineSuggestions,
+} from "./workout-routine-suggestion-store";
 import { ExerciseLibraryModal } from "./exercise-library-modal";
 import { WorkoutEditorModal } from "./workout-editor-modal";
 import { ExerciseProgressionModal } from "./exercise-progression-modal";
@@ -173,8 +187,21 @@ export function WorkoutsHubScreen() {
   const startingRoutineIds = useRef(new Set<string>());
   const routineOperationIds = useRef(new Map<string, string>());
   const blankOperationId = useRef<{ owner: string; id: string } | null>(null);
-  const startingBlank = useRef(false);
+  const sessionStartInFlight = useRef(false);
+  const [sessionStartBusy, setSessionStartBusy] = useState(false);
   const [startingOneTime, setStartingOneTime] = useState(false);
+  const repeatOperationId = useRef<{ key: string; id: string } | null>(null);
+  const [savedSignatures, setSavedSignatures] = useState<{
+    principal: string;
+    signatures: ReadonlySet<string>;
+  }>({ principal: "", signatures: new Set() });
+  const suggestionOperation = useRef<{ key: string; id: string } | null>(null);
+  const savingSuggestion = useRef(false);
+  const [suggestionBusy, setSuggestionBusy] = useState(false);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<{
+    principal: string;
+    hashes: ReadonlySet<string>;
+  } | null>(null);
   const [libraryVisible, setLibraryVisible] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<ProcessedWorkout | null>(
@@ -256,8 +283,14 @@ export function WorkoutsHubScreen() {
   }, []);
 
   const beginRoutineSession = useCallback(async (workout: Workout) => {
-    if (startingRoutineIds.current.has(workout.id)) return;
+    if (
+      startingRoutineIds.current.has(workout.id) ||
+      sessionStartInFlight.current
+    )
+      return;
     startingRoutineIds.current.add(workout.id);
+    sessionStartInFlight.current = true;
+    setSessionStartBusy(true);
     setBusyWorkoutId(workout.id);
     try {
       let operationId = routineOperationIds.current.get(workout.id);
@@ -284,6 +317,8 @@ export function WorkoutsHubScreen() {
       );
     } finally {
       startingRoutineIds.current.delete(workout.id);
+      sessionStartInFlight.current = false;
+      setSessionStartBusy(false);
       setBusyWorkoutId(null);
     }
   }, []);
@@ -304,8 +339,9 @@ export function WorkoutsHubScreen() {
       });
       return;
     }
-    if (startingBlank.current) return;
-    startingBlank.current = true;
+    if (sessionStartInFlight.current) return;
+    sessionStartInFlight.current = true;
+    setSessionStartBusy(true);
     setStartingOneTime(true);
     try {
       if (
@@ -339,10 +375,130 @@ export function WorkoutsHubScreen() {
         );
       }
     } finally {
-      startingBlank.current = false;
+      sessionStartInFlight.current = false;
+      setSessionStartBusy(false);
       setStartingOneTime(false);
     }
   }, [owner, principal, workoutContext?.activeWorkout]);
+
+  useEffect(() => {
+    if (principal === "") return;
+    let current = true;
+    void loadDismissedRoutineSuggestions(principal).then((hashes) => {
+      if (current) setDismissedSuggestions({ principal, hashes });
+    });
+    return () => {
+      current = false;
+    };
+  }, [principal]);
+
+  const handleRepeatLast = useCallback(async () => {
+    if (workoutContext?.activeWorkout) {
+      router.push({
+        pathname: "/log-workout",
+        params: { workoutId: workoutContext.activeWorkout.id },
+      });
+      return;
+    }
+    const source = findRepeatableWorkout(data.completed);
+    if (!source || sessionStartInFlight.current) return;
+    const plan = planRepeat(source, data.activeAndPlanned);
+    if (plan.kind === "routine") {
+      await beginRoutineSession(plan.routine);
+      return;
+    }
+    sessionStartInFlight.current = true;
+    setSessionStartBusy(true);
+    try {
+      const key = `${principal}:${source.workout.id}`;
+      if (repeatOperationId.current?.key !== key)
+        repeatOperationId.current = { key, id: Crypto.randomUUID() };
+      const result = await startRepeatSession(
+        plan,
+        repeatOperationId.current.id,
+      );
+      if (currentOwner.current !== owner) return;
+      if (result.ok && result.workout) {
+        repeatOperationId.current = null;
+        router.push({
+          pathname: "/log-workout",
+          params: { workoutId: result.workout.id },
+        });
+      } else if (!result.ok) {
+        Alert.alert("Could not start workout", result.message);
+      }
+    } catch {
+      if (currentOwner.current === owner)
+        Alert.alert(
+          "Could not start workout",
+          "The workout could not be started. Please try again.",
+        );
+    } finally {
+      sessionStartInFlight.current = false;
+      setSessionStartBusy(false);
+    }
+  }, [
+    beginRoutineSession,
+    data.activeAndPlanned,
+    data.completed,
+    owner,
+    principal,
+    workoutContext?.activeWorkout,
+  ]);
+
+  const handleSaveSuggestion = useCallback(
+    async (resolved: ResolvedRoutineSuggestion) => {
+      if (savingSuggestion.current) return;
+      savingSuggestion.current = true;
+      setSuggestionBusy(true);
+      try {
+        const key = `${principal}:${resolved.suggestion.signature}`;
+        if (suggestionOperation.current?.key !== key)
+          suggestionOperation.current = { key, id: Crypto.randomUUID() };
+        const result = await saveSuggestedRoutine(
+          resolved,
+          suggestionOperation.current.id,
+        );
+        if (currentOwner.current !== owner) return;
+        if (result.ok) {
+          suggestionOperation.current = null;
+          setSavedSignatures((current) => ({
+            principal,
+            signatures: new Set([
+              ...(current.principal === principal ? current.signatures : []),
+              resolved.suggestion.signature,
+            ]),
+          }));
+          void loadData();
+        } else {
+          Alert.alert("Could not save routine", result.message);
+        }
+      } catch {
+        if (currentOwner.current === owner)
+          Alert.alert(
+            "Could not save routine",
+            "The routine could not be saved. Please try again.",
+          );
+      } finally {
+        savingSuggestion.current = false;
+        setSuggestionBusy(false);
+      }
+    },
+    [loadData, owner, principal],
+  );
+
+  const handleDismissSuggestion = useCallback(
+    async (resolved: ResolvedRoutineSuggestion) => {
+      const userId = principal;
+      const saved = await dismissRoutineSuggestion(userId, resolved.suggestion);
+      if (currentOwner.current !== owner) return;
+      const hashes = await loadDismissedRoutineSuggestions(userId);
+      if (currentOwner.current !== owner) return;
+      if (saved || hashes.size > 0)
+        setDismissedSuggestions({ principal: userId, hashes });
+    },
+    [owner, principal],
+  );
 
   const handleOpenWorkout = useCallback((workoutId: string) => {
     router.push({
@@ -444,6 +600,23 @@ export function WorkoutsHubScreen() {
         }))
       : []),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  const repeatSource = loading ? null : findRepeatableWorkout(data.completed);
+  const routineSuggestion =
+    loading ||
+    !ownsScreenState ||
+    dismissedSuggestions === null ||
+    dismissedSuggestions.principal !== principal
+      ? null
+      : deriveRoutineSuggestion(
+          data,
+          new Date(),
+          (signature) =>
+            isRoutineSuggestionDismissed(dismissedSuggestions.hashes, {
+              signature,
+            }) ||
+            (savedSignatures.principal === principal &&
+              savedSignatures.signatures.has(signature)),
+        );
   const showPlanned = activeTab === "all" || activeTab === "planned";
   const showHistory = activeTab === "all" || activeTab === "history";
 
@@ -488,7 +661,7 @@ export function WorkoutsHubScreen() {
                   : "Start one-time workout"
               }
               loading={startingOneTime}
-              disabled={startingOneTime}
+              disabled={sessionStartBusy}
               onPress={handleStartBlank}
             />
             {workoutContext?.activeWorkout &&
@@ -504,6 +677,20 @@ export function WorkoutsHubScreen() {
           </View>
 
           <ListGroup>
+            {repeatSource && !workoutContext?.activeWorkout ? (
+              <ListRow
+                key="repeat-last-workout"
+                icon="history"
+                title={repeatLabel(repeatSource)}
+                subtitle={`${repeatSource.displayDate} · ${
+                  repeatSource.plannedExercises.length ||
+                  repeatSource.exerciseSummaries.length
+                } exercises`}
+                accessibilityLabel={repeatLabel(repeatSource)}
+                disabled={sessionStartBusy}
+                onPress={() => void handleRepeatLast()}
+              />
+            ) : null}
             <ListRow
               key="log-run"
               icon="run"
@@ -529,6 +716,37 @@ export function WorkoutsHubScreen() {
               onPress={() => setLibraryVisible(true)}
             />
           </ListGroup>
+
+          {routineSuggestion ? (
+            <Card>
+              <ThemedText type="headline">Save as routine?</ThemedText>
+              <ThemedText type="footnote" themeColor="textSecondary">
+                You have done {routineSuggestion.suggestion.sessionIds.length}{" "}
+                one-time workouts with the same exercises recently:{" "}
+                {routineSuggestion.name}.
+              </ThemedText>
+              <View style={styles.cardActionsRow}>
+                <Button
+                  label={suggestionBusy ? "Saving…" : "Save as routine"}
+                  variant="tinted"
+                  size="small"
+                  accessibilityLabel="Save these exercises as a routine"
+                  disabled={suggestionBusy}
+                  onPress={() => void handleSaveSuggestion(routineSuggestion)}
+                />
+                <Button
+                  label="Not now"
+                  variant="plain"
+                  size="small"
+                  accessibilityLabel="Dismiss routine suggestion"
+                  disabled={suggestionBusy}
+                  onPress={() =>
+                    void handleDismissSuggestion(routineSuggestion)
+                  }
+                />
+              </View>
+            </Card>
+          ) : null}
 
           <SegmentedControl
             accessibilityLabel="Workout view"

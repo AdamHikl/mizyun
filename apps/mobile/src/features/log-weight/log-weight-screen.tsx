@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -34,11 +34,15 @@ import {
 } from "@/features/logging-draft-storage";
 
 import {
+  fetchLastBodyEntry,
   isWeightSubmission,
   prepareWeightSubmission,
+  presentLastBodyEntry,
   submitLogWeight,
+  type LastBodyEntry,
   type WeightSubmission,
 } from "./log-weight-data";
+import { markWeighInLoggedToday } from "./weigh-in-reminders";
 
 export function LogWeightScreen() {
   const { profile, session } = useAuth();
@@ -54,6 +58,10 @@ export function LogWeightScreen() {
   >(null);
   const [pending, setPending] = useState<WeightSubmission | null>(null);
   const [recoveryAttempt, setRecoveryAttempt] = useState(0);
+  const [last, setLast] = useState<{
+    readonly owner: string;
+    readonly entry: LastBodyEntry;
+  } | null>(null);
   const pendingRef = useRef<WeightSubmission | null>(null);
   const submittingRef = useRef(false);
   const completedRef = useRef(false);
@@ -79,6 +87,13 @@ export function LogWeightScreen() {
     loadedOwner === userId &&
     loadedGeneration === generation;
   const canEdit = canSave && pending === null && !submitting;
+  // Hint only: the last values are shown as placeholders and never pre-filled,
+  // so a stale weight cannot be saved by accident.
+  const lastPresentation =
+    last !== null && last.owner === userId
+      ? presentLastBodyEntry(last.entry, unitSystem)
+      : null;
+  const lastWeight = lastPresentation?.weight ?? null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -126,6 +141,25 @@ export function LogWeightScreen() {
       active = false;
     };
   }, [userId, recoveryAttempt]);
+
+  useEffect(() => {
+    setLast(null);
+    if (userId === null) return;
+    let active = true;
+    void fetchLastBodyEntry({
+      expectedUserId: userId,
+      isCurrent: () => active,
+    })
+      .then((entry) => {
+        if (active && entry !== null) setLast({ owner: userId, entry });
+      })
+      .catch(() => {
+        // The hint is optional; entry works without it.
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (
@@ -207,6 +241,17 @@ export function LogWeightScreen() {
         completedRef.current = true;
         attempt?.complete();
         await clearLoggingDraft(userId, "weight");
+        // Best effort: skip today's weigh-in reminder once a weight is saved.
+        // A recovered draft measured on an earlier day does not count as today.
+        const measured = payload.measuredAt
+          ? new Date(payload.measuredAt)
+          : new Date();
+        if (
+          payload.weightKg !== undefined &&
+          payload.weightKg !== null &&
+          measured.toDateString() === new Date().toDateString()
+        )
+          void markWeighInLoggedToday(userId).catch(() => {});
         if (isCurrent()) router.back();
         return;
       }
@@ -260,10 +305,31 @@ export function LogWeightScreen() {
               editable={canEdit}
               onChangeText={setWeight}
               onFocus={() => measurement.current?.tap()}
-              placeholder="72.5"
+              placeholder={lastWeight ?? "72.5"}
               keyboardType="numeric"
               autoFocus
             />
+
+            {lastPresentation?.weightHint != null && lastWeight !== null ? (
+              <View style={styles.lastRow}>
+                <ThemedText
+                  type="footnote"
+                  themeColor="textSecondary"
+                  style={styles.lastHint}
+                  testID="body-weight-last-hint"
+                >
+                  {lastPresentation.weightHint}
+                </ThemedText>
+                <Button
+                  label="Same as last"
+                  variant="tinted"
+                  size="small"
+                  accessibilityLabel={`Same as last: ${lastWeight} ${unitLabel}`}
+                  disabled={!canEdit || weight === lastWeight}
+                  onPress={() => setWeight(lastWeight)}
+                />
+              </View>
+            ) : null}
 
             <Field
               testID="body-waist-input"
@@ -272,7 +338,7 @@ export function LogWeightScreen() {
               editable={canEdit}
               onChangeText={setWaist}
               onFocus={() => measurement.current?.tap()}
-              placeholder="81"
+              placeholder={lastPresentation?.waist ?? "81"}
               keyboardType="numeric"
             />
 
@@ -283,7 +349,7 @@ export function LogWeightScreen() {
               editable={canEdit}
               onChangeText={setChest}
               onFocus={() => measurement.current?.tap()}
-              placeholder="100"
+              placeholder={lastPresentation?.chest ?? "100"}
               keyboardType="numeric"
             />
           </Card>
@@ -370,6 +436,13 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.three,
   },
+  lastRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
+  lastHint: { flexShrink: 1 },
 });
 
 interface WeightDraft {

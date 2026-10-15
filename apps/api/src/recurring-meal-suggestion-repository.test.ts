@@ -42,6 +42,50 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 describe("meal suggestion fallback recovery boundary", () => {
+  it("offers and accepts a two-week weekday pattern on the proposed days", async () => {
+    const food = new InMemoryFoodEntryRepository();
+    // Tuesday 2026-10-13: Thursday 10-01/10-08 and Tuesday 10-06/10-13.
+    ["01", "06", "08", "13"].forEach((day, index) =>
+      food.__seedForTest({
+        id: `21000000-0000-4000-8000-00000000000${index + 1}`,
+        userId: user,
+        name: "Protein shake",
+        consumedAt: new Date(`2026-10-${day}T07:30:00.000Z`),
+        createdAt: new Date(`2026-10-${day}T07:30:00.000Z`),
+        updatedAt: new Date(`2026-10-${day}T07:30:00.000Z`),
+        confirmedByUser: true,
+        caloriesKcal: 200,
+        proteinG: 30,
+        carbohydrateG: 10,
+        fatG: 3,
+        source: "manual",
+        confidence: null,
+        details: {},
+      }),
+    );
+    const recurring = new InMemoryRecurringMealRepository(food);
+    const repo = new InMemoryRecurringMealSuggestionRepository(food, recurring);
+    const p = (await repo.getForUser(user, { timeZone: "UTC" }, options))
+      .suggestion!;
+    expect(p).toMatchObject({
+      reasonCode: "weekly_pattern",
+      weekdays: [2, 4],
+      localTime: "07:30",
+    });
+    const result = await repo.accept(
+      user,
+      {
+        operationId,
+        proposal: p,
+        localTime: p.localTime,
+        timeZone: "UTC",
+        weekdays: p.weekdays,
+      },
+      options,
+    );
+    expect(result.recurringMeal.weekdays).toEqual([2, 4]);
+    expect(result.startLocalDate).toBe("2026-10-15");
+  });
   it("has no food writes on reads/decisions and persists controls across reads", async () => {
     const { food, repo, proposal } = fixture();
     const create = vi.spyOn(food, "create");

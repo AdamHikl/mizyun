@@ -1,6 +1,7 @@
 import {
   detectRecurringMealSuggestion,
   recurringMealLocalDateAt,
+  recurringMealSuggestionWindowDays,
   validateRecurringMealSchedule,
   RecurringMealSuggestionRepositoryError,
   type RecurringMealSuggestionRepository,
@@ -131,8 +132,10 @@ export class SupabaseRecurringMealSuggestionRepository implements RecurringMealS
       throw new RecurringMealSuggestionRepositoryError("invalid");
     const referenceAt = new Date();
     const today = recurringMealLocalDateAt(referenceAt, input.timeZone);
+    // Two weeks including today: the weekly pattern needs both occurrences of each weekday.
     const firstLocalDate = new Date(
-      Date.parse(`${today}T12:00:00Z`) - 6 * 86400000,
+      Date.parse(`${today}T12:00:00Z`) -
+        (recurringMealSuggestionWindowDays - 1) * 86400000,
     )
       .toISOString()
       .slice(0, 10);

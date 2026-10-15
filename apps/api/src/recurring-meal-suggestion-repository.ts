@@ -5,6 +5,7 @@ import {
   validateRecurringMealSchedule,
   RecurringMealRepositoryError,
   RecurringMealSuggestionRepositoryError,
+  recurringMealSuggestionWindowDays,
   type FoodEntryRepository,
   type StoredFoodEntry,
   type UserId,
@@ -80,7 +81,10 @@ export class InMemoryRecurringMealSuggestionRepository implements RecurringMealS
   }
   async #history(userId: UserId, options: Access) {
     const to = new Date(),
-      from = new Date(to.getTime() - 9 * 86400000),
+      // Detection window plus two days of slack for any named zone offset.
+      from = new Date(
+        to.getTime() - (recurringMealSuggestionWindowDays + 2) * 86400000,
+      ),
       entries: StoredFoodEntry[] = [];
     let cursor: { consumedAt: Date; id: string } | null = null;
     const seen = new Set<string>();

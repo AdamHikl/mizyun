@@ -6,7 +6,7 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving. Pro-only meal visual display and photo retention with server/RPC/Storage downgrade fencing; common food catalog reuse avoids per-meal generation. Private deterministic three-day routine suggestions count explicit meal copies and require one-tap authorization to start tomorrow.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving. Pro-only meal visual display and photo retention with server/RPC/Storage downgrade fencing; common food catalog reuse avoids per-meal generation. Private deterministic three-day routine suggestions count explicit meal copies and require one-tap authorization to start tomorrow. Suggestions also cover clean two-week weekday rhythms (weekly_pattern, #253) at any logged time of day (#252); quick-add chips rank 30-day frequency weighted to the current time of day (#254); first-meal and evening reminders offer learned times the user must apply (#257).",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
@@ -83,7 +83,9 @@
         "packages/core/src/energy.ts",
         "packages/core/src/recurring-meal.ts",
         "packages/core/src/meal-illustration.ts",
-        "packages/core/src/recurring-meal-suggestion.ts"
+        "packages/core/src/recurring-meal-suggestion.ts",
+        "packages/core/src/meal-quick-add.ts",
+        "packages/core/src/reminder-timing.ts"
       ],
       "api": [
         "apps/api/src/modules/food-entries/routes.ts",
@@ -102,7 +104,10 @@
         "apps/mobile/src/features/log-meal/log-meal-data.ts",
         "apps/mobile/src/app/recurring-meals.tsx",
         "apps/mobile/src/features/log-meal/private-meal-photo.tsx",
-        "apps/mobile/src/features/log-meal/meal-visual.tsx"
+        "apps/mobile/src/features/log-meal/meal-visual.tsx",
+        "apps/mobile/src/features/log-meal/log-meal-screen.tsx",
+        "apps/mobile/src/features/recurring-meals/recurring-meal-suggestion-card.tsx",
+        "apps/mobile/src/features/settings/reminder-time-suggestion.ts"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/food-entry-repository.ts",
@@ -133,7 +138,9 @@
         "supabase/migrations/20261006200000_retained_meal_photos.sql",
         "supabase/migrations/20261009120000_meal_illustrations.sql",
         "supabase/migrations/20261009150000_pro_meal_visuals.sql",
-        "supabase/migrations/20261013120000_recurring_meal_suggestions.sql"
+        "supabase/migrations/20261013120000_recurring_meal_suggestions.sql",
+        "supabase/migrations/20261015120000_recurring_meal_suggestion_any_time.sql",
+        "supabase/migrations/20261015130000_recurring_meal_suggestion_weekly.sql"
       ],
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",
@@ -170,7 +177,9 @@
         "packages/api-client/src/recurring-meal-suggestion-api.test.ts",
         "packages/contracts/src/recurring-meal-suggestion.test.ts",
         "packages/core/src/recurring-meal-suggestion.test.ts",
-        "supabase/tests/database/0044_recurring_meal_suggestions.test.sql"
+        "supabase/tests/database/0044_recurring_meal_suggestions.test.sql",
+        "packages/core/src/meal-quick-add.test.ts",
+        "supabase/tests/database/0046_recurring_meal_suggestion_weekly.test.sql"
       ],
       "relations": [
         {
@@ -234,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations.",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255).",
       "aliases": [
         "workout",
         "exercise",
@@ -283,7 +292,8 @@
         "packages/core/src/training-prescription.ts",
         "packages/core/src/exercise-catalog.ts",
         "packages/core/src/running.ts",
-        "packages/core/src/run-repository.ts"
+        "packages/core/src/run-repository.ts",
+        "packages/core/src/workout-routine-suggestion.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -296,7 +306,9 @@
         "apps/mobile/src/features/log-workout/log-workout-data.ts",
         "apps/mobile/src/features/workouts/exercise-progression-data.ts",
         "apps/mobile/src/app/log-run.tsx",
-        "apps/mobile/src/app/run/[id].tsx"
+        "apps/mobile/src/app/run/[id].tsx",
+        "apps/mobile/src/features/workouts/workout-repeat.ts",
+        "apps/mobile/src/features/workouts/workout-routine-suggestion-store.ts"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/workout-repository.ts",
@@ -330,7 +342,9 @@
         "packages/core/src/running.test.ts",
         "packages/contracts/src/run.test.ts",
         "packages/adapters/supabase-server/src/run-repository.test.ts",
-        "apps/api/src/modules/runs/routes.test.ts"
+        "apps/api/src/modules/runs/routes.test.ts",
+        "packages/core/src/workout-routine-suggestion.test.ts",
+        "apps/mobile/src/features/workouts/workout-repeat.test.ts"
       ],
       "relations": [
         {
@@ -491,7 +505,7 @@
     {
       "id": "body-media",
       "title": "Body Measurements & Private Media",
-      "summary": "Weight and circumference tracking, user-scoped private media uploads, EXIF-stripped progress photos, and timeline comparison.",
+      "summary": "Weight and circumference tracking, user-scoped private media uploads, EXIF-stripped progress photos, and timeline comparison. Log weight shows the last value as a hint with an explicit Same-as-last control, and an opt-in weigh-in reminder uses neutral lock-screen copy with sign-out/deletion cleanup (#256).",
       "aliases": [
         "body",
         "media",
@@ -526,7 +540,10 @@
         "apps/mobile/src/features/progress-photos/progress-photo-data.ts",
         "apps/mobile/src/features/progress-photos/progress-photos-screen.tsx",
         "apps/mobile/src/features/log-weight/log-weight-data.ts",
-        "apps/mobile/src/features/log-weight/body-history-data.ts"
+        "apps/mobile/src/features/log-weight/body-history-data.ts",
+        "apps/mobile/src/features/log-weight/log-weight-screen.tsx",
+        "apps/mobile/src/features/log-weight/weigh-in-reminders.ts",
+        "apps/mobile/src/features/settings/weigh-in-reminder-card.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/body-measurement-repository.ts",
@@ -546,7 +563,9 @@
         "apps/mobile/src/features/log-weight/log-weight-data.test.ts",
         "apps/mobile/src/features/log-weight/log-weight-screen.test.tsx",
         "packages/contracts/src/body-measurement.test.ts",
-        "supabase/tests/database/0037_body_measurement_retry_identity.test.sql"
+        "supabase/tests/database/0037_body_measurement_retry_identity.test.sql",
+        "apps/mobile/src/features/log-weight/weigh-in-reminders.test.ts",
+        "apps/mobile/src/composition/weigh-in-reminder-runtime.test.ts"
       ],
       "relations": [
         {

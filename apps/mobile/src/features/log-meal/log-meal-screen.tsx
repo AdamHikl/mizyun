@@ -93,6 +93,7 @@ import {
   discardOwnedMealPhoto,
 } from "./meal-photo-retention";
 import { useMealVisualCapability } from "./meal-visual-capability";
+import { rankMealQuickAdd, type MealQuickAddReason } from "@mizyun/core";
 import { fetchFoodHistory } from "./meal-lifecycle-data";
 import { getEntryGrams } from "./meal-scale";
 import {
@@ -136,6 +137,12 @@ const draftEvidenceLines = (
     ...draft.warnings,
     `Source: ${draft.provenance.inputKind} estimate · ${draft.provenance.provider} · ${draft.provenance.promptVersion}`,
   ];
+};
+
+const QUICK_MEAL_REASON_LABEL: Record<MealQuickAddReason, string> = {
+  usual_now: "Usual now",
+  frequent: "",
+  recent: "",
 };
 
 export function LogMealScreen() {
@@ -244,29 +251,37 @@ export function LogMealScreen() {
 
   useEffect(() => {
     let active = true;
-    void fetchFoodHistory({ limit: 10 }).then((res) => {
-      if (!active) return;
-      if (res.entries.length > 0) {
-        setRecentMeals(res.entries);
-      }
-    });
+    // One bounded page (API maximum 200); the ranker keeps the last 30 days.
+    void fetchFoodHistory({ limit: 200 })
+      .then((res) => {
+        if (!active) return;
+        if (res.entries.length > 0) {
+          setRecentMeals(res.entries);
+        }
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, []);
 
-  const uniqueRecentMeals = useMemo(() => {
-    const seen = new Set<string>();
-    const list: FoodEntry[] = [];
-    for (const meal of recentMeals) {
-      const key = meal.name.trim().toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        list.push(meal);
-      }
-      if (list.length >= 4) break;
+  const quickMeals = useMemo(() => {
+    let timeZone = "UTC";
+    try {
+      timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      // Keep UTC when the runtime cannot resolve a zone.
     }
-    return list;
+    try {
+      return rankMealQuickAdd({
+        entries: recentMeals,
+        referenceAt: new Date(),
+        timeZone,
+        limit: 6,
+      });
+    } catch {
+      return [];
+    }
   }, [recentMeals]);
 
   const onSelectRecentMeal = useCallback(
@@ -1633,7 +1648,7 @@ export function LogMealScreen() {
               optional.
             </ThemedText>
             <Card style={styles.cardStack}>
-              {uniqueRecentMeals.length > 0 ? (
+              {quickMeals.length > 0 ? (
                 <View style={styles.recentMealsContainer}>
                   <ThemedText type="footnote" themeColor="textSecondary">
                     Quick meal reuse
@@ -1643,11 +1658,11 @@ export function LogMealScreen() {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.recentMealsScroll}
                   >
-                    {uniqueRecentMeals.map((meal: FoodEntry) => (
+                    {quickMeals.map(({ entry: meal, reason }) => (
                       <Pressable
                         key={meal.id}
                         accessibilityRole="button"
-                        accessibilityLabel={`Reuse meal ${meal.name}`}
+                        accessibilityLabel={`Reuse meal ${meal.name}${QUICK_MEAL_REASON_LABEL[reason] ? `, ${QUICK_MEAL_REASON_LABEL[reason].toLowerCase()}` : ""}`}
                         disabled={snapping || refining || submitting}
                         onPress={() => onSelectRecentMeal(meal)}
                         style={({ pressed }) => [
@@ -1665,6 +1680,15 @@ export function LogMealScreen() {
                             : "—"}
                           {meal.proteinG != null ? ` · ${meal.proteinG}P` : ""}
                         </ThemedText>
+                        {QUICK_MEAL_REASON_LABEL[reason] ? (
+                          <ThemedText
+                            type="footnote"
+                            themeColor="textSecondary"
+                            testID="quick-meal-reason"
+                          >
+                            {QUICK_MEAL_REASON_LABEL[reason]}
+                          </ThemedText>
+                        ) : null}
                       </Pressable>
                     ))}
                   </ScrollView>

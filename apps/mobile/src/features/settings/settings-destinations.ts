@@ -65,6 +65,7 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
       "first-meal",
       "evening-catch-up",
       "weekly-review",
+      "weigh-in",
     ],
   },
   appearance: {

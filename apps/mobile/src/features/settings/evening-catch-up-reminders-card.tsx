@@ -15,6 +15,22 @@ import {
   getIsoLocalDate,
   isFoodDayCompleted,
 } from "@/features/log-meal/food-day-completion";
+import { fetchFoodDay } from "@/features/log-meal/meal-lifecycle-data";
+import { ReminderTimeSuggestionRow } from "./reminder-time-suggestion-row";
+import { useReminderTimeSuggestion } from "./use-reminder-time-suggestion";
+
+/** True when a meal is already logged today at or after 6:00 PM (unknown: false). */
+const hasLoggedMealAfter6Pm = async (): Promise<boolean> => {
+  try {
+    const day = await fetchFoodDay(getIsoLocalDate());
+    if (day.message !== null) return false;
+    return day.entries.some(
+      (entry) => new Date(entry.consumedAt).getHours() >= 18,
+    );
+  } catch {
+    return false;
+  }
+};
 
 export function EveningCatchUpRemindersCard({
   userId,
@@ -27,12 +43,23 @@ export function EveningCatchUpRemindersCard({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // The last persisted schedule; suggestions compare against it, not the picker.
+  const [saved, setSaved] = useState({
+    enabled: false,
+    hour: DEFAULT_EVENING_REMINDERS.hour,
+    minute: DEFAULT_EVENING_REMINDERS.minute,
+  });
 
   useEffect(() => {
     let active = true;
     void loadEveningReminders(userId).then((stored) => {
       if (!active) return;
       setSettings(stored);
+      setSaved({
+        enabled: stored.enabled,
+        hour: stored.hour,
+        minute: stored.minute,
+      });
       setLoading(false);
     });
     return () => {
@@ -40,18 +67,29 @@ export function EveningCatchUpRemindersCard({
     };
   }, [userId]);
 
-  const save = async () => {
+  const { suggestion, dismiss } = useReminderTimeSuggestion({
+    userId,
+    kind: "evening",
+    enabled: saved.enabled,
+    saved,
+  });
+
+  const save = async (next: EveningCatchUpReminderSettings = settings) => {
     setSaving(true);
     setMessage(null);
     const todayCompleted = await isFoodDayCompleted(userId, getIsoLocalDate());
+    // Saving after dinner must not bring back today's already-answered prompt.
+    const hasMealAfter6Pm = next.enabled
+      ? await hasLoggedMealAfter6Pm()
+      : false;
     const result = await applyEveningReminders(
       userId,
       {
-        enabled: settings.enabled,
-        hour: settings.hour,
-        minute: settings.minute,
+        enabled: next.enabled,
+        hour: next.hour,
+        minute: next.minute,
       },
-      { todayCompleted },
+      { todayCompleted, hasMealAfter6Pm },
     );
     setSaving(false);
     if (!result.ok) {
@@ -63,6 +101,11 @@ export function EveningCatchUpRemindersCard({
       return;
     }
     setSettings(result.settings);
+    setSaved({
+      enabled: result.settings.enabled,
+      hour: result.settings.hour,
+      minute: result.settings.minute,
+    });
     setMessage(
       result.settings.enabled
         ? `Evening catch-up reminder scheduled for ${formatTime12(result.settings.hour, result.settings.minute)}.`
@@ -117,6 +160,26 @@ export function EveningCatchUpRemindersCard({
                 />
               </View>
             </ListGroup>
+          ) : null}
+
+          {suggestion !== null ? (
+            <ReminderTimeSuggestionRow
+              kind="evening"
+              suggestion={suggestion}
+              busy={saving}
+              onApply={() => {
+                // Same confirmed save path as a manual change.
+                const next = {
+                  ...settings,
+                  enabled: true,
+                  hour: suggestion.hour,
+                  minute: suggestion.minute,
+                };
+                setSettings(next);
+                void save(next);
+              }}
+              onDismiss={() => void dismiss()}
+            />
           ) : null}
 
           <Button

@@ -52,6 +52,7 @@ vi.mock("./recurring-meal-suggestion-data", () => ({
 }));
 
 import {
+  describeWeekdays,
   RecurringMealSuggestionCard,
   RecurringMealSuggestionCardView,
   type RecurringMealSuggestionPresentation,
@@ -161,6 +162,50 @@ describe("recurring meal suggestion presentation", () => {
     expect(control.props.style[0].minHeight).toBe(44);
     expect(mocks.accept).toHaveBeenCalledWith();
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+  it("states the two-week weekday evidence and accepts the proposed days by default", () => {
+    model.candidate = {
+      ...candidate,
+      name: "Oats",
+      localTime: "07:45",
+      reasonCode: "weekly_pattern",
+      // Friday 2026-10-16: tomorrow is Saturday, so Monday is the first proposed day.
+      startLocalDate: "2026-10-17",
+      weekdays: [1, 2, 3, 4, 5],
+    };
+    const tree = render();
+    expect(text(tree)).toContain(
+      "You’ve had “Oats” on Mon–Fri for two weeks. Log it automatically on those days at 07:45, starting 2026-10-19?",
+    );
+    expect(text(tree)).not.toContain("3 days in a row");
+    expect(text(tree)).not.toContain("every day");
+    expect(
+      find(
+        tree,
+        "Auto-log Oats every day at 07:45 starting 2026-10-17 in Europe/Bratislava",
+      ),
+    ).toBeNull();
+    const control = press(
+      tree,
+      "Auto-log Oats on Monday to Friday at 07:45 starting 2026-10-19 in Europe/Bratislava",
+    );
+    expect(control.props.style[0].minHeight).toBe(44);
+    expect(mocks.accept).toHaveBeenCalledWith();
+    press(render(), "Change");
+    expect(
+      find(render(), "Auto-log on Mon").props.accessibilityState.selected,
+    ).toBe(true);
+    expect(
+      find(render(), "Auto-log on Sun").props.accessibilityState.selected,
+    ).toBe(false);
+  });
+  it("summarizes weekday sets compactly", () => {
+    expect(describeWeekdays([1, 2, 3, 4, 5])).toBe("Mon–Fri");
+    expect(describeWeekdays([1, 2, 3, 4, 5], true)).toBe("Monday to Friday");
+    expect(describeWeekdays([1, 3, 5], true)).toBe("Monday, Wednesday, Friday");
+    expect(describeWeekdays([5, 1, 3])).toBe("Mon, Wed, Fri");
+    expect(describeWeekdays([0, 6])).toBe("Sat, Sun");
+    expect(describeWeekdays([0, 1, 2, 5, 6])).toBe("Mon, Tue, Fri–Sun");
   });
   it("customizes proposal defaults through the same accept operation and previews the first selected date", () => {
     press(render(), "Change");

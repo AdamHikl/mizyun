@@ -445,7 +445,54 @@ describe("account-data-management", () => {
     expect(eveningCancelled).toEqual(["evening-notif-1"]);
   });
 
-  it("clearLocalUserData purges offline cache, workout preferences, and step opt-in", async () => {
+  it("clearLocalUserData cancels weigh-in reminders and erases suggestion dismissals", async () => {
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const values = new Map<string, string>([
+      [
+        `mizyun.weigh-in-reminders.${userId}`,
+        JSON.stringify({
+          enabled: true,
+          hour: 7,
+          minute: 30,
+          weekdays: [2, 5],
+          notificationIds: ["weigh-1", "weigh-2"],
+        }),
+      ],
+      [`mizyun.reminder-suggestion-dismissed.${userId}.first-meal`, "07:30"],
+      [`mizyun.reminder-suggestion-dismissed.${userId}.evening`, "21:00"],
+    ]);
+    const reminderStore = {
+      getItemAsync: async (k: string) => values.get(k) ?? null,
+      setItemAsync: async (k: string, v: string) => {
+        values.set(k, v);
+      },
+      deleteItemAsync: async (k: string) => {
+        values.delete(k);
+      },
+    };
+    const cancelled: string[] = [];
+    await clearLocalUserData(userId, {
+      clearHealthExports: async () => undefined,
+      reminderStore,
+      weighInReminderScheduler: {
+        ensureChannel: async () => undefined,
+        getPermission: async () => "granted" as const,
+        requestPermission: async () => "granted" as const,
+        scheduleAtDate: async () => "unused",
+        cancel: async (id: string) => {
+          cancelled.push(id);
+        },
+      },
+    });
+    expect(cancelled.sort()).toEqual(["weigh-1", "weigh-2"]);
+    expect(
+      [...values.keys()].filter(
+        (key) => key.includes("weigh-in") || key.includes("suggestion"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("clearLocalUserData purges offline cache, workout preferences, routine dismissals, and step opt-in", async () => {
     const userId = "00000000-0000-4000-8000-000000000001";
     const cacheMap = new Map<string, string>([
       [`mizyun.offline-cache.profile.${userId}`, '{"profile":{}}'],
@@ -464,6 +511,7 @@ describe("account-data-management", () => {
     const workoutPrefMap = new Map<string, string>([
       [`mizyun.workout-preferences.${userId}`, '{"defaultRestSeconds":90}'],
       [`mizyun.health-steps.enabled.${userId}`, "1"],
+      [`mizyun.workout-routine-suggestion.${userId}`, "[]"],
     ]);
     const workoutPreferencesStore = {
       getItemAsync: async (k: string) => workoutPrefMap.get(k) ?? null,
