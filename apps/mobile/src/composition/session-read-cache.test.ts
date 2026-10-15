@@ -327,10 +327,123 @@ describe("personal screen navigation reads", () => {
       path: "/v1/workouts/id",
       body: { name: "updated" },
     });
-    pending.resolve(success);
-    expect((await old).ok).toBe(false);
+    pending.resolve({ ok: true, value: { revoked: true } });
+    // The pre-write response is never returned; the caller re-reads.
+    expect(await old).toEqual(success);
     await f.cache.request(options);
     expect(f.request).toHaveBeenCalledTimes(3);
+  });
+  it("re-reads instead of reporting a missing session when a refresh retires an in-flight read", async () => {
+    const f = fixture();
+    const pending = deferred();
+    f.request.mockReturnValueOnce(pending.promise);
+    const read = f.cache.request({
+      ...options,
+      expectedUserId: "alice",
+      isCurrent: () => true,
+    });
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+    f.cache.clear();
+    pending.resolve(success);
+    expect(await read).toEqual(success);
+    expect(f.request).toHaveBeenCalledTimes(2);
+  });
+  it("re-reads with the rotated token for the same account", async () => {
+    const f = fixture();
+    const pending = deferred();
+    f.request.mockReturnValueOnce(pending.promise);
+    const read = f.cache.request(options);
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+    f.setSession({ ...alice, accessToken: "rotated" });
+    pending.resolve(success);
+    expect(await read).toEqual(success);
+    expect(f.request).toHaveBeenCalledTimes(2);
+  });
+  it("waits for a pending write before returning a retried read", async () => {
+    const f = fixture();
+    const stale = { ok: true as const, value: { revoked: true } };
+    const read = deferred();
+    const write = deferred();
+    f.request.mockReturnValueOnce(read.promise);
+    const reading = f.cache.request(options);
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+    f.request.mockReturnValueOnce(write.promise);
+    const writing = f.cache.request({
+      method: "PATCH",
+      path: "/v1/workouts/id",
+      body: { name: "updated" },
+    });
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(2));
+    read.resolve(stale);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // The retired read does not re-read until the write settles.
+    expect(f.request).toHaveBeenCalledTimes(2);
+    f.request.mockResolvedValue(success);
+    write.resolve(success);
+    await writing;
+    expect(await reading).toEqual(success);
+    expect(f.request).toHaveBeenCalledTimes(3);
+  });
+  it("caps retries and never retries a backgrounded or stale caller", async () => {
+    const f = fixture();
+    f.request.mockImplementation(async () => {
+      f.cache.clear();
+      return success;
+    });
+    expect((await f.cache.request(options)).ok).toBe(false);
+    expect(f.request).toHaveBeenCalledTimes(3);
+
+    f.request.mockReset();
+    f.request.mockImplementation(async () => {
+      f.cache.setForeground(false);
+      return success;
+    });
+    expect((await f.cache.request(options)).ok).toBe(false);
+    expect(f.request).toHaveBeenCalledTimes(1);
+    f.cache.setForeground(true);
+
+    f.request.mockReset();
+    let current = true;
+    f.request.mockImplementation(async () => {
+      current = false;
+      f.cache.clear();
+      return success;
+    });
+    expect(
+      (await f.cache.request({ ...options, isCurrent: () => current })).ok,
+    ).toBe(false);
+    expect(f.request).toHaveBeenCalledTimes(1);
+  });
+  it("lifts a token denial only for a new token of that owner", async () => {
+    const f = fixture();
+    f.request.mockResolvedValueOnce({
+      ok: false,
+      error: { kind: "session_expired" },
+    });
+    await f.cache.request(options);
+    f.request.mockImplementationOnce(async () => {
+      f.cache.clear();
+      return success;
+    });
+    expect((await f.cache.request(options)).ok).toBe(false);
+    f.setSession({ ...alice, accessToken: "signed-in-again" });
+    f.request.mockImplementationOnce(async () => {
+      f.cache.clear();
+      return success;
+    });
+    expect(await f.cache.request(options)).toEqual(success);
+  });
+  it("still retires a read after a server denial instead of retrying it", async () => {
+    const f = fixture();
+    f.request.mockResolvedValueOnce({
+      ok: false,
+      error: { kind: "session_expired" },
+    });
+    expect(await f.cache.request(options)).toEqual({
+      ok: false,
+      error: { kind: "no_session" },
+    });
+    expect(f.request).toHaveBeenCalledTimes(1);
   });
   it("bypasses authority, Community, signed media and custom cancellation", async () => {
     const f = fixture();

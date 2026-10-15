@@ -80,7 +80,11 @@ export class SessionReadCache implements ApiClient {
   private hydration: Promise<void> | null = null;
   private listeners = new Set<(path: string) => void>();
   private persistTimer: ReturnType<typeof setTimeout> | undefined;
-  private deniedOwners = new Set<string>();
+  // Owner -> the access token the server denied.
+  private deniedOwners = new Map<string, string>();
+  private drained: (() => void)[] = [];
+  // Storage generations produced by this cache's own write purges.
+  private ownPurges = new Set<string>();
 
   constructor(
     private raw: ApiClient,
@@ -118,6 +122,7 @@ export class SessionReadCache implements ApiClient {
         } finally {
           this.writes--;
           this.clear();
+          this.release();
         }
       };
   }
@@ -189,7 +194,20 @@ export class SessionReadCache implements ApiClient {
   private async purgeSaved(owner?: string): Promise<void> {
     clearTimeout(this.persistTimer);
     const userId = owner ?? (await this.session().catch(() => null))?.user.id;
-    if (userId && this.storage) await this.storage.purge(userId);
+    if (!userId || !this.storage) return;
+    // The adapter fences the generation synchronously when purge starts.
+    const purge = this.storage.purge(userId);
+    const generation = this.storage.generation?.(userId);
+    if (generation !== undefined) this.ownPurges.add(`${userId}:${generation}`);
+    await purge;
+  }
+  /** True when someone other than this cache (account cleanup) purged. */
+  private cleanedUp(userId: string, from: number | undefined): boolean {
+    const to = this.storage?.generation?.(userId);
+    if (from === undefined || to === undefined) return from !== to;
+    for (let generation = from + 1; generation <= to; generation++)
+      if (!this.ownPurges.has(`${userId}:${generation}`)) return true;
+    return false;
   }
   version(): string {
     const now = new Date(this.now());
@@ -307,12 +325,53 @@ export class SessionReadCache implements ApiClient {
       } finally {
         this.writes--;
         this.clear();
+        this.release();
       }
     }
     if (!cacheable(options)) return this.raw.request<T>(options);
+    // Token rotation, a write or an explicit refresh retires in-flight reads.
+    // That is not a sign-out: retry for a caller that is still current, for
+    // the same account, instead of reporting a missing session.
+    let attempt = options;
+    for (let tries = 1; ; tries++) {
+      const outcome = await this.read<T>(attempt);
+      if ("result" in outcome) return outcome.result;
+      if (
+        tries >= 3 ||
+        !outcome.owner ||
+        (attempt.expectedUserId && attempt.expectedUserId !== outcome.owner) ||
+        this.deniedOwners.has(outcome.owner) ||
+        !this.foreground ||
+        options.isCurrent?.() === false
+      )
+        return retired();
+      attempt = { ...options, expectedUserId: outcome.owner };
+      await this.writesDrained();
+    }
+  }
+  private release(): void {
+    if (this.writes) return;
+    for (const resolve of this.drained.splice(0)) resolve();
+  }
+  /** A retry normally observes the write that retired it. */
+  private writesDrained(): Promise<void> {
+    if (!this.writes) return Promise.resolve();
+    return new Promise((resolve) => {
+      // A long write (a Coach reply) must not stall other screens' retries.
+      const timer = setTimeout(resolve, 5_000);
+      this.drained.push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+  private async read<T>(
+    options: RequestOptions,
+  ): Promise<{ result: Result<T, ApiError> } | { owner: string | null }> {
     const beforeLookup = this.revision;
     const session = await this.session().catch(() => null);
-    if (!this.foreground || beforeLookup !== this.revision) return retired();
+    if (!this.foreground || beforeLookup !== this.revision)
+      return { owner: session?.user.id ?? null };
     const identity = this.key(session);
     const day = new Date(this.now()).toDateString();
     const utcOffset = new Date(this.now()).getTimezoneOffset();
@@ -326,17 +385,21 @@ export class SessionReadCache implements ApiClient {
       this.day = day;
       this.utcOffset = utcOffset;
     }
+    // A different token for a previously denied owner is a fresh sign-in.
+    const denied = session && this.deniedOwners.get(session.user.id);
+    if (denied && denied !== session.accessToken)
+      this.deniedOwners.delete(session.user.id);
     if (
       !session ||
       (options.expectedUserId && options.expectedUserId !== session.user.id) ||
       options.isCurrent?.() === false
     )
-      return retired();
+      return { owner: session?.user.id ?? null };
     const revision = this.revision;
     const storageGeneration = this.storage?.generation?.(session.user.id);
     if (!this.writes) await this.hydrate(session.user.id, revision);
     if (revision !== this.revision || options.isCurrent?.() === false)
-      return retired();
+      return { owner: session?.user.id ?? null };
     const key = options.path;
     let entry = this.entries.get(key);
     if (entry && entry.storageGeneration !== storageGeneration) {
@@ -454,7 +517,7 @@ export class SessionReadCache implements ApiClient {
                   [401, 403].includes(result.error.status)))
             ) {
               void this.purgeSaved(session.user.id).catch(() => {});
-              this.deniedOwners.add(session.user.id);
+              this.deniedOwners.set(session.user.id, session.accessToken);
               this.clear();
               if (saved) this.publish(key);
             }
@@ -477,13 +540,18 @@ export class SessionReadCache implements ApiClient {
     }
     const result = await promise;
     const current = await this.session().catch(() => null);
+    // Account cleanup purged this owner's data: the read stays retired
+    // rather than repopulating storage after sign-out or erasure.
+    if (this.cleanedUp(session.user.id, storageGeneration))
+      return { owner: null };
+    if (storageGeneration !== this.storage?.generation?.(session.user.id))
+      return { owner: session.user.id };
     if (
       revision !== this.revision ||
-      storageGeneration !== this.storage?.generation?.(session.user.id) ||
       identity !== this.key(current) ||
       options.isCurrent?.() === false
     )
-      return retired();
-    return result as Result<T, ApiError>;
+      return { owner: session?.user.id ?? null };
+    return { result: result as Result<T, ApiError> };
   }
 }

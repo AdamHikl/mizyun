@@ -304,6 +304,50 @@ describe("saved personal startup reads", () => {
     expect(f.storage.save).not.toHaveBeenCalled();
     f.cache.clear();
   });
+  it("never retries a read retired by account cleanup and a coincident refresh", async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    let generation = 0;
+    f.storage.generation = () => generation;
+    f.records.length = 0;
+    const transport = deferred<any>();
+    f.request.mockReturnValue(transport.promise);
+    const pending = f.cache.request(options);
+    await vi.advanceTimersByTimeAsync(0);
+    generation++;
+    await f.storage.purge("alice");
+    f.cache.clear();
+    f.request.mockResolvedValue({ ok: true, value: fresh });
+    transport.resolve({ ok: true, value: fresh });
+    expect((await pending).ok).toBe(false);
+    expect(f.request).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(f.storage.save).not.toHaveBeenCalled();
+    f.cache.clear();
+  });
+  it("still retries a read retired by this cache's own write purge", async () => {
+    const f = fixture();
+    let generation = 0;
+    f.storage.generation = () => generation;
+    vi.mocked(f.storage.purge).mockImplementation(async () => {
+      generation++;
+      f.records.length = 0;
+    });
+    f.records.length = 0;
+    const transport = deferred<any>();
+    f.request.mockReturnValueOnce(transport.promise);
+    const pending = f.cache.request(options);
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+    f.request.mockResolvedValueOnce({ ok: true, value: { id: "synthetic" } });
+    await f.cache.request({
+      method: "PATCH",
+      path: "/v1/workouts/id",
+      body: { name: "updated" },
+    });
+    transport.resolve({ ok: true, value: saved });
+    f.request.mockResolvedValue({ ok: true, value: fresh });
+    expect(await pending).toEqual({ ok: true, value: fresh });
+  });
   it("removes denied snapshots once even when keychain cleanup fails", async () => {
     const f = fixture();
     f.request.mockResolvedValue({
