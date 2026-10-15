@@ -1187,6 +1187,12 @@ describe("SupabaseAccountRepository", () => {
       never: true,
     }));
     const suggestionPreferences = [{ user_id: testUserId, enabled: false }];
+    const calorieProposals = Array.from({ length: 501 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${index.toString(16).padStart(12, "0")}`,
+      user_id: testUserId,
+      status: "declined",
+      created_at: "2026-10-12T08:00:00+00:00",
+    }));
     const suggestionReceipts = Array.from({ length: 503 }, (_, index) => ({
       user_id: testUserId,
       operation_id: `operation-${index}`,
@@ -1243,19 +1249,21 @@ describe("SupabaseAccountRepository", () => {
               };
             }
             const rows =
-              table === "recurring_meal_suggestion_states"
-                ? suggestionStates
-                : table === "recurring_meal_suggestion_preferences"
-                  ? suggestionPreferences
-                  : table === "recurring_meal_suggestion_receipts"
-                    ? suggestionReceipts
-                    : table === "recurring_meal_schedules"
-                      ? schedules
-                      : table === "recurring_meal_occurrences"
-                        ? occurrences
-                        : table === "food_media_paths"
-                          ? mealPaths
-                          : [];
+              table === "calorie_adjustment_proposals"
+                ? calorieProposals
+                : table === "recurring_meal_suggestion_states"
+                  ? suggestionStates
+                  : table === "recurring_meal_suggestion_preferences"
+                    ? suggestionPreferences
+                    : table === "recurring_meal_suggestion_receipts"
+                      ? suggestionReceipts
+                      : table === "recurring_meal_schedules"
+                        ? schedules
+                        : table === "recurring_meal_occurrences"
+                          ? occurrences
+                          : table === "food_media_paths"
+                            ? mealPaths
+                            : [];
             return { data: rows.slice(from, to + 1), error: null };
           }),
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -1280,6 +1288,14 @@ describe("SupabaseAccountRepository", () => {
     expect(result.recurringMeals?.suggestionReceipts).toEqual(
       suggestionReceipts,
     );
+    // ENG-08: every weekly calorie proposal is exported, across pages,
+    // through the owner's token and filtered by owner.
+    expect(result.calorieAdjustmentProposals).toEqual(calorieProposals);
+    expect(
+      queries
+        .filter((q) => q.table === "calorie_adjustment_proposals")
+        .every((q) => q.column === "user_id" && q.owner === testUserId),
+    ).toBe(true);
     for (const table of [
       "recurring_meal_suggestion_states",
       "recurring_meal_suggestion_preferences",

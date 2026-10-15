@@ -45,7 +45,7 @@ export const buildCoachGrounding = async (
   now: Date,
 ): Promise<readonly AgentGroundingItem[]> => {
   const since = new Date(now.getTime() - 28 * 86_400_000);
-  const [profile, goal, foodEntries, workouts, measurements, routineWorkouts] =
+  const [profile, goal, foodEntries, workouts, weightHistory, routineWorkouts] =
     await Promise.all([
       dependencies.profileRepository.getOrCreate(userId, { now, accessToken }),
       dependencies.goalRepository.getActive(userId, { accessToken }),
@@ -62,10 +62,11 @@ export const buildCoachGrounding = async (
         limit: 100,
         accessToken,
       }),
+      // 60 days: the energy summary's weight-trend window (ENG-07).
       dependencies.bodyMeasurementRepository.list(userId, {
-        from: since,
+        from: new Date(now.getTime() - 60 * 86_400_000),
         to: now,
-        limit: 100,
+        limit: 500,
         accessToken,
       }),
       dependencies.workoutRepository.list(userId, {
@@ -77,6 +78,9 @@ export const buildCoachGrounding = async (
         accessToken,
       }),
     ]);
+  const measurements = weightHistory
+    .filter((measurement) => measurement.measuredAt >= since)
+    .slice(0, 100);
   // Run dates are authoritative calendar days; transport noon is never an observation.
   const runFrom = runningDate(since, profile.timezone);
   const runTo = runningDate(now, profile.timezone);
@@ -197,10 +201,23 @@ export const buildCoachGrounding = async (
       .filter((workout) => workout.completedAt !== null)
       .map((workout) => dayIso(workout.completedAt as Date)),
   );
+  // Same fallback as GET /v1/energy/summary: an older single reading
+  // still feeds BMR when nothing falls inside the 60-day trend window.
+  const latestMeasurement =
+    weightHistory[0] ??
+    (
+      await dependencies.bodyMeasurementRepository.list(userId, {
+        from: null,
+        to: null,
+        limit: 1,
+        accessToken,
+      })
+    )[0] ??
+    null;
   const energyResult = computeEnergy(
     {
       profile,
-      latestBodyMeasurement: measurements[0] ?? null,
+      latestBodyMeasurement: latestMeasurement,
       activeGoal: goal,
       activityLevel: profile.activityLevel,
       sexAtBirth: profile.sexAtBirth,
@@ -208,6 +225,8 @@ export const buildCoachGrounding = async (
       recentWorkoutsDayCount: recentWorkoutDays.size,
       consumedKcalToday: todayNutrition?.caloriesKcal ?? null,
       now,
+      weightTrend: summariseWeightTrend(weightHistory),
+      calorieCalibrationKcal: goal?.calorieCalibrationKcal ?? 0,
     },
     userId,
   );

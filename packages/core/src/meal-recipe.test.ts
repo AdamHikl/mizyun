@@ -13,7 +13,7 @@ type TestContextInput = {
 const input = (): TestContextInput => ({
   energy: {
     complete: true,
-    formulaVersion: "v1-mifflin-st-jeor-2026-07",
+    formulaVersion: "v2-mifflin-rate-based-2026-10",
     targetProteinG: 150,
     targetCarbohydrateG: 300,
     targetFatG: 60,
@@ -30,7 +30,7 @@ const input = (): TestContextInput => ({
     timeZone: "Europe/Bratislava",
     generatedAt: "2026-10-12T11:59:00Z",
     expiresAt: "2026-10-12T13:00:00Z",
-    energyFormulaVersion: "v1-mifflin-st-jeor-2026-07",
+    energyFormulaVersion: "v2-mifflin-rate-based-2026-10",
     goalRevision: "goal-1",
     intakeRevision: "intake-2",
     constraintsRevision: "constraints-1",

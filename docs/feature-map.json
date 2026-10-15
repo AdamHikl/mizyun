@@ -371,7 +371,7 @@
     {
       "id": "profile-goals-energy",
       "title": "Profile, Goals & Energy Engine",
-      "summary": "User onboarding profile, target goals, deterministic Mifflin-St Jeor TDEE/BMR calculations, surplus/deficit dashboard, and weight trends.",
+      "summary": "User onboarding profile, target goals and rate-based goal modes, deterministic Mifflin-St Jeor TDEE/BMR with trend weight and adaptive maintenance, weekly calorie review proposals, surplus/deficit dashboard, and weight trends.",
       "aliases": [
         "profile",
         "goals",
@@ -379,7 +379,11 @@
         "tdee",
         "bmr",
         "weight",
-        "dashboard"
+        "dashboard",
+        "goal mode",
+        "lean bulk",
+        "weekly review",
+        "calorie adjustment"
       ],
       "entryPoints": [
         "apps/api/src/modules/profile/routes.ts",
@@ -393,13 +397,17 @@
         "apps/mobile/src/features/dashboard",
         "apps/mobile/src/features/onboarding",
         "apps/mobile/src/features/energy-setup",
-        "apps/mobile/src/features/offline-cache"
+        "apps/mobile/src/features/offline-cache",
+        "apps/mobile/src/features/weekly-review"
       ],
       "contracts": ["packages/contracts/src/energy.ts"],
       "domainPort": [
         "packages/core/src/energy.ts",
         "packages/core/src/profile.ts",
-        "packages/core/src/goal.ts"
+        "packages/core/src/goal.ts",
+        "packages/core/src/goal-modes.ts",
+        "packages/core/src/calorie-review.ts",
+        "packages/core/src/calorie-adjustment.ts"
       ],
       "api": [
         "apps/api/src/modules/profile/routes.ts",
@@ -412,18 +420,22 @@
         "apps/mobile/src/features/dashboard/dashboard-data.ts",
         "apps/mobile/src/features/onboarding/onboarding-state.ts",
         "apps/mobile/src/features/energy-setup/energy-profile-data.ts",
-        "apps/mobile/src/features/offline-cache/offline-cache-storage.ts"
+        "apps/mobile/src/features/offline-cache/offline-cache-storage.ts",
+        "apps/mobile/src/app/weekly-review.tsx",
+        "apps/mobile/src/features/weekly-review/weekly-review-screen.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/profile-repository.ts",
-        "packages/adapters/supabase-server/src/goal-repository.ts"
+        "packages/adapters/supabase-server/src/goal-repository.ts",
+        "packages/adapters/supabase-server/src/calorie-adjustment-repository.ts"
       ],
-      "dataTables": ["profiles", "goals"],
+      "dataTables": ["profiles", "goals", "calorie_adjustment_proposals"],
       "migrationPaths": [
         "supabase/migrations/20260714100000_foundation.sql",
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260714104000_auth_profile_trigger.sql",
-        "supabase/migrations/20260908140000_server_owned_tier_authority.sql"
+        "supabase/migrations/20260908140000_server_owned_tier_authority.sql",
+        "supabase/migrations/20261015090000_calorie_adjustment_proposals.sql"
       ],
       "tests": [
         "apps/api/src/modules/profile/routes.test.ts",
@@ -434,7 +446,12 @@
         "apps/mobile/src/features/offline-cache/offline-cache-storage.test.ts",
         "packages/core/src/energy.test.ts",
         "packages/core/src/profile.test.ts",
-        "packages/core/src/goal.test.ts"
+        "packages/core/src/goal.test.ts",
+        "packages/core/src/goal-modes.test.ts",
+        "packages/core/src/calorie-review.test.ts",
+        "packages/adapters/supabase-server/src/calorie-adjustment-repository.test.ts",
+        "apps/mobile/src/features/weekly-review/weekly-review-controller.test.ts",
+        "supabase/tests/database/0045_calorie_adjustment_proposals.test.sql"
       ],
       "relations": [
         {

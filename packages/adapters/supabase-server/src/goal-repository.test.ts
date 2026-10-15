@@ -200,3 +200,76 @@ describe("SupabaseGoalRepository.fromRow", () => {
     expect(active?.reviewDate).toBe("2026-03-01");
   });
 });
+
+describe("SupabaseGoalRepository calorie calibration (ENG-08)", () => {
+  it("reads calorie_calibration_kcal and defaults a missing column to 0", async () => {
+    const withCalibration = new SupabaseGoalRepository({
+      clientFor: () =>
+        fakeClient({
+          selectMaybeSingle: {
+            data: { ...goalRow, calorie_calibration_kcal: -150 },
+            error: null,
+          },
+        }),
+    });
+    const legacy = new SupabaseGoalRepository({
+      clientFor: () =>
+        fakeClient({ selectMaybeSingle: { data: goalRow, error: null } }),
+    });
+    const userId = "00000000-0000-4000-8000-000000000001" as UserId;
+    expect(
+      (await withCalibration.getActive(userId, { accessToken: "token" }))
+        ?.calorieCalibrationKcal,
+    ).toBe(-150);
+    expect(
+      (await legacy.getActive(userId, { accessToken: "token" }))
+        ?.calorieCalibrationKcal,
+    ).toBe(0);
+  });
+
+  it("never writes calibration on goal update", async () => {
+    let payload: Record<string, unknown> | undefined;
+    const client = fakeClient({
+      updateSingle: {
+        data: { ...goalRow, calorie_calibration_kcal: -150 },
+        error: null,
+      },
+    });
+    const from = client.from.bind(client);
+    const spyClient = {
+      ...client,
+      from: (table: string) => {
+        const builder = from(table) as unknown as {
+          update: (row: Record<string, unknown>) => unknown;
+        };
+        const original = builder.update;
+        builder.update = (row: Record<string, unknown>) => {
+          payload = row;
+          return original.call(builder, row);
+        };
+        return builder as never;
+      },
+    } as RepositorySupabaseClient;
+    const repo = new SupabaseGoalRepository({ clientFor: () => spyClient });
+    const saved = await repo.update(
+      "00000000-0000-4000-8000-000000000001" as UserId,
+      {
+        id: goalRow.id,
+        userId: goalRow.user_id as UserId,
+        kind: "cut",
+        status: "active",
+        pace: "gradual",
+        target: { weightKg: 78 },
+        startsOn: "2026-01-01",
+        targetDate: "2026-04-01",
+        calorieCalibrationKcal: 900,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { accessToken: "token" },
+    );
+    expect(payload).toBeDefined();
+    expect(payload).not.toHaveProperty("calorie_calibration_kcal");
+    expect(saved.calorieCalibrationKcal).toBe(-150);
+  });
+});

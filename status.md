@@ -1,6 +1,6 @@
 # Mizyun status
 
-> Updated 2026-10-14 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-15 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
@@ -23,19 +23,19 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#244 UI:** phases1–3 merged (main075a7647); Adam checked iPhone build56777345 Oct14: looks good. Open: VoiceOver/Android/populated-edge checks.
+- **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok(rollback); gatePASS(590core/2691mobile/1122API+15skips). Next: Dev+device; #249/#250. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
 
-- **#239:** consent/reminders;289tests/review/gatePASS; Dev installed; native next. [Proof](docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md).
+- **#244 UI:** phases1–3 main075a7647; Adam OK on iPhone56777345. Open: VoiceOver/Android/populated-edge.
 
-- **#238 meals:** Community608/SQL148/review/gatePASS; Dev delivered. iOS simulator deferred by Adam; native/Prod open. [Evidence](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md).
+- **#239:** consent/reminders gatePASS; Dev installed; native next. [Proof](docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md).
 
-- **#237:** 438/review/gatePASS; native deferred. [Proof](docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md).
+- **#238 meals:** review/gatePASS; Dev delivered; iOS sim deferred by Adam; native/Prod open. [Evidence](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md).
 
-- **Agents #236:** Claude Code Sonnet/Opus routing; bounded reviews/stable gates. [Rules](.agents/rules/model-routing.md).
+- **#237:** gatePASS; native deferred. [Proof](docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md).
 
 - **#234/#235:** Dev81.67%; Material1.14/resizable; build/gate/API36 rotation PASS; RN/older/device/Play open. [Evidence](docs/ANDROID_WINDOW_DEV_EVIDENCE_2026-10-11.md).
 
-- **#182 (Oct12):** first-render cache; combined gatePASS; signed-in native next. [Evidence](docs/FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md).
+- **#182:** first-render cache gatePASS; native next. [Evidence](docs/FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md).
 
 - **#232/INT-07:** foreground Watch/Wear source/review/gatePASS; watch/phone compile. Adam deferred physical; Health/privacy/Prod exits open. [Evidence](docs/WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md).
 

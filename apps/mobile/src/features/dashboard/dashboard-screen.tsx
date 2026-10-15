@@ -86,6 +86,9 @@ import {
 } from "../log-meal/first-meal-reminders";
 import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminders";
 import { DailyNutrients } from "./daily-nutrients";
+import { WeeklyReviewPopup } from "../weekly-review/weekly-review-modal";
+import { reconcileWeeklyReviewReminder } from "../weekly-review/weekly-review-notification";
+import { energyPlanNotes, hasEnergyPlanNotes } from "./energy-plan-notes";
 
 import {
   combineNutritionReview,
@@ -648,6 +651,18 @@ export function DashboardScreen() {
             calorieTargetReached,
             hasMealAfter6Pm,
           });
+          const energySummary = energy.value;
+          if (energySummary) {
+            // Best effort and isolated: a reminder problem must never affect
+            // the dashboard update.
+            void Promise.resolve()
+              .then(() =>
+                reconcileWeeklyReviewReminder(userId, {
+                  hasActiveGoal: energySummary.inputs.goalKind !== null,
+                }),
+              )
+              .catch(() => {});
+          }
         }
 
         return {
@@ -1012,6 +1027,7 @@ export function DashboardScreen() {
 
   return (
     <ThemedView style={styles.page}>
+      <WeeklyReviewPopup />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <TabHeader title="Today" onLayout={onHeaderLayout} />
         <ScrollView
@@ -1204,6 +1220,7 @@ export function DashboardScreen() {
           <EnergyCard
             summary={metrics.energy}
             caloriesToday={metrics.caloriesToday}
+            unitSystem={unitSystem}
           />
           <RefreshNotice
             label="Energy balance"
@@ -1833,9 +1850,11 @@ function MacroBar(props: {
 function EnergyCard(props: {
   readonly summary: EnergySummary | null;
   readonly caloriesToday: number | null;
+  readonly unitSystem: "metric" | "imperial";
 }) {
   const summary = props.summary;
   const complete = summary?.complete === true;
+  const planNotes = energyPlanNotes(summary, props.unitSystem);
   const [showDetails, setShowDetails] = useState(false);
   return (
     <Card>
@@ -1870,6 +1889,45 @@ function EnergyCard(props: {
             {formatCalories(props.caloriesToday)} eaten ·{" "}
             {formatCalories(summary.dailyTargetKcal)} target
           </ThemedText>
+          {hasEnergyPlanNotes(planNotes) ? (
+            <View style={styles.planNotes}>
+              {planNotes.mode ? (
+                <ThemedText type="smallBold">{planNotes.mode}</ThemedText>
+              ) : null}
+              {planNotes.projection ? (
+                <ThemedText type="footnote" themeColor="textSecondary">
+                  {planNotes.projection}
+                </ThemedText>
+              ) : null}
+              {planNotes.unrealisticDate ? (
+                <Notice tone="warning" message={planNotes.unrealisticDate} />
+              ) : null}
+              {[
+                planNotes.weightSource,
+                planNotes.calibration,
+                planNotes.adaptiveMaintenance,
+              ].map((note) =>
+                note ? (
+                  <ThemedText
+                    key={note}
+                    type="footnote"
+                    themeColor="textSecondary"
+                  >
+                    {note}
+                  </ThemedText>
+                ) : null,
+              )}
+            </View>
+          ) : null}
+          <Button
+            label="Weekly check-in"
+            accessibilityLabel="Open weekly calorie check-in"
+            variant="plain"
+            size="small"
+            onPress={() => {
+              void router.push("/weekly-review" as Href);
+            }}
+          />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="How this is calculated"
@@ -2136,6 +2194,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.half,
   },
   macroFill: { height: "100%", borderRadius: Radius.pill },
+  planNotes: { gap: Spacing.one },
   cardHeading: {
     flexDirection: "row",
     flexWrap: "wrap",

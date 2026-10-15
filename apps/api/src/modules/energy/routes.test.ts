@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentOrchestrator,
@@ -15,11 +15,15 @@ import {
   type UserId,
   type WorkoutSource,
   ENERGY_FORMULA_VERSION,
+  goalAdjustmentKcalFor,
+  goalModeFor,
+  REVIEW_DEFAULT_SAFETY_FLOOR_KCAL,
 } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
 import { buildApp } from "../../app.js";
+import { buildWeeklyReview, loadEnergyRouteContext } from "./routes.js";
 import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
 import { InMemoryGoalRepository } from "../../goal-repository.js";
@@ -226,7 +230,10 @@ describe("GET /v1/energy/summary", () => {
     expect(body.bmrKcal).toBeGreaterThan(0);
     expect(body.activityMultiplier).toBe(1.6);
     expect(body.tdeeKcal).toBeGreaterThan(0);
-    expect(body.goalAdjustmentKcal).toBe(-500);
+    // v2: rate-based standard cut at the 70 kg reading (ENG-07).
+    expect(body.goalAdjustmentKcal).toBe(
+      goalAdjustmentKcalFor(goalModeFor("cut", "steady"), 70),
+    );
     expect(body.dailyTargetKcal).toBeGreaterThan(0);
     expect(body.targetProteinG).toBeGreaterThan(0);
     expect(body.targetCarbohydrateG).toBeGreaterThan(0);
@@ -560,5 +567,411 @@ describe("GET /v1/energy/summary", () => {
     });
     expect(response.json().summary.activityMultiplier).toBe(1.75);
     expect(response.json().summary.complete).toBe(true);
+  });
+});
+
+describe("ENG-07/ENG-08 rate-based summary and weekly calorie review", () => {
+  const NOW = new Date("2026-10-15T12:00:00Z");
+  const TODAY = "2026-10-15";
+  const WEEK_START = "2026-10-12";
+
+  const multiUserVerifier: AccessTokenVerifier = {
+    verify: async (token) =>
+      token === "valid" || token === "valid-b"
+        ? {
+            userId: token === "valid" ? userA : userB,
+            role: "authenticated",
+            accessToken: `test-token-${token}`,
+          }
+        : null,
+  };
+
+  const dayIso = (back: number): string =>
+    new Date(Date.parse(`${TODAY}T00:00:00Z`) - back * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+
+  const uuid = (prefix: string, n: number): string =>
+    `00000000-0000-4000-8000-${prefix}${n.toString().padStart(12 - prefix.length, "0")}`;
+
+  /** Daily weights for the last 28 days; `weeklyKg` is the slope. */
+  const seedWeights = (
+    repo: InMemoryBodyMeasurementRepository,
+    weeklyKg: number,
+  ) => {
+    for (let back = 27; back >= 0; back -= 1) {
+      const measuredAt = new Date(`${dayIso(back)}T07:00:00Z`);
+      seedMeasurement(repo, {
+        id: uuid("a", back + 1),
+        measuredAt,
+        createdAt: measuredAt,
+        weightKg: Math.round((80 - (weeklyKg * back) / 7) * 1000) / 1000,
+      });
+    }
+  };
+
+  const seedIntake = (
+    repo: InMemoryFoodEntryRepository,
+    days: number,
+    kcal: number,
+  ) => {
+    for (let back = 1; back <= days; back += 1) {
+      const consumedAt = new Date(`${dayIso(back)}T12:00:00Z`);
+      seedFoodEntry(repo, {
+        id: uuid("e", back),
+        consumedAt,
+        createdAt: consumedAt,
+        updatedAt: consumedAt,
+        caloriesKcal: kcal,
+      });
+    }
+  };
+
+  const setup = (options: { weeklyKg: number; goalStartsOn?: string }) => {
+    const built = build(multiUserVerifier);
+    seedProfile(built.profileRepository, {
+      activityLevel: "lightly_active",
+      sexAtBirth: "male",
+    });
+    seedWeights(built.bodyMeasurementRepository, options.weeklyKg);
+    seedGoal(built.goalRepository, {
+      startsOn: options.goalStartsOn ?? "2026-09-01",
+      targetDate: "2027-03-01",
+      target: { weightKg: 72 },
+    });
+    return built;
+  };
+
+  const get = (
+    app: ReturnType<typeof buildApp>,
+    url: string,
+    token = "valid",
+  ) =>
+    app.inject({
+      method: "GET",
+      url,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+  const decide = (
+    app: ReturnType<typeof buildApp>,
+    id: string,
+    decision: string,
+    token = "valid",
+  ) =>
+    app.inject({
+      method: "POST",
+      url: `/v1/energy/weekly-review/${id}/decision`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      payload: { decision },
+    });
+
+  const target = async (app: ReturnType<typeof buildApp>) =>
+    (await get(app, "/v1/energy/summary")).json().summary;
+
+  /** Flat weight on a cut with on-target intake: the review says adjust. */
+  const adjustScenario = async () => {
+    const built = setup({ weeklyKg: 0 });
+    const summary = await target(built.app);
+    seedIntake(
+      built.foodEntryRepository,
+      7,
+      Math.round(summary.dailyTargetKcal as number),
+    );
+    return { ...built, summary };
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("serializes goal mode, trend weight, calibration and adaptive maintenance", async () => {
+    const { app, foodEntryRepository } = setup({ weeklyKg: 0 });
+    seedIntake(foodEntryRepository, 20, 2400);
+    const summary = await target(app);
+    expect(summary.formulaVersion).toBe(ENERGY_FORMULA_VERSION);
+    expect(summary.goalMode).toMatchObject({
+      id: "standard_cut",
+      minWeeklyPercent: -0.75,
+      maxWeeklyPercent: -0.5,
+    });
+    expect(summary.weightSource).toBe("trend");
+    expect(summary.calibrationKcal).toBe(0);
+    expect(summary.targetWeeklyChangeKg).toBeLessThan(0);
+    expect(summary.projection).not.toBeNull();
+    // Flat weight over 28 days with 20 logged days of 2,400 kcal.
+    expect(summary.adaptiveMaintenance).toMatchObject({
+      status: "ready",
+      maintenanceKcal: 2400,
+      loggedDays: 20,
+      windowDays: 28,
+    });
+  });
+
+  it("marks a day with an uncalculated entry incomplete for adaptive maintenance", async () => {
+    const { app, foodEntryRepository } = setup({ weeklyKg: 0 });
+    seedIntake(foodEntryRepository, 14, 2400);
+    seedFoodEntry(foodEntryRepository, {
+      id: uuid("f", 1),
+      consumedAt: new Date(`${dayIso(3)}T18:00:00Z`),
+      caloriesKcal: null,
+    });
+    const summary = await target(app);
+    expect(summary.adaptiveMaintenance).toMatchObject({
+      status: "insufficient",
+      reason: "too_few_logged_days",
+      loggedDays: 13,
+    });
+  });
+
+  it("returns a null review and proposal without an active goal", async () => {
+    const { app, profileRepository } = build(multiUserVerifier);
+    seedProfile(profileRepository);
+    const response = await get(app, "/v1/energy/weekly-review");
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ review: null, proposal: null });
+  });
+
+  it("reports insufficient data for a goal younger than two weeks", async () => {
+    const { app } = setup({ weeklyKg: 0, goalStartsOn: dayIso(3) });
+    const body = (await get(app, "/v1/energy/weekly-review")).json();
+    expect(body.review.status).toBe("insufficient_data");
+    expect(body.review.reasons[0]).toBe("goal_too_new");
+    expect(body.proposal).toBeNull();
+  });
+
+  it("holds when the observed rate is inside the mode's band", async () => {
+    const built = setup({ weeklyKg: -0.5 });
+    // A sloped series gives a 3-decimal smoothed weight; the summary must
+    // still satisfy the 0.01 kg wire contract (regression: was a 500).
+    const raw = await get(built.app, "/v1/energy/summary");
+    expect(raw.statusCode).toBe(200);
+    const summary = raw.json().summary;
+    seedIntake(
+      built.foodEntryRepository,
+      7,
+      Math.round(summary.dailyTargetKcal as number),
+    );
+    const body = (await get(built.app, "/v1/energy/weekly-review")).json();
+    expect(body.review.status).toBe("hold");
+    expect(body.review.reasons).toEqual(["within_band"]);
+    expect(body.proposal).toBeNull();
+  });
+
+  it("creates one pending proposal per goal and week, also under concurrent requests", async () => {
+    const { app } = await adjustScenario();
+    const [first, concurrent] = await Promise.all([
+      get(app, "/v1/energy/weekly-review"),
+      get(app, "/v1/energy/weekly-review"),
+    ]);
+    const body = first.json();
+    expect(body.review.status).toBe("adjust");
+    expect(body.review.reasons[0]).toBe("above_band");
+    expect(body.review.deltaKcal).toBeLessThan(0);
+    // Without the floor clamp the visible change equals the calibration change.
+    expect(body.review.targetChangeKcal).toBe(body.review.deltaKcal);
+    expect(body.proposal.review.targetChangeKcal).toBe(body.review.deltaKcal);
+    expect(body.proposal).toMatchObject({
+      status: "pending",
+      weekStart: WEEK_START,
+      decidedAt: null,
+    });
+    expect(body.proposal.review.deltaKcal).toBe(body.review.deltaKcal);
+    expect(concurrent.json().proposal.id).toBe(body.proposal.id);
+    const repeat = (await get(app, "/v1/energy/weekly-review")).json();
+    expect(repeat.proposal.id).toBe(body.proposal.id);
+  });
+
+  it("accepting moves the next summary target by exactly the delta; a lost-response retry gets 409", async () => {
+    const { app, summary: before } = await adjustScenario();
+    const proposal = (await get(app, "/v1/energy/weekly-review")).json()
+      .proposal;
+    const delta = proposal.review.deltaKcal as number;
+
+    const accepted = await decide(app, proposal.id, "accept");
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().proposal).toMatchObject({
+      id: proposal.id,
+      status: "accepted",
+    });
+    expect(accepted.json().proposal.decidedAt).not.toBeNull();
+
+    // Client lost the response and retries: no double application.
+    const retry = await decide(app, proposal.id, "accept");
+    expect(retry.statusCode).toBe(409);
+    expect(retry.json().error.code).toBe("CALORIE_ADJUSTMENT_ALREADY_DECIDED");
+
+    const after = await target(app);
+    expect(after.calibrationKcal).toBe(delta);
+    expect(after.dailyTargetKcal).toBeCloseTo(
+      (before.dailyTargetKcal as number) + delta,
+      2,
+    );
+    const goal = await app.inject({
+      method: "GET",
+      url: "/v1/goals/active",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(goal.statusCode).toBe(200);
+    expect(goal.json().goal.calorieCalibrationKcal).toBe(delta);
+    // The stored proposal stays visible for the week, now accepted.
+    const again = (await get(app, "/v1/energy/weekly-review")).json();
+    expect(again.proposal).toMatchObject({
+      id: proposal.id,
+      status: "accepted",
+    });
+  });
+
+  it("declining keeps the target and a second decision conflicts", async () => {
+    const { app, summary: before } = await adjustScenario();
+    const proposal = (await get(app, "/v1/energy/weekly-review")).json()
+      .proposal;
+    const declined = await decide(app, proposal.id, "decline");
+    expect(declined.statusCode).toBe(200);
+    expect(declined.json().proposal.status).toBe("declined");
+    const second = await decide(app, proposal.id, "accept");
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error.code).toBe("CALORIE_ADJUSTMENT_ALREADY_DECIDED");
+    const after = await target(app);
+    expect(after.calibrationKcal).toBe(0);
+    expect(after.dailyTargetKcal).toBe(before.dailyTargetKcal);
+  });
+
+  it("supersedes a stale proposal when the calibration changed since the review", async () => {
+    const { app, goalRepository, summary: before } = await adjustScenario();
+    const proposal = (await get(app, "/v1/energy/weekly-review")).json()
+      .proposal;
+    const goal = await goalRepository.getActive(userA, {
+      accessToken: "test-token-valid",
+    });
+    await goalRepository.update(
+      userA,
+      { ...goal!, calorieCalibrationKcal: 100 },
+      { accessToken: "test-token-valid" },
+    );
+    const stale = await decide(app, proposal.id, "accept");
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json().error.code).toBe("CALORIE_ADJUSTMENT_STALE");
+    const after = await target(app);
+    expect(after.calibrationKcal).toBe(100);
+    expect(after.dailyTargetKcal).toBeCloseTo(
+      (before.dailyTargetKcal as number) + 100,
+      2,
+    );
+    // The superseded row no longer occupies the week: a fresh proposal is
+    // computed against the current calibration.
+    const again = (await get(app, "/v1/energy/weekly-review")).json();
+    expect(again.proposal.id).not.toBe(proposal.id);
+    expect(again.proposal.status).toBe("pending");
+    expect(again.proposal.review.calibrationBeforeKcal).toBe(100);
+  });
+
+  it("enforces the 14-day cooldown after an acceptance, also into the next week", async () => {
+    const { app } = await adjustScenario();
+    const proposal = (await get(app, "/v1/energy/weekly-review")).json()
+      .proposal;
+    expect((await decide(app, proposal.id, "accept")).statusCode).toBe(200);
+
+    const sameWeek = (await get(app, "/v1/energy/weekly-review")).json();
+    expect(sameWeek.review.status).toBe("insufficient_data");
+    expect(sameWeek.review.reasons).toEqual(["recent_adjustment"]);
+    expect(sameWeek.proposal).toMatchObject({
+      id: proposal.id,
+      status: "accepted",
+    });
+
+    vi.setSystemTime(new Date(NOW.getTime() + 7 * 86_400_000));
+    const nextWeek = (await get(app, "/v1/energy/weekly-review")).json();
+    expect(nextWeek.review.reasons).toEqual(["recent_adjustment"]);
+    expect(nextWeek.proposal).toBeNull();
+  });
+
+  it("supersedes a proposal after a pace change and offers a fresh one", async () => {
+    const { app, goalRepository } = await adjustScenario();
+    const proposal = (await get(app, "/v1/energy/weekly-review")).json()
+      .proposal;
+    const goal = await goalRepository.getActive(userA, {
+      accessToken: "test-token-valid",
+    });
+    const patched = await app.inject({
+      method: "PUT",
+      url: `/v1/goals/${goal!.id}`,
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { pace: "gradual" },
+    });
+    expect(patched.statusCode).toBe(200);
+
+    const stale = await decide(app, proposal.id, "accept");
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json().error.code).toBe("CALORIE_ADJUSTMENT_STALE");
+    expect((await target(app)).calibrationKcal).toBe(0);
+
+    const fresh = (await get(app, "/v1/energy/weekly-review")).json();
+    expect(fresh.review.goalMode.id).toBe("gradual_cut");
+    expect(fresh.proposal.id).not.toBe(proposal.id);
+    expect(fresh.proposal.status).toBe("pending");
+    const accepted = await decide(app, fresh.proposal.id, "accept");
+    expect(accepted.statusCode).toBe(200);
+  });
+
+  it("applies the default safety floor when sex at birth is unknown", async () => {
+    const built = setup({ weeklyKg: 0 });
+    seedIntake(built.foodEntryRepository, 7, 1300);
+    const context = await loadEnergyRouteContext(
+      {
+        profileRepository: built.profileRepository,
+        goalRepository: built.goalRepository,
+        bodyMeasurementRepository: built.bodyMeasurementRepository,
+        workoutRepository: built.workoutRepository,
+        workoutSetRepository: built.workoutSetRepository,
+        foodEntryRepository: built.foodEntryRepository,
+      },
+      userA,
+      "test-token-valid",
+      { activityLevel: null, sexAtBirth: null, utcOffsetMinutes: 0 },
+      NOW,
+    );
+    const review = buildWeeklyReview(
+      {
+        ...context,
+        sexAtBirth: null,
+        breakdown: { ...context.breakdown, dailyTargetKcal: 1300 },
+      },
+      NOW,
+    );
+    expect(review?.status).toBe("adjust");
+    expect(review?.reasons).toContain("safety_floor");
+    expect(review?.proposedTargetKcal).toBe(REVIEW_DEFAULT_SAFETY_FLOOR_KCAL);
+  });
+
+  it("hides another user's proposal and validates the request", async () => {
+    const { app } = await adjustScenario();
+    const proposal = (await get(app, "/v1/energy/weekly-review")).json()
+      .proposal;
+    const foreign = await decide(app, proposal.id, "accept", "valid-b");
+    expect(foreign.statusCode).toBe(404);
+    const unknownId = await decide(app, "not-a-uuid", "accept");
+    expect(unknownId.statusCode).toBe(404);
+    const invalid = await decide(app, proposal.id, "maybe");
+    expect(invalid.statusCode).toBe(422);
+    const anonymous = await app.inject({
+      method: "POST",
+      url: `/v1/energy/weekly-review/${proposal.id}/decision`,
+      payload: { decision: "accept" },
+    });
+    expect(anonymous.statusCode).toBe(401);
+    // The owner's proposal is untouched by the rejected attempts.
+    const accepted = await decide(app, proposal.id, "accept");
+    expect(accepted.statusCode).toBe(200);
   });
 });

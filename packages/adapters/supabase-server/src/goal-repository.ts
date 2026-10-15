@@ -32,6 +32,13 @@ interface GoalRow extends Record<string, unknown> {
   readonly starts_on: string | null;
   readonly target_date: string | null;
   readonly review_date: string | null;
+  /**
+   * Accepted weekly calorie-review calibration (ENG-08, migration
+   * 20261015090000). Read-only here: only the
+   * `decide_calorie_adjustment` function writes it, so `toInsertRow`
+   * never includes it.
+   */
+  readonly calorie_calibration_kcal?: number | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -66,6 +73,7 @@ export const goalFromRow = (row: GoalRow): StoredGoal => {
     startsOn: row.starts_on ?? "",
     targetDate: row.target_date ?? "",
     ...(row.review_date !== null ? { reviewDate: row.review_date } : {}),
+    calorieCalibrationKcal: row.calorie_calibration_kcal ?? 0,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };

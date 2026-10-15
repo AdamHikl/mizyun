@@ -162,6 +162,7 @@ export const accountExportSchema = z.object({
   feedback: z.array(z.unknown()).default([]),
   aiConsent: z.unknown().nullable().optional(),
   community: communityAccountExportSchema.optional(),
+  calorieAdjustmentProposals: z.array(z.record(z.unknown())).optional(),
   recurringMeals: z
     .object({
       schedules: z.array(z.record(z.unknown())),

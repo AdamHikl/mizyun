@@ -255,6 +255,11 @@ export const createSupabaseServiceRoleClient = (
 export { SupabaseProfileRepository } from "./profile-repository.js";
 export { SupabaseMemoryStore } from "./memory-store.js";
 export { SupabaseGoalRepository } from "./goal-repository.js";
+export {
+  SupabaseCalorieAdjustmentRepository,
+  calorieAdjustmentFromRow,
+  type CalorieAdjustmentProposalRow,
+} from "./calorie-adjustment-repository.js";
 export { SupabaseFoodEntryRepository } from "./food-entry-repository.js";
 export { RepositoryError } from "./repository-error.js";
 

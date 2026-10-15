@@ -106,6 +106,8 @@ export interface AccountExport {
   readonly privateMedia: ReadonlyArray<ExportedMediaAsset>;
   readonly feedback: ReadonlyArray<UserFeedback>;
   readonly aiConsent?: StoredAiConsent | null;
+  /** Weekly calorie-review proposals and decisions (ENG-08). */
+  readonly calorieAdjustmentProposals?: readonly Record<string, unknown>[];
   readonly recurringMeals?: {
     readonly schedules: readonly Record<string, unknown>[];
     readonly occurrences: readonly Record<string, unknown>[];

@@ -13,9 +13,14 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
   {
     id: "home-energy",
     featureIds: ["profile-goals-energy"],
-    routes: ["(tabs)/index.tsx", "energy-setup.tsx", "onboarding.tsx"],
+    routes: [
+      "(tabs)/index.tsx",
+      "energy-setup.tsx",
+      "onboarding.tsx",
+      "weekly-review.tsx",
+    ],
     guidance:
-      "The 'Home' tab shows energy/macronutrient summaries, weight trends, recent activity and logging shortcuts. Set profile, activity and Maintain/Cut/Bulk goals through Account → Profile & goals. Energy calculations are deterministic; missing setup needs completion, not invented targets.",
+      "The 'Home' tab shows energy/macronutrient summaries, weight trends, recent activity and logging shortcuts. Set profile, activity and goals through Account → Profile & goals; cut and bulk have named modes (Gradual/Standard/Aggressive cut, Lean/Standard/Aggressive bulk) with weekly %-of-body-weight rates. The Weekly check-in (Home → Weekly check-in, or the optional Monday reminder) shows a deterministic calorie review; when the weight trend leaves the mode's range with enough logged days, it proposes a bounded change the user accepts or keeps. Never claim to change targets yourself. Energy calculations are deterministic; missing setup needs completion, not invented targets.",
   },
   {
     id: "meals",

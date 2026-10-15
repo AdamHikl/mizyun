@@ -51,6 +51,8 @@
 - **ENG-04:** Exercise and step expenditure are not double-counted when sources overlap.
 - **ENG-05:** Trend-based recalibration requires enough observations and presents a range, not false precision.
 - **ENG-06:** Missing or stale inputs produce an honest incomplete state rather than a fabricated target.
+- **ENG-07:** Goals use named modes (gradual/standard/aggressive cut, lean/standard/aggressive bulk, recomp, maintain) defined by a weekly body-weight change band in % of body weight. The target date is checked against the projected date, never used to size the deficit.
+- **ENG-08:** A deterministic weekly calorie review compares the smoothed weight trend with the mode band and, with enough adherence and observations, proposes a bounded calorie change. The user accepts or declines; nothing changes without acceptance, and models never decide the change.
 
 ### Exercise and workouts
 

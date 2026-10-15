@@ -74,6 +74,11 @@ export interface StoredGoal extends GoalCore {
   readonly id: string;
   readonly userId: UserId;
   readonly status: GoalStatus;
+  /**
+   * Accepted weekly calorie-review calibration (kcal/day, ENG-08).
+   * Absent on adapters that predate the column; treat as 0.
+   */
+  readonly calorieCalibrationKcal?: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -237,6 +242,11 @@ export const applyGoalPatch = (
     : patch.reviewDate === null
       ? {}
       : { reviewDate: patch.reviewDate }),
+  // Calibration only moves through an accepted weekly review (ENG-08);
+  // a goal edit must never drop or rewrite it.
+  ...(stored.calorieCalibrationKcal !== undefined
+    ? { calorieCalibrationKcal: stored.calorieCalibrationKcal }
+    : {}),
   createdAt: stored.createdAt,
   updatedAt: now,
 });

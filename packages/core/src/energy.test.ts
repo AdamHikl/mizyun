@@ -108,8 +108,8 @@ const completeInputs = (
 });
 
 describe("ENERGY_FORMULA_VERSION", () => {
-  it("is the v1 Mifflin-St Jeor string", () => {
-    expect(ENERGY_FORMULA_VERSION).toBe("v1-mifflin-st-jeor-2026-07");
+  it("is the v2 rate-based Mifflin-St Jeor string", () => {
+    expect(ENERGY_FORMULA_VERSION).toBe("v2-mifflin-rate-based-2026-10");
   });
 });
 
@@ -189,10 +189,13 @@ describe("computeEnergy / complete inputs", () => {
     expect(result.breakdown.activityMultiplier).toBe(1.6);
     // TDEE = 1618.75 * 1.6 = 2590
     expect(result.breakdown.tdeeKcal).toBeCloseTo(2590, 2);
-    // cut / steady = −500
-    expect(result.breakdown.goalAdjustmentKcal).toBe(-500);
-    // 2590 - 500 = 2090
-    expect(result.breakdown.dailyTargetKcal).toBe(2090);
+    // standard cut = −0.625 %BW/week; 70 kg → −0.4375 kg × 7700 / 7 = −481
+    expect(result.breakdown.goalAdjustmentKcal).toBe(-481);
+    // 2590 - 481 = 2109
+    expect(result.breakdown.dailyTargetKcal).toBe(2109);
+    expect(result.breakdown.goalMode?.id).toBe("standard_cut");
+    expect(result.breakdown.calibrationKcal).toBe(0);
+    expect(result.breakdown.weightSource).toBe("latest");
     // consumedKcalToday = 2000, balance = 2000 - 2090 = -90
     // but route computes balance after consulting recent
     // workouts; core keeps it as null and lets the route fill
@@ -215,8 +218,10 @@ describe("computeEnergy / complete inputs", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.breakdown.goalAdjustmentKcal).toBe(300);
-    expect(result.breakdown.dailyTargetKcal).toBe(2890);
+    // lean bulk = +0.175 %BW/week; 70 kg → +0.1225 kg × 7700 / 7 = +135
+    expect(result.breakdown.goalAdjustmentKcal).toBe(135);
+    expect(result.breakdown.dailyTargetKcal).toBe(2725);
+    expect(result.breakdown.goalMode?.label).toBe("Lean bulk");
   });
 
   it("is deterministic across multiple invocations", () => {
@@ -310,7 +315,9 @@ describe("computeEnergy / incomplete inputs (ENG-06)", () => {
           kind: "cut",
           pace: "aggressive",
         }),
-        activityLevel: "moderately_active" as ActivityLevel,
+        // Rate-based deficits scale with weight, so only a sedentary
+        // small user crosses the floor: 1209 × 1.4 − 529 < 1200.
+        activityLevel: "sedentary" as ActivityLevel,
       }),
       userId,
     );
@@ -377,5 +384,108 @@ describe("computeEnergy / ENG-04 (no double counting)", () => {
 describe("mifflinStJeorFormula.version", () => {
   it("echoes the current formula version", () => {
     expect(mifflinStJeorFormula.version).toBe(ENERGY_FORMULA_VERSION);
+  });
+});
+
+describe("computeEnergy / v2 rate-based inputs", () => {
+  const trend = (smoothedWeightKg: number) => ({
+    status: "ready" as const,
+    latestWeightKg: 72,
+    smoothedWeightKg,
+    weeklyChangeKg: -0.4,
+    observationCount: 10,
+    spanDays: 21,
+    windowDays: 28 as const,
+    smoothingHalfLifeDays: 7 as const,
+  });
+
+  it("uses the smoothed trend weight instead of the latest reading", () => {
+    const result = computeEnergy(
+      completeInputs({
+        latestBodyMeasurement: baseMeasurement({ weightKg: 72 }),
+        weightTrend: trend(70),
+      }),
+      userId,
+    );
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.breakdown.weightSource).toBe("trend");
+    expect(result.breakdown.inputs.weightKg).toBe(70);
+    expect(result.breakdown.bmrKcal).toBeCloseTo(1618.75, 2);
+  });
+
+  it("rounds a 3-decimal trend weight to the 0.01 kg input resolution", () => {
+    const result = computeEnergy(
+      completeInputs({ weightTrend: trend(70.0715) }),
+      userId,
+    );
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.breakdown.inputs.weightKg).toBe(70.07);
+  });
+
+  it("falls back to the latest reading when no trend exists", () => {
+    const result = computeEnergy(completeInputs({ weightTrend: null }), userId);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.breakdown.weightSource).toBe("latest");
+  });
+
+  it("adds accepted calibration to the daily target", () => {
+    const result = computeEnergy(
+      completeInputs({ calorieCalibrationKcal: -150 }),
+      userId,
+    );
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.breakdown.calibrationKcal).toBe(-150);
+    expect(result.breakdown.dailyTargetKcal).toBe(2109 - 150);
+  });
+
+  it("scales the deficit with body weight", () => {
+    const at = (weightKg: number) => {
+      const result = computeEnergy(
+        completeInputs({
+          latestBodyMeasurement: baseMeasurement({ weightKg }),
+        }),
+        userId,
+      );
+      if (!result.ok) throw new Error("expected ok");
+      return result.breakdown.goalAdjustmentKcal as number;
+    };
+    expect(at(120)).toBeLessThan(at(60));
+    expect(at(120) / at(60)).toBeCloseTo(2, 1);
+  });
+
+  it("projects the target date at the planned rate without sizing the deficit from it", () => {
+    const result = computeEnergy(
+      completeInputs({
+        // 78 kg → 70 kg standard cut; deadline in two weeks is unrealistic.
+        latestBodyMeasurement: baseMeasurement({ weightKg: 78 }),
+        activeGoal: baseGoal({
+          target: { weightKg: 70 },
+          targetDate: "2026-07-31",
+        }),
+      }),
+      userId,
+    );
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.breakdown.projection?.projectedWeeksToTarget).toBe(17);
+    expect(result.breakdown.projection?.targetDateRealistic).toBe(false);
+    expect(result.breakdown.goalAdjustmentKcal).toBe(-536);
+  });
+
+  it("clamps a calibrated target to the floor instead of removing it", () => {
+    // Uncalibrated 1693 × … sedentary small female standard cut stays
+    // above 1200; a −400 calibration would cross it.
+    const inputs = completeInputs({
+      sexAtBirth: "female" as SexAtBirth,
+      profile: baseProfile({ birthYear: 1990, heightCm: 160 }),
+      latestBodyMeasurement: baseMeasurement({ weightKg: 55 }),
+      activeGoal: baseGoal({ kind: "cut", pace: "gradual" }),
+      activityLevel: "sedentary" as ActivityLevel,
+      calorieCalibrationKcal: -400,
+    });
+    const result = computeEnergy(inputs, userId);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.breakdown.dailyTargetKcal).toBe(1200);
+    expect(result.breakdown.complete).toBe(true);
+    expect(result.breakdown.incompleteReason).toBeNull();
   });
 });

@@ -145,6 +145,12 @@ vi.mock("@/features/log-meal/first-meal-reminders", () => ({
 vi.mock("@/features/log-meal/evening-catch-up-reminders", () => ({
   reconcileEveningReminders: vi.fn(),
 }));
+vi.mock("@/features/weekly-review/weekly-review-modal", () => ({
+  WeeklyReviewPopup: "WeeklyReviewPopup",
+}));
+vi.mock("@/features/weekly-review/weekly-review-notification", () => ({
+  reconcileWeeklyReviewReminder: vi.fn(),
+}));
 vi.mock("@/features/coach/coach-reminders", () => ({
   applyCoachReminders: vi.fn(),
   loadCoachReminders: vi.fn(),

@@ -121,6 +121,9 @@ const toWire = (stored: StoredGoal): GoalResponse =>
       ...(stored.reviewDate !== undefined
         ? { reviewDate: stored.reviewDate }
         : {}),
+      ...(stored.calorieCalibrationKcal !== undefined
+        ? { calorieCalibrationKcal: stored.calorieCalibrationKcal }
+        : {}),
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
     },

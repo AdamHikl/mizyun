@@ -1,6 +1,7 @@
 import type { WeightTrendSummary } from "./body-measurement";
 import type { DailyFoodSummary } from "./food-entry";
 import type { GoalKind, GoalPace } from "./goal";
+import { goalModeFor } from "./goal-modes";
 import type { TrainingVolumeAction } from "./training-prescription";
 
 export const WEEKLY_ADAPTATION_VERSION = "v1-2026-07" as const;
@@ -124,37 +125,40 @@ export const buildWeeklyAdaptation = (input: {
           : "Calorie adherence must be within 80–120% before trend-based adaptation.",
     );
   } else if (
-    input.goalKind === "cut" &&
-    (weightChangePercent as number) > -0.5
+    (input.goalKind === "cut" || input.goalKind === "bulk") &&
+    (weightChangePercent as number) <
+      goalModeFor(input.goalKind, input.currentPace as GoalPace)
+        .minWeeklyPercent
   ) {
-    calorieAction = "decrease";
-    proposedPace = stepPace(input.currentPace as GoalPace, "more");
-    reasons.push(
-      "Confirmed weight loss is below the conservative weekly band.",
-    );
-  } else if (input.goalKind === "cut" && (weightChangePercent as number) < -1) {
+    // Below the mode's band: lose faster on a cut is "more"; gain
+    // faster on a bulk is also "more" (both move towards the band).
+    const cut = input.goalKind === "cut";
     calorieAction = "increase";
-    proposedPace = stepPace(input.currentPace as GoalPace, "less");
+    proposedPace = stepPace(
+      input.currentPace as GoalPace,
+      cut ? "less" : "more",
+    );
     reasons.push(
-      "Confirmed weight loss is above the conservative weekly band.",
+      cut
+        ? "Confirmed weight loss is faster than this goal mode's weekly band."
+        : "Confirmed weight gain is below this goal mode's weekly band.",
     );
   } else if (
-    input.goalKind === "bulk" &&
-    (weightChangePercent as number) < 0.25
+    (input.goalKind === "cut" || input.goalKind === "bulk") &&
+    (weightChangePercent as number) >
+      goalModeFor(input.goalKind, input.currentPace as GoalPace)
+        .maxWeeklyPercent
   ) {
-    calorieAction = "increase";
-    proposedPace = stepPace(input.currentPace as GoalPace, "more");
-    reasons.push(
-      "Confirmed weight gain is below the conservative weekly band.",
-    );
-  } else if (
-    input.goalKind === "bulk" &&
-    (weightChangePercent as number) > 0.5
-  ) {
+    const cut = input.goalKind === "cut";
     calorieAction = "decrease";
-    proposedPace = stepPace(input.currentPace as GoalPace, "less");
+    proposedPace = stepPace(
+      input.currentPace as GoalPace,
+      cut ? "more" : "less",
+    );
     reasons.push(
-      "Confirmed weight gain is above the conservative weekly band.",
+      cut
+        ? "Confirmed weight loss is slower than this goal mode's weekly band."
+        : "Confirmed weight gain is faster than this goal mode's weekly band.",
     );
   } else {
     reasons.push(

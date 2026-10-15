@@ -108,6 +108,7 @@ import {
   type FeedbackRepository,
   type FoodEntryRepository,
   type GoalRepository,
+  type CalorieAdjustmentRepository,
   type MediaAssetRepository,
   type PlanTier,
   type ProductAnalyticsRepository,
@@ -137,6 +138,7 @@ import type { AiProvider } from "@mizyun/contracts";
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryAiConsentRepository } from "./ai-consent-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
+import { InMemoryCalorieAdjustmentRepository } from "./calorie-adjustment-repository.js";
 import { loggerConfig } from "./logging.js";
 import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
 import { SupabaseMemoryStore } from "@mizyun/adapter-supabase-server";
@@ -213,6 +215,7 @@ import { moderationRoutes as communityModerationRoutes } from "./modules/communi
 import {
   SupabaseProfileRepository,
   SupabaseGoalRepository,
+  SupabaseCalorieAdjustmentRepository,
   SupabaseFoodEntryRepository,
   SupabaseExerciseRepository,
   SupabaseFeedbackRepository,
@@ -351,6 +354,7 @@ export interface AppDependencies {
    */
   readonly profileRepository?: ProfileRepository;
   readonly goalRepository?: GoalRepository;
+  readonly calorieAdjustmentRepository?: CalorieAdjustmentRepository;
   readonly mealPhotoService?: MealPhotoService;
   readonly mealPhotosEnabled?: boolean;
   readonly foodEntryRepository?: FoodEntryRepository;
@@ -666,6 +670,11 @@ export const buildApp = (
     (sp
       ? new SupabaseGoalRepository({ clientFor: sp.clientFor })
       : new InMemoryGoalRepository());
+  const calorieAdjustmentRepository =
+    dependencies.calorieAdjustmentRepository ??
+    (sp
+      ? new SupabaseCalorieAdjustmentRepository({ clientFor: sp.clientFor })
+      : new InMemoryCalorieAdjustmentRepository(goalRepository));
   const foodEntryRepository =
     dependencies.foodEntryRepository ??
     (sp
@@ -1391,6 +1400,7 @@ export const buildApp = (
     prefix: "/v1",
     profileRepository,
     goalRepository,
+    calorieAdjustmentRepository,
     bodyMeasurementRepository,
     workoutRepository,
     workoutSetRepository,

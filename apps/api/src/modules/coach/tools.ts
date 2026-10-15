@@ -69,6 +69,8 @@ export { buildGetMealHistoryTool } from "./meal-history.js";
 export { buildGetExerciseHistoryTool } from "./exercise-history.js";
 
 const MAX_DAYS_BACK = 28;
+/** Matches the energy summary route's weight-trend window. */
+const ENERGY_WEIGHT_LOOKBACK_DAYS = 60;
 const DEFAULT_DAYS_BACK = 7;
 
 const clampDaysBack = (raw: unknown): number => {
@@ -125,13 +127,15 @@ const loadEnergyContext = async (
   now: Date,
 ) => {
   const from = new Date(now.getTime() - MAX_DAYS_BACK * 86_400_000);
-  const [profile, activeGoal, measurements, workouts] = await Promise.all([
+  const [profile, activeGoal, weightHistory, workouts] = await Promise.all([
     deps.profileRepository.getOrCreate(userId, { now, accessToken }),
     deps.goalRepository.getActive(userId, { accessToken }),
+    // Same 60-day trend window as GET /v1/energy/summary so coach numbers
+    // match the dashboard; downstream tools keep their 28-day view.
     deps.bodyMeasurementRepository.list(userId, {
-      from,
+      from: new Date(now.getTime() - ENERGY_WEIGHT_LOOKBACK_DAYS * 86_400_000),
       to: now,
-      limit: 100,
+      limit: 500,
       accessToken,
     }),
     deps.workoutRepository.list(userId, {
@@ -147,10 +151,26 @@ const loadEnergyContext = async (
       .filter((workout) => workout.completedAt !== null)
       .map((workout) => dayIso(workout.completedAt as Date)),
   );
+  const measurements = weightHistory
+    .filter((measurement) => measurement.measuredAt >= from)
+    .slice(0, 100);
+  // Same fallback as GET /v1/energy/summary: an older single reading
+  // still feeds BMR when nothing falls inside the 60-day trend window.
+  const latestMeasurement =
+    weightHistory[0] ??
+    (
+      await deps.bodyMeasurementRepository.list(userId, {
+        from: null,
+        to: null,
+        limit: 1,
+        accessToken,
+      })
+    )[0] ??
+    null;
   const breakdown = computeEnergy(
     {
       profile,
-      latestBodyMeasurement: measurements[0] ?? null,
+      latestBodyMeasurement: latestMeasurement,
       activeGoal,
       activityLevel: profile.activityLevel,
       sexAtBirth: profile.sexAtBirth,
@@ -158,6 +178,8 @@ const loadEnergyContext = async (
       recentWorkoutsDayCount: recentWorkoutDays.size,
       consumedKcalToday: null,
       now,
+      weightTrend: summariseWeightTrend(weightHistory),
+      calorieCalibrationKcal: activeGoal?.calorieCalibrationKcal ?? 0,
     },
     userId,
   ).breakdown;

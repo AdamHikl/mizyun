@@ -1,5 +1,6 @@
 import type { ApiClient } from "@mizyun/api-client";
 import {
+  bodyMeasurementListResponseSchema,
   goalCreateSchema,
   goalPatchSchema,
   goalResponseSchema,
@@ -75,6 +76,23 @@ export const loadActiveGoal = async (
     return result.value.goal;
   }
   return null;
+};
+
+/** Latest recorded body weight in kg, or null when unknown or unreachable. */
+export const loadCurrentWeightKg = async (
+  client: ApiClient,
+): Promise<number | null> => {
+  const result = await client.request({
+    method: "GET",
+    path: "/v1/body-measurements?limit=1",
+    schema: bodyMeasurementListResponseSchema,
+  });
+  if (!result.ok) return null;
+  const parsed = bodyMeasurementListResponseSchema.safeParse(result.value);
+  const weight = parsed.success
+    ? parsed.data.bodyMeasurements[0]?.weightKg
+    : undefined;
+  return typeof weight === "number" && weight > 0 ? weight : null;
 };
 
 export const saveGoalSettings = async (

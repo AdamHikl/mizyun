@@ -25,9 +25,11 @@
  *   very_active     1.75
  *   extra_active    2.00
  *
- * Goal adjustment is documented in the source below; a 500
- * kcal/day deficit is the standard "steady cut", a 300 the
- * "gradual", etc. A safety floor (1200 women / 1500 men) caps
+ * Goal adjustment (v2) is rate-based: each goal mode targets a
+ * weekly body-weight change in % of body weight (`goal-modes.ts`),
+ * converted at 7,700 kcal/kg. Accepted weekly-review calibration
+ * (`calorie-review.ts`) is added on top. The BMR uses the smoothed
+ * trend weight when available. A safety floor (1200 women / 1500 men) caps
  * the lower bound of any goal-adjusted target — the engine
  * refuses to fabricate a number below it and surfaces
  * `below_safety_floor` as an incompleteReason (ENG-06).
@@ -60,11 +62,23 @@
  */
 
 import type { UserId } from "./index";
-import type { StoredBodyMeasurement } from "./body-measurement";
+import type {
+  StoredBodyMeasurement,
+  WeightTrendSummary,
+} from "./body-measurement";
+import type { AdaptiveMaintenanceEstimate } from "./calorie-review";
 import type { StoredGoal } from "./goal";
 import type { StoredProfile } from "./profile";
 import { hasRunningActivity } from "./running";
 import type { StoredWorkout } from "./workout";
+import {
+  goalAdjustmentKcalFor,
+  goalModeFor,
+  type GoalModeId,
+  type GoalProjection,
+  projectGoal,
+  weeklyChangeKgForPercent,
+} from "./goal-modes";
 
 /**
  * The current formula version. Bump deliberately: a version
@@ -72,7 +86,7 @@ import type { StoredWorkout } from "./workout";
  * that we patched a typo. The constant is part of the public
  * contract; the wire envelope echoes it on every response.
  */
-export const ENERGY_FORMULA_VERSION = "v1-mifflin-st-jeor-2026-07" as const;
+export const ENERGY_FORMULA_VERSION = "v2-mifflin-rate-based-2026-10" as const;
 
 /** Closed activity-multiplier categories. */
 export type ActivityLevel =
@@ -142,7 +156,23 @@ export interface EnergyInputs {
   readonly consumedKcalToday: number | null;
   /** Reference "now" for any date arithmetic. */
   readonly now: Date;
+  /**
+   * Smoothed weight trend (ADR-0010). When present its smoothed weight
+   * replaces the latest single reading in BMR so one noisy weigh-in
+   * does not move the target and macros.
+   */
+  readonly weightTrend?: WeightTrendSummary | null;
+  /**
+   * Accepted weekly-review calibration (kcal/day) stored on the active
+   * goal. Zero for a new goal.
+   */
+  readonly calorieCalibrationKcal?: number;
+  /** Trend-based maintenance estimate, surfaced for transparency. */
+  readonly adaptiveMaintenance?: AdaptiveMaintenanceEstimate | null;
 }
+
+/** Which weight fed the BMR. */
+export type EnergyWeightSource = "trend" | "latest";
 
 /**
  * The engine output. Every numeric field is nullable. A non-null
@@ -166,6 +196,20 @@ export interface EnergyBreakdown {
   readonly tdeeKcal: number | null;
   readonly exerciseKcal: number | null;
   readonly goalAdjustmentKcal: number | null;
+  /** Accepted weekly-review calibration included in the target. */
+  readonly calibrationKcal: number;
+  readonly weightSource: EnergyWeightSource | null;
+  readonly goalMode: {
+    readonly id: GoalModeId;
+    readonly label: string;
+    readonly minWeeklyPercent: number;
+    readonly maxWeeklyPercent: number;
+    readonly targetWeeklyPercent: number;
+  } | null;
+  /** Planned weekly change in kg at the mode's target rate. */
+  readonly targetWeeklyChangeKg: number | null;
+  readonly projection: GoalProjection | null;
+  readonly adaptiveMaintenance: AdaptiveMaintenanceEstimate | null;
 
   // Final results.
   readonly dailyTargetKcal: number | null;
@@ -230,7 +274,7 @@ const CURRENT_YEAR_REF = (): number => 1970;
 const REFERENCE_NOW_FN = (now: Date): number => now.getUTCFullYear();
 
 /** Plausible sex/default for ENG-06 — the formula is silent on unknown sex. */
-const SAFETY_FLOOR_KCAL: Readonly<Record<SexAtBirth, number>> = {
+export const SAFETY_FLOOR_KCAL: Readonly<Record<SexAtBirth, number>> = {
   female: 1200,
   male: 1500,
 };
@@ -267,36 +311,6 @@ export const estimateExerciseKcal = (
     totalSets += setCountForWorkout(w.id);
   }
   return Math.round(totalSets * KCAL_PER_SET_HINT);
-};
-
-/**
- * Goal adjustment in kcal/day, keyed by `(kind, pace)`. A
- * negative value is a deficit. The table is intentionally not
- * exposed — the formula version owns it.
- */
-const GOAL_ADJUSTMENT_KCAL: Readonly<
-  Record<StoredGoal["kind"], Record<StoredGoal["pace"], number>>
-> = {
-  cut: {
-    steady: -500,
-    gradual: -300,
-    aggressive: -750,
-  },
-  bulk: {
-    steady: 500,
-    gradual: 300,
-    aggressive: 750,
-  },
-  recomp: {
-    steady: -250,
-    gradual: 0,
-    aggressive: -500,
-  },
-  maintain: {
-    steady: 0,
-    gradual: 0,
-    aggressive: 0,
-  },
 };
 
 /**
@@ -337,10 +351,17 @@ export const mifflinStJeorFormula: EnergyFormula = {
   version: ENERGY_FORMULA_VERSION,
   compute(input: EnergyInputs, userId: UserId): EnergyComputeResult {
     // The profile doesn't carry weight today; body measurements do.
-    const resolvedWeight =
-      input.latestBodyMeasurement?.weightKg !== undefined
-        ? input.latestBodyMeasurement?.weightKg
-        : null;
+    // Prefer the smoothed trend weight over a single noisy reading.
+    const latestWeight = input.latestBodyMeasurement?.weightKg ?? null;
+    // Rounded to the 0.01 kg resolution of stored weights and the wire
+    // `inputs.weightKg` contract; the trend itself carries 3 decimals.
+    const smoothedWeight = input.weightTrend?.smoothedWeightKg ?? null;
+    const trendWeight =
+      smoothedWeight === null ? null : roundKcal(smoothedWeight);
+    const resolvedWeight = trendWeight ?? latestWeight;
+    const weightSource: EnergyWeightSource | null =
+      trendWeight !== null ? "trend" : latestWeight !== null ? "latest" : null;
+    const calibrationKcal = input.calorieCalibrationKcal ?? 0;
 
     const heightCm = input.profile?.heightCm ?? null;
     const birthYear = input.profile?.birthYear ?? null;
@@ -392,22 +413,51 @@ export const mifflinStJeorFormula: EnergyFormula = {
         ? roundKcal(bmrKcal * activityMultiplier)
         : null;
     const exerciseKcal = null; // filled by route after running a side channel; null here means "not yet evaluated"
-    const goalAdjustmentKcal =
+    const goalMode =
       input.activeGoal !== null
-        ? GOAL_ADJUSTMENT_KCAL[input.activeGoal.kind][input.activeGoal.pace]
+        ? goalModeFor(input.activeGoal.kind, input.activeGoal.pace)
+        : null;
+    // Rate-based: the mode's weekly %BW target at this body weight.
+    const goalAdjustmentKcal =
+      goalMode !== null && resolvedWeight !== null
+        ? goalAdjustmentKcalFor(goalMode, resolvedWeight)
+        : null;
+    const targetWeeklyChangeKg =
+      goalMode !== null && resolvedWeight !== null
+        ? Math.round(
+            weeklyChangeKgForPercent(
+              goalMode.targetWeeklyPercent,
+              resolvedWeight,
+            ) * 1_000,
+          ) / 1_000
+        : null;
+    const projection =
+      goalMode !== null && resolvedWeight !== null && input.activeGoal !== null
+        ? projectGoal({
+            goalMode,
+            currentWeightKg: resolvedWeight,
+            targetWeightKg: input.activeGoal.target.weightKg,
+            targetDate: input.activeGoal.targetDate,
+            now: input.now,
+          })
         : null;
 
     let dailyTargetKcal: number | null = null;
     let belowFloor = false;
     if (tdeeKcal !== null && goalAdjustmentKcal !== null) {
-      const candidate = tdeeKcal + goalAdjustmentKcal;
+      const uncalibrated = tdeeKcal + goalAdjustmentKcal;
+      const candidate = uncalibrated + calibrationKcal;
       // Safety floor — refuse to fabricate a target below the
       // sex-specific floor. The breakdown surfaces the reason;
-      // the UI prompts the user.
+      // the UI prompts the user. Accepted calibration alone never
+      // removes the target: it clamps to the floor so a later weekly
+      // review can still move it back up.
       const floor = sexAtBirth !== null ? SAFETY_FLOOR_KCAL[sexAtBirth] : null;
-      if (floor !== null && candidate < floor) {
+      if (floor !== null && uncalibrated < floor) {
         belowFloor = true;
         dailyTargetKcal = null;
+      } else if (floor !== null && candidate < floor) {
+        dailyTargetKcal = floor;
       } else {
         dailyTargetKcal = roundKcal(candidate);
       }
@@ -469,6 +519,21 @@ export const mifflinStJeorFormula: EnergyFormula = {
         tdeeKcal,
         exerciseKcal,
         goalAdjustmentKcal,
+        calibrationKcal,
+        weightSource,
+        goalMode:
+          goalMode === null
+            ? null
+            : {
+                id: goalMode.id,
+                label: goalMode.label,
+                minWeeklyPercent: goalMode.minWeeklyPercent,
+                maxWeeklyPercent: goalMode.maxWeeklyPercent,
+                targetWeeklyPercent: goalMode.targetWeeklyPercent,
+              },
+        targetWeeklyChangeKg,
+        projection,
+        adaptiveMaintenance: input.adaptiveMaintenance ?? null,
         dailyTargetKcal,
         targetProteinG,
         targetCarbohydrateG,

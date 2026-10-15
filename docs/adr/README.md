@@ -104,3 +104,5 @@
 - [0062 — Private recurring meal suggestions](0062-private-recurring-meal-suggestions.md): explicit opt-in after deterministic three-day detection; transactional receipts, owner-scoped recovery and account lifecycle. Dev/native/pilot acceptance remains open.
 
 - [0063 — Frozen offline recipe evaluation](0063-frozen-offline-recipe-evaluation.md) — REC-06 synthetic references, immutable thresholds and qualified provider/native acceptance.
+
+- [0064 — Rate-based goal modes and weekly calorie review](0064-rate-based-goal-modes-and-weekly-calorie-review.md) — ENG-07/08 %BW modes, trend weight, adaptive maintenance and user-accepted weekly calorie proposals.

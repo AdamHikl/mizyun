@@ -32,6 +32,7 @@ import { WorkoutSettingsCard } from "./workout-settings-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
 import { FirstMealRemindersCard } from "./first-meal-reminders-card";
 import { EveningCatchUpRemindersCard } from "./evening-catch-up-reminders-card";
+import { WeeklyReviewReminderCard } from "./weekly-review-reminder-card";
 import { AppearanceSettingsCard } from "./appearance-settings-card";
 import { HealthStepsSettingsCard } from "../health-steps/health-steps-settings-card";
 import { CoachPreferencesCard } from "./coach-preferences-card";
@@ -153,6 +154,7 @@ export function SettingsDetailScreen({
             <CoachRemindersCard userId={session.user.id} />
             <FirstMealRemindersCard userId={session.user.id} />
             <EveningCatchUpRemindersCard userId={session.user.id} />
+            <WeeklyReviewReminderCard userId={session.user.id} />
           </View>
         ) : (
           <ThemedText type="footnote" themeColor="textSecondary">

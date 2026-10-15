@@ -29,6 +29,7 @@ import { HealthExportSessionBridge } from "@/composition/health-export-session-b
 import { RecipeSessionPruneBridge } from "@/features/meal-recipes";
 import { StartupDataBridge } from "@/composition/startup-data-bridge";
 import { MealNotificationRouter } from "@/features/log-meal/meal-notification-router";
+import { WEEKLY_REVIEW_ROUTE } from "@/features/weekly-review/weekly-review-notification";
 import { FirstMealReminderSessionBridge } from "@/composition/first-meal-reminder-session-bridge";
 import {
   AuthProvider,
@@ -216,6 +217,48 @@ function WorkoutNotificationBridge() {
   return null;
 }
 
+function WeeklyReviewNotificationBridge() {
+  const { session } = useAuth();
+  const navigation = useRootNavigationState();
+  const pending = useRef<{ id: string; owner: string | null } | null>(null);
+  const handled = useRef(new Set<string>());
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const receive = (notification: Notifications.Notification) => {
+      const data = notification.request.content.data ?? {};
+      if (data.url !== WEEKLY_REVIEW_ROUTE) return;
+      const id = notification.request.identifier;
+      if (handled.current.has(id)) return;
+      pending.current = {
+        id,
+        owner: typeof data.userId === "string" ? data.userId : null,
+      };
+      setRevision((current) => current + 1);
+    };
+    const initial = Notifications.getLastNotificationResponse();
+    if (initial?.notification) receive(initial.notification);
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => receive(response.notification),
+    );
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
+    const next = pending.current;
+    if (!next || !navigation?.key || !session) return;
+    // A notification scheduled by another account is never opened for this one.
+    if (next.owner !== null && next.owner !== session.user.id) {
+      pending.current = null;
+      handled.current.add(next.id);
+      return;
+    }
+    pending.current = null;
+    handled.current.add(next.id);
+    Notifications.clearLastNotificationResponse();
+    router.push(WEEKLY_REVIEW_ROUTE as Href);
+  }, [session?.user.id, navigation?.key, revision]);
+  return null;
+}
+
 function MealNotificationBridge() {
   const { session } = useAuth();
   const navigation = useRootNavigationState();
@@ -316,6 +359,7 @@ function TabLayoutContent() {
           <CoachNotificationBridge />
           <WorkoutNotificationBridge />
           <MealNotificationBridge />
+          <WeeklyReviewNotificationBridge />
           <ActiveWorkoutProvider>
             <AnalyticsConsentReminderBridge />
             <Stack
@@ -359,6 +403,10 @@ function TabLayoutContent() {
               <Stack.Screen
                 name="energy-setup"
                 options={{ title: "Energy inputs" }}
+              />
+              <Stack.Screen
+                name="weekly-review"
+                options={{ title: "Weekly check-in" }}
               />
               <Stack.Screen
                 name="progress-photos"

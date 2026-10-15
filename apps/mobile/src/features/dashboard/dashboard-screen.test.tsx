@@ -213,6 +213,12 @@ vi.mock("@/features/log-meal/first-meal-reminders", () => ({
 vi.mock("@/features/log-meal/evening-catch-up-reminders", () => ({
   reconcileEveningReminders: mocks.eveningReminders,
 }));
+vi.mock("../weekly-review/weekly-review-modal", () => ({
+  WeeklyReviewPopup: "WeeklyReviewPopup",
+}));
+vi.mock("../weekly-review/weekly-review-notification", () => ({
+  reconcileWeeklyReviewReminder: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/features/offline-cache/offline-cache-storage", () => ({
   loadCachedDashboard: mocks.cache,
   saveCachedDashboard: mocks.save,

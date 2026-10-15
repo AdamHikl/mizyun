@@ -87,6 +87,17 @@ export {
 } from "./goal";
 
 export {
+  CalorieAdjustmentRepositoryError,
+  assertProposalReview,
+  type CalorieAdjustmentDecisionKind,
+  type CalorieAdjustmentRepository,
+  type CalorieAdjustmentRepositoryErrorKind,
+  type CalorieAdjustmentStatus,
+  type NewCalorieAdjustmentProposal,
+  type StoredCalorieAdjustmentProposal,
+} from "./calorie-adjustment";
+
+export {
   MealPhotoError,
   type MealPhoto,
   type MealPhotoService,
@@ -186,6 +197,7 @@ export {
   ACTIVITY_MULTIPLIERS,
   CURRENT_YEAR_REF,
   ENERGY_FORMULA_VERSION,
+  SAFETY_FLOOR_KCAL,
   ageFromBirthYear,
   computeEnergy,
   estimateExerciseKcal,
@@ -197,8 +209,46 @@ export {
   type EnergyFormula,
   type EnergyIncompleteReason,
   type EnergyInputs,
+  type EnergyWeightSource,
   type SexAtBirth,
 } from "./energy";
+
+export {
+  ENERGY_PER_KG_BODY_WEIGHT_KCAL,
+  GOAL_MODES,
+  dailyKcalForWeeklyChangeKg,
+  goalAdjustmentKcalFor,
+  goalModeFor,
+  projectGoal,
+  weeklyChangeKgForPercent,
+  type GoalMode,
+  type GoalModeId,
+  type GoalProjection,
+} from "./goal-modes";
+
+export {
+  ADAPTIVE_MIN_LOGGED_DAYS,
+  ADAPTIVE_MIN_TREND_DAYS,
+  CALORIE_REVIEW_VERSION,
+  REVIEW_ADJUSTMENT_COOLDOWN_DAYS,
+  REVIEW_DEFAULT_SAFETY_FLOOR_KCAL,
+  REVIEW_MAX_CALIBRATION_KCAL,
+  REVIEW_MAX_STEP_KCAL,
+  REVIEW_MIN_GOAL_AGE_DAYS,
+  REVIEW_MIN_LOGGED_DAYS,
+  REVIEW_MIN_STEP_KCAL,
+  buildCalorieReview,
+  estimateAdaptiveMaintenance,
+  isoWeekStart,
+  type AdaptiveMaintenanceEstimate,
+  type AdaptiveMaintenanceReason,
+  type AdaptiveMaintenanceStatus,
+  type CalorieReview,
+  type CalorieReviewMethod,
+  type CalorieReviewReason,
+  type CalorieReviewStatus,
+  type IntakeDay,
+} from "./calorie-review";
 
 export {
   COACHING_PLAN_VERSION,

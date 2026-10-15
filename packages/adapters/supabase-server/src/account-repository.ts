@@ -237,6 +237,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     let memoryCount = 0;
     let community: AccountExport["community"];
     let recurringMeals: AccountExport["recurringMeals"];
+    let calorieAdjustmentProposals: AccountExport["calorieAdjustmentProposals"];
     let runOperationReceipts: AccountExport["runOperationReceipts"];
     let mealImagePaths: AccountExport["mealImagePaths"];
 
@@ -325,6 +326,15 @@ export class SupabaseAccountRepository implements AccountRepository {
         false,
       );
       goals = goalRows.map((r: any) => goalFromRow(r));
+      calorieAdjustmentProposals = await fetchAllPaged(
+        client,
+        "calorie_adjustment_proposals",
+        "user_id",
+        userId,
+        "created_at",
+        true,
+        "id",
+      );
 
       const foodRows = await fetchAllPaged(
         client,
@@ -707,6 +717,7 @@ export class SupabaseAccountRepository implements AccountRepository {
         : {}),
       ...(community ? { community } : {}),
       ...(recurringMeals ? { recurringMeals } : {}),
+      ...(calorieAdjustmentProposals ? { calorieAdjustmentProposals } : {}),
       ...(runOperationReceipts ? { runOperationReceipts } : {}),
       userId,
       generatedAt: now,

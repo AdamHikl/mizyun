@@ -64,6 +64,11 @@ export interface WeightTrendSummary {
   readonly weeklyChangeKg: number | null;
   readonly observationCount: number;
   readonly spanDays: number;
+  /**
+   * Span (days) of the observations inside the 28-day regression window,
+   * i.e. the evidence behind `weeklyChangeKg`. Optional for older callers.
+   */
+  readonly windowSpanDays?: number;
   readonly windowDays: 28;
   readonly smoothingHalfLifeDays: 7;
 }
@@ -101,6 +106,7 @@ export const summariseWeightTrend = (
       weeklyChangeKg: null,
       observationCount: 0,
       spanDays: 0,
+      windowSpanDays: 0,
       windowDays: 28,
       smoothingHalfLifeDays: 7,
     };
@@ -168,6 +174,7 @@ export const summariseWeightTrend = (
     weeklyChangeKg,
     observationCount: weighted.length,
     spanDays: roundTo3(spanDays),
+    windowSpanDays: roundTo3(windowSpanDays),
     windowDays: 28,
     smoothingHalfLifeDays: 7,
   };

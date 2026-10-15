@@ -1,25 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import type { Goal, GoalKind, GoalPace } from "@mizyun/contracts";
+import type { Goal, GoalKind } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, Card } from "@/components/ui";
 import { apiClient } from "@/composition/api-client";
 import { Spacing } from "@/constants/theme";
-import {
-  displayWeightToKilograms,
-  kilogramsToDisplayWeight,
-  weightUnitLabel,
-  type WeightUnitSystem,
-} from "@/lib/weight-units";
+import { weightUnitLabel, type WeightUnitSystem } from "@/lib/weight-units";
 
 import {
   goalSettingsFormFromGoal,
   loadActiveGoal,
+  loadCurrentWeightKg,
   saveGoalSettings,
   validateGoalSettingsForm,
   type GoalSettingsForm,
 } from "./goal-settings-data";
+import { goalKindHasPace, paceChoicesFor } from "./goal-mode-presentation";
 import {
   ChoiceChip,
   ChoiceGroup,
@@ -35,12 +32,6 @@ const GOAL_KINDS: ReadonlyArray<[string, GoalKind]> = [
   ["Maintain — hold current mass", "maintain"],
 ];
 
-const PACE_CHOICES: ReadonlyArray<[string, GoalPace]> = [
-  ["Steady", "steady"],
-  ["Gradual", "gradual"],
-  ["Aggressive", "aggressive"],
-];
-
 export function GoalSettingsCard({
   unitSystem,
 }: {
@@ -54,6 +45,7 @@ export function GoalSettingsCard({
     pace: "steady",
   });
   const [saving, setSaving] = useState(false);
+  const [currentWeightKg, setCurrentWeightKg] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -69,6 +61,24 @@ export function GoalSettingsCard({
       active = false;
     };
   }, [unitSystem]);
+
+  useEffect(() => {
+    let active = true;
+    void loadCurrentWeightKg(apiClient)
+      .then((weight) => {
+        if (active) setCurrentWeightKg(weight);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const paceChoices = useMemo(
+    () => paceChoicesFor(form.kind, currentWeightKg, unitSystem),
+    [form.kind, currentWeightKg, unitSystem],
+  );
+  const selectedChoice = paceChoices.find((c) => c.pace === form.pace);
 
   const validation = useMemo(
     () => validateGoalSettingsForm(form, unitSystem),
@@ -145,18 +155,30 @@ export function GoalSettingsCard({
               />
             </FormField>
 
-            <FormField label="Pace">
-              <ChoiceGroup>
-                {PACE_CHOICES.map(([label, value]) => (
-                  <ChoiceChip
-                    key={value}
-                    label={label}
-                    selected={form.pace === value}
-                    onPress={() => patch("pace", value)}
-                  />
-                ))}
-              </ChoiceGroup>
-            </FormField>
+            {goalKindHasPace(form.kind) ? (
+              <FormField label="Mode and weekly rate">
+                <ChoiceGroup>
+                  {paceChoices.map((choice) => (
+                    <ChoiceChip
+                      key={choice.pace}
+                      label={choice.label}
+                      selected={form.pace === choice.pace}
+                      onPress={() => patch("pace", choice.pace)}
+                    />
+                  ))}
+                </ChoiceGroup>
+                {selectedChoice ? (
+                  <ThemedText
+                    type="footnote"
+                    themeColor="textSecondary"
+                    accessibilityLabel={`${selectedChoice.modeLabel}, ${selectedChoice.detail}.${selectedChoice.note ? ` ${selectedChoice.note}` : ""}`}
+                  >
+                    {selectedChoice.detail}
+                    {selectedChoice.note ? `. ${selectedChoice.note}` : ""}
+                  </ThemedText>
+                ) : null}
+              </FormField>
+            ) : null}
           </Card>
 
           {!validation.ok && form.targetWeight.length > 0 ? (

@@ -60,7 +60,12 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
   reminders: {
     title: "Push notification reminders",
     categoryId: "workouts-reminders",
-    validAnchors: ["coach-reminders", "first-meal", "evening-catch-up"],
+    validAnchors: [
+      "coach-reminders",
+      "first-meal",
+      "evening-catch-up",
+      "weekly-review",
+    ],
   },
   appearance: {
     title: "Appearance & theme",

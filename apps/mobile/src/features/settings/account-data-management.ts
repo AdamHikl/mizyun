@@ -39,6 +39,11 @@ import {
   type EveningReminderScheduler,
 } from "../log-meal/evening-catch-up-reminders";
 import {
+  clearWeeklyReviewReminder,
+  type WeeklyReviewReminderScheduler,
+} from "../weekly-review/weekly-review-notification";
+import { clearWeeklyReviewSeen } from "../weekly-review/weekly-review-seen";
+import {
   clearFoodDayCompletions,
   type DayCompletionStore,
 } from "../log-meal/food-day-completion";
@@ -250,6 +255,7 @@ export interface ClearLocalUserDataOptions {
   readonly firstMealReminderStore?: ReminderStore;
   readonly eveningReminderScheduler?: EveningReminderScheduler;
   readonly eveningReminderStore?: ReminderStore;
+  readonly weeklyReviewReminderScheduler?: WeeklyReviewReminderScheduler;
   readonly dayCompletionStore?: DayCompletionStore;
   readonly additionalDraftKinds?: readonly LoggingDraftKind[];
   readonly challengeStore?: SecureKeyValueStore;
@@ -350,6 +356,12 @@ export const clearLocalUserData = async (
       options.eveningReminderScheduler,
       options.eveningReminderStore ?? options.reminderStore,
     ),
+    clearWeeklyReviewReminder(
+      userId,
+      options.weeklyReviewReminderScheduler,
+      options.eveningReminderStore ?? options.reminderStore,
+    ),
+    clearWeeklyReviewSeen(userId, options.reminderStore),
     clearFoodDayCompletions(
       userId,
       options.dayCompletionStore ?? options.reminderStore,

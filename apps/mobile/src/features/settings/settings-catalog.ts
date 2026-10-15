@@ -51,6 +51,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategoryDefinition[] = [
       "Coach reminders",
       "First-meal reminder",
       "Evening catch-up reminder",
+      "Weekly calorie check-in",
     ],
   },
   {
@@ -550,6 +551,34 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     targetType: "setting-detail",
     settingDetailKey: "reminders",
     anchorId: "evening-catch-up",
+    availabilityRule: "signed-in",
+  },
+
+  {
+    id: "weekly-review-reminder",
+    destinationId: "reminders",
+    label: "Weekly calorie check-in",
+    description:
+      "Monday reminder to review and accept or decline a calorie target adjustment",
+    categoryId: "workouts-reminders",
+    categoryLabel: "Workouts & reminders",
+    breadcrumb: "Account → Workouts & reminders",
+    aliases: [
+      "weekly check in",
+      "weekly review",
+      "calorie review",
+      "calorie adjustment reminder",
+    ],
+    intentPhrases: [
+      "remind me to review my calories",
+      "stop weekly calorie reminder",
+      "weekly calorie check in notification",
+      "adjust my calorie target",
+      "stop notifications",
+    ],
+    targetType: "setting-detail",
+    settingDetailKey: "reminders",
+    anchorId: "weekly-review",
     availabilityRule: "signed-in",
   },
 
