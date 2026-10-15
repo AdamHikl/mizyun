@@ -17,13 +17,15 @@
 
 ## Running and usability acceptance
 
-**#216/RUN-01–05:** source/Dev evidence and native/import/GPS exits retained below. #210/#211/#213 automatic/usability gate and Dev simulatorPASS; physical/max-font/VoiceOver remain open. #214 workflow/source/full-gatePASS; #207 navigation and physical/provider gates retained. [Preserved detail](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md#preserved-prior-runningusability-handoff).
+**#216/RUN-01–05:** 938efc5 in Deva64a158; gate/API PASS, iPhone launched; native/import/GPS exits open. #210/#211/#213 automatic/usability gate and Dev simulatorPASS; physical/max-font/VoiceOver remain open. #214 workflow/source/full-gatePASS; #207 navigation and physical/provider gates retained. [Preserved detail](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md#preserved-prior-runningusability-handoff).
 
 **Next retained release checks:** version9 native workout journeys, physical/accessibility acceptance, then Adam's manual IPA/AAB upload. #27/#32 Store exits open; Community prior closure does not accept this new meal extension. Photos/App Preview remain Dev-only.
 
 ## Local follow-ups awaiting acceptance
 
 - **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok; gatePASS. Dev deployed; iPhone Dev check next. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
+
+- **#253–#257:** e2ee8b3a habit automation; reviews/gatePASS; unpushed; ship app before Prod (old builds hide weekly). [Evidence](docs/HABIT_AUTOMATION_EVIDENCE_2026-10-15.md)
 
 - **#244 UI:** phases1–3 main075a7647; Adam OK on iPhone56777345. Open: VoiceOver/Android/populated-edge.
 
@@ -64,7 +66,6 @@
 - **#168/#169 CLOSED engineering (Oct11):** regressions/review/full gate met; original10s authority preserved. Device/offline/background/nested/AX exits separate. [Scope audit](docs/evidence/community-simulators-2026-10-10/closure-scope-audit-2026-10-11.md)
 - **#178/#179:** #178 closed per Adam (Oct8); nutrients Dev-delivered/installed; device/#29 live checks unrun; #179 skip defect/actual scans retained. [AI](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md). **#227 Home closed per Adam (Oct8):** refs/cards/bars installed;50focused/review/gatePASS; native checks unrun. [Home](docs/HOME_NUTRIENT_LABEL_REFERENCES_2026-10-08.md).
 - **#170/#171–176:** [plans](docs/PROACTIVE_COACH_PLAN_2026-10-02.md); PC-01 first, no rollout. **#241:** Dev recipesON; UI fix in main283bf05; rebuild/native next. [UI/REC06](docs/RECIPE_UI_EVIDENCE_2026-10-14.md); live/qualified open.
-- **#216 Running** — Manual logging/history/edit/delete/drafts source938efc5 preserved in Deva64a158; full gate/API proofPASS, iPhone launched. Next: native acceptance; imports/GPS staged.
 - **#198/#215/#219 Health** — Dev preview/selected exports; isolated full gatePASS. [Evidence](docs/HEALTH_EXPORT_EVIDENCE_2026-10-06.md). Native/device/privacy gates open; Production disabled. Next: both-phone write/read-back; INT-03 separate.
 - **#195/#199 CI** — Forward Community lint repair delivered; Linux43deployment fixtures and quality/navigation CI pass at9b0c41a; #199 closed. Hosted DB workflow #23 remains separate. [Delivery][handoffs]
 
