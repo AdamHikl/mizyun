@@ -10,7 +10,7 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend (Oct14):**56777345c23f2e6b2f898e58098c7562fb08253c (#244 phase3 branch) via deploy:dev; driver gatePASS, DB up to date, health200 18:47Z. No API/schema change. Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
+- **Dev backend (Oct15):**197774caf8e2f2086a8884f31d253e8f86d0f0e9 (#248 PR#251, clean worktree) via deploy:dev; driver gatePASS, migration20261015090000 applied, health200 11:17Z, weekly-review 401 unauth. Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
 - **iPhone Dev (Oct14):**56777345 Release build installed/launched on Adam's iPhone 00008140-001114501A86801C 18:41Z (com.mizyun.development). Device UI/populated-data/VoiceOver acceptance open.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **AI:** Hetzner Dev/Prod; Pi encrypted recovery. Gemini-or-disabled; adult/consent/usage/kill switches; no email allowlist. Founder/partner shared-Gemini Dev exception; Qwen paused. `docs/BEFORE_TESTING.md`/live-provider gates retained.
@@ -23,7 +23,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok(rollback); gatePASS(590core/2691mobile/1122API+15skips). Next: Dev+device; #249/#250. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
+- **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok; gatePASS. Dev deployed; next: iPhone Dev build+check. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
 
 - **#244 UI:** phases1–3 main075a7647; Adam OK on iPhone56777345. Open: VoiceOver/Android/populated-edge.
 
