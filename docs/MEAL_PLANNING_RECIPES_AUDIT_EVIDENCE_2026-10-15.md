@@ -83,3 +83,17 @@ context-load latency.
 #241/#243 stay open until a settled-candidate `pnpm check`, Dev deployment and
 installed iPhone acceptance of the text/photo journeys; qualified nutrition and
 provider gates are unchanged.
+
+## Full gate receipt
+
+`pnpm check` PASS on an isolated worktree of candidate tree
+`8d5e7ae7b287a3dc1bf0b8df91a4f90f88067cf5` (snapshot `f745121b` on baseline
+`9af188c3`), containing both the meal-planning/recipe package and the
+concurrent Community audit package; input fingerprint
+`562a273419e6df60f20076618e6e2da0376c2e10e95e1043c736a2a92d3def99`.
+Counts: mobile 2838, API 1143 (+15 credential-gated E2E skipped across 3
+suites, not accepted), core 633, contracts 353, supabase-server 260, Gemini
+111, all other packages and tooling gates passed. The working tree was
+re-hashed to the same tree before committing; commits `3513d0d8` (meals) and
+`8b9fc0d5` (Community) have exactly that tree. Not deployed; no device or
+native acceptance.
