@@ -427,7 +427,8 @@
       "adapters": [
         "packages/adapters/supabase-server/src/profile-repository.ts",
         "packages/adapters/supabase-server/src/goal-repository.ts",
-        "packages/adapters/supabase-server/src/calorie-adjustment-repository.ts"
+        "packages/adapters/supabase-server/src/calorie-adjustment-repository.ts",
+        "apps/api/src/calorie-adjustment-repository.ts"
       ],
       "dataTables": ["profiles", "goals", "calorie_adjustment_proposals"],
       "migrationPaths": [
