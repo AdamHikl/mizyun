@@ -21,13 +21,10 @@ export function resizePlannedSetTypes(
   );
 }
 
-/** Sequence is one-based; legacy plans and extra sets retain the existing warmup default. */
+/** Sequence is one-based; unplanned and extra sets default to normal, so a completed warmup never carries over. */
 export function plannedSetTypeForSequence(
   types: readonly WorkoutSetType[] | undefined,
   sequence: number,
-  previousType?: WorkoutSetType,
 ): WorkoutSetType {
-  return (
-    types?.[sequence - 1] ?? (previousType === "warmup" ? "warmup" : "normal")
-  );
+  return types?.[sequence - 1] ?? "normal";
 }

@@ -494,6 +494,51 @@ it("prefills and submits each planned type, advancing from warmup to normal to f
   expect(plannedCard().card.props.pendingInput.setType).toBe("normal");
 });
 
+it.each([
+  ["an unplanned exercise", []],
+  ["a set beyond the plan", ["warmup"]],
+])(
+  "switches to a normal set after completing a warmup for %s",
+  async (_case, types) => {
+    plannedRoutineWorkspace(types);
+    mocks.addSet.mockImplementation(async (_id, form) => {
+      const set = {
+        ...plannedTypeSet,
+        id: `set-${mocks.workspace.sets.length + 1}`,
+        sequence: mocks.workspace.sets.length + 1,
+        setType: form.setType,
+      };
+      mocks.workspace = {
+        ...mocks.workspace,
+        sets: [...mocks.workspace.sets, set],
+      };
+      return { ok: true, workoutSet: set };
+    });
+    let { active } = plannedCard();
+    if (types.length === 0) {
+      active.props.onOpenSetTypeModal(active.props.exercises[0]);
+      find(render(), (node) => node.type === "SetTypeModal").props.onSelectType(
+        "warmup",
+      );
+      ({ active } = plannedCard());
+    }
+    expect(plannedCard().card.props.pendingInput.setType).toBe("warmup");
+    active.props.onUpdatePendingInput(exercise.id, { load: "40", reps: "8" });
+    ({ active } = plannedCard());
+    await active.props.onLogSet(active.props.exercises[0]);
+    await settle();
+    expect(mocks.addSet.mock.lastCall?.[1].setType).toBe("warmup");
+    expect(plannedCard().card.props.pendingInput.setType).toBe("normal");
+    // Reloading saved sets must not resurrect the warmup default either.
+    expect(
+      find(
+        plannedCard().card.type(plannedCard().card.props),
+        (node) => node.props?.testID === "pending-set-type-control",
+      ).props.accessibilityLabel,
+    ).toBe("Set 2 type: Normal");
+  },
+);
+
 it("restores planned defaults after reload and allows a manual override for the pending ordinal", async () => {
   plannedRoutineWorkspace(["warmup", "normal", "failure"]);
   mocks.workspace.sets = [{ ...plannedTypeSet, setType: "warmup" }];

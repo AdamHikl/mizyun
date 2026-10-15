@@ -183,10 +183,7 @@ function pendingSetType(
     (input.setTypeSequence === undefined || input.setTypeSequence === sequence)
   )
     return input.setType;
-  const previous = [...completedSets]
-    .sort((a, b) => a.sequence - b.sequence)
-    .at(-1);
-  return plannedSetTypeForSequence(entry.setTypes, sequence, previous?.setType);
+  return plannedSetTypeForSequence(entry.setTypes, sequence);
 }
 
 export function LogWorkoutScreen() {
@@ -1265,7 +1262,6 @@ export function LogWorkoutScreen() {
         const nextSetType: WorkoutSetType = plannedSetTypeForSequence(
           entry.setTypes,
           completedSets.length + 2,
-          setTypeVal,
         );
         updatePendingInput(entry.id, {
           load: loadVal,
