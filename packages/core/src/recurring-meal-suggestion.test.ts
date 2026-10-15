@@ -338,7 +338,8 @@ it("compacts thousands of duplicate copies and keeps the freshest eligible sourc
       input({ entries: [freshest, ...many].reverse() }),
     ),
   ).toEqual(result);
-});
+  // Large-input budget test: ~1-2s alone, slower under the parallel gate.
+}, 20_000);
 
 it("fails closed when distinct minute combinations exceed the resource budget", () => {
   const diverse = Array.from({ length: 300 }, (_, i) => {
@@ -733,5 +734,6 @@ describe("weekly patterns over the last two weeks", () => {
         }),
       )?.reasonCode,
     ).toBe("three_consecutive_days");
-  });
+    // Large-input budget test: ~1-2s alone, slower under the parallel gate.
+  }, 20_000);
 });
