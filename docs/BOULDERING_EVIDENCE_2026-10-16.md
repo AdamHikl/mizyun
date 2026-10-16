@@ -20,9 +20,10 @@ Claude Code implemented every stage of the [plan](BOULDERING_IMPLEMENTATION_PLAN
 - `pnpm db:verify` (disposable local Mac database, same worktree): reset, lint and 52 pgTAP files / 1686 tests **PASS**, including `0048` (80), `0049` (50), `0050` (75), `0051` (14). The shared local database is left at migration `20261016200000`.
 - Independent non-author Opus reviews: BLD-02 (no blocker; Dev flag, removed-session 410 and boundary tests fixed), BLD-04 server (no blocker; ADR semantics, live-project erasure test, `BOULDER_PROJECT_UNAVAILABLE` fixed), BLD-05 server (no privacy blocker; installed-client kind negotiation and publish lock order fixed). Mobile diffs were reviewed by the coordinator, not by an independent agent.
 
+Adam accepted ADR-0066, its sketches and the listed implementation differences on 2026-10-16.
+
 ## Open exits
 
-- Adam's review of the ADR-0066 layout sketches and the deviations recorded in ADR-0066/0067.
 - iOS simulator journey (start → 5 boulders, one with photo → kill → resume → finish → summary; progress after three sessions) with light/dark, largest text and VoiceOver; paired-simulator share journey; Android.
 - Dev deployment (`MIZYUN_ENVIRONMENT=dev` enables the API; Production stays off) together with a Dev build, then Adam's iPhone acceptance. Installed builds without `x-mizyun-activity-kinds` do not see bouldering cards.
 - Photo on shared cards needs a new ADR and Adam's decision.
