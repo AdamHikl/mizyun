@@ -299,3 +299,15 @@ export interface WorkoutRepository {
     options: { readonly accessToken: string },
   ): Promise<boolean>;
 }
+
+/** Activity types whose workouts are not strength sessions. */
+export const NON_STRENGTH_ACTIVITY_TYPES = ["running", "bouldering"] as const;
+
+export const isNonStrengthWorkoutDetails = (
+  details: Readonly<Record<string, unknown>>,
+): boolean =>
+  (NON_STRENGTH_ACTIVITY_TYPES as readonly unknown[]).includes(
+    details.activityType,
+  ) ||
+  Object.hasOwn(details, "runSummary") ||
+  Object.hasOwn(details, "boulderSession");

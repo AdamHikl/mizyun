@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { UserId } from "./index.js";
 import {
   applyWorkoutPatch,
+  isNonStrengthWorkoutDetails,
+  NON_STRENGTH_ACTIVITY_TYPES,
   NOTES_MAX,
   WORKOUT_NAME_MAX,
   type StoredWorkout,
@@ -262,5 +264,23 @@ describe("applyWorkoutPatch", () => {
     expect(next.completedAt).toBe(later);
     expect(next.notes).toBe("Light session");
     expect(next.details).toEqual({ program: "5/3/1" });
+  });
+});
+
+describe("isNonStrengthWorkoutDetails", () => {
+  it("flags running and bouldering details", () => {
+    expect(NON_STRENGTH_ACTIVITY_TYPES).toEqual(["running", "bouldering"]);
+    expect(isNonStrengthWorkoutDetails({ activityType: "running" })).toBe(true);
+    expect(isNonStrengthWorkoutDetails({ activityType: "bouldering" })).toBe(
+      true,
+    );
+    expect(isNonStrengthWorkoutDetails({ runSummary: {} })).toBe(true);
+    expect(isNonStrengthWorkoutDetails({ boulderSession: {} })).toBe(true);
+  });
+  it("leaves legacy strength details alone", () => {
+    expect(isNonStrengthWorkoutDetails({})).toBe(false);
+    expect(isNonStrengthWorkoutDetails({ activityType: "strength" })).toBe(
+      false,
+    );
   });
 });

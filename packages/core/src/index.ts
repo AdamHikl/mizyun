@@ -406,6 +406,10 @@ export * from "./running";
 
 export * from "./run-repository";
 
+export * from "./bouldering-grades";
+
+export * from "./bouldering";
+
 export * from "./meal-illustration";
 export {
   isOwnedMealImagePath,
@@ -444,3 +448,4 @@ export * from "./meal-quick-add";
 export * from "./workout-routine-suggestion";
 
 export * from "./reminder-timing";
+export * from "./bouldering-repository";
