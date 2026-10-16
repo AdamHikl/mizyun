@@ -126,4 +126,30 @@ describe("API foundation", () => {
     const body = response.json();
     expect(body.error?.code).toBe("INTERNAL_ERROR");
   });
+
+  it("reports an unavailable token verifier as 503, not an invalid token", async () => {
+    // Clients sign out on 401. An auth outage must not end valid sessions.
+    const tokenVerifier: AccessTokenVerifier = {
+      verify: async () => {
+        throw new Error("Access token verification is unavailable.");
+      },
+    };
+    const app = buildApp({
+      tokenVerifier,
+      agent: new AgentOrchestrator({
+        provider: new DisabledAgentProvider(),
+        memories: new InMemoryMemoryStore(),
+      }),
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/me",
+      headers: { authorization: "Bearer any-token" },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error?.code).toBe("AUTHENTICATION_UNAVAILABLE");
+  });
 });

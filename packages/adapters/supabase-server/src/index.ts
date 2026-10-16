@@ -15,6 +15,19 @@ interface ClaimsClient {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// GoTrue verifies symmetric (HS*) tokens by calling `/user`. A network failure,
+// rate limit or server error there says nothing about the token, so it must not
+// become a 401: clients treat 401 as an ended session and sign the person out.
+const isTransientAuthFailure = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return true;
+  const { name, status } = error as { name?: unknown; status?: unknown };
+  if (name === "AuthRetryableFetchError") return true;
+  return (
+    typeof status === "number" &&
+    (status === 408 || status === 429 || status >= 500)
+  );
+};
+
 export class SupabaseAccessTokenVerifier implements AccessTokenVerifier {
   constructor(private readonly client: ClaimsClient) {}
 
@@ -22,7 +35,15 @@ export class SupabaseAccessTokenVerifier implements AccessTokenVerifier {
     if (!accessToken) return null;
 
     const { data, error } = await this.client.auth.getClaims(accessToken);
-    if (error || !data?.claims) return null;
+    if (error) {
+      if (isTransientAuthFailure(error)) {
+        throw new Error("Access token verification is unavailable.", {
+          cause: error,
+        });
+      }
+      return null;
+    }
+    if (!data?.claims) return null;
 
     const subject = data.claims.sub;
     if (typeof subject !== "string" || !UUID_PATTERN.test(subject)) return null;
