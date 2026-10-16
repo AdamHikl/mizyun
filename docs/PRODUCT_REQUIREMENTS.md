@@ -212,6 +212,16 @@ After a confirmed meal is logged on three consecutive user-local days, Home and 
 - **WEAR-01:** Dev users may explicitly connect Apple Watch or Wear OS to the foreground active phone workout for exercise/set display, manual reps/load with the phone-selected set type, absolute rest timing and explicit completion. Phone logging remains authoritative; historical and duration-only exercises do not gain new mutation paths. Health, Coach and Community purposes remain independent.
 - **WEAR-02:** Strict bounded commands carry fresh nonce/binding, workout identity, revision, operation identity and expiry. Duplicate transport delivery cannot repeat an attempted save. Unknown results stop watch actions and require checking the phone; leaving/background/logout/account or workout changes retires authority. Restored watch data cannot render or commit another binding's state. Both paired-device and disclosure gates remain open before Production.
 
+## BOULDER-001 — Indoor bouldering
+
+Indoor bouldering is a mode inside Workouts ([ADR-0066](adr/0066-indoor-bouldering-sessions.md), [plan](BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md)). Grades use the Font scale 3–8C+. Outdoor climbing, rope grades, V-scale conversion and public rankings are out of scope.
+
+- **BOULDER-01:** A user can start an indoor bouldering session from Workouts and log each boulder with a Font grade, a result (flash, sent with attempts, not yet), and optional hold colour, note and private photo. Every save is server-authoritative, idempotent and recoverable after restart.
+- **BOULDER-02:** Finishing shows sends, flashes, attempts and top grade, and a personal-best or first-flash moment only when true against earlier completed sessions.
+- **BOULDER-03:** Progress shows a send pyramid (30/90/all days), hardest send per session and projects with sessions-to-send, using canonical grade ranks; no streaks, rankings or calorie claims.
+- **BOULDER-04:** Bouldering records are owner-only (RLS), excluded from strength progression and Coach strength context, included in export and removed on account deletion.
+- **BOULDER-05:** Sharing a session publishes only an explicitly previewed allowlisted snapshot to approved followers under COMMUNITY-01–16.
+
 ## AI-RECIPES-001 — Ingredient recipes and remaining macro balance
 
 - **NUT-RECIPES-01:** Rank ordinary meal portions by the remaining protein/carbohydrate/fat relationship, using the same deterministic EnergySummary targets as Home and null-safe logged local-day totals. Preserve signed remaining grams. Unknown, incomplete or stale context has no numeric best-fit claim; all gaps exhausted preserves ordinary recipe discovery without prescribing skipped food. A meal need not fill the full remaining allowance.

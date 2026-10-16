@@ -243,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255).",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing.",
       "aliases": [
         "workout",
         "exercise",
@@ -251,7 +251,10 @@
         "sets",
         "gym",
         "routine",
-        "running"
+        "running",
+        "bouldering",
+        "climbing",
+        "boulder"
       ],
       "entryPoints": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -375,7 +378,9 @@
         "docs/adr/0040-free-exercise-catalog-and-legacy-identity.md",
         "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md",
         "docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md",
-        "docs/adr/0065-selected-health-run-imports.md"
+        "docs/adr/0065-selected-health-run-imports.md",
+        "docs/adr/0066-indoor-bouldering-sessions.md",
+        "docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
@@ -384,7 +389,17 @@
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
       "limitations": "Active workout recovery is local-first in mobile state; cloud sync occurs on set/workout completion",
-      "requirements": ["TRAIN-01", "TRAIN-02", "TRAIN-03", "WO-07"],
+      "requirements": [
+        "TRAIN-01",
+        "TRAIN-02",
+        "TRAIN-03",
+        "WO-07",
+        "BOULDER-01",
+        "BOULDER-02",
+        "BOULDER-03",
+        "BOULDER-04",
+        "BOULDER-05"
+      ],
       "openAcceptance": [
         "WO-07 exact-candidate standalone Dev start/add-before-first-set/restart/log/finish/history and appearance/accessibility acceptance (#187)"
       ]

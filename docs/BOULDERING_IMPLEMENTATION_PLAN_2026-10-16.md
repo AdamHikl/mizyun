@@ -125,6 +125,8 @@ Decide and record: storage shape above; one active session at a time across stre
 
 **Exit:** ADR accepted by Adam; requirement text added; no open choice changes stored semantics.
 
+**Progress (2026-10-16):** [ADR-0066](adr/0066-indoor-bouldering-sessions.md) (0065 was taken by Health run imports) records the decisions and both sketches; BOULDER-01–05 added to the requirements and feature map. Baseline moved to `79e8e75c` (adds `20261016120000_running_health_imports.sql`; no media or Community change). Adam asked to implement every stage in sequence, so later stages proceed; Adam's acceptance of the ADR and sketches remains open.
+
 ### BLD-01 — Pure grade scale, contracts and calculations
 
 **Files:** [NEW] `packages/core/src/bouldering-grades.ts`, `bouldering.ts` and tests; [NEW] `packages/core/src/bouldering-repository.ts` (port); [NEW] `packages/contracts/src/bouldering.ts` and tests; [MODIFY] both `src/index.ts`; [MODIFY] `packages/core/src/workout.ts` (generalised activity-type exclusion) and tests.
