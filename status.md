@@ -17,40 +17,29 @@
 
 ## Running and usability acceptance
 
-**#216 running:** RUN-01–05 938efc5 Dev; native/GPS exits open. RUN-06 Health run imports + Log run shortcuts (ADR0065, migration20261016120000) local; 2 reviews/gatePASS, db:verify/Dev/device open. [Evidence](docs/RUN_IMPORTS_EVIDENCE_2026-10-16.md). #210/#211/#213/#214/#207 exits: [detail](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md#preserved-prior-runningusability-handoff).
+**#216 running:** RUN-01–05 Dev; native/GPS open. RUN-06 Health run imports + Log run shortcuts (ADR0065, migration20261016120000): 2 reviews/gatePASS; db:verify/device open. [Evidence](docs/RUN_IMPORTS_EVIDENCE_2026-10-16.md). #210–#214/#207 exits: [detail](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md#preserved-prior-runningusability-handoff).
 
 **Next retained release checks:** version9 native workout journeys, physical/accessibility acceptance, then Adam's manual IPA/AAB upload. #27/#32 Store exits open; Community prior closure does not accept this new meal extension. Photos/App Preview remain Dev-only.
 
 ## Local follow-ups awaiting acceptance
 
+- **#276 bouldering:** [plan](docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md) only; next BLD-00. **Share sheet:** live preview polish; device check open.
 - **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok; gatePASS. Dev deployed; iPhone Dev check next. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
-
 - **Community audit (Oct15):** 8b9fc0d5; review/gatePASS; Dev/device open. #265 needs Adam. [Evidence](docs/COMMUNITY_AUDIT_FIXES_2026-10-15.md)
-
 - **#253–#257:** e2ee8b3a habit automation; reviews/gatePASS; Dev1642d9dd; ship app before Prod (old builds hide weekly). [Evidence](docs/HABIT_AUTOMATION_EVIDENCE_2026-10-15.md)
-
 - **#244 UI:** phases1–3 main075a7647; Adam OK on iPhone56777345. Open: VoiceOver/Android/populated-edge.
-
 - **#239:** consent/reminders gatePASS; Dev installed; native next. [Proof](docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md).
-
 - **#238 meals:** review/gatePASS; Dev delivered; iOS sim deferred by Adam; native/Prod open. [Evidence](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md).
-
 - **#237:** gatePASS; native deferred. [Proof](docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md).
-
 - **#234/#235:** Dev81.67%; Material1.14/resizable; build/gate/API36 rotation PASS; RN/older/device/Play open. [Evidence](docs/ANDROID_WINDOW_DEV_EVIDENCE_2026-10-11.md).
-
 - **#182 (Oct14):** Coach history kept on token rotation; Community Feed stale read-only (Adam OK);0ee20191 gatePASS; device next. [Evidence](docs/FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md#oct14).
-
 - **#232/INT-07:** foreground Watch/Wear source/review/gatePASS; watch/phone compile. physical deferred by Adam; Health/privacy/Prod open. [Evidence](docs/WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md).
-
 - **#230/#233 visuals:**4fa20a8 Dev; Pro display/save locked; gate/120SQL+6races/reviewPASS. iPhone update pending; native/provider/release open. [Evidence](docs/PRO_MEAL_VISUALS_EVIDENCE_2026-10-09.md).
-
 - **#208 (Oct9):** iOS selection;110tests/gatePASS; [evidence/gate](docs/COACH_TEXT_SELECTION_HANDLES_EVIDENCE_2026-10-09.md). Next: installed partial-copy/scroll/keyboard/themes/large-text/VoiceOver; per-block scope, native exits open.
-
-- **#139 closed per Adam (Oct8):** installed type control/warmup metrics;243tests/review/gatePASS. [Evidence](docs/WORKOUT_SET_TYPES_VERIFICATION_2026-10-08.md). Routine/native unrun; #228 closed per Adam.
-- **#226:** d5c2e06 completed-workout review installed on latest Dev; focused276/typecheck/review/preview/isolated gatePASS. Next: history/active-rest/accessibility acceptance. [Evidence](docs/COMPLETED_WORKOUT_REVIEW_EVIDENCE_2026-10-07.md).
-- **#223:**3984c35 Home one-time start/Resume/retry/account guards installed latest Dev; focused85/review/gatePASS. Next: device start/add/finish/resume. [Evidence](docs/HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md).
-- **#222:**3984c35 first-meal shortcut installed latest Dev; focused96/TZ45/review/gatePASS. Next: device Copy to Today/empty-yesterday. [Evidence](docs/FIRST_MEAL_SHORTCUT_EVIDENCE_2026-10-07.md).
+- **#139 closed per Adam (Oct8):** type control/warmup gatePASS. [Evidence](docs/WORKOUT_SET_TYPES_VERIFICATION_2026-10-08.md). Routine/native unrun; #228 closed.
+- **#226:** d5c2e06 completed-workout review installed on latest Dev; review/gatePASS. Next: history/active-rest/accessibility acceptance. [Evidence](docs/COMPLETED_WORKOUT_REVIEW_EVIDENCE_2026-10-07.md).
+- **#223:**3984c35 Home one-time start/Resume/retry/account guards installed latest Dev; review/gatePASS. Next: device start/add/finish/resume. [Evidence](docs/HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md).
+- **#222:**3984c35 first-meal shortcut installed latest Dev; TZ/review/gatePASS. Next: device Copy to Today/empty-yesterday. [Evidence](docs/FIRST_MEAL_SHORTCUT_EVIDENCE_2026-10-07.md).
 - **#218/#225 photos:** local7d5c9d0; async copy/iOS owner/raw-error fixes;244focused/review/gatePASS (1765mobile/892API+15skips). Installed above. Next: selection/Process/Save/reopen/retry; native/offline/account/multi-photo/AX/Android/provider exits open; Production disabled. [Evidence](docs/MEAL_PHOTO_COPY_FIX_EVIDENCE_2026-10-07.md).
 - **#217 Pro multi-photo:**3984c35 preserved in this Dev/mobile candidate; Meals/Coach up to3 and separate drafts. Focused477/High review/full gatePASS; native/live-provider acceptance open. [Evidence](docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md).
 - **Usability #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136:** implementation/native/provider/release and combined acceptance exits open: [prior status](docs/archive/status/STATUS_PRE_MEAL_PHOTO_DELIVERY_2026-10-06.md).
@@ -65,8 +54,8 @@
 - **#188 prior-day meals** — Dev; accept heading/date retention, paginated history, manual/recent/AI/Clear, restart/lost-response/conflicts/DST and accessibility. Date picker excluded. [Handoff][handoffs]
 - **#189/#191 catalog:**609active/888original IDs; historical gatePASS. All609 need per-entry form/variant acceptance;3duplicate pairs/swimming/cycling gaps remain. Next: search/readability/history/targets/restart;200-record saved pagination deferred#191. [Evidence](docs/evidence/exercise-catalog/verification-2026-10-04.md).
 - **#190 direct Coach entry** — Dev; accept first text/photo, cancellation/consent, failed creation/retry, existing threads and last deletion on both devices. [Handoff][handoffs]
-- **#168/#169 CLOSED engineering (Oct11):** regressions/review/full gate met; original10s authority preserved. Device/offline/background/nested/AX exits separate. [Scope audit](docs/evidence/community-simulators-2026-10-10/closure-scope-audit-2026-10-11.md)
-- **#178/#179:** #178 closed per Adam (Oct8); nutrients Dev-delivered/installed; device/#29 live checks unrun; #179 skip defect/actual scans retained. [AI](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md). **#227 Home closed per Adam (Oct8):** refs/cards/bars installed;50focused/review/gatePASS; native checks unrun. [Home](docs/HOME_NUTRIENT_LABEL_REFERENCES_2026-10-08.md).
+- **#168/#169 CLOSED engineering (Oct11):** review/gate met; original10s authority preserved. Device/offline/background/nested/AX exits separate. [Scope audit](docs/evidence/community-simulators-2026-10-10/closure-scope-audit-2026-10-11.md)
+- **#178/#179:** #178 closed per Adam (Oct8); device/#29 live checks unrun; #179 skip defect/scans retained. [AI](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md). **#227 Home closed per Adam (Oct8):** refs/cards/bars gatePASS; native checks unrun. [Home](docs/HOME_NUTRIENT_LABEL_REFERENCES_2026-10-08.md).
 - **#170/#171–176:** [plans](docs/PROACTIVE_COACH_PLAN_2026-10-02.md); PC-01 first, no rollout. **#241:** Dev recipesON; UI fix in main283bf05; rebuild/native next. [UI/REC06](docs/RECIPE_UI_EVIDENCE_2026-10-14.md); live/qualified open. Oct15 [fixes](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md) 3513d0d8 gatePASS; Dev/device open.
 - **#198/#215/#219 Health** — Dev preview/selected exports; isolated full gatePASS. [Evidence](docs/HEALTH_EXPORT_EVIDENCE_2026-10-06.md). Native/device/privacy gates open; Production disabled. Next: both-phone write/read-back; INT-03 separate.
 - **#195/#199 CI** — Community lint repair delivered; Linux43 fixtures/quality/navigation CI PASS at9b0c41a; #199 closed. Hosted DB workflow #23 separate. [Delivery][handoffs]
@@ -79,7 +68,7 @@ Community #137/#140/#148/#150–151/#153–156/#158–162 open. [Oct8 gates/acti
 
 **Oct10–11:** #142–147/#149/#152/#166–169 CLOSED; iOS accepted/no physical repeat;Android skipped. Cursorb60bf9b:39SQL/89focused/review/gatePASS; undeployed, approval/livecodec#137; externalpushOFF. [Exact source](docs/evidence/community-simulators-2026-10-10/feed-reactions-inbox-closure-2026-10-11.md); #144 proof in same directory.
 
-**#150/#151/#156:** 33-category export/privacy6db9130; review/206SQL/41adapter/8Node/8Python/28replayPASS; gate2047mobile/980API+15/3skips. Native consent/candidates/reportPASS; replyCONTROL-BLOCKED. [Proof/inputs](docs/evidence/community-simulators-2026-10-10/mobile-lifecycle-comments-2026-10-11.md). Migration undeployed; nextDevapproval/preflightPASS; VoiceOver/offline/Android/operator/custody/retention/archive unrun.
+**#150/#151/#156:** 33-category export/privacy6db9130; review/SQL/adapter/replay/gatePASS (counts in proof). Native consent/candidates/reportPASS; replyCONTROL-BLOCKED. [Proof/inputs](docs/evidence/community-simulators-2026-10-10/mobile-lifecycle-comments-2026-10-11.md). Migration undeployed; nextDevapproval/preflightPASS; VoiceOver/offline/Android/operator/custody/retention/archive unrun.
 
 Retained exits: unrun offline/accessibility; trained named MFA moderation/contact/absence drills; provider/device push; legal/public/Store disclosures; adult research/four-week pilot. [Expansion proof](docs/COMMUNITY_EXPANSIONS_DEV_EVIDENCE_2026-10-01.md). Isolation unverified after shared-cloudflared freeze/mixed networks.
 
