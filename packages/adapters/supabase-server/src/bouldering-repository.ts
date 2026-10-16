@@ -1,14 +1,19 @@
 import {
   BOULDER_PROGRESS_SESSION_LIMIT,
+  BOULDER_PROJECT_LIST_LIMIT,
   BoulderRepositoryError,
   type BoulderAscentInput,
   type BoulderingRepository,
+  type BoulderProjectFilter,
+  type BoulderProjectListing,
+  type BoulderProjectStatus,
   type BoulderSessionCursor,
   type BoulderSessionStartInput,
   type BoulderResult,
   type FontGrade,
   type HoldColour,
   type StoredBoulderAscent,
+  type StoredBoulderProject,
   type StoredWorkout,
   type UserId,
 } from "@mizyun/core";
@@ -34,6 +39,22 @@ export interface BoulderAscentRow extends Record<string, unknown> {
   readonly photo_asset_id: string | null;
   readonly project_id?: string | null;
   readonly logged_at: string;
+  readonly revision: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface BoulderProjectRow extends Record<string, unknown> {
+  readonly id: string;
+  readonly user_id: string;
+  readonly grade_scale: "font";
+  readonly grade_code: string;
+  readonly grade_rank: number;
+  readonly hold_colour: string | null;
+  readonly status: string;
+  readonly first_logged_at: string;
+  readonly sent_at: string | null;
+  readonly sent_ascent_id: string | null;
   readonly revision: number;
   readonly created_at: string;
   readonly updated_at: string;
@@ -65,6 +86,24 @@ export const boulderAscentFromRow = (
   updatedAt: new Date(row.updated_at),
 });
 
+export const boulderProjectFromRow = (
+  row: BoulderProjectRow,
+): StoredBoulderProject => ({
+  id: row.id,
+  userId: row.user_id as UserId,
+  gradeScale: "font",
+  grade: row.grade_code as FontGrade,
+  gradeRank: row.grade_rank,
+  holdColour: row.hold_colour as HoldColour | null,
+  status: row.status as BoulderProjectStatus,
+  firstLoggedAt: new Date(row.first_logged_at),
+  sentAt: row.sent_at === null ? null : new Date(row.sent_at),
+  sentAscentId: row.sent_ascent_id,
+  revision: row.revision,
+  createdAt: new Date(row.created_at),
+  updatedAt: new Date(row.updated_at),
+});
+
 /** RPC writes and RLS-scoped reads; the database owns every invariant. */
 export class SupabaseBoulderingRepository implements BoulderingRepository {
   constructor(
@@ -80,6 +119,8 @@ export class SupabaseBoulderingRepository implements BoulderingRepository {
     if (error) {
       if (error.message?.includes("boulder_session_active"))
         throw new BoulderRepositoryError("active_session");
+      if (error.message?.includes("boulder_project_unavailable"))
+        throw new BoulderRepositoryError("project_unavailable");
       if (error.code === "P0002" || error.code === "42501")
         throw new BoulderRepositoryError("not_found");
       if (error.code === "P0003") throw new BoulderRepositoryError("removed");
@@ -291,6 +332,7 @@ export class SupabaseBoulderingRepository implements BoulderingRepository {
           p_colour: input.holdColour,
           p_note: input.note,
           p_photo: input.photoAssetId,
+          p_project: input.projectId ?? null,
         },
       ),
       userId,
@@ -336,6 +378,83 @@ export class SupabaseBoulderingRepository implements BoulderingRepository {
     return rows[0] ? this.ownedAscent(rows, userId) : null;
   }
 
+  async listProjects(
+    userId: UserId,
+    options: {
+      readonly accessToken: string;
+      readonly status: BoulderProjectFilter;
+      readonly ids?: readonly string[] | undefined;
+    },
+  ): Promise<readonly BoulderProjectListing[]> {
+    const client = this.clientFor(options.accessToken);
+    if (options.ids !== undefined && options.ids.length === 0) return [];
+    let query = client
+      .from<BoulderProjectRow>("boulder_projects")
+      .select("*")
+      .eq("user_id", userId);
+    if (options.status !== "all") query = query.eq("status", options.status);
+    if (options.ids !== undefined) query = query.in("id", [...options.ids]);
+    const { data, error } = await query
+      .order("first_logged_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(BOULDER_PROJECT_LIST_LIMIT);
+    if (error || !Array.isArray(data))
+      throw new RepositoryError("Bouldering projects unavailable");
+    if (data.some((row) => row.user_id !== userId))
+      throw new BoulderRepositoryError("not_found");
+    const projects = data.map(boulderProjectFromRow);
+    const linked = new Map<string, StoredBoulderAscent[]>(
+      projects.map((project) => [project.id, []]),
+    );
+    const ids = projects.map((project) => project.id);
+    for (let i = 0; i < ids.length; i += ID_CHUNK) {
+      const chunk = ids.slice(i, i + ID_CHUNK);
+      for (let offset = 0; ; offset += PAGE) {
+        const page = await client
+          .from<BoulderAscentRow>("boulder_ascents")
+          .select("*")
+          .eq("user_id", userId)
+          .in("project_id", chunk)
+          .order("project_id", { ascending: true })
+          .order("logged_at", { ascending: true })
+          .order("sequence", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + PAGE - 1);
+        if (page.error || !Array.isArray(page.data))
+          throw new RepositoryError("Bouldering ascents unavailable");
+        if (page.data.some((row) => row.user_id !== userId))
+          throw new BoulderRepositoryError("not_found");
+        for (const row of page.data) {
+          const ascent = boulderAscentFromRow(row);
+          if (ascent.projectId !== null)
+            linked.get(ascent.projectId)?.push(ascent);
+        }
+        if (page.data.length < PAGE) break;
+      }
+    }
+    return projects.map((project) => ({
+      project,
+      ascents: linked.get(project.id) ?? [],
+    }));
+  }
+
+  async setProjectArchived(
+    userId: UserId,
+    id: string,
+    archived: boolean,
+    options: { accessToken: string },
+  ): Promise<StoredBoulderProject> {
+    const rows = await this.call<BoulderProjectRow>(
+      options.accessToken,
+      "boulder_project_set_archived",
+      { p_id: id, p_archived: archived },
+    );
+    const row = rows[0];
+    if (!row || row.user_id !== userId)
+      throw new BoulderRepositoryError("not_found");
+    return boulderProjectFromRow(row);
+  }
+
   async exportForUser(userId: UserId, options: { accessToken: string }) {
     const client = this.clientFor(options.accessToken);
     return {
@@ -354,6 +473,13 @@ export class SupabaseBoulderingRepository implements BoulderingRepository {
         "created_at",
         true,
         "operation_id",
+      ),
+      projects: await fetchAllExportPages(
+        client,
+        "boulder_projects",
+        "user_id",
+        userId,
+        "first_logged_at",
       ),
     };
   }

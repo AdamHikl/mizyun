@@ -285,6 +285,13 @@ export class SupabaseAccountRepository implements AccountRepository {
           true,
           "operation_id",
         ),
+        projects: await fetchAllPaged(
+          client,
+          "boulder_projects",
+          "user_id",
+          userId,
+          "first_logged_at",
+        ),
       };
       recurringMeals = {
         schedules: await fetchAllPaged(

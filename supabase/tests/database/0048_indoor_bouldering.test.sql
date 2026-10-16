@@ -19,8 +19,8 @@ select ok(not has_table_privilege('authenticated','public.boulder_ascents','DELE
 select ok(not has_table_privilege('authenticated','public.boulder_operation_receipts','INSERT'),'No direct receipt insert');
 select ok(not has_table_privilege('anon','public.boulder_ascents','SELECT'),'Anon cannot read ascents');
 select ok(not has_function_privilege('anon','public.boulder_session_start(uuid,text,text)','EXECUTE'),'Anon cannot start');
-select ok(not has_function_privilege('service_role','public.boulder_ascent_create(uuid,uuid,text,text,integer,text,text,uuid)','EXECUTE'),'Service role has no create grant');
-select ok(has_function_privilege('authenticated','public.boulder_ascent_create(uuid,uuid,text,text,integer,text,text,uuid)','EXECUTE'),'Authenticated can create through the RPC');
+select ok(not has_function_privilege('service_role','public.boulder_ascent_create(uuid,uuid,text,text,integer,text,text,uuid,uuid)','EXECUTE'),'Service role has no create grant');
+select ok(has_function_privilege('authenticated','public.boulder_ascent_create(uuid,uuid,text,text,integer,text,text,uuid,uuid)','EXECUTE'),'Authenticated can create through the RPC');
 select ok(not has_function_privilege('authenticated','public.boulder_admit()','EXECUTE'),'Admission helper is private');
 select is(public.boulder_grade_rank('6A+'),6::smallint,'Font 6A+ ranks 6');
 select is(public.boulder_grade_rank('8C+'),22::smallint,'Font 8C+ ranks 22');

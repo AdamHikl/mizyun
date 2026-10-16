@@ -157,6 +157,7 @@ export const accountExportSchema = z.object({
     .object({
       ascents: z.array(z.record(z.unknown())),
       receipts: z.array(z.record(z.unknown())),
+      projects: z.array(z.record(z.unknown())).optional(),
     })
     .optional(),
   workouts: z.array(z.unknown()),

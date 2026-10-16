@@ -144,6 +144,16 @@ export interface BoulderPendingStore {
     finish: BoulderPendingFinish | null,
     isCurrent: () => boolean,
   ): Promise<boolean>;
+  /**
+   * Replaces one waiting command in place (same queue position). Used when a
+   * "Try again" create must be resent unlinked under a new operation id.
+   */
+  replace(
+    userId: string,
+    operationId: string,
+    next: BoulderPendingCommand,
+    isCurrent: () => boolean,
+  ): Promise<boolean>;
   /** Discards an unreadable slot after the user confirms. */
   discard(userId: string): Promise<boolean>;
 }
@@ -231,6 +241,22 @@ export const createBoulderPendingStore = (
         return false;
       }
     },
+    async replace(userId, operationId, next, isCurrent) {
+      if (!isCommand(next)) return false;
+      try {
+        return await mutate(userId, isCurrent, (state) => {
+          const index = state.commands.findIndex(
+            (c) => commandOperationId(c) === operationId,
+          );
+          if (index < 0) return { result: false };
+          const commands = [...state.commands];
+          commands[index] = next;
+          return { result: true, next: { ...state, commands } };
+        });
+      } catch {
+        return false;
+      }
+    },
     discard: (userId) => clearLoggingDraft(userId, KIND, backend),
   };
 };
@@ -257,8 +283,19 @@ export interface FlushDropped {
   readonly failure: BoulderFailure;
 }
 
+/**
+ * A "Try again" create whose project was sent or removed elsewhere: it was
+ * re-queued unlinked under a new operation id (the old id's payload named the
+ * project, so reusing it would conflict). The boulder itself is never lost.
+ */
+export interface FlushRelinked {
+  readonly from: BoulderPendingCommand;
+  readonly to: BoulderPendingCommand;
+}
+
 export interface FlushOutcome {
   readonly synced: readonly FlushSynced[];
+  readonly relinked: readonly FlushRelinked[];
   readonly dropped: readonly FlushDropped[];
   /** Why replay stopped early (offline, disabled, account changed...), else null. */
   readonly blocked: BoulderFailure | null;
@@ -291,6 +328,8 @@ export function flushBoulderCommands(
     readonly isCurrent: () => boolean;
     readonly store?: BoulderPendingStore;
     readonly onMediaOrphan?: (assetId: string) => void;
+    /** New operation ids for unlinked re-queues (expo-crypto in the app). */
+    readonly newOperationId?: () => string;
   },
 ): Promise<FlushOutcome> {
   const running = inFlight.get(userId);
@@ -309,15 +348,18 @@ async function runFlush(
     isCurrent,
     store = boulderPendingStore,
     onMediaOrphan,
+    newOperationId,
   }: {
     readonly client: ApiClient;
     readonly isCurrent: () => boolean;
     readonly store?: BoulderPendingStore;
     readonly onMediaOrphan?: (assetId: string) => void;
+    readonly newOperationId?: () => string;
   },
 ): Promise<FlushOutcome> {
   const synced: FlushSynced[] = [];
   const dropped: FlushDropped[] = [];
+  const relinked: FlushRelinked[] = [];
   const accountChanged: BoulderFailure = {
     kind: "context_changed",
     message: "Your account changed. Reopen bouldering.",
@@ -328,6 +370,7 @@ async function runFlush(
   } catch {
     return {
       synced,
+      relinked,
       dropped,
       blocked: {
         kind: "unavailable",
@@ -341,14 +384,27 @@ async function runFlush(
   while (queue.length > 0) {
     const command = queue[0]!;
     if (!isCurrent())
-      return { synced, dropped, blocked: accountChanged, remaining: queue };
+      return {
+        synced,
+        relinked,
+        dropped,
+        blocked: accountChanged,
+        remaining: queue,
+      };
     const result = await send(command, client);
     if (!isCurrent())
-      return { synced, dropped, blocked: accountChanged, remaining: queue };
+      return {
+        synced,
+        relinked,
+        dropped,
+        blocked: accountChanged,
+        remaining: queue,
+      };
     if (result.ok) {
       if (!(await store.remove(userId, commandOperationId(command), isCurrent)))
         return {
           synced,
+          relinked,
           dropped,
           blocked: {
             kind: "unavailable",
@@ -368,9 +424,41 @@ async function runFlush(
         onMediaOrphan?.(command.replacedPhotoAssetId);
       continue;
     }
+    if (
+      result.error.kind === "project_unavailable" &&
+      command.kind === "create" &&
+      command.body.projectId !== null
+    ) {
+      const unlinked = unlinkedCreate(command, newOperationId?.());
+      if (
+        !unlinked ||
+        !(await store.replace(
+          userId,
+          commandOperationId(command),
+          unlinked,
+          isCurrent,
+        ))
+      )
+        return {
+          synced,
+          relinked,
+          dropped,
+          blocked: result.error,
+          remaining: queue,
+        };
+      queue[0] = unlinked;
+      relinked.push({ from: command, to: unlinked });
+      continue;
+    }
     if (PERMANENT.has(result.error.kind)) {
       if (!(await store.remove(userId, commandOperationId(command), isCurrent)))
-        return { synced, dropped, blocked: result.error, remaining: queue };
+        return {
+          synced,
+          relinked,
+          dropped,
+          blocked: result.error,
+          remaining: queue,
+        };
       queue.shift();
       dropped.push({ command, failure: result.error });
       // A photo attached only by this failed edit is now unreferenced.
@@ -382,10 +470,30 @@ async function runFlush(
         onMediaOrphan?.(command.body.photoAssetId);
       continue;
     }
-    return { synced, dropped, blocked: result.error, remaining: queue };
+    return {
+      synced,
+      relinked,
+      dropped,
+      blocked: result.error,
+      remaining: queue,
+    };
   }
-  return { synced, dropped, blocked: null, remaining: [] };
+  return { synced, relinked, dropped, blocked: null, remaining: [] };
 }
+
+/** The same boulder without its project link, under a fresh operation id. */
+export const unlinkedCreate = (
+  command: Extract<BoulderPendingCommand, { kind: "create" }>,
+  operationId: string | undefined,
+): BoulderPendingCommand | null => {
+  if (!operationId) return null;
+  const body = boulderAscentCreateSchema.safeParse({
+    ...command.body,
+    clientOperationId: operationId,
+    projectId: null,
+  });
+  return body.success ? { ...command, body: body.data } : null;
+};
 
 /** Message shown for a dropped command; never silent. */
 export const droppedMessage = (dropped: FlushDropped): string => {

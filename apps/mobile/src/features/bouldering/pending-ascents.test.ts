@@ -320,4 +320,147 @@ describe("pending ascent store", () => {
     });
     expect(orphan).toHaveBeenCalledWith(photo);
   });
+
+  describe("Try again (linked project)", () => {
+    const PROJECT = "55555555-5555-4555-8555-555555555555";
+    const linked = (op = uuid()): BoulderPendingCommand => ({
+      kind: "create",
+      sessionId: SESSION,
+      body: boulderAscentCreateSchema.parse({
+        clientOperationId: op,
+        grade: "6B",
+        result: "not_yet",
+        attempts: 2,
+        holdColour: "red",
+        projectId: PROJECT,
+      }),
+      queuedAt: "2026-10-16T10:00:00.000Z",
+    });
+
+    it("keeps projectId in the durable command and sends it on create", async () => {
+      const storage = backend();
+      const store = createBoulderPendingStore(storage);
+      const owner = user();
+      const command = linked();
+      expect((await store.enqueue(owner, command, () => true)).ok).toBe(true);
+      const restarted = createBoulderPendingStore(storage);
+      const [stored] = (await restarted.load(owner)).commands;
+      expect((stored as any).body.projectId).toBe(PROJECT);
+      const client = clientWith((options) =>
+        ok({
+          ascent: {
+            ...ascentRecord(options.body.clientOperationId),
+            projectId: PROJECT,
+          },
+        }),
+      );
+      await flushBoulderCommands(owner, {
+        client,
+        isCurrent: () => true,
+        store: restarted,
+      });
+      expect(client.request.mock.calls[0]![0].body.projectId).toBe(PROJECT);
+    });
+
+    it("re-queues an unavailable project's boulder unlinked under a new operation id", async () => {
+      const storage = backend();
+      const store = createBoulderPendingStore(storage);
+      const owner = user();
+      const command = linked();
+      const oldOp = (command as any).body.clientOperationId;
+      const following = create();
+      await store.enqueue(owner, command, () => true);
+      await store.enqueue(owner, following, () => true);
+      const newOp = uuid();
+      const client = clientWith((options) =>
+        options.body?.projectId
+          ? httpError(409, "BOULDER_PROJECT_UNAVAILABLE")
+          : ok({ ascent: ascentRecord(options.body.clientOperationId) }),
+      );
+      const outcome = await flushBoulderCommands(owner, {
+        client,
+        isCurrent: () => true,
+        store,
+        newOperationId: () => newOp,
+      });
+      const bodies = client.request.mock.calls.map((c: any) => c[0].body);
+      expect(bodies.map((b: any) => b.clientOperationId)).toEqual([
+        oldOp,
+        newOp,
+        (following as any).body.clientOperationId,
+      ]);
+      expect(bodies[1]).toMatchObject({
+        grade: "6B",
+        result: "not_yet",
+        attempts: 2,
+        holdColour: "red",
+        projectId: null,
+      });
+      expect(outcome.dropped).toEqual([]);
+      expect(outcome.relinked).toHaveLength(1);
+      expect((outcome.relinked[0]!.to as any).body.clientOperationId).toBe(
+        newOp,
+      );
+      expect(outcome.synced).toHaveLength(2);
+      expect((await store.load(owner)).commands).toEqual([]);
+    });
+
+    it("keeps the unlinked boulder on the device (in order) when the retry is offline", async () => {
+      const storage = backend();
+      const store = createBoulderPendingStore(storage);
+      const owner = user();
+      const command = linked();
+      const following = create();
+      await store.enqueue(owner, command, () => true);
+      await store.enqueue(owner, following, () => true);
+      const newOp = uuid();
+      const outcome = await flushBoulderCommands(owner, {
+        client: clientWith((options) =>
+          options.body?.projectId
+            ? httpError(409, "BOULDER_PROJECT_UNAVAILABLE")
+            : { ok: false, error: { kind: "network_error", cause: null } },
+        ),
+        isCurrent: () => true,
+        store,
+        newOperationId: () => newOp,
+      });
+      expect(outcome.blocked?.kind).toBe("offline");
+      const commands = (await createBoulderPendingStore(storage).load(owner))
+        .commands;
+      expect(commands.map((c: any) => c.body.clientOperationId)).toEqual([
+        newOp,
+        (following as any).body.clientOperationId,
+      ]);
+      expect((commands[0] as any).body.projectId).toBeNull();
+    });
+
+    it("never drops the boulder when no new operation id can be made", async () => {
+      const store = createBoulderPendingStore(backend());
+      const owner = user();
+      const command = linked();
+      await store.enqueue(owner, command, () => true);
+      const outcome = await flushBoulderCommands(owner, {
+        client: clientWith(() => httpError(409, "BOULDER_PROJECT_UNAVAILABLE")),
+        isCurrent: () => true,
+        store,
+      });
+      expect(outcome.dropped).toEqual([]);
+      expect(outcome.blocked?.kind).toBe("project_unavailable");
+      expect((await store.load(owner)).commands).toEqual([command]);
+    });
+
+    it("still drops a plain 409 CONFLICT on a linked create", async () => {
+      const store = createBoulderPendingStore(backend());
+      const owner = user();
+      await store.enqueue(owner, linked(), () => true);
+      const outcome = await flushBoulderCommands(owner, {
+        client: clientWith(() => httpError(409, "CONFLICT")),
+        isCurrent: () => true,
+        store,
+        newOperationId: uuid,
+      });
+      expect(outcome.dropped).toHaveLength(1);
+      expect(outcome.relinked).toEqual([]);
+    });
+  });
 });

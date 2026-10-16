@@ -1,7 +1,11 @@
 import type { UserId } from "./index";
 import type { StoredWorkout } from "./workout";
 import type { FontGrade } from "./bouldering-grades";
-import type { BoulderResult, HoldColour } from "./bouldering";
+import type {
+  BoulderProjectStatus,
+  BoulderResult,
+  HoldColour,
+} from "./bouldering";
 
 /** One logged boulder (ADR-0066). The server derives `gradeRank` from `grade`. */
 export interface StoredBoulderAscent {
@@ -33,7 +37,37 @@ export interface BoulderAscentInput {
   readonly holdColour: HoldColour | null;
   readonly note: string | null;
   readonly photoAssetId: string | null;
+  /**
+   * Create only: "Try again" on an open or archived project. Without it a
+   * `not_yet` boulder opens a new project. Edits never change the link.
+   */
+  readonly projectId?: string | null;
 }
+
+/** A climb tried across sessions (ADR-0066 §6); state derives from its boulders. */
+export interface StoredBoulderProject {
+  readonly id: string;
+  readonly userId: UserId;
+  readonly gradeScale: "font";
+  readonly grade: FontGrade;
+  readonly gradeRank: number;
+  readonly holdColour: HoldColour | null;
+  readonly status: BoulderProjectStatus;
+  readonly firstLoggedAt: Date;
+  readonly sentAt: Date | null;
+  readonly sentAscentId: string | null;
+  readonly revision: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+/** A project with its linked boulders (logged_at, sequence order). */
+export interface BoulderProjectListing {
+  readonly project: StoredBoulderProject;
+  readonly ascents: readonly StoredBoulderAscent[];
+}
+
+export type BoulderProjectFilter = BoulderProjectStatus | "all";
 
 export interface BoulderSessionStartInput {
   readonly clientOperationId: string;
@@ -55,6 +89,7 @@ export class BoulderRepositoryError extends Error {
       | "removed"
       | "invalid"
       | "active_session"
+      | "project_unavailable"
       | "unavailable",
   ) {
     super(`Bouldering mutation ${kind}`);
@@ -129,6 +164,24 @@ export interface BoulderingRepository {
     id: string,
     options: Token,
   ): Promise<StoredBoulderAscent | null>;
+  /**
+   * Owner projects, newest first and capped at BOULDER_PROJECT_LIST_LIMIT,
+   * each with its linked boulders. `ids` narrows to specific projects.
+   */
+  listProjects(
+    userId: UserId,
+    options: Token & {
+      readonly status: BoulderProjectFilter;
+      readonly ids?: readonly string[] | undefined;
+    },
+  ): Promise<readonly BoulderProjectListing[]>;
+  /** Archive or reopen; a sent project is a conflict. */
+  setProjectArchived(
+    userId: UserId,
+    id: string,
+    archived: boolean,
+    options: Token,
+  ): Promise<StoredBoulderProject>;
   /** Owner receipts and boulders for account export (sessions export as workouts). */
   exportForUser?(
     userId: UserId,
@@ -136,9 +189,13 @@ export interface BoulderingRepository {
   ): Promise<{
     readonly ascents: readonly Record<string, unknown>[];
     readonly receipts: readonly Record<string, unknown>[];
+    readonly projects?: readonly Record<string, unknown>[];
   }>;
   clearForUser?(userId: UserId): Promise<void>;
 }
 
 /** Upper bound for progress reads; far above a founder-cohort history. */
 export const BOULDER_PROGRESS_SESSION_LIMIT = 1000;
+
+/** Upper bound for one projects read. */
+export const BOULDER_PROJECT_LIST_LIMIT = 500;

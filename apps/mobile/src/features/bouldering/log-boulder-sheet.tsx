@@ -15,7 +15,10 @@ import {
   type BoulderResult,
   type HoldColour,
 } from "@mizyun/core";
-import type { BoulderAscentRecord } from "@mizyun/contracts";
+import type {
+  BoulderAscentRecord,
+  BoulderProjectRecord,
+} from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -32,6 +35,7 @@ import { MinTouchTarget, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { GradeChips } from "./grade-chips";
 import {
+  allowedBoulderResults,
   attemptsBounds,
   boulderFormError,
   sameAgainForm,
@@ -46,6 +50,7 @@ import {
   HOLD_COLOUR_STYLES,
   RESULT_LABELS,
 } from "./presentation";
+import { projectName, triedInSessionsText } from "./progress";
 import type { PreparedBoulderPhoto } from "./boulder-photo";
 import { pickBoulderPhoto } from "./boulder-photo-picker";
 
@@ -98,6 +103,12 @@ export function HoldColourSwatch({
   );
 }
 
+/** The project a "Try again" boulder links to. */
+export type TryAgainProject = Pick<
+  BoulderProjectRecord,
+  "id" | "grade" | "holdColour" | "sessions"
+>;
+
 /**
  * Log-a-boulder sheet (ADR-0066 sketch): grade chips, result, attempts for
  * Sent/Not yet, collapsed More (colour, note, photo), Same again and Save.
@@ -109,6 +120,7 @@ export function LogBoulderSheet({
   initialForm,
   lastAscent,
   hasExistingPhoto = false,
+  project = null,
   onClose,
   onSave,
   onDelete,
@@ -118,10 +130,13 @@ export function LogBoulderSheet({
   initialForm: BoulderForm;
   lastAscent?: Pick<BoulderAscentRecord, "grade" | "holdColour"> | null;
   hasExistingPhoto?: boolean;
+  /** "Try again": the create links to this project unless the user unlinks. */
+  project?: TryAgainProject | null;
   onClose: () => void;
   onSave: (
     form: BoulderForm,
     photo: BoulderPhotoChoice,
+    projectId: string | null,
   ) => Promise<string | null>;
   onDelete?: () => void;
 }) {
@@ -137,6 +152,11 @@ export function LogBoulderSheet({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [linked, setLinked] = useState(mode === "create" && project !== null);
+  const linkedProject = linked && project ? project : null;
+  const resultOptions = RESULT_OPTIONS.filter((option) =>
+    allowedBoulderResults(linkedProject !== null).includes(option.value),
+  );
 
   const validation = boulderFormError(form);
   const bounds = attemptsBounds(form.result);
@@ -148,7 +168,7 @@ export function LogBoulderSheet({
     setSaving(true);
     setError(null);
     try {
-      const failure = await onSave(form, photo);
+      const failure = await onSave(form, photo, linkedProject?.id ?? null);
       if (failure) setError(failure);
     } finally {
       setSaving(false);
@@ -192,6 +212,52 @@ export function LogBoulderSheet({
               contentContainerStyle={styles.content}
               keyboardShouldPersistTaps="handled"
             >
+              {mode === "create" && project ? (
+                <View
+                  style={[styles.projectBanner, { borderColor: theme.border }]}
+                >
+                  <Icon name="target" size={16} color="textSecondary" />
+                  <View style={styles.grow}>
+                    <ThemedText
+                      type="smallBold"
+                      accessibilityLabel={
+                        linkedProject
+                          ? `Trying project ${projectName(project, true)}. ${triedInSessionsText(project.sessions)}`
+                          : `Not linked to project ${projectName(project, true)}`
+                      }
+                    >
+                      {linkedProject
+                        ? `Trying project ${projectName(project)}`
+                        : `Not linked to ${projectName(project)}`}
+                    </ThemedText>
+                    {linkedProject ? (
+                      <ThemedText type="footnote" themeColor="textSecondary">
+                        {`${triedInSessionsText(project.sessions)} · Flash isn't available for a project`}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                  <Button
+                    label={linkedProject ? "Don't link" : "Link"}
+                    variant="plain"
+                    size="small"
+                    accessibilityLabel={
+                      linkedProject
+                        ? "Log as a new boulder instead of this project"
+                        : "Link this boulder to the project"
+                    }
+                    onPress={() => {
+                      if (!linkedProject && form.result === "flash")
+                        setForm((f) => ({
+                          ...f,
+                          result: null,
+                          attempts: null,
+                        }));
+                      setLinked((value) => !value);
+                    }}
+                  />
+                </View>
+              ) : null}
+
               <ThemedText type="footnote" themeColor="textSecondary">
                 Grade
               </ThemedText>
@@ -210,7 +276,7 @@ export function LogBoulderSheet({
                   if (value !== "none")
                     setForm((f) => selectBoulderResult(f, value));
                 }}
-                options={RESULT_OPTIONS}
+                options={resultOptions}
               />
 
               {showsAttemptsStepper(form.result) && bounds ? (
@@ -410,7 +476,7 @@ export function LogBoulderSheet({
             </ScrollView>
 
             <View style={[styles.footer, { borderTopColor: theme.separator }]}>
-              {mode === "create" && lastAscent ? (
+              {mode === "create" && lastAscent && !linkedProject ? (
                 <Button
                   label="Same again"
                   icon="repeat"
@@ -441,6 +507,14 @@ export function LogBoulderSheet({
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
+  projectBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    padding: Spacing.two,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",

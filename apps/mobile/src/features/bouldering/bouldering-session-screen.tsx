@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { ApiClient } from "@mizyun/api-client";
 import type {
   BoulderAscentRecord,
+  BoulderProjectRecord,
   BoulderSessionRecord,
 } from "@mizyun/contracts";
 import type { FontGrade } from "@mizyun/core";
@@ -51,6 +52,7 @@ import {
   getActiveBoulderSession,
   getBoulderProgress,
   getBoulderSession,
+  listBoulderProjects,
   removeBoulderSession,
   startBoulderSession,
   type BoulderFailure,
@@ -66,12 +68,14 @@ import {
   boulderCreateBody,
   boulderUpdateBody,
   formFromAscent,
+  tryAgainForm,
   type BoulderForm,
 } from "./log-boulder-form";
 import {
   HoldColourSwatch,
   LogBoulderSheet,
   type BoulderPhotoChoice,
+  type TryAgainProject,
 } from "./log-boulder-sheet";
 import {
   boulderPendingStore,
@@ -95,6 +99,12 @@ import {
   sessionTitle,
 } from "./presentation";
 import {
+  projectAccessibilityLabel,
+  projectName,
+  projectSubtitle,
+  tryAgainProjects,
+} from "./progress";
+import {
   mergeBoulderRows,
   rememberFinish,
   type BoulderRow,
@@ -109,7 +119,13 @@ type ScreenStatus =
   | { kind: "error"; failure: BoulderFailure };
 
 type SheetState =
-  | { mode: "create"; key: number; form: BoulderForm }
+  | {
+      mode: "create";
+      key: number;
+      form: BoulderForm;
+      /** "Try again" (active sessions only): links the create to a project. */
+      project: TryAgainProject | null;
+    }
   | {
       mode: "edit";
       key: number;
@@ -166,6 +182,8 @@ export function BoulderingSessionScreen({
   >({});
   const [recentGrade, setRecentGrade] = useState<FontGrade | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
+  const [projects, setProjects] = useState<BoulderProjectRecord[]>([]);
+  const [showAllProjects, setShowAllProjects] = useState(false);
   const [busy, setBusy] = useState<null | "finish" | "discard" | "start">(null);
   const [refreshing, setRefreshing] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -205,6 +223,7 @@ export function BoulderingSessionScreen({
     setPhotoRetry({});
     setRecentGrade(null);
     setSheet(null);
+    setProjects([]);
     setBusy(null);
     waitingPhotos.current.clear();
     startOperation.current = null;
@@ -296,6 +315,16 @@ export function BoulderingSessionScreen({
     [client],
   );
 
+  /** Open projects for "Try again"; best effort, active sessions only. */
+  const loadProjects = useCallback(
+    async (isCurrent: () => boolean) => {
+      if (mode !== "active") return;
+      const result = await listBoulderProjects("open", client(isCurrent));
+      if (isCurrent() && result.ok) setProjects(result.value);
+    },
+    [client, mode],
+  );
+
   /** Replays waiting commands, attaches waiting photos, then refreshes. */
   const sync = useCallback(
     async (isCurrent: () => boolean, id: string | null) => {
@@ -309,8 +338,22 @@ export function BoulderingSessionScreen({
             client: c,
             isCurrent,
             onMediaOrphan: (assetId) => void deleteBoulderPhoto(c, assetId),
+            newOperationId: () => Crypto.randomUUID(),
           });
           if (!isCurrent()) return;
+          for (const moved of outcome.relinked) {
+            changed = true;
+            // The photo waits for the re-queued (unlinked) operation instead.
+            const from = commandOperationId(moved.from);
+            const photo = waitingPhotos.current.get(from);
+            waitingPhotos.current.delete(from);
+            if (photo)
+              waitingPhotos.current.set(commandOperationId(moved.to), photo);
+            setNotices((current) => [
+              ...current,
+              "Project was already sent or removed — saved as a new boulder.",
+            ]);
+          }
           if (outcome.dropped.length > 0) {
             changed = true;
             setNotices((current) => [
@@ -347,6 +390,7 @@ export function BoulderingSessionScreen({
         }
         await loadLocal(isCurrent);
         if (changed && isCurrent()) {
+          void loadProjects(isCurrent);
           const fresh = await fetchServer(isCurrent, id);
           if (fresh && typeof fresh === "object" && "ascents" in fresh)
             void signPhotos(fresh.ascents, isCurrent);
@@ -355,7 +399,7 @@ export function BoulderingSessionScreen({
         syncing.current = false;
       }
     },
-    [client, fetchServer, loadLocal, signPhotos],
+    [client, fetchServer, loadLocal, loadProjects, signPhotos],
   );
 
   const finishNow = useCallback(
@@ -472,6 +516,7 @@ export function BoulderingSessionScreen({
     }
     const current = fetched;
     void signPhotos(current.ascents, isCurrent);
+    if (current.session.completedAt === null) void loadProjects(isCurrent);
     if (current.ascents.length === 0)
       void getBoulderProgress("30d", client(isCurrent)).then((progress) => {
         if (isCurrent() && progress.ok)
@@ -493,6 +538,7 @@ export function BoulderingSessionScreen({
     fetchServer,
     finishNow,
     loadLocal,
+    loadProjects,
     record?.id,
     signPhotos,
     sync,
@@ -529,6 +575,22 @@ export function BoulderingSessionScreen({
       mode: "create",
       key: sheetCounter.current,
       form: blankBoulderForm(initialGrade),
+      project: null,
+    });
+  };
+
+  const openTryAgain = (project: BoulderProjectRecord) => {
+    sheetCounter.current += 1;
+    setSheet({
+      mode: "create",
+      key: sheetCounter.current,
+      form: tryAgainForm(project, initialGrade),
+      project: {
+        id: project.id,
+        grade: project.grade,
+        holdColour: project.holdColour,
+        sessions: project.sessions,
+      },
     });
   };
 
@@ -559,6 +621,7 @@ export function BoulderingSessionScreen({
   const save = async (
     form: BoulderForm,
     photo: BoulderPhotoChoice,
+    projectId: string | null = null,
   ): Promise<string | null> => {
     const isCurrent = capture();
     if (!sessionId || !sheet) return "This session is no longer open.";
@@ -566,7 +629,11 @@ export function BoulderingSessionScreen({
     const queuedAt = new Date().toISOString();
     let command: BoulderPendingCommand | null = null;
     if (sheet.mode === "create") {
-      const body = boulderCreateBody(form, operationId);
+      const body = boulderCreateBody(
+        form,
+        operationId,
+        sheet.project ? projectId : null,
+      );
       if (body) command = { kind: "create", sessionId, body, queuedAt };
     } else {
       const keepPhoto =
@@ -991,6 +1058,63 @@ export function BoulderingSessionScreen({
             />
           ) : null}
 
+          {isActive && projects.length > 0 ? (
+            <Card>
+              <ThemedText type="headline" accessibilityRole="header">
+                Projects
+              </ThemedText>
+              {(showAllProjects
+                ? tryAgainProjects(projects)
+                : tryAgainProjects(projects).slice(0, VISIBLE_PROJECTS)
+              ).map((project) => (
+                <View key={project.id} style={styles.projectRow}>
+                  <View
+                    style={styles.projectText}
+                    accessible
+                    accessibilityLabel={projectAccessibilityLabel(project)}
+                  >
+                    <View style={styles.projectTitle}>
+                      {project.holdColour ? (
+                        <HoldColourSwatch
+                          colour={project.holdColour}
+                          size={14}
+                        />
+                      ) : null}
+                      <ThemedText type="smallBold">
+                        {projectName(project)}
+                      </ThemedText>
+                    </View>
+                    <ThemedText type="footnote" themeColor="textSecondary">
+                      {project.older
+                        ? `Older than 6 weeks · ${projectSubtitle(project)}`
+                        : projectSubtitle(project)}
+                    </ThemedText>
+                  </View>
+                  <Button
+                    label="Try again"
+                    icon="repeat"
+                    variant="tinted"
+                    size="small"
+                    accessibilityLabel={`Try again: project ${projectName(project, true)}`}
+                    onPress={() => openTryAgain(project)}
+                  />
+                </View>
+              ))}
+              {projects.length > VISIBLE_PROJECTS ? (
+                <Button
+                  label={
+                    showAllProjects
+                      ? "Show fewer projects"
+                      : `Show all ${projects.length} projects`
+                  }
+                  variant="plain"
+                  size="small"
+                  onPress={() => setShowAllProjects((all) => !all)}
+                />
+              ) : null}
+            </Card>
+          ) : null}
+
           {rows.length === 0 ? (
             <Card>
               <EmptyState
@@ -1062,6 +1186,7 @@ export function BoulderingSessionScreen({
           visible
           mode={sheet.mode}
           initialForm={sheet.form}
+          project={sheet.mode === "create" ? sheet.project : null}
           lastAscent={
             sheet.mode === "create" && lastRow
               ? {
@@ -1202,7 +1327,22 @@ function BoulderRowView({
   );
 }
 
+/** Projects shown before "Show all" in the active session. */
+const VISIBLE_PROJECTS = 3;
+
 const styles = StyleSheet.create({
+  projectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    minHeight: MinTouchTarget,
+  },
+  projectText: { flex: 1, gap: Spacing.half },
+  projectTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+  },
   page: { flex: 1 },
   content: {
     width: "100%",

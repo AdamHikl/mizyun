@@ -326,3 +326,86 @@ export const boulderHardestSendTimeline = (
   });
   return limit <= 0 ? [] : all.slice(-limit);
 };
+
+// Projects (ADR-0066 §6, BLD-04).
+
+export const BOULDER_PROJECT_STATUSES = ["open", "sent", "archived"] as const;
+export type BoulderProjectStatus = (typeof BOULDER_PROJECT_STATUSES)[number];
+
+/** Projects not tried for longer than this are grouped as "Older than 6 weeks". */
+export const BOULDER_PROJECT_OLDER_DAYS = 42;
+
+export interface BoulderProjectLinkedAscent {
+  readonly id: string;
+  readonly sessionId: string;
+  readonly result: BoulderResult;
+  readonly attempts: number | null;
+  /** ISO instant. */
+  readonly loggedAt: string;
+  readonly sequence: number;
+}
+
+export interface BoulderProjectSummary {
+  /** Sum of known attempts (a flash is one); unknown attempts are never guessed. */
+  readonly attempts: number;
+  readonly attemptsComplete: boolean;
+  /** Distinct sessions with a linked boulder. */
+  readonly sessions: number;
+  /**
+   * Distinct sessions with a linked boulder logged at or before the sending
+   * boulder, including the sending session; null when not sent.
+   */
+  readonly sentAfterSessions: number | null;
+  /** Latest linked boulder, or null when nothing is linked. */
+  readonly lastTriedAt: string | null;
+}
+
+/** Orders like the database: `logged_at`, then `sequence`. */
+const compareLinked = (
+  a: BoulderProjectLinkedAscent,
+  b: BoulderProjectLinkedAscent,
+): number =>
+  Date.parse(a.loggedAt) - Date.parse(b.loggedAt) || a.sequence - b.sequence;
+
+export const summariseBoulderProject = (
+  linkedAscents: readonly BoulderProjectLinkedAscent[],
+  sentAscentId: string | null,
+): BoulderProjectSummary => {
+  let attempts = 0;
+  let attemptsComplete = true;
+  let lastTried: BoulderProjectLinkedAscent | null = null;
+  const sessions = new Set<string>();
+  for (const ascent of linkedAscents) {
+    const known = ascent.result === "flash" ? 1 : ascent.attempts;
+    if (known === null) attemptsComplete = false;
+    else attempts += known;
+    sessions.add(ascent.sessionId);
+    if (lastTried === null || compareLinked(ascent, lastTried) > 0)
+      lastTried = ascent;
+  }
+  const sending =
+    sentAscentId === null
+      ? undefined
+      : linkedAscents.find((ascent) => ascent.id === sentAscentId);
+  const sentAfterSessions = sending
+    ? new Set(
+        linkedAscents
+          .filter((ascent) => compareLinked(ascent, sending) <= 0)
+          .map((ascent) => ascent.sessionId),
+      ).size
+    : null;
+  return {
+    attempts,
+    attemptsComplete,
+    sessions: sessions.size,
+    sentAfterSessions,
+    lastTriedAt: lastTried?.loggedAt ?? null,
+  };
+};
+
+export const isOlderBoulderProject = (
+  lastTriedAt: string,
+  now: Date,
+): boolean =>
+  now.getTime() - Date.parse(lastTriedAt) >
+  BOULDER_PROJECT_OLDER_DAYS * 24 * 60 * 60 * 1000;

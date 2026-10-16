@@ -120,12 +120,13 @@ The Mizyun account export delivers a versioned JSON document of the implemented 
   - `createdAt` (ISO 8601 string)
   - `updatedAt` (ISO 8601 string)
 
-### 2.5a Indoor bouldering (`public.boulder_ascents`, `public.boulder_operation_receipts`)
+### 2.5a Indoor bouldering (`public.boulder_ascents`, `public.boulder_operation_receipts`, `public.boulder_projects`)
 
 - **Sessions** export as `workouts` rows with `details.activityType = "bouldering"` and `details.boulderSession` (Font scale, timezone, local day, optional gym name).
-- **`bouldering.ascents`**: every boulder row (`grade_code`, `grade_rank`, `result`, `attempts`, `hold_colour`, `note`, `photo_asset_id`, `sequence`, `revision`, timestamps), ordered by `logged_at`, `id`. Photos are listed under private media (`purpose = workout`).
+- **`bouldering.ascents`**: every boulder row (`grade_code`, `grade_rank`, `result`, `attempts`, `hold_colour`, `note`, `photo_asset_id`, `project_id`, `sequence`, `revision`, timestamps), ordered by `logged_at`, `id`. Photos are listed under private media (`purpose = workout`).
 - **`bouldering.receipts`**: owner receipts (operation id, kind, session/ascent id, payload digest, accepted revision, deleted flag); no grades or notes. Ordered by `created_at`, `operation_id`.
-- **Erasure**: both tables cascade from `auth.users`; ascents also cascade with their session. Photo bytes are swept with the account's `media_assets`. ([ADR-0066](adr/0066-indoor-bouldering-sessions.md))
+- **`bouldering.projects`**: every project row (`grade_scale`, `grade_code`, `grade_rank`, `hold_colour`, `status` open/sent/archived, `first_logged_at`, `sent_at`, `sent_ascent_id`, `revision`, timestamps), ordered by `first_logged_at`, `id`. A project is derived from its linked boulders and is removed when none remain. Optional in the document shape so older exports still parse.
+- **Erasure**: all three tables cascade from `auth.users`; ascents also cascade with their session, and a project without linked boulders is deleted. Photo bytes are swept with the account's `media_assets`. ([ADR-0066](adr/0066-indoor-bouldering-sessions.md))
 
 ### 2.6 Body Measurements & Weight (`public.body_measurements`)
 

@@ -151,11 +151,86 @@ describe("LogBoulderSheet", () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ grade: "6B", result: "flash", attempts: 1 }),
       { kind: "keep" },
+      null,
     );
     expect(props.onClose).not.toHaveBeenCalled();
     expect(find(tree, (n) => n.type === "Notice")?.props.message).toMatch(
       /nothing was sent/,
     );
+  });
+
+  describe("Try again", () => {
+    const PROJECT = {
+      id: "44444444-4444-4444-8444-444444444444",
+      grade: "6B" as const,
+      holdColour: "red" as const,
+      sessions: 2,
+    };
+    const tryProps = (over: Partial<Props> = {}) =>
+      baseProps({
+        project: PROJECT,
+        initialForm: { ...blankBoulderForm("6B"), holdColour: "red" },
+        ...over,
+      });
+    const resultValues = (tree: any) =>
+      find(tree, (n) => n.type === "SegmentedControl").props.options.map(
+        (o: any) => o.value,
+      );
+
+    it("names the project, offers only Sent and Not yet, and hides Same again", () => {
+      const tree = render(tryProps());
+      expect(
+        find(
+          tree,
+          (n) =>
+            n.props?.accessibilityLabel ===
+            "Trying project 6B · Red. Tried in 2 sessions",
+        ),
+      ).toBeTruthy();
+      expect(resultValues(tree)).toEqual(["sent", "not_yet"]);
+      expect(byLabel(tree, "Same again")).toBeUndefined();
+    });
+
+    it("saves with the project id", async () => {
+      const onSave = vi.fn(async () => null);
+      const props = tryProps({ onSave });
+      let tree = render(props);
+      find(tree, (n) => n.type === "SegmentedControl").props.onChange("sent");
+      tree = render(props);
+      await byLabel(tree, "Save").props.onPress();
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ grade: "6B", holdColour: "red" }),
+        { kind: "keep" },
+        PROJECT.id,
+      );
+    });
+
+    it("Don't link logs a new boulder and brings Flash back", async () => {
+      const onSave = vi.fn(async () => null);
+      const props = tryProps({ onSave });
+      let tree = render(props);
+      byLabel(tree, "Don't link").props.onPress();
+      tree = render(props);
+      expect(resultValues(tree)).toEqual(["flash", "sent", "not_yet"]);
+      find(tree, (n) => n.type === "SegmentedControl").props.onChange("flash");
+      tree = render(props);
+      // Re-linking clears a Flash, which a project cannot have.
+      byLabel(tree, "Link").props.onPress();
+      tree = render(props);
+      expect(find(tree, (n) => n.type === "SegmentedControl").props.value).toBe(
+        "none",
+      );
+      byLabel(tree, "Don't link").props.onPress();
+      tree = render(props);
+      find(tree, (n) => n.type === "SegmentedControl").props.onChange("flash");
+      tree = render(props);
+      await byLabel(tree, "Save").props.onPress();
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ result: "flash" }),
+        { kind: "keep" },
+        null,
+      );
+    });
   });
 
   it("does not offer Same again when editing", () => {

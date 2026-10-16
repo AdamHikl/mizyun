@@ -806,6 +806,16 @@ export function WorkoutsHubScreen() {
                 onPress={handleBouldering}
               />
             ) : null}
+            {boulderingEnabled ? (
+              <ListRow
+                key="bouldering-progress"
+                icon="chart"
+                title="Bouldering progress"
+                subtitle="Grades, hardest sends, projects"
+                accessibilityLabel="Bouldering progress"
+                onPress={() => router.push("/bouldering/progress" as Href)}
+              />
+            ) : null}
             {runImportAvailable() ? (
               <ListRow
                 key="import-runs"
@@ -1004,6 +1014,15 @@ export function WorkoutsHubScreen() {
                   );
                 })}
               </View>
+              {boulderingEnabled && historyFilter === "bouldering" ? (
+                <Button
+                  label="View bouldering progress"
+                  icon="chart"
+                  variant="secondary"
+                  size="small"
+                  onPress={() => router.push("/bouldering/progress" as Href)}
+                />
+              ) : null}
               {params.runSaved ? (
                 <Notice tone="success" message="Run saved" />
               ) : null}

@@ -3,6 +3,7 @@ import {
   BOULDER_GYM_NAME_MAX,
   BOULDER_NOTE_MAX,
   BOULDER_PROGRESS_SESSION_LIMIT,
+  BOULDER_PROJECT_LIST_LIMIT,
   BoulderRepositoryError,
   HOLD_COLOURS,
   fontGradeRank,
@@ -11,11 +12,14 @@ import {
   runningDate,
   validBoulderAttempts,
   type BoulderAscentInput,
+  type BoulderProjectFilter,
+  type BoulderProjectListing,
   type BoulderSessionCursor,
   type BoulderSessionStartInput,
   type BoulderingRepository,
   type MediaAssetRepository,
   type StoredBoulderAscent,
+  type StoredBoulderProject,
   type StoredWorkout,
   type UserId,
   type WorkoutRepository,
@@ -89,6 +93,10 @@ const cursorBefore = (
   return rowMs < cursorMs || (rowMs === cursorMs && row.id < cursor.id);
 };
 
+/** Database order for linked boulders: `logged_at`, then `sequence`. */
+const linkedOrder = (a: StoredBoulderAscent, b: StoredBoulderAscent): number =>
+  a.loggedAt.getTime() - b.loggedAt.getTime() || a.sequence - b.sequence;
+
 const newestFirst = (a: StoredWorkout, b: StoredWorkout): number =>
   b.startedAt.getTime() - a.startedAt.getTime() ||
   (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
@@ -98,11 +106,15 @@ const newestFirst = (a: StoredWorkout, b: StoredWorkout): number =>
  * the RPC semantics in `20261016140000_indoor_bouldering.sql`: owner receipts
  * with payload digests, tombstones on delete, one active session, photo
  * ownership, per-session sequence, revision CAS and finish-once. Sessions are
- * stored through the shared in-memory workout repository like runs.
+ * stored through the shared in-memory workout repository like runs. Projects
+ * mirror `20261016160000_bouldering_projects.sql`: explicit links, a new
+ * project per unlinked `not_yet`, and `boulder_project_refresh` after every
+ * boulder insert, update or delete.
  */
 export class InMemoryBoulderingRepository implements BoulderingRepository {
   private readonly receipts = new Map<string, Receipt>();
   private readonly ascents = new Map<string, StoredBoulderAscent>();
+  private readonly projects = new Map<string, StoredBoulderProject>();
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(
@@ -161,6 +173,40 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
   ): void {
     for (const receipt of this.userReceipts(userId))
       if (match(receipt)) receipt.deleted = true;
+  }
+
+  /** Mirrors `boulder_project_refresh`: derive state, or delete when empty. */
+  private refreshProject(projectId: string | null): void {
+    if (projectId === null) return;
+    const current = this.projects.get(projectId);
+    if (!current) return;
+    const linked = [...this.ascents.values()]
+      .filter((a) => a.projectId === projectId)
+      .sort(linkedOrder);
+    const first = linked[0];
+    if (!first) {
+      this.projects.delete(projectId);
+      return;
+    }
+    const firstSend = linked.find(
+      (a) => a.result === "flash" || a.result === "sent",
+    );
+    this.projects.set(projectId, {
+      ...current,
+      grade: first.grade,
+      gradeRank: first.gradeRank,
+      holdColour: first.holdColour,
+      firstLoggedAt: first.loggedAt,
+      status: firstSend
+        ? "sent"
+        : current.status === "archived"
+          ? "archived"
+          : "open",
+      sentAt: firstSend?.loggedAt ?? null,
+      sentAscentId: firstSend?.id ?? null,
+      revision: current.revision + 1,
+      updatedAt: new Date(),
+    });
   }
 
   startSession(
@@ -307,6 +353,7 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         if (ascent.userId === userId && ascent.sessionId === id) {
           removed.add(ascent.id);
           this.ascents.delete(ascent.id);
+          this.refreshProject(ascent.projectId);
         }
       this.tombstone(
         userId,
@@ -392,6 +439,8 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         colour: input.holdColour,
         note: input.note,
         photo: input.photoAssetId,
+        // Added only when linked, as in SQL, so unlinked digests stay stable.
+        ...(input.projectId != null ? { project: input.projectId } : {}),
       });
       const key = this.key(userId, input.clientOperationId);
       const receipt = this.receipts.get(key);
@@ -419,6 +468,39 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         throw new BoulderRepositoryError("not_found");
       if (!validAscent(input)) throw new BoulderRepositoryError("invalid");
       await this.checkPhoto(userId, input.photoAssetId, options);
+      const now = new Date();
+      let projectId: string | null = null;
+      if (input.projectId != null) {
+        // A flash is a first-try send, so it cannot continue a project.
+        if (input.result === "flash")
+          throw new BoulderRepositoryError("invalid");
+        // "Try again" links only the caller's open or archived project.
+        const project = this.projects.get(input.projectId);
+        if (
+          !project ||
+          project.userId !== userId ||
+          (project.status !== "open" && project.status !== "archived")
+        )
+          throw new BoulderRepositoryError("project_unavailable");
+        projectId = project.id;
+      } else if (input.result === "not_yet") {
+        projectId = crypto.randomUUID();
+        this.projects.set(projectId, {
+          id: projectId,
+          userId,
+          gradeScale: "font",
+          grade: input.grade,
+          gradeRank: fontGradeRank(input.grade),
+          holdColour: input.holdColour,
+          status: "open",
+          firstLoggedAt: now,
+          sentAt: null,
+          sentAscentId: null,
+          revision: 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
       const sequence =
         Math.max(
           0,
@@ -426,7 +508,6 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
             .filter((a) => a.userId === userId && a.sessionId === sessionId)
             .map((a) => a.sequence),
         ) + 1;
-      const now = new Date();
       const row: StoredBoulderAscent = {
         id: crypto.randomUUID(),
         userId,
@@ -441,13 +522,14 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         holdColour: input.holdColour,
         note: input.note,
         photoAssetId: input.photoAssetId,
-        projectId: null,
+        projectId,
         loggedAt: now,
         revision: 1,
         createdAt: now,
         updatedAt: now,
       };
       this.ascents.set(row.id, row);
+      this.refreshProject(projectId);
       this.receipts.set(key, {
         kind: "ascent_create",
         sessionId,
@@ -522,6 +604,8 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         updatedAt: now,
       };
       this.ascents.set(id, next);
+      // The link never changes on edit; the project re-derives its state.
+      this.refreshProject(existing.projectId);
       this.receipts.set(key, {
         kind: "ascent_update",
         sessionId: existing.sessionId,
@@ -545,8 +629,65 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
       const row = this.ascents.get(id);
       if (!row || row.userId !== userId) return null;
       this.ascents.delete(id);
+      this.refreshProject(row.projectId);
       this.tombstone(userId, (r) => r.ascentId === id);
       return row;
+    });
+  }
+
+  async listProjects(
+    userId: UserId,
+    options: Token & {
+      readonly status: BoulderProjectFilter;
+      readonly ids?: readonly string[] | undefined;
+    },
+  ): Promise<readonly BoulderProjectListing[]> {
+    void options.accessToken;
+    const ids = options.ids === undefined ? null : new Set(options.ids);
+    return [...this.projects.values()]
+      .filter(
+        (p) =>
+          p.userId === userId &&
+          (options.status === "all" || p.status === options.status) &&
+          (ids === null || ids.has(p.id)),
+      )
+      .sort(
+        (a, b) =>
+          b.firstLoggedAt.getTime() - a.firstLoggedAt.getTime() ||
+          (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+      )
+      .slice(0, BOULDER_PROJECT_LIST_LIMIT)
+      .map((project) => ({
+        project,
+        ascents: [...this.ascents.values()]
+          .filter((a) => a.userId === userId && a.projectId === project.id)
+          .sort(linkedOrder),
+      }));
+  }
+
+  setProjectArchived(
+    userId: UserId,
+    id: string,
+    archived: boolean,
+    options: Token,
+  ): Promise<StoredBoulderProject> {
+    void options.accessToken;
+    return this.atomic(async () => {
+      const existing = this.projects.get(id);
+      if (!existing || existing.userId !== userId)
+        throw new BoulderRepositoryError("not_found");
+      if (existing.status === "sent")
+        throw new BoulderRepositoryError("conflict");
+      const status = archived ? "archived" : "open";
+      if (existing.status === status) return existing;
+      const next: StoredBoulderProject = {
+        ...existing,
+        status,
+        revision: existing.revision + 1,
+        updatedAt: new Date(),
+      };
+      this.projects.set(id, next);
+      return next;
     });
   }
 
@@ -556,6 +697,7 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
   ): Promise<{
     readonly ascents: readonly Record<string, unknown>[];
     readonly receipts: readonly Record<string, unknown>[];
+    readonly projects: readonly Record<string, unknown>[];
   }> {
     void options.accessToken;
     const ascents = [...this.ascents.values()]
@@ -574,6 +716,7 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         hold_colour: a.holdColour,
         note: a.note,
         photo_asset_id: a.photoAssetId,
+        project_id: a.projectId,
         logged_at: a.loggedAt.toISOString(),
         revision: a.revision,
         created_at: a.createdAt.toISOString(),
@@ -592,12 +735,36 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         deleted: r.deleted,
         created_at: r.createdAt.toISOString(),
       }));
-    return { ascents, receipts };
+    const projects = [...this.projects.values()]
+      .filter((p) => p.userId === userId)
+      .sort(
+        (a, b) =>
+          a.firstLoggedAt.getTime() - b.firstLoggedAt.getTime() ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
+      .map((p) => ({
+        id: p.id,
+        user_id: p.userId,
+        grade_scale: p.gradeScale,
+        grade_code: p.grade,
+        grade_rank: p.gradeRank,
+        hold_colour: p.holdColour,
+        status: p.status,
+        first_logged_at: p.firstLoggedAt.toISOString(),
+        sent_at: p.sentAt?.toISOString() ?? null,
+        sent_ascent_id: p.sentAscentId,
+        revision: p.revision,
+        created_at: p.createdAt.toISOString(),
+        updated_at: p.updatedAt.toISOString(),
+      }));
+    return { ascents, receipts, projects };
   }
 
-  /** Clears boulders and receipts; session rows go with the user's workouts. */
+  /** Clears boulders, projects and receipts; session rows go with the user's workouts. */
   clearForUser(userId: UserId): Promise<void> {
     return this.atomic(async () => {
+      for (const [id, project] of this.projects)
+        if (project.userId === userId) this.projects.delete(id);
       for (const [id, ascent] of this.ascents)
         if (ascent.userId === userId) this.ascents.delete(id);
       for (const key of this.receipts.keys())

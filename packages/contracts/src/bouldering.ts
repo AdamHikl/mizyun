@@ -176,8 +176,12 @@ const ascentFields = {
   photoAssetId: z.string().uuid().nullable().default(null),
 };
 
+// Only a create may link a project ("Try again"); edits never change the link.
 export const boulderAscentCreateSchema = z
-  .object(ascentFields)
+  .object({
+    ...ascentFields,
+    projectId: z.string().uuid().nullable().default(null),
+  })
   .strict()
   .superRefine(attemptsRefinement);
 export type BoulderAscentCreate = z.infer<typeof boulderAscentCreateSchema>;
@@ -377,4 +381,66 @@ export const boulderProgressResponseSchema = z
   .strict();
 export type BoulderProgressResponse = z.infer<
   typeof boulderProgressResponseSchema
+>;
+
+const gradeRankSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(FONT_GRADES.length - 1);
+
+export const boulderProjectStatusSchema = z.enum(["open", "sent", "archived"]);
+export type BoulderProjectStatusValue = z.infer<
+  typeof boulderProjectStatusSchema
+>;
+
+export const boulderProjectRecordSchema = z
+  .object({
+    id: z.string().uuid(),
+    grade: fontGradeSchema,
+    gradeRank: gradeRankSchema,
+    holdColour: holdColourSchema.nullable(),
+    status: boulderProjectStatusSchema,
+    firstLoggedAt: instantSchema,
+    sentAt: instantSchema.nullable(),
+    sentAscentId: z.string().uuid().nullable(),
+    /** Known attempts only (a flash is one). */
+    attempts: z.number().int().nonnegative(),
+    attemptsComplete: z.boolean(),
+    sessions: z.number().int().nonnegative(),
+    /** "Sent after N sessions", including the sending session. */
+    sentAfterSessions: z.number().int().positive().nullable(),
+    lastTriedAt: instantSchema,
+    /** Not tried for more than six weeks. */
+    older: z.boolean(),
+  })
+  .strict();
+export type BoulderProjectRecord = z.infer<typeof boulderProjectRecordSchema>;
+
+export const boulderProjectListQuerySchema = z
+  .object({
+    status: z.enum(["open", "sent", "archived", "all"]).default("open"),
+  })
+  .strict();
+export type BoulderProjectListQuery = z.infer<
+  typeof boulderProjectListQuerySchema
+>;
+
+export const boulderProjectListResponseSchema = z
+  .object({ projects: z.array(boulderProjectRecordSchema) })
+  .strict();
+export type BoulderProjectListResponse = z.infer<
+  typeof boulderProjectListResponseSchema
+>;
+
+export const boulderProjectArchiveSchema = z
+  .object({ archived: z.boolean() })
+  .strict();
+export type BoulderProjectArchive = z.infer<typeof boulderProjectArchiveSchema>;
+
+export const boulderProjectResponseSchema = z
+  .object({ project: boulderProjectRecordSchema })
+  .strict();
+export type BoulderProjectResponse = z.infer<
+  typeof boulderProjectResponseSchema
 >;

@@ -6,9 +6,12 @@ import {
   boulderHardestSendTimeline,
   boulderSessionAchievements,
   fontGradeFromRank,
+  isOlderBoulderProject,
   readBoulderSession,
   runningDate,
+  summariseBoulderProject,
   summariseBoulderSession,
+  type BoulderProjectListing,
   type BoulderSessionCursor,
   type BoulderSessionHistoryEntry,
   type BoulderingRepository,
@@ -24,6 +27,11 @@ import {
   boulderFinishResponseSchema,
   boulderProgressQuerySchema,
   boulderProgressResponseSchema,
+  boulderProjectArchiveSchema,
+  boulderProjectListQuerySchema,
+  boulderProjectListResponseSchema,
+  boulderProjectRecordSchema,
+  boulderProjectResponseSchema,
   boulderRemovedResponseSchema,
   boulderSessionFinishSchema,
   boulderSessionListQuerySchema,
@@ -32,6 +40,7 @@ import {
   boulderSessionResponseSchema,
   boulderSessionStartSchema,
   type BoulderAscentRecord,
+  type BoulderProjectRecord,
   type BoulderSessionRecord,
 } from "@mizyun/contracts";
 import { sendApiError, type ApiErrorCode } from "../../errors.js";
@@ -96,6 +105,45 @@ const sessionWire = (
     },
   });
   if (!parsed.success) throw new BoulderRepositoryError("unavailable");
+  return parsed.data;
+};
+
+const projectWire = (
+  { project, ascents }: BoulderProjectListing,
+  now: Date,
+): BoulderProjectRecord => {
+  const summary = summariseBoulderProject(
+    ascents.map((a) => ({
+      id: a.id,
+      sessionId: a.sessionId,
+      result: a.result,
+      attempts: a.attempts,
+      loggedAt: a.loggedAt.toISOString(),
+      sequence: a.sequence,
+    })),
+    project.sentAscentId,
+  );
+  const lastTriedAt =
+    summary.lastTriedAt ?? project.firstLoggedAt.toISOString();
+  const parsed = boulderProjectRecordSchema.safeParse({
+    id: project.id,
+    grade: project.grade,
+    gradeRank: project.gradeRank,
+    holdColour: project.holdColour,
+    status: project.status,
+    firstLoggedAt: project.firstLoggedAt.toISOString(),
+    sentAt: project.sentAt?.toISOString() ?? null,
+    sentAscentId: project.sentAscentId,
+    attempts: summary.attempts,
+    attemptsComplete: summary.attemptsComplete,
+    sessions: summary.sessions,
+    sentAfterSessions:
+      project.status === "sent" ? summary.sentAfterSessions : null,
+    lastTriedAt,
+    older: isOlderBoulderProject(lastTriedAt, now),
+  });
+  if (!parsed.success || parsed.data.gradeRank !== project.gradeRank)
+    throw new BoulderRepositoryError("unavailable");
   return parsed.data;
 };
 
@@ -168,7 +216,7 @@ const failure = (
       return {
         status: 404,
         code: "NOT_FOUND",
-        message: "Bouldering session or boulder was not found.",
+        message: "Bouldering session, boulder or project was not found.",
       };
     case "invalid":
       return {
@@ -181,6 +229,13 @@ const failure = (
         status: 409,
         code: "BOULDER_SESSION_ACTIVE",
         message: "Finish or resume your active bouldering session first.",
+      };
+    case "project_unavailable":
+      return {
+        status: 409,
+        code: "BOULDER_PROJECT_UNAVAILABLE",
+        message:
+          "This project was sent or removed. Save the boulder without it.",
       };
     case "removed":
       return {
@@ -411,6 +466,50 @@ export const boulderingRoutes: FastifyPluginAsync<{
       const id = idParam(request);
       await repo.removeAscent(owner(request), id, token(request));
       return respond(boulderRemovedResponseSchema, { removed: true });
+    }),
+  );
+
+  app.get("/projects", auth, async (request, reply) =>
+    handle(request, reply, async () => {
+      const parsed = boulderProjectListQuerySchema.safeParse(request.query);
+      if (!parsed.success) throw new BoulderRepositoryError("invalid");
+      const listed = await repo.listProjects(owner(request), {
+        ...token(request),
+        status: parsed.data.status,
+      });
+      const now = new Date();
+      const projects = listed
+        .map((entry) => projectWire(entry, now))
+        .sort(
+          (a, b) =>
+            Date.parse(b.lastTriedAt) - Date.parse(a.lastTriedAt) ||
+            Date.parse(b.firstLoggedAt) - Date.parse(a.firstLoggedAt) ||
+            (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+        );
+      return respond(boulderProjectListResponseSchema, { projects });
+    }),
+  );
+
+  app.post("/projects/:id/archive", auth, async (request, reply) =>
+    handle(request, reply, async () => {
+      const id = idParam(request);
+      const parsed = boulderProjectArchiveSchema.safeParse(request.body);
+      if (!parsed.success) throw new BoulderRepositoryError("invalid");
+      await repo.setProjectArchived(
+        owner(request),
+        id,
+        parsed.data.archived,
+        token(request),
+      );
+      const [listed] = await repo.listProjects(owner(request), {
+        ...token(request),
+        status: "all",
+        ids: [id],
+      });
+      if (!listed) throw new BoulderRepositoryError("not_found");
+      return respond(boulderProjectResponseSchema, {
+        project: projectWire(listed, new Date()),
+      });
     }),
   );
 

@@ -99,6 +99,7 @@ export interface AccountExport {
   readonly bouldering?: {
     readonly ascents: readonly Record<string, unknown>[];
     readonly receipts: readonly Record<string, unknown>[];
+    readonly projects?: readonly Record<string, unknown>[];
   };
   readonly workouts: ReadonlyArray<StoredWorkout>;
   readonly workoutSets: ReadonlyArray<StoredWorkoutSet>;

@@ -1,10 +1,11 @@
-import { router, Stack, useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type {
   BoulderAchievementRecord,
   BoulderAscentRecord,
+  BoulderProjectRecord,
   BoulderSessionRecord,
 } from "@mizyun/contracts";
 
@@ -16,13 +17,18 @@ import { useTheme } from "@/hooks/use-theme";
 import { apiClient } from "@/composition/api-client";
 import { isBoulderingEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
-import { getBoulderSession, type BoulderFailure } from "./client";
+import {
+  getBoulderSession,
+  listBoulderProjects,
+  type BoulderFailure,
+} from "./client";
 import {
   ATTEMPTS_UNKNOWN_NOTE,
   achievementSpoken,
   achievementText,
   summaryStats,
 } from "./presentation";
+import { projectName, projectsSentInSession, sentAfterText } from "./progress";
 import { recallFinish } from "./session-rows";
 import { sessionGradeBars } from "./session-summary";
 
@@ -50,6 +56,7 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
       : null;
   });
   const [failure, setFailure] = useState<BoulderFailure | null>(null);
+  const [sentProjects, setSentProjects] = useState<BoulderProjectRecord[]>([]);
 
   useEffect(() => {
     const cached = userId ? recallFinish(userId, sessionId) : null;
@@ -63,7 +70,29 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
         : null,
     );
     setFailure(null);
+    setSentProjects([]);
   }, [sessionId, userId]);
+
+  // Best effort: "Sent after N sessions" for projects this session sent.
+  const linkedSendIds = (data?.ascents ?? [])
+    .filter((a) => a.projectId !== null && a.result !== "not_yet")
+    .map((a) => a.id)
+    .join(",");
+  useEffect(() => {
+    const owner = userId;
+    if (!owner || linkedSendIds === "") return;
+    const isCurrent = () => ownerRef.current === owner;
+    void listBoulderProjects("sent", {
+      status: () => apiClient.status(),
+      request: (options) =>
+        apiClient.request({ ...options, expectedUserId: owner, isCurrent }),
+    }).then((result) => {
+      if (isCurrent() && result.ok)
+        setSentProjects(
+          projectsSentInSession(result.value, linkedSendIds.split(",")),
+        );
+    });
+  }, [linkedSendIds, userId]);
 
   const load = useCallback(async () => {
     const owner = userId;
@@ -171,6 +200,27 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
             </Card>
           ) : null}
 
+          {sentProjects.length > 0 ? (
+            <Card>
+              {sentProjects.map((project) => (
+                <View
+                  key={project.id}
+                  style={styles.inline}
+                  accessible
+                  accessibilityLabel={`Project ${projectName(project, true)} sent. ${sentAfterText(project.sentAfterSessions ?? 1)}`}
+                >
+                  <Icon name="target" size={18} color="primary" />
+                  <ThemedText type="headline">
+                    Project {projectName(project)} sent
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {sentAfterText(project.sentAfterSessions ?? 1)}
+                  </ThemedText>
+                </View>
+              ))}
+            </Card>
+          ) : null}
+
           <Card>
             <View style={styles.stats}>
               {stats.map((stat) => (
@@ -234,6 +284,13 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
             </Card>
           )}
 
+          <Button
+            label="View progress"
+            icon="chart"
+            variant="secondary"
+            block
+            onPress={() => router.push("/bouldering/progress" as Href)}
+          />
           <Button label="Done" block onPress={done} />
         </ScrollView>
       </SafeAreaView>

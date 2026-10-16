@@ -92,6 +92,23 @@ export const toggleUnknownAttempts = (form: BoulderForm): BoulderForm => {
   return { ...form, attempts: form.attempts === null ? bounds.min : null };
 };
 
+/** Pre-fills "Try again" from a project: its grade and colour, no result. */
+export const tryAgainForm = (
+  project: { readonly grade: string; readonly holdColour: HoldColour | null },
+  fallbackGrade: FontGrade,
+): BoulderForm => ({
+  ...blankBoulderForm(
+    isFontGrade(project.grade) ? project.grade : fallbackGrade,
+  ),
+  holdColour: project.holdColour,
+});
+
+/** Results offered in the sheet: a linked project cannot be flashed. */
+export const allowedBoulderResults = (
+  linkedToProject: boolean,
+): readonly BoulderResult[] =>
+  linkedToProject ? ["sent", "not_yet"] : ["flash", "sent", "not_yet"];
+
 /** Repeats the last boulder's grade and colour; the result is left unselected. */
 export const sameAgainForm = (
   last: Pick<BoulderAscentRecord, "grade" | "holdColour">,
@@ -136,15 +153,22 @@ const fields = (form: BoulderForm, photoAssetId: string | null) => ({
   photoAssetId,
 });
 
-/** Canonical create payload, parsed through the shared contract. */
+/**
+ * Canonical create payload, parsed through the shared contract. `projectId`
+ * links a "Try again" boulder to an open or archived project; a Flash can
+ * never be linked (the server rejects it), so it is refused here too.
+ */
 export const boulderCreateBody = (
   form: BoulderForm,
   clientOperationId: string,
+  projectId: string | null = null,
 ): BoulderAscentCreate | null => {
   if (boulderFormError(form) !== null) return null;
+  if (projectId !== null && form.result === "flash") return null;
   const parsed = boulderAscentCreateSchema.safeParse({
     clientOperationId,
     ...fields(form, null),
+    projectId,
   });
   return parsed.success ? parsed.data : null;
 };

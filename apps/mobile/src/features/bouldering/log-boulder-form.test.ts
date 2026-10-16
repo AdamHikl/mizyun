@@ -11,6 +11,8 @@ import {
   showsAttemptsStepper,
   stepBoulderAttempts,
   toggleUnknownAttempts,
+  tryAgainForm,
+  allowedBoulderResults,
 } from "./log-boulder-form";
 import { initialBoulderGrade } from "./presentation";
 
@@ -173,5 +175,32 @@ describe("Same again", () => {
       note: "",
     });
     expect(boulderFormError(form)).not.toBeNull();
+  });
+});
+
+describe("Try again payloads", () => {
+  const PROJECT = "55555555-5555-4555-8555-555555555555";
+
+  it("pre-fills the project's grade and colour with no result", () => {
+    expect(tryAgainForm({ grade: "6C+", holdColour: "blue" }, "6A")).toEqual({
+      grade: "6C+",
+      result: null,
+      attempts: null,
+      holdColour: "blue",
+      note: "",
+    });
+  });
+
+  it("puts projectId on the create body and defaults it to null", () => {
+    const form = selectBoulderResult(blankBoulderForm("6B"), "not_yet");
+    expect(boulderCreateBody(form, OP, PROJECT)?.projectId).toBe(PROJECT);
+    expect(boulderCreateBody(form, OP)?.projectId).toBeNull();
+  });
+
+  it("never links a Flash", () => {
+    const flash = selectBoulderResult(blankBoulderForm("6B"), "flash");
+    expect(boulderCreateBody(flash, OP, PROJECT)).toBeNull();
+    expect(allowedBoulderResults(true)).toEqual(["sent", "not_yet"]);
+    expect(allowedBoulderResults(false)).toEqual(["flash", "sent", "not_yet"]);
   });
 });

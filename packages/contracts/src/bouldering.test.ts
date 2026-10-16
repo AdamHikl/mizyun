@@ -5,6 +5,11 @@ import {
   boulderAscentCreateSchema,
   boulderAscentUpdateSchema,
   boulderProgressQuerySchema,
+  boulderProjectArchiveSchema,
+  boulderProjectListQuerySchema,
+  boulderProjectListResponseSchema,
+  boulderProjectRecordSchema,
+  boulderProjectResponseSchema,
   boulderSessionDetailsSchema,
   boulderSessionFinishSchema,
   boulderSessionListQuerySchema,
@@ -110,6 +115,7 @@ describe("bouldering contracts", () => {
       attempts: null,
       holdColour: null,
       photoAssetId: null,
+      projectId: null,
     });
     expect(
       boulderAscentCreateSchema.safeParse({
@@ -187,6 +193,84 @@ describe("bouldering contracts", () => {
     expect(
       boulderAchievementSchema.safeParse({ kind: "personal_best", grade: "6C" })
         .success,
+    ).toBe(false);
+  });
+});
+
+describe("bouldering project contracts", () => {
+  const project = {
+    id,
+    grade: "6B",
+    gradeRank: 7,
+    holdColour: "blue",
+    status: "sent",
+    firstLoggedAt: "2026-09-01T10:00:00.000Z",
+    sentAt: "2026-09-09T10:00:00.000Z",
+    sentAscentId: id,
+    attempts: 9,
+    attemptsComplete: true,
+    sessions: 3,
+    sentAfterSessions: 3,
+    lastTriedAt: "2026-09-09T10:00:00.000Z",
+    older: false,
+  };
+
+  it("lets only a create link a project", () => {
+    const base = { clientOperationId: id, grade: "6A", result: "not_yet" };
+    expect(
+      boulderAscentCreateSchema.parse({ ...base, projectId: id }).projectId,
+    ).toBe(id);
+    expect(
+      boulderAscentCreateSchema.safeParse({ ...base, projectId: "nope" })
+        .success,
+    ).toBe(false);
+    expect(
+      boulderAscentUpdateSchema.safeParse({
+        ...base,
+        expectedRevision: 1,
+        projectId: id,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("parses project records strictly", () => {
+    expect(boulderProjectRecordSchema.parse(project)).toEqual(project);
+    expect(
+      boulderProjectRecordSchema.safeParse({ ...project, userId: id }).success,
+    ).toBe(false);
+    expect(
+      boulderProjectRecordSchema.safeParse({ ...project, sentAfterSessions: 0 })
+        .success,
+    ).toBe(false);
+    expect(
+      boulderProjectRecordSchema.safeParse({ ...project, status: "done" })
+        .success,
+    ).toBe(false);
+    expect(boulderProjectResponseSchema.safeParse({ project }).success).toBe(
+      true,
+    );
+    expect(
+      boulderProjectListResponseSchema.safeParse({ projects: [project] })
+        .success,
+    ).toBe(true);
+  });
+
+  it("defaults the list to open projects and validates the archive body", () => {
+    expect(boulderProjectListQuerySchema.parse({})).toEqual({
+      status: "open",
+    });
+    expect(boulderProjectListQuerySchema.parse({ status: "all" }).status).toBe(
+      "all",
+    );
+    expect(
+      boulderProjectListQuerySchema.safeParse({ status: "older" }).success,
+    ).toBe(false);
+    expect(boulderProjectArchiveSchema.parse({ archived: true })).toEqual({
+      archived: true,
+    });
+    expect(boulderProjectArchiveSchema.safeParse({}).success).toBe(false);
+    expect(
+      boulderProjectArchiveSchema.safeParse({ archived: "yes" }).success,
     ).toBe(false);
   });
 });

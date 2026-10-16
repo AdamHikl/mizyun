@@ -6,6 +6,9 @@ import {
   boulderAscentUpdateSchema,
   boulderFinishResponseSchema,
   boulderProgressResponseSchema,
+  boulderProjectArchiveSchema,
+  boulderProjectListResponseSchema,
+  boulderProjectResponseSchema,
   boulderRemovedResponseSchema,
   boulderSessionFinishSchema,
   boulderSessionListResponseSchema,
@@ -19,6 +22,9 @@ import {
   type BoulderFinishResponse,
   type BoulderProgressResponse,
   type BoulderProgressWindowValue,
+  type BoulderProjectListResponse,
+  type BoulderProjectRecord,
+  type BoulderProjectResponse,
   type BoulderSessionFinish,
   type BoulderSessionListResponse,
   type BoulderSessionResponse,
@@ -31,6 +37,7 @@ export type BoulderFailureKind =
   | "offline"
   | "disabled"
   | "conflict"
+  | "project_unavailable"
   | "removed"
   | "active_session"
   | "not_found"
@@ -53,6 +60,8 @@ const MESSAGES: Record<BoulderFailureKind, string> = {
     "You're offline. Anything saved on this device will sync when you're back online.",
   disabled: "Bouldering is not available yet.",
   conflict: "This changed somewhere else. Showing the latest version.",
+  project_unavailable:
+    "Project was already sent or removed — saved as a new boulder.",
   removed: "This boulder was removed, so the waiting change was discarded.",
   active_session: "You already have a bouldering session in progress.",
   not_found: "This bouldering session is no longer available.",
@@ -81,6 +90,8 @@ export const toBoulderFailure = (error: ApiError): BoulderFailure => {
       if (error.code === "FEATURE_DISABLED") return boulderFailure("disabled");
       if (error.code === "BOULDER_SESSION_ACTIVE")
         return boulderFailure("active_session");
+      if (error.code === "BOULDER_PROJECT_UNAVAILABLE")
+        return boulderFailure("project_unavailable");
       if (error.code === "BOULDER_REMOVED" || error.status === 410)
         return boulderFailure("removed");
       if (error.status === 409) return boulderFailure("conflict");
@@ -253,4 +264,58 @@ export async function getBoulderProgress(
       schema: boulderProgressResponseSchema,
     }),
   );
+}
+
+export type BoulderProjectStatusFilter = "open" | "sent" | "archived" | "all";
+
+/** Projects, most recently tried first (server order). */
+export async function listBoulderProjects(
+  status: BoulderProjectStatusFilter,
+  client: ApiClient = apiClient,
+): Promise<BoulderResultOf<BoulderProjectRecord[]>> {
+  const result = await client.request<BoulderProjectListResponse>({
+    method: "GET",
+    path: `/v1/bouldering/projects?status=${status}`,
+    schema: boulderProjectListResponseSchema,
+  });
+  return result.ok ? { ok: true, value: result.value.projects } : done(result);
+}
+
+/** Archives or reopens a project. A sent project answers `conflict` (409). */
+export async function setBoulderProjectArchived(
+  projectId: string,
+  archived: boolean,
+  client: ApiClient = apiClient,
+): Promise<BoulderResultOf<BoulderProjectRecord>> {
+  const parsed = boulderProjectArchiveSchema.safeParse({ archived });
+  if (!parsed.success) return invalid();
+  const result = await client.request<BoulderProjectResponse>({
+    method: "POST",
+    path: `/v1/bouldering/projects/${id(projectId)}/archive`,
+    body: parsed.data,
+    schema: boulderProjectResponseSchema,
+  });
+  return result.ok ? { ok: true, value: result.value.project } : done(result);
+}
+
+export type ProjectArchiveOutcome =
+  | { readonly kind: "ok"; readonly project: BoulderProjectRecord }
+  /** Already sent (409): the list should be refreshed; nothing changed. */
+  | { readonly kind: "sent"; readonly message: string }
+  | { readonly kind: "error"; readonly failure: BoulderFailure };
+
+export const PROJECT_ALREADY_SENT_MESSAGE =
+  "This project is already sent, so it can't be archived or reopened. Showing the latest list.";
+
+/** Archive or Reopen with the 409 (already sent) case made explicit. */
+export async function archiveBoulderProject(
+  projectId: string,
+  archived: boolean,
+  client: ApiClient = apiClient,
+): Promise<ProjectArchiveOutcome> {
+  const result = await setBoulderProjectArchived(projectId, archived, client);
+  if (result.ok) return { kind: "ok", project: result.value };
+  if (result.error.kind === "conflict")
+    return { kind: "sent", message: PROJECT_ALREADY_SENT_MESSAGE };
+  return { kind: "error", failure: result.error };
 }
