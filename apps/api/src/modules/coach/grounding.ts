@@ -56,7 +56,7 @@ export const buildCoachGrounding = async (
         accessToken,
       }),
       dependencies.workoutRepository.list(userId, {
-        excludeRunning: true,
+        excludeNonStrength: true,
         from: since,
         to: now,
         limit: 100,
@@ -70,7 +70,7 @@ export const buildCoachGrounding = async (
         accessToken,
       }),
       dependencies.workoutRepository.list(userId, {
-        excludeRunning: true,
+        excludeNonStrength: true,
         from: null,
         to: null,
         limit: 100,

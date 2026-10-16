@@ -12,7 +12,55 @@ export function ActiveWorkoutMiniBar() {
   const workoutContext = useOptionalActiveWorkout();
   const theme = useTheme();
 
-  if (!workoutContext || !workoutContext.activeWorkout) {
+  if (!workoutContext) return null;
+
+  if (!workoutContext.activeWorkout && workoutContext.activeBouldering) {
+    // Hide on the bouldering screens themselves.
+    if (pathname.startsWith("/bouldering")) return null;
+    const bouldering = workoutContext.activeBouldering;
+    const elapsed = formatStopwatch(workoutContext.boulderingElapsedSeconds);
+    return (
+      <View style={styles.dockContainer} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Resume bouldering session: ${bouldering.name}, ${elapsed} elapsed`}
+          onPress={() => router.push("/bouldering/session")}
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.backgroundElement,
+              borderColor: theme.border,
+            },
+            pressed && styles.pressed,
+          ]}
+        >
+          <View style={styles.indicatorContainer}>
+            <View
+              style={[styles.pulseDot, { backgroundColor: theme.primary }]}
+            />
+            <ThemedText style={styles.workoutIcon}>🧗</ThemedText>
+          </View>
+          <View style={styles.infoColumn}>
+            <ThemedText type="smallBold" style={styles.workoutTitle}>
+              {bouldering.name}
+            </ThemedText>
+            <View style={styles.timersRow}>
+              <ThemedText type="small" themeColor="textSecondary">
+                ⏱️ {elapsed}
+              </ThemedText>
+            </View>
+          </View>
+          <View
+            style={[styles.resumeButton, { backgroundColor: theme.primary }]}
+          >
+            <ThemedText style={styles.resumeButtonText}>Resume →</ThemedText>
+          </View>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (!workoutContext.activeWorkout) {
     return null;
   }
 

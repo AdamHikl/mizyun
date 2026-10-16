@@ -24,7 +24,15 @@ import type { RunRepository } from "@mizyun/core";
 import { SupabaseRunRepository } from "@mizyun/adapter-supabase-server";
 import { InMemoryRunRepository } from "./run-repository.js";
 import { runsRoutes } from "./modules/runs/routes.js";
-import { loadMealPhotosEnabled, runHealthImportsEnabled } from "@mizyun/config";
+import type { BoulderingRepository } from "@mizyun/core";
+import { SupabaseBoulderingRepository } from "@mizyun/adapter-supabase-server";
+import { InMemoryBoulderingRepository } from "./bouldering-repository.js";
+import { boulderingRoutes } from "./modules/bouldering/routes.js";
+import {
+  boulderingEnabled,
+  loadMealPhotosEnabled,
+  runHealthImportsEnabled,
+} from "@mizyun/config";
 import {
   SupabaseMealPhotoService,
   createMealPhotoStorage,
@@ -206,6 +214,7 @@ import {
 } from "./modules/community/discovery-routes.js";
 import { communityInvitationRoutes } from "./modules/community/invitation-routes.js";
 import { communityMealPublicationRoutes } from "./modules/community/meal-publication-routes.js";
+import { communityBoulderingPublicationRoutes } from "./modules/community/bouldering-publication-routes.js";
 import { communityPublicationRoutes } from "./modules/community/publication-routes.js";
 import { communityFeedRoutes } from "./modules/community/feed-routes.js";
 import { communityReactionRoutes } from "./modules/community/reaction-routes.js";
@@ -365,6 +374,9 @@ export interface AppDependencies {
   readonly runRepository?: RunRepository;
   /** Overrides the Dev-only Health run import switch (tests). */
   readonly runHealthImportsEnabled?: boolean;
+  readonly boulderingRepository?: BoulderingRepository;
+  /** Overrides `MIZYUN_BOULDERING_ENABLED` (tests). */
+  readonly boulderingEnabled?: boolean;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -763,6 +775,14 @@ export const buildApp = (
     (sp
       ? new SupabaseMediaAssetRepository({ clientFor: sp.clientFor })
       : new InMemoryMediaAssetRepository());
+  const boulderingRepository =
+    dependencies.boulderingRepository ??
+    (sp
+      ? new SupabaseBoulderingRepository(sp.clientFor)
+      : new InMemoryBoulderingRepository(
+          workoutRepository,
+          mediaAssetRepository,
+        ));
   // The bucket id matches the SQL migration; a Supabase swap
   // reads the same id from `storage.buckets`. The local
   // composition root hard-codes it for now.
@@ -854,6 +874,17 @@ export const buildApp = (
     (sp
       ? new SupabaseCommunityRepository({ clientFor: sp.clientFor })
       : new InMemoryCommunityRepository());
+  // Supabase revokes through ADR-0067 triggers; the in-memory pair mirrors them.
+  if (boulderingRepository instanceof InMemoryBoulderingRepository)
+    boulderingRepository.setCommunitySourceChangeObserverForTest(
+      (userId, sessionId) => {
+        void communityRepository.revokeActivitiesForBoulderingSession(
+          sessionId,
+          userId,
+          { accessToken: "in-memory" },
+        );
+      },
+    );
 
   const communityNotifications =
     dependencies.communityNotifications ??
@@ -971,6 +1002,7 @@ export const buildApp = (
             ? { recurringMealSuggestionRepository }
             : {}),
           runRepository,
+          boulderingRepository,
           profileRepository,
           goalRepository,
           foodEntryRepository,
@@ -1326,6 +1358,11 @@ export const buildApp = (
       dependencies.runHealthImportsEnabled ??
       runHealthImportsEnabled(process.env),
   });
+  void app.register(boulderingRoutes, {
+    prefix: "/v1/bouldering",
+    repository: boulderingRepository,
+    enabled: dependencies.boulderingEnabled ?? boulderingEnabled(process.env),
+  });
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",
     workoutRepository,
@@ -1564,6 +1601,12 @@ export const buildApp = (
     communityRepository,
     foodEntryRepository,
     profileRepository,
+  });
+  void app.register(communityBoulderingPublicationRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+    boulderingRepository,
+    enabled: dependencies.boulderingEnabled ?? boulderingEnabled(process.env),
   });
   void app.register(communityPublicationRoutes, {
     foodEntryRepository,

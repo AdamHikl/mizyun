@@ -95,6 +95,12 @@ export interface AccountExport {
   readonly foodEntries: ReadonlyArray<StoredFoodEntry>;
   readonly exercises: ReadonlyArray<StoredExercise>;
   readonly runOperationReceipts?: readonly Record<string, unknown>[];
+  /** Boulders and owner receipts; bouldering sessions export as workouts. */
+  readonly bouldering?: {
+    readonly ascents: readonly Record<string, unknown>[];
+    readonly receipts: readonly Record<string, unknown>[];
+    readonly projects?: readonly Record<string, unknown>[];
+  };
   readonly workouts: ReadonlyArray<StoredWorkout>;
   readonly workoutSets: ReadonlyArray<StoredWorkoutSet>;
   readonly bodyMeasurements: ReadonlyArray<StoredBodyMeasurement>;

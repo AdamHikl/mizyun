@@ -47,6 +47,37 @@ export function setCommunityReadPrincipal(
   for (const store of stores) store.setPrincipal(principal, token);
 }
 
+/**
+ * Extra activity kinds this build renders (BLD-05 review S1). Without the
+ * header the server omits those cards, because older builds reject a whole
+ * feed page on an unknown kind. The value is constant per build, so it does
+ * not change the read identity; it is added only on the network leg.
+ */
+export const COMMUNITY_ACTIVITY_KINDS_HEADER = "x-mizyun-activity-kinds";
+export const COMMUNITY_RENDERED_EXTRA_KINDS = ["bouldering"] as const;
+
+export function withRenderedActivityKinds(
+  options: RequestOptions,
+): RequestOptions {
+  const path = options.path.split("?")[0]!;
+  if (
+    options.method !== "GET" ||
+    !(
+      path === "/v1/community/feed" ||
+      /^\/v1\/community\/profiles\/[^/]+\/activities$/.test(path)
+    )
+  )
+    return options;
+  return {
+    ...options,
+    headers: {
+      ...(options.headers ?? {}),
+      [COMMUNITY_ACTIVITY_KINDS_HEADER]:
+        COMMUNITY_RENDERED_EXTRA_KINDS.join(","),
+    },
+  };
+}
+
 function readKey(options: RequestOptions): string | null {
   if (!options.schema || options.signal || options.headers) return null;
   const path = options.path.split("?")[0]!;
@@ -319,7 +350,7 @@ export class CommunityReadCache implements ApiClient {
       this.clear();
       this.writes++;
       try {
-        return await this.raw.request<T>(options);
+        return await this.raw.request<T>(withRenderedActivityKinds(options));
       } finally {
         this.writes--;
         // A concurrent read may have observed the pre-commit state. A lost
@@ -334,7 +365,9 @@ export class CommunityReadCache implements ApiClient {
       this.writes > 0
     ) {
       try {
-        const result = await this.raw.request<T>(options);
+        const result = await this.raw.request<T>(
+          withRenderedActivityKinds(options),
+        );
         if (!result.ok) this.clear();
         return result;
       } catch (error) {
@@ -405,7 +438,7 @@ export class CommunityReadCache implements ApiClient {
       this.pending.set(key, work);
       work.promise = this.raw
         .request({
-          ...options,
+          ...withRenderedActivityKinds(options),
           isCurrent: () =>
             revision === this.revision &&
             this.foreground &&

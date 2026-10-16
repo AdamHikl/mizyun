@@ -114,7 +114,7 @@ export class SupabaseWorkoutRepository implements WorkoutRepository {
       readonly to: Date | null;
       readonly limit: number;
       readonly kind?: "routine" | "session" | undefined;
-      readonly excludeRunning?: boolean;
+      readonly excludeNonStrength?: boolean;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>> {
@@ -125,10 +125,13 @@ export class SupabaseWorkoutRepository implements WorkoutRepository {
       .eq("user_id", userId)
       .order("started_at", { ascending: false })
       .limit(options.limit);
-    if (options.excludeRunning) {
+    if (options.excludeNonStrength) {
       builder = builder
-        .or("details->>activityType.is.null,details->>activityType.neq.running")
-        .is("details->runSummary", null);
+        .or(
+          "details->>activityType.is.null,details->>activityType.not.in.(running,bouldering)",
+        )
+        .is("details->runSummary", null)
+        .is("details->boulderSession", null);
     }
     if (options.from !== null) {
       builder = builder.gte("started_at", options.from.toISOString());

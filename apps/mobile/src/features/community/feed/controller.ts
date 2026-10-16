@@ -1,11 +1,11 @@
 import type { ApiClient } from "@mizyun/api-client";
 import {
-  communityFeedResponseSchema,
   communityProfileDtoSchema,
   type CommunityFeedResponse,
   type CommunityProfileDto,
   type SharedActivityFeedItemDto,
 } from "@mizyun/contracts";
+import { tolerantCommunityFeedResponseSchema } from "../activity-feed-schema";
 import {
   getCommunityReadDeadline,
   getCommunityReadEpoch,
@@ -109,7 +109,7 @@ export class FeedController {
               {
                 method: "GET",
                 path: "/v1/community/feed?limit=20",
-                schema: communityFeedResponseSchema,
+                schema: tolerantCommunityFeedResponseSchema,
                 expectedUserId: principalKey,
               },
               principal,

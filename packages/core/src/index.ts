@@ -136,8 +136,10 @@ export {
 
 export {
   NOTES_MAX,
+  NON_STRENGTH_ACTIVITY_TYPES,
   WORKOUT_NAME_MAX,
   applyWorkoutPatch,
+  isNonStrengthWorkoutDetails,
   validateWorkoutCreate,
   validateWorkoutPatch,
   type StoredWorkout,
@@ -406,6 +408,10 @@ export * from "./running";
 
 export * from "./run-repository";
 
+export * from "./bouldering-grades";
+
+export * from "./bouldering";
+
 export * from "./meal-illustration";
 export {
   isOwnedMealImagePath,
@@ -444,3 +450,4 @@ export * from "./meal-quick-add";
 export * from "./workout-routine-suggestion";
 
 export * from "./reminder-timing";
+export * from "./bouldering-repository";

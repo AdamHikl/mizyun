@@ -1,5 +1,9 @@
 # Research log
 
+## Indoor bouldering sessions (BOULDER-001/#276) — 2026-10-16
+
+Checked [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security) and [Expo SDK57 ImagePicker](https://docs.expo.dev/versions/v57.0.0/sdk/imagepicker/). Policies use `(select auth.uid())` with `user_id`-leading indexes, per-operation `to authenticated` policies, and security-definer RPCs with an empty `search_path` and restricted `execute`. ImagePicker `exif: false` only controls returned metadata, so boulder photos keep the ImageManipulator JPEG re-encode as the metadata-removal step. No authority publishes the Font scale; the 3–8C+ list is a product choice ([ADR-0066](adr/0066-indoor-bouldering-sessions.md)).
+
 ## Zero-registration calendar days (#240) — 2026-10-12
 
 Checked [PostgreSQL17 series generation](https://www.postgresql.org/docs/17/functions-srf.html), [outer joins](https://www.postgresql.org/docs/16/tutorial-join.html) and [aggregate semantics](https://www.postgresql.org/docs/17/functions-aggregate.html). The local reporting/verifier database is pinned to PostgreSQL17.6. Generate30 integer offsets from the source transaction's UTC current date, then left join existing Auth registration-day counts and coalesce missing counts to zero. Preserve the original retained30-day/now source bounds, unconfirmed-account inclusion and deleted-account exclusion. Emit calendar dates in the collected snapshot, never in the dashboard card, so the date ceiling is the source snapshot day and the existing reader expiry suppresses zeros together with real counts. Do not infer zeros for consent-gated activity or missing/stale sources. No account identities, consent rules, source mutation, schema change or new telemetry. Add real PostgreSQL empty/middle/trailing-day and midnight/freshness regressions; apply locally by refreshing only the dedicated analytics warehouse. The retained automatic-collection gap remains separate.

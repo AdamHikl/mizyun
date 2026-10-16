@@ -1,4 +1,5 @@
 import {
+  isNonStrengthWorkoutDetails,
   readWorkoutLifecycle,
   type StoredWorkout,
   type UserId,
@@ -78,7 +79,7 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
       readonly to: Date | null;
       readonly limit: number;
       readonly kind?: "routine" | "session" | undefined;
-      readonly excludeRunning?: boolean;
+      readonly excludeNonStrength?: boolean;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>> {
@@ -88,9 +89,8 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
     const toMs = options.to?.getTime() ?? Number.POSITIVE_INFINITY;
     const filtered = list.filter((entry) => {
       if (
-        options.excludeRunning &&
-        (entry.details.activityType === "running" ||
-          "runSummary" in entry.details)
+        options.excludeNonStrength &&
+        isNonStrengthWorkoutDetails(entry.details)
       )
         return false;
       const ms = entry.startedAt.getTime();

@@ -1,3 +1,4 @@
+import { acceptedOptionalKinds, clientRendersKind } from "./activity-kinds.js";
 import type { FastifyPluginAsync } from "fastify";
 import type { CommunityRepository, UserId } from "@mizyun/core";
 import {
@@ -91,9 +92,15 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
         limit,
         ...(boundary ? { beforeCursor: boundary } : {}),
       });
+      const acceptedKinds = acceptedOptionalKinds(request);
       // Recipient projection is shared by self and peers, with no source/version fields.
       const items = page.items
-        .filter((item) => item.userId === targetUserId && !item.revokedAt)
+        .filter(
+          (item) =>
+            item.userId === targetUserId &&
+            !item.revokedAt &&
+            clientRendersKind(acceptedKinds, item.activityKind),
+        )
         .map((item) => ({
           id: item.id,
           authorUserId: item.userId,
@@ -105,6 +112,7 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
           durationSeconds: item.durationSeconds,
           activityKind: item.activityKind ?? "workout",
           mealDetails: item.mealDetails ?? null,
+          boulderingDetails: item.boulderingDetails ?? null,
           workoutDetails: sharedWorkoutDetailsSchema
             .nullable()
             .parse(item.workoutDetails ?? null),

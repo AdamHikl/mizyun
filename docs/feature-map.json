@@ -243,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255).",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing.",
       "aliases": [
         "workout",
         "exercise",
@@ -251,7 +251,10 @@
         "sets",
         "gym",
         "routine",
-        "running"
+        "running",
+        "bouldering",
+        "climbing",
+        "boulder"
       ],
       "entryPoints": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -259,7 +262,9 @@
         "apps/api/src/modules/exercises/routes.ts",
         "apps/mobile/src/features/workouts/index.ts",
         "apps/api/src/modules/runs/routes.ts",
-        "apps/mobile/src/features/log-run/index.ts"
+        "apps/mobile/src/features/log-run/index.ts",
+        "apps/api/src/modules/bouldering/routes.ts",
+        "apps/mobile/src/features/bouldering/index.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -278,13 +283,22 @@
         "apps/mobile/src/features/running",
         "apps/mobile/src/features/run-import",
         "packages/core/src/running.ts",
-        "packages/core/src/run-repository.ts"
+        "packages/core/src/run-repository.ts",
+        "apps/api/src/modules/bouldering",
+        "apps/api/src/bouldering-repository.ts",
+        "packages/core/src/bouldering.ts",
+        "packages/core/src/bouldering-grades.ts",
+        "packages/core/src/bouldering-repository.ts",
+        "packages/config/src/bouldering.ts",
+        "apps/mobile/src/features/bouldering",
+        "apps/mobile/src/app/bouldering"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
         "packages/contracts/src/workout-set.ts",
         "packages/contracts/src/exercise.ts",
-        "packages/contracts/src/run.ts"
+        "packages/contracts/src/run.ts",
+        "packages/contracts/src/bouldering.ts"
       ],
       "domainPort": [
         "packages/core/src/workout.ts",
@@ -294,12 +308,16 @@
         "packages/core/src/exercise-catalog.ts",
         "packages/core/src/running.ts",
         "packages/core/src/run-repository.ts",
-        "packages/core/src/workout-routine-suggestion.ts"
+        "packages/core/src/workout-routine-suggestion.ts",
+        "packages/core/src/bouldering.ts",
+        "packages/core/src/bouldering-grades.ts",
+        "packages/core/src/bouldering-repository.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
         "apps/api/src/modules/workout-sets/routes.ts",
-        "apps/api/src/modules/exercises/routes.ts"
+        "apps/api/src/modules/exercises/routes.ts",
+        "apps/api/src/modules/bouldering/routes.ts"
       ],
       "ui": [
         "apps/mobile/src/app/(tabs)/workouts.tsx",
@@ -311,26 +329,37 @@
         "apps/mobile/src/app/import-runs.tsx",
         "apps/mobile/src/features/run-import/run-import-screen.tsx",
         "apps/mobile/src/features/workouts/workout-repeat.ts",
-        "apps/mobile/src/features/workouts/workout-routine-suggestion-store.ts"
+        "apps/mobile/src/features/workouts/workout-routine-suggestion-store.ts",
+        "apps/mobile/src/features/bouldering/bouldering-session-screen.tsx",
+        "apps/mobile/src/app/bouldering/session.tsx",
+        "apps/mobile/src/features/bouldering/progress-screen.tsx",
+        "apps/mobile/src/app/bouldering/progress.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/workout-repository.ts",
         "packages/adapters/supabase-server/src/workout-set-repository.ts",
         "packages/adapters/supabase-server/src/exercise-repository.ts",
-        "packages/adapters/supabase-server/src/run-repository.ts"
+        "packages/adapters/supabase-server/src/run-repository.ts",
+        "packages/adapters/supabase-server/src/bouldering-repository.ts"
       ],
       "dataTables": [
         "exercises",
         "workouts",
         "workout_sets",
-        "run_operation_receipts"
+        "run_operation_receipts",
+        "boulder_ascents",
+        "boulder_operation_receipts",
+        "boulder_projects"
       ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260721100000_persist_002_workout_columns.sql",
         "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql",
         "supabase/migrations/20261006120000_manual_running.sql",
-        "supabase/migrations/20261016120000_running_health_imports.sql"
+        "supabase/migrations/20261016120000_running_health_imports.sql",
+        "supabase/migrations/20261016140000_indoor_bouldering.sql",
+        "supabase/migrations/20261016160000_bouldering_projects.sql",
+        "supabase/migrations/20261016200000_bouldering_challenge_days.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",
@@ -350,7 +379,19 @@
         "apps/mobile/src/features/run-import/run-import.test.ts",
         "supabase/tests/database/0047_running_health_imports.test.sql",
         "packages/core/src/workout-routine-suggestion.test.ts",
-        "apps/mobile/src/features/workouts/workout-repeat.test.ts"
+        "apps/mobile/src/features/workouts/workout-repeat.test.ts",
+        "packages/core/src/bouldering.test.ts",
+        "packages/core/src/bouldering-projects.test.ts",
+        "packages/core/src/bouldering-grades.test.ts",
+        "packages/contracts/src/bouldering.test.ts",
+        "packages/adapters/supabase-server/src/bouldering-repository.test.ts",
+        "apps/api/src/modules/bouldering/routes.test.ts",
+        "supabase/tests/database/0048_indoor_bouldering.test.sql",
+        "supabase/tests/database/0049_bouldering_projects.test.sql",
+        "apps/mobile/src/features/bouldering/pending-ascents.test.ts",
+        "apps/mobile/src/features/bouldering/log-boulder-sheet.test.tsx",
+        "apps/mobile/src/features/bouldering/progress-components.test.tsx",
+        "supabase/tests/database/0051_bouldering_challenge_days.test.sql"
       ],
       "relations": [
         {
@@ -375,16 +416,31 @@
         "docs/adr/0040-free-exercise-catalog-and-legacy-identity.md",
         "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md",
         "docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md",
-        "docs/adr/0065-selected-health-run-imports.md"
+        "docs/adr/0065-selected-health-run-imports.md",
+        "docs/adr/0066-indoor-bouldering-sessions.md",
+        "docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
-        "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout"
+        "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout",
+        "pnpm --filter @mizyun/api test src/modules/bouldering",
+        "pnpm --filter @mizyun/core test src/bouldering",
+        "pnpm --filter @mizyun/mobile test src/features/bouldering"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
       "limitations": "Active workout recovery is local-first in mobile state; cloud sync occurs on set/workout completion",
-      "requirements": ["TRAIN-01", "TRAIN-02", "TRAIN-03", "WO-07"],
+      "requirements": [
+        "TRAIN-01",
+        "TRAIN-02",
+        "TRAIN-03",
+        "WO-07",
+        "BOULDER-01",
+        "BOULDER-02",
+        "BOULDER-03",
+        "BOULDER-04",
+        "BOULDER-05"
+      ],
       "openAcceptance": [
         "WO-07 exact-candidate standalone Dev start/add-before-first-set/restart/log/finish/history and appearance/accessibility acceptance (#187)"
       ]
@@ -1637,7 +1693,8 @@
         "apps/api/src/modules/community/group-routes.ts",
         "apps/api/src/modules/community/media-routes.ts",
         "apps/api/src/modules/community/messaging-routes.ts",
-        "apps/api/src/modules/community/routine-routes.ts"
+        "apps/api/src/modules/community/routine-routes.ts",
+        "apps/api/src/modules/community/bouldering-publication-routes.ts"
       ],
       "ui": [
         "apps/mobile/src/features/community/community-client.ts",
@@ -1787,7 +1844,8 @@
         "supabase/migrations/20261007110000_community_author_activities.sql",
         "supabase/migrations/20261007120000_community_messaging_reads.sql",
         "supabase/migrations/20261007130000_community_artifact_authors.sql",
-        "supabase/migrations/20261008120000_community_revocation_ledger.sql"
+        "supabase/migrations/20261008120000_community_revocation_ledger.sql",
+        "supabase/migrations/20261016180000_community_bouldering_sharing.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -1890,7 +1948,9 @@
         "supabase/tests/scratch/0043_community_account_cleanup_restart.test.sql",
         "supabase/tests/scratch/0044_community_challenge_time_source.test.sql",
         "supabase/tests/scratch/0045_community_routine_projection_refusal.test.sql",
-        "apps/mobile/src/features/community/invitation-fallback.test.ts"
+        "apps/mobile/src/features/community/invitation-fallback.test.ts",
+        "supabase/tests/database/0050_community_bouldering_sharing.test.sql",
+        "apps/api/src/modules/community/bouldering-publication-routes.test.ts"
       ],
       "relations": [
         {
@@ -1933,7 +1993,8 @@
         "docs/COMMUNITY_DEV_QUARANTINE_SYNTHETIC_2026-10-01.json",
         "docs/adr/0052-community-revocation-capture-and-quarantined-replay.md",
         "docs/COMMUNITY_CLOSURE_MATERIALS_2026-10-08.md",
-        "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md"
+        "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md",
+        "docs/adr/0067-explicit-community-bouldering-publication.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",
@@ -1964,7 +2025,8 @@
         "COMMUNITY-14",
         "COMMUNITY-15",
         "COMMUNITY-16",
-        "SEC-03"
+        "SEC-03",
+        "BOULDER-05"
       ],
       "openAcceptance": [
         "COMM-01 genuine adult target-user validation including voluntary decliner; design/source complete",

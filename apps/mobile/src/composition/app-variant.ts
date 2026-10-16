@@ -7,6 +7,7 @@ export type AppVariant = "dev" | "production";
 export interface AppVariantOverrides {
   readonly expoExtraVariant?: unknown;
   readonly expoExtraProgressPhotos?: unknown;
+  readonly expoExtraBouldering?: unknown;
   readonly authRedirectUri?: string | null;
   readonly apiUrl?: string | null;
 }
@@ -77,5 +78,18 @@ export function isProgressPhotosEnabled(
     return extraFlag;
   }
 
+  return resolveAppVariant(overrides) === "dev";
+}
+
+/**
+ * Returns true if indoor bouldering (ADR-0066) is enabled in this build.
+ * Dev builds have it on; Production stays off unless the build sets
+ * `extra.enableBouldering === true`. An explicit boolean wins either way.
+ */
+export function isBoulderingEnabled(overrides?: AppVariantOverrides): boolean {
+  const extraFlag =
+    overrides?.expoExtraBouldering ??
+    Constants.expoConfig?.extra?.enableBouldering;
+  if (typeof extraFlag === "boolean") return extraFlag;
   return resolveAppVariant(overrides) === "dev";
 }

@@ -268,6 +268,13 @@ vi.mock("../share-workout-modal", () => ({
 }));
 
 vi.mock("../share-meal-modal", () => ({ ShareMealModal: "ShareMealModal" }));
+vi.mock("../share-bouldering-modal", () => ({
+  ShareBoulderingModal: "ShareBoulderingModal",
+}));
+vi.mock("../shared-bouldering-details", async () => ({
+  ...(await import("../bouldering-card-text")),
+  SharedBoulderingDetails: "SharedBoulderingDetails",
+}));
 vi.mock("../shared-meal-details", () => ({
   SharedMealDetails: "SharedMealDetails",
 }));
@@ -336,5 +343,95 @@ describe("shared meal detail management", () => {
       error: { kind: "context_changed" },
     });
     expect(mocks.request).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared bouldering detail", () => {
+  const sessionId = "00000000-0000-4000-8000-0000000000b1";
+  const details = {
+    activityDate: "2026-10-01",
+    topGrade: "6C",
+    sends: 9,
+    flashes: 4,
+    gradeBreakdown: [
+      { grade: "6C", sends: 2 },
+      { grade: "6B", sends: 7 },
+    ],
+  };
+  const bouldering = {
+    ...activity,
+    category: "other",
+    activityKind: "bouldering",
+    boulderingDetails: details,
+    workoutDetails: null,
+  };
+  async function loaded(value: any, principal = "author") {
+    mocks.fetch.mockResolvedValue({ ok: true, value });
+    render(principal);
+    await Promise.resolve();
+    await Promise.resolve();
+    return render(principal);
+  }
+  it("renders the allowlisted snapshot and opens the bouldering share sheet for the owner", async () => {
+    const tree = await loaded(bouldering);
+    expect(tree.props.title).toBe("Shared bouldering session");
+    expect(JSON.stringify(tree)).toContain("Bouldering · Top grade 6C");
+    expect(find(tree, "SharedBoulderingDetails").props.details).toEqual(
+      details,
+    );
+    expect(find(tree, "SharedWorkoutDetails")).toBeFalsy();
+    expect(find(tree, "SharedMealDetails")).toBeFalsy();
+    mocks.request.mockResolvedValue({
+      ok: true,
+      value: {
+        ...bouldering,
+        sourceWorkoutId: sessionId,
+        sourceMealId: null,
+        version: 2,
+        revokedAt: null,
+      },
+    });
+    await button(tree, "Edit or unpublish shared session").props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    const after = render("author");
+    const modal = find(after, "ShareBoulderingModal");
+    expect(modal.props.sessionId).toBe(sessionId);
+    expect(modal.props.existingActivityId).toBe(activity.id);
+    // The strength share path refuses bouldering cards; it must not open.
+    expect(find(after, "ShareWorkoutModal")).toBeFalsy();
+  });
+  it("renders a card without the breakdown and a no-sends card", async () => {
+    let tree = await loaded(
+      {
+        ...bouldering,
+        boulderingDetails: { ...details, gradeBreakdown: null },
+      },
+      "viewer",
+    );
+    expect(
+      find(tree, "SharedBoulderingDetails").props.details.gradeBreakdown,
+    ).toBeNull();
+    expect(button(tree, "Edit or unpublish shared session")).toBeFalsy();
+    hooks.slots = [];
+    tree = await loaded(
+      {
+        ...bouldering,
+        boulderingDetails: {
+          activityDate: "2026-10-01",
+          topGrade: null,
+          sends: 0,
+          flashes: 0,
+          gradeBreakdown: null,
+        },
+      },
+      "viewer",
+    );
+    expect(JSON.stringify(tree)).toContain("Bouldering · No sends");
+  });
+  it("keeps the workout presentation for workout cards", async () => {
+    const tree = await loaded({ ...activity, activityKind: "workout" });
+    expect(tree.props.title).toBe("Shared workout");
+    expect(find(tree, "SharedBoulderingDetails")).toBeFalsy();
   });
 });

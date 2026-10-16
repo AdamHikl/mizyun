@@ -107,3 +107,5 @@
 
 - [0064 — Rate-based goal modes and weekly calorie review](0064-rate-based-goal-modes-and-weekly-calorie-review.md) — ENG-07/08 %BW modes, trend weight, adaptive maintenance and user-accepted weekly calorie proposals.
 - [0065 — Selected Health run imports](0065-selected-health-run-imports.md) — RUN-06 Dev-only user-selected Apple Health/Health Connect run copies with read-only provider metrics, dedup and Coach exclusion.
+- [0066 — Indoor bouldering sessions](0066-indoor-bouldering-sessions.md) — BOULDER-001 Font-graded boulder logging in Workouts: session envelope, ascent receipts, one active session, private photos and explicit sharing.
+- [0067 — Explicit Community bouldering publication](0067-explicit-community-bouldering-publication.md) — BOULDER-05 `bouldering` card kind with a previewed day/top grade/sends/flashes/optional grade breakdown allowlist and revocation on any session or boulder change.

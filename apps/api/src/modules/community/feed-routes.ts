@@ -1,8 +1,10 @@
+import { acceptedOptionalKinds, clientRendersKind } from "./activity-kinds.js";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type { CommunityRepository } from "@mizyun/core";
 import {
   communityFeedResponseSchema,
   sharedWorkoutDetailsSchema,
+  sharedBoulderingDetailsSchema,
   communityListQuerySchema,
   type CommunityFeedResponse,
   type SharedActivityFeedItemDto,
@@ -114,6 +116,7 @@ export const communityFeedRoutes: FastifyPluginAsync<
       }
 
       const validItems: SharedActivityFeedItemDto[] = [];
+      const acceptedKinds = acceptedOptionalKinds(request);
 
       // Keep every current-authority check, but cap independent I/O at five
       // cards. Promise.all preserves chronological order within each batch.
@@ -123,6 +126,8 @@ export const communityFeedRoutes: FastifyPluginAsync<
             .slice(offset, offset + 5)
             .map(async (item): Promise<SharedActivityFeedItemDto | null> => {
               if (item.revokedAt !== null) return null;
+              if (!clientRendersKind(acceptedKinds, item.activityKind))
+                return null;
               const author = profileMap.get(item.userId);
               if (!author || author.status !== "active") return null;
 
@@ -154,6 +159,9 @@ export const communityFeedRoutes: FastifyPluginAsync<
                 durationSeconds: item.durationSeconds,
                 activityKind: item.activityKind ?? "workout",
                 mealDetails: item.mealDetails ?? null,
+                boulderingDetails: sharedBoulderingDetailsSchema
+                  .nullable()
+                  .parse(item.boulderingDetails ?? null),
                 workoutDetails: sharedWorkoutDetailsSchema
                   .nullable()
                   .parse(item.workoutDetails ?? null),

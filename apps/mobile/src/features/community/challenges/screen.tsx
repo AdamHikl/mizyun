@@ -29,7 +29,11 @@ import {
   useExpansionCommand,
 } from "../expansions";
 import { apiClient } from "@/composition/api-client";
-import { workoutListResponseSchema } from "@mizyun/contracts";
+import {
+  boulderSessionListResponseSchema,
+  workoutListResponseSchema,
+} from "@mizyun/contracts";
+import { isBoulderingEnabled } from "@/composition/app-variant";
 import { ReportModal } from "../safety/report-modal";
 import { scopeCommunityClient } from "../scoped-client";
 function CommunityChallengesScreenContent() {
@@ -136,6 +140,21 @@ function CommunityChallengesScreenContent() {
       // A deliberate source selection needs a live owner read, not saved display data.
       signal: read.signal,
     });
+    // A finished bouldering session also counts as a workout day (BLD-06).
+    const bouldering = isBoulderingEnabled()
+      ? await scopeCommunityClient(
+          apiClient,
+          principal,
+          currentAccess,
+        ).request<{
+          sessions: { id: string; name: string; completedAt: string | null }[];
+        }>({
+          method: "GET",
+          path: "/v1/bouldering/sessions?limit=20",
+          schema: boulderSessionListResponseSchema,
+          signal: read.signal,
+        })
+      : null;
     if (workoutRead.current !== read || read.signal.aborted) return;
     workoutRead.current = null;
     setWorkoutsBusy(false);
@@ -146,16 +165,30 @@ function CommunityChallengesScreenContent() {
       setWorkoutsNotice("Unable to load your completed workouts. Try again.");
       return;
     }
-    const completed = response.value.workouts.filter(
-      (w) =>
-        w.completedAt &&
-        challengeLocalDay(
-          new Date(w.completedAt),
-          current?.timezone ?? timezone,
-        ) === today,
-    );
+    const isToday = (completedAt: string | null | undefined) =>
+      !!completedAt &&
+      challengeLocalDay(
+        new Date(completedAt),
+        current?.timezone ?? timezone,
+      ) === today;
+    const sessions =
+      bouldering?.ok === true
+        ? bouldering.value.sessions
+            .filter((session) => isToday(session.completedAt))
+            .map((session) => ({ id: session.id, name: "Bouldering session" }))
+        : [];
+    const completed = [
+      ...response.value.workouts.filter((w) => isToday(w.completedAt)),
+      ...sessions,
+    ];
     setWorkouts(completed);
-    if (!completed.length)
+    if (bouldering !== null && !bouldering.ok)
+      setWorkoutsNotice(
+        completed.length
+          ? "Bouldering sessions could not be loaded. Try again to include them."
+          : "Unable to load your bouldering sessions. Try again, or choose a rest or recovery day.",
+      );
+    else if (!completed.length)
       setWorkoutsNotice(
         "No completed workouts from today. You can choose a rest or recovery day instead.",
       );

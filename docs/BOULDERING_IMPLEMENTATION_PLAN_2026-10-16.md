@@ -2,6 +2,12 @@
 
 > Planned 2026-10-16 (Claude Code). Package [BOULDER-001/#276](https://github.com/AdamHikl/mizyun/issues/276). Planning only: no runtime code, migration, build, deployment or provider call was made. Stages BLD-00 to BLD-06 below are proposals until each stage's exit criteria are evidenced.
 
+## Implementation progress (2026-10-16, Claude Code)
+
+Source-level implementation of BLD-00 to BLD-06 (challenge days) is committed on branch `worktree-bridge-cse_018Ygr4LHdqMb1XUUaMc7i8W`; nothing is deployed. Each stage is one commit: BLD-00 `1a7c2d42`, BLD-01 `4af310c2`, BLD-02 `c9014780`, BLD-03 `68fe626c`, BLD-04 `94206c73` (+ Coach route fix `2d95a404`), BLD-05 `c872098e`, BLD-06 (this commit). Migrations `20261016140000`, `20261016160000`, `20261016180000`, `20261016200000`; pgTAP `0048`–`0051`. Independent non-author Opus reviews of BLD-02, BLD-04 (server) and BLD-05 (server) found no blockers; their should-fix items are resolved. Decisions that differ from this plan are recorded in [ADR-0066](adr/0066-indoor-bouldering-sessions.md) and [ADR-0067](adr/0067-explicit-community-bouldering-publication.md): cross-kind active-session blocking is a client rule; projects are removed with their last boulder and Try again accepts archived projects; Community cards are sent only to clients declaring the kind; edits that don't change shared data don't revoke a card.
+
+Adam accepted ADR-0066 and its sketches on 2026-10-16 (BLD-00 exit met). `pnpm db:verify` passed on `641549ed`. Open exits: iOS simulator and paired-simulator journeys; Dev deployment and iPhone acceptance; Android; VoiceOver/largest text. The photo-on-card part of BLD-06 is deferred: it needs a new ADR and Adam's decision after using BLD-05.
+
 ## A. Context and scope
 
 ### Product decision
@@ -124,6 +130,8 @@ Each stage is a separately reviewable commit set. Stages BLD-01 to BLD-03 are th
 Decide and record: storage shape above; one active session at a time across strength and bouldering (recommended: block starting the other kind and offer **Resume** / **Finish** for the active one); ascent receipts vs simpler create-only idempotency; media purpose reuse (`workout`) vs a new `bouldering` purpose; project matching rule. Show Adam two quick sketches (logging sheet and summary) before code, since this is a new mobile layout.
 
 **Exit:** ADR accepted by Adam; requirement text added; no open choice changes stored semantics.
+
+**Progress (2026-10-16):** [ADR-0066](adr/0066-indoor-bouldering-sessions.md) (0065 was taken by Health run imports) records the decisions and both sketches; BOULDER-01–05 added to the requirements and feature map. Baseline moved to `79e8e75c` (adds `20261016120000_running_health_imports.sql`; no media or Community change). Adam asked to implement every stage in sequence, so later stages proceed; Adam's acceptance of the ADR and sketches remains open.
 
 ### BLD-01 — Pure grade scale, contracts and calculations
 

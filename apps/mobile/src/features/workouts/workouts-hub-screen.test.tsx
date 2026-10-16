@@ -11,6 +11,14 @@ const mocks = vi.hoisted(() => ({
   owner: "user-a",
   tokenVersion: 0,
   activeWorkout: null as { id: string } | null,
+  activeBouldering: null as {
+    id: string;
+    name: string;
+    startedAt: string;
+  } | null,
+  boulderingEnabled: false,
+  boulderingHistory: vi.fn(),
+  alert: vi.fn(),
   version: "0:today:0",
   startRepeat: vi.fn(),
   saveRoutine: vi.fn(),
@@ -65,7 +73,7 @@ vi.mock("react-native", () => ({
       return { remove: vi.fn() };
     },
   },
-  Alert: { alert: vi.fn() },
+  Alert: { alert: mocks.alert },
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Modal: "Modal",
   Platform: { OS: "ios" },
@@ -161,10 +169,15 @@ vi.mock("./exercise-progression-modal", () => ({
   ExerciseProgressionModal: "ExerciseProgressionModal",
 }));
 vi.mock("./active-workout-context", () => ({
-  useOptionalActiveWorkout: () => ({ activeWorkout: mocks.activeWorkout }),
+  useOptionalActiveWorkout: () => ({
+    activeWorkout: mocks.activeWorkout,
+    activeBouldering: mocks.activeBouldering,
+    boulderingElapsedSeconds: 125,
+  }),
 }));
 vi.mock("./workouts-hub-data", () => ({
   fetchWorkoutsHubData: mocks.fetch,
+  fetchBoulderingHistory: mocks.boulderingHistory,
   peekWorkoutsHubData: mocks.peek,
   createBlankWorkout: mocks.createBlank,
   deleteWorkout: vi.fn(),
@@ -183,6 +196,9 @@ vi.mock("expo-secure-store", () => ({
   },
 }));
 vi.mock("@/features/run-import", () => ({ runImportAvailable: () => false }));
+vi.mock("@/composition/app-variant", () => ({
+  isBoulderingEnabled: () => mocks.boulderingEnabled,
+}));
 vi.mock("@/features/health-exports", () => ({
   markFirstPartyWorkout: (details: unknown) => details,
 }));
@@ -245,6 +261,12 @@ async function settle() {
 
 beforeEach(() => {
   mocks.activeWorkout = null;
+  mocks.activeBouldering = null;
+  mocks.boulderingEnabled = false;
+  mocks.boulderingHistory
+    .mockReset()
+    .mockResolvedValue({ ok: true, sessions: [] });
+  mocks.alert.mockReset();
   hooks.slots = [];
   hooks.effects = [];
   hooks.index = 0;
@@ -885,5 +907,149 @@ describe("repeat last workout and routine suggestion", () => {
     await settle();
     await settle();
     expect(byLabel(render(), "Dismiss routine suggestion")).toBeTruthy();
+  });
+});
+
+const boulderingRow = (tree: any) =>
+  find(
+    tree,
+    (node) =>
+      node.type === "ListRow" &&
+      /bouldering/i.test(node.props?.accessibilityLabel ?? ""),
+  );
+
+describe("indoor bouldering entry (ADR-0066)", () => {
+  it("hides the bouldering row when the feature is off", () => {
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    expect(boulderingRow(render())).toBeFalsy();
+  });
+
+  it("shows Start bouldering beside Log run when enabled", () => {
+    mocks.boulderingEnabled = true;
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    const row = boulderingRow(render());
+    expect(row.props.title).toBe("Start bouldering");
+    row.props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith("/bouldering/session?start=1");
+  });
+
+  it("offers Resume bouldering while a session is active", () => {
+    mocks.boulderingEnabled = true;
+    mocks.activeBouldering = {
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "Bouldering",
+      startedAt: "2026-10-16T10:00:00.000Z",
+    };
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    const row = boulderingRow(render());
+    expect(row.props.title).toBe("Resume bouldering");
+    expect(row.props.subtitle).toBe("In progress · 02:05");
+    row.props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith("/bouldering/session");
+  });
+
+  it("blocks starting bouldering during a strength workout and offers Resume workout", () => {
+    mocks.boulderingEnabled = true;
+    mocks.activeWorkout = { id: "strength-1" };
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    boulderingRow(render()).props.onPress();
+    expect(mocks.push).not.toHaveBeenCalled();
+    const [title, , buttons] = mocks.alert.mock.calls[0]!;
+    expect(title).toBe("Workout in progress");
+    buttons[1].onPress();
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/log-workout",
+      params: { workoutId: "strength-1" },
+    });
+  });
+
+  it("blocks starting a strength workout while bouldering is active", async () => {
+    mocks.boulderingEnabled = true;
+    mocks.activeBouldering = {
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "Bouldering",
+      startedAt: "2026-10-16T10:00:00.000Z",
+    };
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    await oneTimeAction(render()).props.onPress();
+    expect(mocks.createBlank).not.toHaveBeenCalled();
+    const [title, , buttons] = mocks.alert.mock.calls[0]!;
+    expect(title).toBe("Bouldering session in progress");
+    buttons[1].onPress();
+    expect(mocks.push).toHaveBeenCalledWith("/bouldering/session");
+  });
+
+  it("lists finished bouldering sessions in history and opens their detail", async () => {
+    mocks.boulderingEnabled = true;
+    mocks.fetch.mockResolvedValue(response("routine"));
+    mocks.boulderingHistory.mockResolvedValue({
+      ok: true,
+      sessions: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          clientOperationId: "11111111-1111-4111-8111-111111111111",
+          name: "Bouldering",
+          notes: null,
+          startedAt: "2026-10-15T10:00:00.000Z",
+          completedAt: "2026-10-15T12:00:00.000Z",
+          session: {
+            version: 1,
+            gradeScale: "font",
+            recordingTimezone: "UTC",
+            activityDate: "2026-10-15",
+            gymName: null,
+          },
+          summary: {
+            boulders: 10,
+            sends: 9,
+            flashes: 4,
+            attempts: 23,
+            attemptsComplete: true,
+            topGrade: "6C",
+          },
+        },
+      ],
+    });
+    render();
+    hooks.focus!();
+    await settle();
+    await settle();
+    const tree = render();
+    const row = find(
+      tree,
+      (node) => node.type === "ListRow" && node.props?.title === "Bouldering",
+    );
+    expect(row.props.subtitle).toMatch(/Top 6C · 9 sends$/);
+    row.props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/bouldering/[id]",
+      params: { id: "33333333-3333-4333-8333-333333333333" },
+    });
+  });
+
+  it("discloses a failed bouldering history read instead of showing none", async () => {
+    mocks.boulderingEnabled = true;
+    mocks.fetch.mockResolvedValue(response("routine"));
+    mocks.boulderingHistory.mockResolvedValue({
+      ok: false,
+      message: "offline",
+      disabled: false,
+    });
+    render();
+    hooks.focus!();
+    await settle();
+    await settle();
+    const notice = find(render(), (node) => node.type === "Notice");
+    expect(notice.props.message).toBe(
+      "Bouldering history could not be loaded. Pull to refresh to try again.",
+    );
+  });
+
+  it("never asks for bouldering history when the feature is off", async () => {
+    mocks.fetch.mockResolvedValue(response("routine"));
+    render();
+    hooks.focus!();
+    await settle();
+    expect(mocks.boulderingHistory).not.toHaveBeenCalled();
   });
 });

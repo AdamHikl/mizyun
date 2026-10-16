@@ -1,10 +1,10 @@
 import type { ApiError, RequestOptions } from "@mizyun/api-client";
 import {
-  communityFeedResponseSchema,
   communityProfileDtoSchema,
   type CommunityProfileDto,
   type SharedActivityFeedItemDto,
 } from "@mizyun/contracts";
+import { tolerantCommunityFeedResponseSchema } from "../activity-feed-schema";
 import { isAdultEligibleForCommunity, type Result } from "@mizyun/core";
 
 /**
@@ -172,7 +172,7 @@ export function observeCommunityDisplayRead(
     publish();
     return;
   }
-  const parsed = communityFeedResponseSchema.safeParse(result.value);
+  const parsed = tolerantCommunityFeedResponseSchema.safeParse(result.value);
   if (!parsed.success) return;
   const next = {
     items: parsed.data.items.slice(0, MAX_ITEMS),

@@ -23,6 +23,7 @@ import {
   CommunityState,
 } from "../ui";
 import { ReportModal } from "../safety";
+import { activityRowSummary } from "../activity-row-summary";
 import { captureSafetyReceipt } from "../safety/safety-api";
 import { scopeCommunityClient } from "../scoped-client";
 import { invalidateCommunityReads } from "../state/read-cache";
@@ -403,12 +404,7 @@ function PersonProfile({
                 {state.activities.map((item) => (
                   <CommunityRow
                     key={item.id}
-                    title={
-                      item.activityKind === "meal"
-                        ? `Meal · ${item.mealDetails?.name ?? "Shared meal"}`
-                        : item.category.replaceAll("_", " ")
-                    }
-                    description={`${item.sharedDay}${item.activityKind !== "meal" && item.durationSeconds !== null ? ` · ${Math.round(item.durationSeconds / 60)} min` : ""}`}
+                    {...activityRowSummary(item)}
                     href={`/community/activity/${item.id}` as Href}
                   />
                 ))}

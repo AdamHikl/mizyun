@@ -37,6 +37,11 @@ import {
 import { VisibilityEpoch } from "../state/visibility-epoch";
 import { SharedMealDetails } from "../shared-meal-details";
 import { ShareMealModal } from "../share-meal-modal";
+import { ShareBoulderingModal } from "../share-bouldering-modal";
+import {
+  SharedBoulderingDetails,
+  boulderingCardTitle,
+} from "../shared-bouldering-details";
 import { SharedWorkoutDetails } from "../shared-workout-details";
 import { CommunityIdentityLink, CommunityPage, CommunityButton } from "../ui";
 import { ShareWorkoutModal } from "../share-workout-modal";
@@ -371,14 +376,30 @@ export function ActivityDetailScreen({
   }
 
   const isMeal = activity.activityKind === "meal";
-  const duration = isMeal ? null : formatDuration(activity.durationSeconds);
+  const isBouldering = activity.activityKind === "bouldering";
+  // Every kind other than meal and bouldering keeps the workout presentation.
+  const isWorkout = !isMeal && !isBouldering;
+  const duration = isWorkout ? formatDuration(activity.durationSeconds) : null;
   const sharedDayLabel = formatSharedDay(activity.sharedDay);
   const publishedAtLabel = formatPublishedAt(activity.publishedAt);
-  const categoryLabel = isMeal ? "Meal" : formatCategory(activity.category);
+  const categoryLabel = isMeal
+    ? "Meal"
+    : isBouldering
+      ? boulderingCardTitle(activity.boulderingDetails)
+      : formatCategory(activity.category);
   const isSelf = activity.authorUserId === principalKey;
+  const kindNoun = isMeal ? "meal" : isBouldering ? "session" : "workout";
 
   return (
-    <CommunityPage title={isMeal ? "Shared meal" : "Shared workout"}>
+    <CommunityPage
+      title={
+        isMeal
+          ? "Shared meal"
+          : isBouldering
+            ? "Shared bouldering session"
+            : "Shared workout"
+      }
+    >
       {/* Author Card */}
       <View
         style={[
@@ -439,7 +460,10 @@ export function ActivityDetailScreen({
         {isMeal && activity.mealDetails ? (
           <SharedMealDetails details={activity.mealDetails} />
         ) : null}
-        {!isMeal && activity.workoutDetails ? (
+        {isBouldering && activity.boulderingDetails ? (
+          <SharedBoulderingDetails details={activity.boulderingDetails} />
+        ) : null}
+        {isWorkout && activity.workoutDetails ? (
           <SharedWorkoutDetails details={activity.workoutDetails} />
         ) : null}
 
@@ -496,11 +520,7 @@ export function ActivityDetailScreen({
       {isSelf ? (
         <>
           <CommunityButton
-            label={
-              isMeal
-                ? "Edit or unpublish shared meal"
-                : "Edit or unpublish shared workout"
-            }
+            label={`Edit or unpublish shared ${kindNoun}`}
             onPress={() => void manageShare()}
           />
           {manageError ? (
@@ -523,7 +543,24 @@ export function ActivityDetailScreen({
                 clear();
               }}
             />
-          ) : managed?.sourceWorkoutId ? (
+          ) : managed?.activityKind === "bouldering" &&
+            managed.sourceWorkoutId ? (
+            <ShareBoulderingModal
+              visible
+              sessionId={managed.sourceWorkoutId}
+              existingActivityId={managed.id}
+              onDismiss={() => setManaged(null)}
+              onPublished={() => {
+                setManaged(null);
+                void loadActivity();
+              }}
+              onRevoked={() => {
+                setManaged(null);
+                clear();
+              }}
+            />
+          ) : managed?.activityKind !== "bouldering" &&
+            managed?.sourceWorkoutId ? (
             <ShareWorkoutModal
               visible
               workoutId={managed.sourceWorkoutId}

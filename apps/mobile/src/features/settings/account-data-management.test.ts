@@ -318,6 +318,10 @@ describe("account-data-management", () => {
       [`mizyun.logging-draft.${userId}.meal`, '{"food":"Apple"}'],
       [`mizyun.logging-draft.${userId}.workout`, '{"name":"Chest Day"}'],
       [`mizyun.logging-draft.${userId}.run`, '{"pending":{"kind":"create"}}'],
+      [
+        `mizyun.logging-draft.${userId}.bouldering`,
+        '{"version":1,"commands":[],"finish":null}',
+      ],
       [`mizyun.logging-draft.${userId}.weight`, '{"weight":80}'],
       [`mizyun.logging-draft.${userId}.coach`, '{"message":"Hi"}'],
     ]);

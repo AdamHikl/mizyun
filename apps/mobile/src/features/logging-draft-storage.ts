@@ -7,6 +7,8 @@ export type LoggingDraftKind =
   | "weight"
   | "coach"
   | "run"
+  /** Indoor bouldering pending ascent commands (ADR-0066). */
+  | "bouldering"
   | `meal-edit-${string}`
   | `meal-photo-${string}`;
 

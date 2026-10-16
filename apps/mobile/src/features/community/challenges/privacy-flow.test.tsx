@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   focus: null as null | (() => () => void),
   appState: null as null | ((state: string) => void),
   alert: vi.fn(),
+  bouldering: false,
 }));
 const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 let communityReadCache: CommunityReadCache;
@@ -38,6 +39,9 @@ vi.mock("react", async (original) => ({
   },
 }));
 vi.mock("../ui", () => ({ CommunityPage: "CommunityPage" }));
+vi.mock("@/composition/app-variant", () => ({
+  isBoulderingEnabled: () => mocks.bouldering,
+}));
 vi.mock("react-native", () => ({
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Platform: { OS: "ios" },
@@ -239,6 +243,65 @@ const liveWorkouts = {
   ],
 };
 describe("challenge workout selection", () => {
+  it("offers a finished bouldering session from today as a workout day", async () => {
+    await openGroup();
+    mocks.bouldering = true;
+    try {
+      const sessionId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+      mocks.request.mockImplementation(async (options: { path: string }) =>
+        options.path.startsWith("/v1/bouldering/sessions")
+          ? {
+              ok: true,
+              value: {
+                sessions: [
+                  {
+                    id: sessionId,
+                    name: "Bouldering",
+                    completedAt: liveWorkouts.workouts[0]!.completedAt,
+                  },
+                ],
+                nextCursor: null,
+              },
+            }
+          : { ok: true, value: { workouts: [] } },
+      );
+      button(render(), "Choose a completed workout from today").props.onPress();
+      await settle();
+      const confirm = button(render(), "Confirm workout: Bouldering session");
+      expect(confirm).toBeDefined();
+      mocks.run.mockClear();
+      confirm.props.onPress();
+      expect(mocks.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: "contribute",
+          kind: "workout",
+          sourceWorkoutId: sessionId,
+        }),
+      );
+    } finally {
+      mocks.bouldering = false;
+    }
+  });
+  it("keeps strength choices and discloses a failed bouldering read", async () => {
+    await openGroup();
+    mocks.bouldering = true;
+    try {
+      mocks.request.mockImplementation(async (options: { path: string }) =>
+        options.path.startsWith("/v1/bouldering/sessions")
+          ? { ok: false, error: { kind: "network" } }
+          : { ok: true, value: liveWorkouts },
+      );
+      button(render(), "Choose a completed workout from today").props.onPress();
+      await settle();
+      const tree = render();
+      expect(button(tree, "Confirm workout: Live fixture")).toBeDefined();
+      expect(JSON.stringify(tree)).toContain(
+        "Bouldering sessions could not be loaded",
+      );
+    } finally {
+      mocks.bouldering = false;
+    }
+  });
   it("reads live owner workouts while the display cache holds an empty snapshot", async () => {
     await openGroup();
     const rawRequest = vi

@@ -24,6 +24,9 @@ import {
   publishWorkoutActivitySchema,
   publishMealActivitySchema,
   sharedMealDetailsSchema,
+  publishBoulderingActivitySchema,
+  sharedBoulderingDetailsSchema,
+  boulderingSharePreviewDtoSchema,
   reactorSummarySchema,
   relationshipListResponseSchema,
   resolveInvitationResponseSchema,
@@ -726,5 +729,120 @@ describe("Meal sharing allowlist", () => {
       publishMealActivitySchema.safeParse({ ...input, photoAssetId: "private" })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("Bouldering sharing allowlist (ADR-0067)", () => {
+  const details = {
+    activityDate: "2026-10-16",
+    topGrade: "7A",
+    sends: 3,
+    flashes: 1,
+    gradeBreakdown: null,
+  };
+  it("accepts exactly the allowlisted keys", () => {
+    expect(sharedBoulderingDetailsSchema.parse(details)).toEqual(details);
+    expect(
+      sharedBoulderingDetailsSchema.parse({
+        ...details,
+        gradeBreakdown: [
+          { grade: "7A", sends: 1 },
+          { grade: "6B", sends: 2 },
+        ],
+      }).gradeBreakdown,
+    ).toHaveLength(2);
+    expect(
+      sharedBoulderingDetailsSchema.parse({
+        ...details,
+        topGrade: null,
+        sends: 0,
+        flashes: 0,
+        gradeBreakdown: [],
+      }).topGrade,
+    ).toBeNull();
+  });
+  it("rejects private session fields and inconsistent counts", () => {
+    for (const extra of [
+      { gymName: "Secret Gym" },
+      { notes: "private" },
+      { attempts: 9 },
+      { holdColour: "blue" },
+      { photoAssetId: "d2500000-0000-4000-8000-000000000001" },
+    ])
+      expect(
+        sharedBoulderingDetailsSchema.safeParse({ ...details, ...extra })
+          .success,
+      ).toBe(false);
+    for (const bad of [
+      { topGrade: "6a+" },
+      { topGrade: "V5" },
+      { flashes: 4 },
+      { sends: 0 },
+      { sends: -1 },
+      { activityDate: "2026-02-30" },
+      { gradeBreakdown: [{ grade: "7A", sends: 1, colour: "red" }] },
+      { gradeBreakdown: [{ grade: "7A", sends: 0 }] },
+    ])
+      expect(
+        sharedBoulderingDetailsSchema.safeParse({ ...details, ...bad }).success,
+      ).toBe(false);
+    const { gradeBreakdown: _omitted, ...missing } = details;
+    expect(sharedBoulderingDetailsSchema.safeParse(missing).success).toBe(
+      false,
+    );
+  });
+  it("requires the exact preview and defaults the breakdown off", () => {
+    const input = {
+      sessionId: "d2500000-0000-4000-8000-000000000001",
+      operationId: "e2500000-0000-4000-8000-000000000001",
+      enrollmentGeneration: 1,
+      sharedDay: "2026-10-16",
+      expectedBoulderingDetails: details,
+    };
+    const parsed = publishBoulderingActivitySchema.parse(input);
+    expect(parsed.includeGradeBreakdown).toBe(false);
+    expect(parsed.expectedVersion).toBe(0);
+    expect(
+      publishBoulderingActivitySchema.safeParse({ ...input, gymName: "x" })
+        .success,
+    ).toBe(false);
+  });
+  it("keeps older workout and meal cards parseable", () => {
+    const base = {
+      id: "f0000000-0000-4000-8000-000000000001",
+      authorUserId: "f0000000-0000-4000-8000-000000000002",
+      authorHandle: "climber",
+      authorDisplayName: "Climber",
+      authorAvatarSymbol: "C",
+      category: "other",
+      sharedDay: "2026-10-16",
+      durationSeconds: null,
+      publishedAt: "2026-10-16T10:00:00.000Z",
+      reactionCounts: {},
+      viewerReaction: null,
+    };
+    expect(
+      sharedActivityFeedItemDtoSchema.parse(base).boulderingDetails ?? null,
+    ).toBeNull();
+    const card = sharedActivityFeedItemDtoSchema.parse({
+      ...base,
+      activityKind: "bouldering",
+      boulderingDetails: details,
+    });
+    expect(card.activityKind).toBe("bouldering");
+    expect(
+      boulderingSharePreviewDtoSchema.safeParse({
+        sessionId: "d2500000-0000-4000-8000-000000000001",
+        enrollmentGeneration: 1,
+        existingActivity: null,
+        sharedDay: "2026-10-16",
+        boulderingDetails: details,
+        boulderingDetailsWithBreakdown: {
+          ...details,
+          gradeBreakdown: [{ grade: "7A", sends: 3 }],
+        },
+        followerCount: 0,
+      }).success,
+    ).toBe(true);
   });
 });

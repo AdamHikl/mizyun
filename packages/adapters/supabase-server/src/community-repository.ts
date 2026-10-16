@@ -19,6 +19,9 @@ import {
   type SharedWorkoutDetails,
   type SharedMealDetails,
   type MealActivityPublication,
+  type BoulderingActivityPublication,
+  type SharedActivityKind,
+  type SharedBoulderingDetails,
   type UserId,
   type WorkoutCategory,
 } from "@mizyun/core";
@@ -86,8 +89,9 @@ export interface SharedActivityRow extends Record<string, unknown> {
   readonly user_id: string;
   readonly source_workout_id: string | null;
   readonly source_meal_id?: string | null;
-  readonly activity_kind?: "meal" | "workout";
+  readonly activity_kind?: SharedActivityKind;
   readonly meal_details?: SharedMealDetails | null;
+  readonly bouldering_details?: SharedBoulderingDetails | null;
   readonly category: string;
   readonly shared_day: string;
   readonly duration_seconds: number | null;
@@ -183,6 +187,7 @@ export const sharedActivityFromRow = (
   sourceMealId: row.source_meal_id ?? null,
   activityKind: row.activity_kind ?? "workout",
   mealDetails: row.meal_details ?? null,
+  boulderingDetails: row.bouldering_details ?? null,
   category: row.category as WorkoutCategory,
   sharedDay: row.shared_day,
   durationSeconds: row.duration_seconds,
@@ -1049,6 +1054,41 @@ export class SupabaseCommunityRepository implements CommunityRepository {
     await this.#rpcRows(
       "community_revoke_meal_activities",
       { p_source_meal_id: mealId },
+      options,
+    );
+  }
+
+  async publishBoulderingActivity(
+    _userId: UserId,
+    activity: BoulderingActivityPublication,
+    options: { readonly accessToken: string },
+  ): Promise<StoredSharedActivity> {
+    // The database recomputes and compares its own projection (ADR-0067).
+    const rows = await this.#rpcRows<SharedActivityRow>(
+      "community_publish_bouldering_activity",
+      {
+        p_source_session_id: activity.sourceSessionId,
+        p_enrollment_generation: activity.enrollmentGeneration,
+        p_operation_id: activity.operationId,
+        p_expected_version: activity.expectedVersion,
+        p_expected_revoked: activity.expectedRevoked,
+        p_shared_day: activity.sharedDay,
+        p_bouldering_details: activity.boulderingDetails,
+      },
+      options,
+    );
+    if (!rows[0]) throw new CommunityMutationError("unavailable");
+    return sharedActivityFromRow(rows[0]);
+  }
+
+  async revokeActivitiesForBoulderingSession(
+    sessionId: string,
+    _authorUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<void> {
+    await this.#rpcRows(
+      "community_revoke_bouldering_activities",
+      { p_source_session_id: sessionId },
       options,
     );
   }

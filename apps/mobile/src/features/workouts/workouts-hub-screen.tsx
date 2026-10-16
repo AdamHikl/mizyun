@@ -21,6 +21,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RunCard, RunningWeek, listRuns } from "@/features/running";
 import { runImportAvailable } from "@/features/run-import";
 import { apiClient } from "@/composition/api-client";
+import { isBoulderingEnabled } from "@/composition/app-variant";
+import { sessionHistorySubtitle } from "@/features/bouldering/public-data";
 import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
 import type { Workout } from "@mizyun/contracts";
 
@@ -58,6 +60,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import {
   createBlankWorkout,
   deleteWorkout,
+  fetchBoulderingHistory,
   fetchWorkoutsHubData,
   peekWorkoutsHubData,
   startRoutineSession,
@@ -81,7 +84,12 @@ import {
 import { ExerciseLibraryModal } from "./exercise-library-modal";
 import { WorkoutEditorModal } from "./workout-editor-modal";
 import { ExerciseProgressionModal } from "./exercise-progression-modal";
-import { computeElapsedSeconds, formatStopwatch } from "./active-workout-state";
+import {
+  computeElapsedSeconds,
+  formatStopwatch,
+  guardSessionStart,
+  type SessionStartGuard,
+} from "./active-workout-state";
 import { useOptionalActiveWorkout } from "./active-workout-context";
 
 type WorkoutsTab = "all" | "planned" | "history";
@@ -108,8 +116,9 @@ export function WorkoutsHubScreen() {
   );
   const params = useLocalSearchParams<{ runSaved?: string }>();
   const [historyFilter, setHistoryFilter] = useState<
-    "all" | "strength" | "running"
+    "all" | "strength" | "running" | "bouldering"
   >("all");
+  const boulderingEnabled = isBoulderingEnabled();
   const [loadingMoreRuns, setLoadingMoreRuns] = useState(false);
   const workoutContext = useOptionalActiveWorkout();
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
@@ -217,17 +226,35 @@ export function WorkoutsHubScreen() {
     const id = ++requestId.current;
     const version = getSessionReadVersion();
     if (!loaded.current && !displayReady.current) setLoading(true);
-    const result = await fetchWorkoutsHubData({
+    const client = {
       status: () => apiClient.status(),
-      request: (options) =>
+      request: ((options) =>
         apiClient.request({
           ...options,
           expectedUserId: principal,
           isCurrent: () =>
             owner === currentOwner.current && id === requestId.current,
-        }),
-    });
+        })) as typeof apiClient.request,
+    };
+    const [hubResult, bouldering] = await Promise.all([
+      fetchWorkoutsHubData(client),
+      boulderingEnabled
+        ? fetchBoulderingHistory(client).catch(() => null)
+        : Promise.resolve(null),
+    ]);
     if (owner !== currentOwner.current || id !== requestId.current) return;
+    // A failed bouldering read is disclosed, never shown as "no sessions".
+    const result: WorkoutsHubResult =
+      bouldering === null || (!bouldering.ok && bouldering.disabled)
+        ? hubResult
+        : bouldering.ok
+          ? { ...hubResult, boulderSessions: bouldering.sessions }
+          : {
+              ...hubResult,
+              message:
+                hubResult.message ??
+                "Bouldering history could not be loaded. Pull to refresh to try again.",
+            };
     setData((current) =>
       result.message !== null &&
       (current.activeAndPlanned.length > 0 ||
@@ -240,7 +267,7 @@ export function WorkoutsHubScreen() {
     displayReady.current = true;
     loaded.current =
       result.message === null ? { version, at: Date.now() } : null;
-  }, [owner]);
+  }, [boulderingEnabled, owner]);
 
   useFocusEffect(
     useCallback(() => {
@@ -284,46 +311,87 @@ export function WorkoutsHubScreen() {
     setEditorVisible(true);
   }, []);
 
-  const beginRoutineSession = useCallback(async (workout: Workout) => {
-    if (
-      startingRoutineIds.current.has(workout.id) ||
-      sessionStartInFlight.current
-    )
+  const activeBouldering = workoutContext?.activeBouldering ?? null;
+  /** ADR-0066 §3: one live session across strength and bouldering. */
+  const blockedStart = useCallback(
+    (target: "strength" | "bouldering"): boolean => {
+      const guard: SessionStartGuard = guardSessionStart(target, {
+        workout: workoutContext?.activeWorkout,
+        bouldering: activeBouldering,
+      });
+      if (guard.kind === "allowed") return false;
+      const resume = guard.resume;
+      Alert.alert(guard.title, guard.message, [
+        { text: "Not now", style: "cancel" },
+        {
+          text: guard.resumeLabel,
+          onPress: () =>
+            resume.pathname === "/log-workout"
+              ? router.push({
+                  pathname: "/log-workout",
+                  params: { workoutId: resume.workoutId },
+                })
+              : router.push("/bouldering/session" as Href),
+        },
+      ]);
+      return true;
+    },
+    [activeBouldering, workoutContext?.activeWorkout],
+  );
+
+  const handleBouldering = useCallback(() => {
+    if (activeBouldering) {
+      router.push("/bouldering/session" as Href);
       return;
-    startingRoutineIds.current.add(workout.id);
-    sessionStartInFlight.current = true;
-    setSessionStartBusy(true);
-    setBusyWorkoutId(workout.id);
-    try {
-      let operationId = routineOperationIds.current.get(workout.id);
-      if (!operationId) {
-        operationId = Crypto.randomUUID();
-        routineOperationIds.current.set(workout.id, operationId);
-      }
-      const result = await startRoutineSession(workout, operationId);
-      if (result.ok && result.workout) {
-        routineOperationIds.current.delete(workout.id);
-        router.push({
-          pathname: "/log-workout",
-          params: { workoutId: result.workout.id },
-        });
-      } else if (!result.ok) {
-        routineOperationIds.current.delete(workout.id);
-        Alert.alert("Could not start session", result.message);
-      }
-    } catch {
-      routineOperationIds.current.delete(workout.id);
-      Alert.alert(
-        "Could not start session",
-        "The session could not be started. Please try again.",
-      );
-    } finally {
-      startingRoutineIds.current.delete(workout.id);
-      sessionStartInFlight.current = false;
-      setSessionStartBusy(false);
-      setBusyWorkoutId(null);
     }
-  }, []);
+    if (blockedStart("bouldering")) return;
+    router.push("/bouldering/session?start=1" as Href);
+  }, [activeBouldering, blockedStart]);
+
+  const beginRoutineSession = useCallback(
+    async (workout: Workout) => {
+      if (blockedStart("strength")) return;
+      if (
+        startingRoutineIds.current.has(workout.id) ||
+        sessionStartInFlight.current
+      )
+        return;
+      startingRoutineIds.current.add(workout.id);
+      sessionStartInFlight.current = true;
+      setSessionStartBusy(true);
+      setBusyWorkoutId(workout.id);
+      try {
+        let operationId = routineOperationIds.current.get(workout.id);
+        if (!operationId) {
+          operationId = Crypto.randomUUID();
+          routineOperationIds.current.set(workout.id, operationId);
+        }
+        const result = await startRoutineSession(workout, operationId);
+        if (result.ok && result.workout) {
+          routineOperationIds.current.delete(workout.id);
+          router.push({
+            pathname: "/log-workout",
+            params: { workoutId: result.workout.id },
+          });
+        } else if (!result.ok) {
+          routineOperationIds.current.delete(workout.id);
+          Alert.alert("Could not start session", result.message);
+        }
+      } catch {
+        routineOperationIds.current.delete(workout.id);
+        Alert.alert(
+          "Could not start session",
+          "The session could not be started. Please try again.",
+        );
+      } finally {
+        startingRoutineIds.current.delete(workout.id);
+        sessionStartInFlight.current = false;
+        setSessionStartBusy(false);
+        setBusyWorkoutId(null);
+      }
+    },
+    [blockedStart],
+  );
 
   const handleSavedWorkout = useCallback(
     (workout: Workout, autoStart: boolean) => {
@@ -341,6 +409,7 @@ export function WorkoutsHubScreen() {
       });
       return;
     }
+    if (blockedStart("strength")) return;
     if (sessionStartInFlight.current) return;
     sessionStartInFlight.current = true;
     setSessionStartBusy(true);
@@ -381,7 +450,7 @@ export function WorkoutsHubScreen() {
       setSessionStartBusy(false);
       setStartingOneTime(false);
     }
-  }, [owner, principal, workoutContext?.activeWorkout]);
+  }, [blockedStart, owner, principal, workoutContext?.activeWorkout]);
 
   useEffect(() => {
     if (principal === "") return;
@@ -404,6 +473,7 @@ export function WorkoutsHubScreen() {
     }
     const source = findRepeatableWorkout(data.completed);
     if (!source || sessionStartInFlight.current) return;
+    if (blockedStart("strength")) return;
     const plan = planRepeat(source, data.activeAndPlanned);
     if (plan.kind === "routine") {
       await beginRoutineSession(plan.routine);
@@ -441,6 +511,7 @@ export function WorkoutsHubScreen() {
     }
   }, [
     beginRoutineSession,
+    blockedStart,
     data.activeAndPlanned,
     data.completed,
     owner,
@@ -582,7 +653,7 @@ export function WorkoutsHubScreen() {
     }
   };
   const history = [
-    ...(historyFilter !== "running"
+    ...(historyFilter === "all" || historyFilter === "strength"
       ? data.completed.map((item) => ({
           kind: "strength" as const,
           item,
@@ -593,12 +664,21 @@ export function WorkoutsHubScreen() {
           id: item.workout.id,
         }))
       : []),
-    ...(historyFilter !== "strength"
+    ...(historyFilter === "all" || historyFilter === "running"
       ? (data.runs ?? []).map((run) => ({
           kind: "run" as const,
           run,
           date: run.summary.activityDate,
           id: run.id,
+        }))
+      : []),
+    ...(boulderingEnabled &&
+    (historyFilter === "all" || historyFilter === "bouldering")
+      ? (data.boulderSessions ?? []).map((bouldering) => ({
+          kind: "bouldering" as const,
+          bouldering,
+          date: bouldering.session.activityDate,
+          id: bouldering.id,
         }))
       : []),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
@@ -619,6 +699,9 @@ export function WorkoutsHubScreen() {
             (savedSignatures.principal === principal &&
               savedSignatures.signatures.has(signature)),
         );
+  const boulderingCount = boulderingEnabled
+    ? (data.boulderSessions?.length ?? 0)
+    : 0;
   const showPlanned = activeTab === "all" || activeTab === "planned";
   const showHistory = activeTab === "all" || activeTab === "history";
 
@@ -701,6 +784,38 @@ export function WorkoutsHubScreen() {
               accessibilityLabel="Log run"
               onPress={() => router.push("/log-run" as Href)}
             />
+            {boulderingEnabled ? (
+              <ListRow
+                key="bouldering"
+                icon="mobility"
+                title={
+                  activeBouldering ? "Resume bouldering" : "Start bouldering"
+                }
+                subtitle={
+                  activeBouldering
+                    ? `In progress · ${formatStopwatch(
+                        workoutContext?.boulderingElapsedSeconds ?? 0,
+                      )}`
+                    : "Indoor, Font grades"
+                }
+                accessibilityLabel={
+                  activeBouldering
+                    ? "Resume bouldering session"
+                    : "Start bouldering session"
+                }
+                onPress={handleBouldering}
+              />
+            ) : null}
+            {boulderingEnabled ? (
+              <ListRow
+                key="bouldering-progress"
+                icon="chart"
+                title="Bouldering progress"
+                subtitle="Grades, hardest sends, projects"
+                accessibilityLabel="Bouldering progress"
+                onPress={() => router.push("/bouldering/progress" as Href)}
+              />
+            ) : null}
             {runImportAvailable() ? (
               <ListRow
                 key="import-runs"
@@ -775,7 +890,8 @@ export function WorkoutsHubScreen() {
                 count:
                   data.activeAndPlanned.length +
                   data.completed.length +
-                  (data.runs?.length ?? 0),
+                  (data.runs?.length ?? 0) +
+                  boulderingCount,
                 accessibilityLabel: "Show all workouts",
               },
               {
@@ -787,7 +903,10 @@ export function WorkoutsHubScreen() {
               {
                 value: "history",
                 label: "History",
-                count: data.completed.length + (data.runs?.length ?? 0),
+                count:
+                  data.completed.length +
+                  (data.runs?.length ?? 0) +
+                  boulderingCount,
                 accessibilityLabel: "Show completed workout history",
               },
             ]}
@@ -868,13 +987,22 @@ export function WorkoutsHubScreen() {
               <SectionHeader title="History" />
 
               <View style={styles.filterRow}>
-                {(["all", "strength", "running"] as const).map((filter) => {
+                {(
+                  [
+                    "all",
+                    "strength",
+                    "running",
+                    ...(boulderingEnabled ? (["bouldering"] as const) : []),
+                  ] as const
+                ).map((filter) => {
                   const label =
                     filter === "all"
                       ? "All activities"
                       : filter === "strength"
                         ? "Strength"
-                        : "Running";
+                        : filter === "running"
+                          ? "Running"
+                          : "Bouldering";
                   return (
                     <Chip
                       key={filter}
@@ -886,10 +1014,20 @@ export function WorkoutsHubScreen() {
                   );
                 })}
               </View>
+              {boulderingEnabled && historyFilter === "bouldering" ? (
+                <Button
+                  label="View bouldering progress"
+                  icon="chart"
+                  variant="secondary"
+                  size="small"
+                  onPress={() => router.push("/bouldering/progress" as Href)}
+                />
+              ) : null}
               {params.runSaved ? (
                 <Notice tone="success" message="Run saved" />
               ) : null}
-              {historyFilter !== "strength" && data.runWeek ? (
+              {(historyFilter === "all" || historyFilter === "running") &&
+              data.runWeek ? (
                 <RunningWeek
                   runs={data.weeklyRuns ?? []}
                   unit={unitSystem === "imperial" ? "mi" : "km"}
@@ -905,7 +1043,9 @@ export function WorkoutsHubScreen() {
                     title={
                       historyFilter === "running"
                         ? "Your runs will appear here"
-                        : "No completed workouts yet"
+                        : historyFilter === "bouldering"
+                          ? "Your bouldering sessions will appear here"
+                          : "No completed workouts yet"
                     }
                     message={
                       historyFilter === "running"
@@ -916,7 +1056,21 @@ export function WorkoutsHubScreen() {
                 </Card>
               ) : (
                 history.map((entry) =>
-                  entry.kind === "run" ? (
+                  entry.kind === "bouldering" ? (
+                    <ListGroup key={`bouldering:${entry.id}`}>
+                      <ListRow
+                        icon="mobility"
+                        title="Bouldering"
+                        subtitle={sessionHistorySubtitle(entry.bouldering)}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/bouldering/[id]",
+                            params: { id: entry.id },
+                          } as Href)
+                        }
+                      />
+                    </ListGroup>
+                  ) : entry.kind === "run" ? (
                     <RunCard
                       key={entry.run.id}
                       run={entry.run}
@@ -948,7 +1102,8 @@ export function WorkoutsHubScreen() {
                   ),
                 )
               )}
-              {historyFilter !== "strength" && data.runsNextCursor ? (
+              {(historyFilter === "all" || historyFilter === "running") &&
+              data.runsNextCursor ? (
                 <Button
                   label={loadingMoreRuns ? "Loading runs…" : "Load more runs"}
                   variant="secondary"

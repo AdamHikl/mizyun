@@ -14,11 +14,15 @@ import {
   type WorkoutListResponse,
 } from "@mizyun/contracts";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
+import { isBoulderingEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
+import { getActiveBoulderSession } from "@/features/bouldering/client";
 import {
+  activeBoulderingFromResponse,
   computeElapsedSeconds,
   computeRestRemainingSeconds,
   findIncompleteWorkout,
+  type ActiveBoulderingSummary,
   type ActiveWorkoutSummary,
   type RestTimerState,
 } from "./active-workout-state";
@@ -31,7 +35,11 @@ export interface ActiveWorkoutContextValue {
   readonly elapsedSeconds: number;
   readonly restTimer: RestTimerState | null;
   readonly restRemainingSeconds: number;
+  /** Active indoor bouldering session (ADR-0066), if any. */
+  readonly activeBouldering: ActiveBoulderingSummary | null;
+  readonly boulderingElapsedSeconds: number;
   setActiveWorkout(workout: ActiveWorkoutSummary | null): void;
+  setActiveBouldering(session: ActiveBoulderingSummary | null): void;
   startRestTimer(state: RestTimerState): void;
   clearRestTimer(): void;
   refreshActiveWorkout(): Promise<void>;
@@ -52,6 +60,13 @@ export function ActiveWorkoutProvider({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [restTimer, setRestTimerState] = useState<RestTimerState | null>(null);
   const [restRemainingSeconds, setRestRemainingSeconds] = useState(0);
+  const [activeBouldering, setActiveBoulderingState] =
+    useState<ActiveBoulderingSummary | null>(null);
+  const [boulderingElapsedSeconds, setBoulderingElapsedSeconds] = useState(0);
+  const activeBoulderingRef = useRef(activeBouldering);
+  activeBoulderingRef.current = activeBouldering;
+  const principalRef = useRef(session?.user.id ?? null);
+  principalRef.current = session?.user.id ?? null;
 
   const activeWorkoutRef = useRef(activeWorkout);
   activeWorkoutRef.current = activeWorkout;
@@ -70,6 +85,22 @@ export function ActiveWorkoutProvider({
     },
     [],
   );
+
+  const setActiveBouldering = useCallback(
+    (next: ActiveBoulderingSummary | null) => {
+      setActiveBoulderingState(next);
+      setBoulderingElapsedSeconds(
+        next ? computeElapsedSeconds(next.startedAt) : 0,
+      );
+    },
+    [],
+  );
+
+  // Another account's active session must never show after a switch.
+  useEffect(() => {
+    setActiveBoulderingState(null);
+    setBoulderingElapsedSeconds(0);
+  }, [session?.user.id]);
 
   const clearRestTimer = useCallback(() => {
     const current = restTimerRef.current;
@@ -100,6 +131,24 @@ export function ActiveWorkoutProvider({
       await dismissOrphanedWorkoutStatus();
       return;
     }
+    const userId = session.user.id;
+    if (isBoulderingEnabled())
+      void getActiveBoulderSession({
+        status: () => apiClient.status(),
+        request: (options) =>
+          apiClient.request({
+            ...options,
+            expectedUserId: userId,
+            isCurrent: () => principalRef.current === userId,
+          }),
+      })
+        .then((result) => {
+          if (principalRef.current !== userId) return;
+          if (result.ok)
+            setActiveBouldering(activeBoulderingFromResponse(result.value));
+          else if (result.error.kind === "disabled") setActiveBouldering(null);
+        })
+        .catch(() => {});
     try {
       const result = await apiClient.request<WorkoutListResponse>({
         method: "GET",
@@ -127,7 +176,7 @@ export function ActiveWorkoutProvider({
     } catch {
       // Non-fatal background refresh
     }
-  }, [clearRestTimer, session?.user.id]);
+  }, [clearRestTimer, session?.user.id, setActiveBouldering]);
 
   // Initial load when user session becomes active
   useEffect(() => {
@@ -151,6 +200,12 @@ export function ActiveWorkoutProvider({
       } else {
         setElapsedSeconds(0);
       }
+      const currentBouldering = activeBoulderingRef.current;
+      setBoulderingElapsedSeconds(
+        currentBouldering
+          ? computeElapsedSeconds(currentBouldering.startedAt)
+          : 0,
+      );
 
       const currentRest = restTimerRef.current;
       if (currentRest) {
@@ -206,13 +261,19 @@ export function ActiveWorkoutProvider({
       elapsedSeconds,
       restTimer,
       restRemainingSeconds,
+      activeBouldering,
+      boulderingElapsedSeconds,
       setActiveWorkout,
+      setActiveBouldering,
       startRestTimer,
       clearRestTimer,
       refreshActiveWorkout,
     }),
     [
+      activeBouldering,
       activeWorkout,
+      boulderingElapsedSeconds,
+      setActiveBouldering,
       clearRestTimer,
       elapsedSeconds,
       refreshActiveWorkout,

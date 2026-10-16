@@ -35,7 +35,13 @@ import {
   type WorkoutResponse,
 } from "@mizyun/contracts";
 
-import { runningDate, hasRunningActivity } from "@mizyun/core";
+import {
+  runningDate,
+  hasBoulderingActivity,
+  hasRunningActivity,
+} from "@mizyun/core";
+import type { BoulderSessionRecord } from "@mizyun/contracts";
+import { listBoulderSessions } from "@/features/bouldering/public-data";
 
 import { apiClient, peekSessionRead } from "@/composition/api-client";
 import type { AuthSession } from "@mizyun/identity";
@@ -83,6 +89,8 @@ export interface WorkoutsHubResult {
   readonly runsNextCursor?: string | null;
   readonly weeklyRuns?: readonly RunRecord[];
   readonly runWeek?: { from: string; to: string; incomplete: boolean };
+  /** Finished indoor bouldering sessions (ADR-0066), newest first. */
+  readonly boulderSessions?: readonly BoulderSessionRecord[];
 }
 
 export interface CreateWorkoutPayload {
@@ -425,7 +433,8 @@ const sessionWorkouts = (workouts: readonly Workout[]) =>
   workouts.filter(
     (workout) =>
       !isRoutineDetails(workout.details) &&
-      !hasRunningActivity(workout.details),
+      !hasRunningActivity(workout.details) &&
+      !hasBoulderingActivity(workout.details),
   );
 
 type RunningWeekData = {
@@ -552,7 +561,11 @@ function projectWorkoutsHub(
   }
 
   const processed = workouts
-    .filter((w) => !hasRunningActivity(w.details))
+    // Runs and bouldering sessions have their own rows; never show them as strength.
+    .filter(
+      (w) =>
+        !hasRunningActivity(w.details) && !hasBoulderingActivity(w.details),
+    )
     .map((w) => processWorkout(w, allSets, exercises, today));
 
   const activeAndPlanned = processed
@@ -974,3 +987,33 @@ export async function fetchRunningWeek(
     step = reads.next(await client.request<RunListResponse>(step.value));
   return step.value;
 }
+
+/**
+ * Recent finished bouldering sessions for Workouts history. A failure is
+ * reported separately so strength and running history still render.
+ */
+export const fetchBoulderingHistory = async (
+  client: ApiClient = apiClient,
+): Promise<
+  | { readonly ok: true; readonly sessions: readonly BoulderSessionRecord[] }
+  | {
+      readonly ok: false;
+      readonly message: string;
+      /** The server has bouldering switched off: show nothing, warn nothing. */
+      readonly disabled: boolean;
+    }
+> => {
+  const result = await listBoulderSessions(client, { limit: 20 });
+  if (!result.ok)
+    return {
+      ok: false,
+      message: result.error.message,
+      disabled: result.error.kind === "disabled",
+    };
+  return {
+    ok: true,
+    sessions: result.value.sessions.filter(
+      (session) => session.completedAt !== null,
+    ),
+  };
+};

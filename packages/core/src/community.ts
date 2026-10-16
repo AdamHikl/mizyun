@@ -1,4 +1,5 @@
 import type { UserId } from "./index";
+import type { FontGrade } from "./bouldering-grades";
 
 export class CommunityMutationError extends Error {
   constructor(
@@ -104,13 +105,41 @@ export interface MealActivityPublication {
   readonly currentSourceDay: string;
 }
 
+/**
+ * ADR-0067 allowlisted snapshot of a completed bouldering session. Never gym
+ * name, notes, photos, hold colours, per-boulder attempts, times or projects.
+ */
+export interface SharedBoulderingDetails {
+  readonly activityDate: string;
+  readonly topGrade: FontGrade | null;
+  readonly sends: number;
+  readonly flashes: number;
+  /** Sends per grade, hardest first; null unless the user opted in. */
+  readonly gradeBreakdown:
+    readonly { readonly grade: FontGrade; readonly sends: number }[] | null;
+}
+export interface BoulderingActivityPublication {
+  readonly sourceSessionId: string;
+  readonly enrollmentGeneration: number;
+  readonly operationId: string;
+  readonly expectedVersion: number;
+  readonly expectedRevoked: boolean;
+  readonly sharedDay: string;
+  readonly boulderingDetails: SharedBoulderingDetails;
+  /** API-computed projection of the completed session; the database recomputes its own. */
+  readonly currentSourceBoulderingDetails: SharedBoulderingDetails;
+}
+
+export type SharedActivityKind = "workout" | "meal" | "bouldering";
+
 export interface StoredSharedActivity {
   readonly id: string;
   readonly userId: UserId;
   readonly sourceWorkoutId: string | null;
   readonly sourceMealId?: string | null;
-  readonly activityKind?: "workout" | "meal";
+  readonly activityKind?: SharedActivityKind;
   readonly mealDetails?: SharedMealDetails | null;
+  readonly boulderingDetails?: SharedBoulderingDetails | null;
   readonly category: WorkoutCategory;
   readonly sharedDay: string;
   readonly durationSeconds: number | null;
@@ -599,6 +628,16 @@ export interface CommunityRepository {
   ): Promise<StoredSharedActivity>;
   revokeActivitiesForMeal(
     mealId: string,
+    authorUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<void>;
+  publishBoulderingActivity(
+    userId: UserId,
+    activity: BoulderingActivityPublication,
+    options: { readonly accessToken: string },
+  ): Promise<StoredSharedActivity>;
+  revokeActivitiesForBoulderingSession(
+    sessionId: string,
     authorUserId: UserId,
     options: { readonly accessToken: string },
   ): Promise<void>;

@@ -18,6 +18,7 @@ import {
   type StoredSharedActivity,
   type SharedWorkoutDetails,
   type MealActivityPublication,
+  type BoulderingActivityPublication,
   type UserId,
   type WorkoutCategory,
 } from "@mizyun/core";
@@ -1178,6 +1179,97 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       }
   }
 
+  async publishBoulderingActivity(
+    userId: UserId,
+    activity: BoulderingActivityPublication,
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredSharedActivity> {
+    const profile = this.#requireActive(userId);
+    if (profile.generation !== activity.enrollmentGeneration)
+      throw new CommunityMutationError("conflict");
+    const operationKey = `${userId}:${activity.operationId}`;
+    const { currentSourceBoulderingDetails, ...confirmation } = activity;
+    const fingerprint = JSON.stringify({
+      activityKind: "bouldering",
+      ...confirmation,
+    });
+    const operation = this.#publicationOperations.get(operationKey);
+    if (operation) {
+      const previous = this.#activities.get(operation.activityId);
+      if (
+        operation.fingerprint !== fingerprint ||
+        !previous ||
+        previous.revokedAt ||
+        previous.version !== operation.version
+      )
+        throw new CommunityMutationError("conflict");
+      return previous;
+    }
+    // Mirrors the SQL exact-match and local-day checks.
+    if (
+      JSON.stringify(activity.boulderingDetails) !==
+        JSON.stringify(currentSourceBoulderingDetails) ||
+      activity.sharedDay !== currentSourceBoulderingDetails.activityDate ||
+      activity.sharedDay >
+        new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    )
+      throw new CommunityMutationError("conflict");
+    const existing = await this.getActivityByWorkoutId(
+      activity.sourceSessionId,
+      userId,
+    );
+    if (existing && existing.activityKind !== "bouldering")
+      throw new CommunityMutationError("conflict");
+    if (
+      (existing?.version ?? 0) !== activity.expectedVersion ||
+      (existing?.revokedAt != null) !== activity.expectedRevoked
+    )
+      throw new CommunityMutationError("conflict");
+    this.#consumePublication(userId);
+    if (existing) this.#purgeReactions(existing.id);
+    const shared: StoredSharedActivity = {
+      id: existing?.id ?? crypto.randomUUID(),
+      userId,
+      activityKind: "bouldering",
+      sourceWorkoutId: activity.sourceSessionId,
+      sourceMealId: null,
+      category: "other",
+      sharedDay: activity.sharedDay,
+      durationSeconds: null,
+      workoutDetails: null,
+      mealDetails: null,
+      boulderingDetails: currentSourceBoulderingDetails,
+      version: (existing?.version ?? 0) + 1,
+      revokedAt: null,
+      publishedAt:
+        existing && !existing.revokedAt ? existing.publishedAt : new Date(),
+    };
+    this.#activities.set(shared.id, shared);
+    this.#publicationOperations.set(operationKey, {
+      fingerprint,
+      activityId: shared.id,
+      version: shared.version,
+    });
+    return shared;
+  }
+
+  async revokeActivitiesForBoulderingSession(
+    sessionId: string,
+    authorUserId: UserId,
+    _options?: { readonly accessToken?: string },
+  ): Promise<void> {
+    for (const [id, act] of this.#activities)
+      if (
+        act.activityKind === "bouldering" &&
+        act.sourceWorkoutId === sessionId &&
+        act.userId === authorUserId &&
+        !act.revokedAt
+      ) {
+        this.#purgeReactions(id);
+        this.#activities.set(id, { ...act, revokedAt: new Date() });
+      }
+  }
+
   async publishActivity(
     userId: UserId,
     activity: {
@@ -1250,6 +1342,9 @@ export class InMemoryCommunityRepository implements CommunityRepository {
         act.sourceWorkoutId === activity.sourceWorkoutId &&
         act.userId === userId
       ) {
+        // Mirrors the SQL wrapper: the strength path never touches bouldering.
+        if (act.activityKind === "bouldering")
+          throw new CommunityMutationError("conflict");
         if (
           (activity.expectedVersion ?? 0) !== act.version ||
           (activity.expectedRevoked ?? false) !== (act.revokedAt !== null)
@@ -1323,7 +1418,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     if (!act || act.userId !== authorUserId || act.revokedAt) {
       throw new CommunityMutationError("unavailable");
     }
-    if (act.activityKind === "meal")
+    if (act.activityKind === "meal" || act.activityKind === "bouldering")
       throw new CommunityMutationError("conflict");
     if (act.version !== (updates.expectedVersion ?? 1))
       throw new CommunityMutationError("conflict");
