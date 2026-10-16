@@ -85,6 +85,7 @@ vi.mock("@/components/ui", () => ({
   FormField: "FormField",
   FormTextInput: "FormTextInput",
   Icon: "Icon",
+  IconBadge: "IconBadge",
   IconButton: "IconButton",
   ListGroup: "ListGroup",
   ListRow: "ListRow",
@@ -93,6 +94,7 @@ vi.mock("@/components/ui", () => ({
 }));
 vi.mock("@/constants/theme", () => ({
   PageGutter: 20,
+  Radius: { sm: 8, md: 12, lg: 16, xl: 22, pill: 999 },
   Spacing: { one: 4, two: 8, three: 16, four: 24, five: 32 },
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));

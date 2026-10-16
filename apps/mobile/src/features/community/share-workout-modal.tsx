@@ -16,16 +16,16 @@ import {
   Button,
   Card,
   Chip,
-  FormField,
   FormTextInput,
   Icon,
+  IconBadge,
   IconButton,
+  type IconName,
   ListGroup,
   ListRow,
   Notice,
-  SectionHeader,
 } from "@/components/ui";
-import { PageGutter, Spacing } from "@/constants/theme";
+import { PageGutter, Radius, Spacing } from "@/constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SharedWorkoutDetails } from "./shared-workout-details";
 import { randomUUID } from "expo-crypto";
@@ -55,15 +55,46 @@ export interface ShareWorkoutModalProps {
   readonly existingActivityId?: string | null;
 }
 
-const CATEGORY_LABELS: Record<WorkoutCategory, { label: string }> = {
-  strength: { label: "Strength Workout" },
-  running: { label: "Running Workout" },
-  cycling: { label: "Cycling Workout" },
-  hiit: { label: "HIIT Workout" },
-  mobility: { label: "Mobility & Stretch" },
-  walking: { label: "Walk Workout" },
-  other: { label: "Completed Workout" },
+const CATEGORY_LABELS: Record<
+  WorkoutCategory,
+  { label: string; short: string; icon: IconName }
+> = {
+  strength: { label: "Strength Workout", short: "Strength", icon: "dumbbell" },
+  running: { label: "Running Workout", short: "Running", icon: "run" },
+  cycling: { label: "Cycling Workout", short: "Cycling", icon: "bike" },
+  hiit: { label: "HIIT Workout", short: "HIIT", icon: "energy" },
+  mobility: {
+    label: "Mobility & Stretch",
+    short: "Mobility",
+    icon: "mobility",
+  },
+  walking: { label: "Walk Workout", short: "Walking", icon: "steps" },
+  other: { label: "Completed Workout", short: "Other", icon: "checkCircle" },
 };
+
+/** "2026-10-01" → "Thu, 1 Oct 2026"; anything else is shown as typed. */
+function formatSharedDay(day: string | undefined): string {
+  if (!day) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) return day;
+  const date = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+  if (
+    date.getFullYear() !== Number(match[1]) ||
+    date.getMonth() !== Number(match[2]) - 1 ||
+    date.getDate() !== Number(match[3])
+  )
+    return day;
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export function ShareWorkoutModal({
   visible,
@@ -353,6 +384,38 @@ export function ShareWorkoutModal({
   const categoryMeta =
     CATEGORY_LABELS[preview?.category ?? "strength"] ??
     CATEGORY_LABELS.strength;
+  const followerCount = preview?.followerCount ?? 0;
+  const showForm =
+    Boolean(principalKey) &&
+    foreground.current &&
+    !loading &&
+    profileStatus !== "loading" &&
+    profileStatus !== "idle" &&
+    !profileError &&
+    isEnrolled &&
+    !error;
+  const detailsNote = preview?.workoutDetails ? (
+    <ThemedText
+      type="footnote"
+      themeColor="textSecondary"
+      style={styles.sectionFootnote}
+    >
+      Check every exercise name before sharing. Custom names can contain
+      personal information.
+    </ThemedText>
+  ) : preview?.existingActivity?.workoutDetails ? (
+    <ThemedText
+      type="footnote"
+      themeColor="textSecondary"
+      style={styles.sectionFootnote}
+    >
+      Current workout details are unavailable. Confirming this update removes
+      the previously shared exercise and set details.
+    </ThemedText>
+  ) : null;
+  const isUpdate = Boolean(
+    effectiveActivityId && !preview?.existingActivity?.revokedAt,
+  );
 
   return (
     <Modal
@@ -369,23 +432,32 @@ export function ShareWorkoutModal({
           style={styles.overlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
+          {/* Header */}
+          <View style={styles.headerRow}>
+            <View style={styles.headerText}>
+              <ThemedText type="title3" accessibilityRole="header">
+                Share workout
+              </ThemedText>
+              {showForm ? (
+                <ThemedText type="footnote" themeColor="textSecondary">
+                  {followerCount === 1
+                    ? "Visible to your 1 approved follower"
+                    : `Visible to your ${followerCount} approved followers`}
+                </ThemedText>
+              ) : null}
+            </View>
+            <IconButton
+              icon="close"
+              onPress={onDismiss}
+              accessibilityLabel="Close"
+            />
+          </View>
+
           <ScrollView
             style={styles.card}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header */}
-            <View style={styles.headerRow}>
-              <ThemedText type="subtitle" accessibilityRole="header">
-                Share workout
-              </ThemedText>
-              <IconButton
-                icon="close"
-                onPress={onDismiss}
-                accessibilityLabel="Close"
-              />
-            </View>
-
             {!principalKey ? (
               <Notice tone="warning" message="Sign in to share a workout." />
             ) : !foreground.current ||
@@ -456,63 +528,187 @@ export function ShareWorkoutModal({
                 />
               </View>
             ) : (
-              <View style={styles.stack}>
-                <ThemedText themeColor="textSecondary">
-                  Choose what to include
-                </ThemedText>
-                <SectionHeader title="Preview for your approved followers" />
-
-                {/* Shared Card Preview Box */}
-                <Card>
-                  <View style={styles.authorRow}>
-                    <InitialsAvatar
-                      symbol={profile?.avatarSymbol ?? "ME"}
-                      seed={profile?.displayName ?? "You"}
-                      accessibilityLabel={profile?.displayName ?? "You"}
-                      size={38}
-                    />
-                    <View style={styles.authorTextCol}>
-                      <ThemedText type="smallBold">
-                        {profile?.displayName ?? "You"}
-                      </ThemedText>
-                      <ThemedText type="footnote" themeColor="textSecondary">
-                        @{profile?.handle ?? "handle"}
-                      </ThemedText>
-                    </View>
-                  </View>
-
-                  <ThemedText type="headline">{categoryMeta.label}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {includeDuration && durationMin !== null
-                      ? `${durationMin} min · ${preview?.sharedDay}`
-                      : preview?.sharedDay}
+              <View style={styles.sections}>
+                {/* Live preview of the card followers will see */}
+                <View style={styles.section}>
+                  <ThemedText
+                    type="caption"
+                    themeColor="textSecondary"
+                    style={styles.sectionLabel}
+                  >
+                    PREVIEW
                   </ThemedText>
-                </Card>
+                  <Card style={styles.previewCard}>
+                    <View style={styles.authorRow}>
+                      <InitialsAvatar
+                        symbol={profile?.avatarSymbol ?? "ME"}
+                        seed={profile?.displayName ?? "You"}
+                        accessibilityLabel={profile?.displayName ?? "You"}
+                        size={36}
+                      />
+                      <View style={styles.authorTextCol}>
+                        <ThemedText type="smallBold" numberOfLines={1}>
+                          {profile?.displayName ?? "You"}
+                        </ThemedText>
+                        <ThemedText
+                          type="footnote"
+                          themeColor="textSecondary"
+                          numberOfLines={1}
+                        >
+                          @{profile?.handle ?? "handle"}
+                        </ThemedText>
+                      </View>
+                    </View>
 
-                <FormField label="Selected calendar day">
-                  <FormTextInput
-                    value={preview?.sharedDay ?? ""}
-                    accessibilityLabel="Shared calendar day YYYY-MM-DD"
-                    placeholder="YYYY-MM-DD"
-                    editable={!submitting}
-                    onChangeText={(sharedDay) => {
-                      publicationOperation.current = null;
-                      setPreview((current) =>
-                        current ? { ...current, sharedDay } : current,
-                      );
-                    }}
-                  />
-                </FormField>
-                <FormField label="Generic workout category">
-                  <View style={styles.chips}>
+                    <View style={styles.previewDivider} />
+
+                    <View style={styles.activityRow}>
+                      <IconBadge name={categoryMeta.icon} size={44} />
+                      <View style={styles.activityText}>
+                        <ThemedText type="headline">
+                          {categoryMeta.label}
+                        </ThemedText>
+                        <View style={styles.metaRow}>
+                          {preview?.sharedDay ? (
+                            <>
+                              <Icon
+                                name="calendar"
+                                size={13}
+                                color="textSecondary"
+                              />
+                              <ThemedText
+                                type="footnote"
+                                themeColor="textSecondary"
+                              >
+                                {formatSharedDay(preview.sharedDay)}
+                              </ThemedText>
+                            </>
+                          ) : null}
+                          {includeDuration && durationMin !== null ? (
+                            <>
+                              <Icon
+                                name="timer"
+                                size={13}
+                                color="textSecondary"
+                                style={styles.metaGap}
+                              />
+                              <ThemedText
+                                type="footnote"
+                                themeColor="textSecondary"
+                              >
+                                {`${durationMin} min`}
+                              </ThemedText>
+                            </>
+                          ) : null}
+                        </View>
+                      </View>
+                    </View>
+
+                    {includeWorkoutDetails && preview?.workoutDetails ? (
+                      <View style={styles.previewDetails}>
+                        <SharedWorkoutDetails
+                          details={preview.workoutDetails}
+                        />
+                      </View>
+                    ) : null}
+                  </Card>
+                </View>
+
+                {/* Optional fields */}
+                {durationMin !== null || preview?.workoutDetails ? (
+                  <View style={styles.section}>
+                    <ThemedText
+                      type="caption"
+                      themeColor="textSecondary"
+                      style={styles.sectionLabel}
+                    >
+                      ALSO SHARE
+                    </ThemedText>
+                    <ListGroup>
+                      {durationMin !== null && (
+                        <ListRow
+                          title="Duration"
+                          subtitle={`${durationMin} min`}
+                          icon="timer"
+                          iconTone="neutral"
+                          chevron={false}
+                          disabled={submitting}
+                          onPress={() => {
+                            publicationOperation.current = null;
+                            setIncludeDuration((prev) => !prev);
+                          }}
+                          accessibilityRole="checkbox"
+                          accessibilityLabel={`Include duration (${durationMin} min)`}
+                          accessibilityState={{ checked: includeDuration }}
+                          trailing={
+                            <Icon
+                              name={includeDuration ? "checkCircle" : "circle"}
+                              size={24}
+                              color={
+                                includeDuration ? "primary" : "textTertiary"
+                              }
+                            />
+                          }
+                        />
+                      )}
+                      {preview?.workoutDetails ? (
+                        <ListRow
+                          title="Exercises, sets, reps and weights"
+                          subtitle="Shown in the preview above"
+                          icon="dumbbell"
+                          iconTone="neutral"
+                          chevron={false}
+                          disabled={submitting}
+                          onPress={() => {
+                            publicationOperation.current = null;
+                            setIncludeWorkoutDetails((value) => !value);
+                          }}
+                          accessibilityRole="checkbox"
+                          accessibilityLabel="Include exercises, sets, reps and weights"
+                          accessibilityState={{
+                            checked: includeWorkoutDetails,
+                            disabled: submitting,
+                          }}
+                          trailing={
+                            <Icon
+                              name={
+                                includeWorkoutDetails ? "checkCircle" : "circle"
+                              }
+                              size={24}
+                              color={
+                                includeWorkoutDetails
+                                  ? "primary"
+                                  : "textTertiary"
+                              }
+                            />
+                          }
+                        />
+                      ) : null}
+                    </ListGroup>
+                    {detailsNote}
+                  </View>
+                ) : (
+                  detailsNote
+                )}
+
+                {/* Category */}
+                <View style={styles.section}>
+                  <ThemedText
+                    type="caption"
+                    themeColor="textSecondary"
+                    style={styles.sectionLabel}
+                  >
+                    CATEGORY
+                  </ThemedText>
+                  <View style={styles.chips} accessibilityRole="radiogroup">
                     {(Object.keys(CATEGORY_LABELS) as WorkoutCategory[]).map(
                       (category) => {
                         const selectedCategory = preview?.category === category;
                         return (
                           <Chip
                             key={category}
-                            label={CATEGORY_LABELS[category].label}
-                            icon={selectedCategory ? "check" : undefined}
+                            label={CATEGORY_LABELS[category].short}
+                            icon={CATEGORY_LABELS[category].icon}
                             selected={selectedCategory}
                             disabled={submitting}
                             accessibilityRole="radio"
@@ -531,150 +727,110 @@ export function ShareWorkoutModal({
                       },
                     )}
                   </View>
-                </FormField>
+                </View>
 
-                {durationMin !== null || preview?.workoutDetails ? (
-                  <ListGroup>
-                    {/* Duration toggle checkbox */}
-                    {durationMin !== null && (
-                      <ListRow
-                        title={`Include duration (${durationMin} min)`}
-                        chevron={false}
-                        disabled={submitting}
-                        onPress={() => {
-                          publicationOperation.current = null;
-                          setIncludeDuration((prev) => !prev);
-                        }}
-                        accessibilityRole="checkbox"
-                        accessibilityLabel={`Include duration (${durationMin} min)`}
-                        accessibilityState={{ checked: includeDuration }}
-                        trailing={
-                          <Icon
-                            name={includeDuration ? "checkCircle" : "circle"}
-                            size={22}
-                            color={includeDuration ? "primary" : "textTertiary"}
-                          />
-                        }
-                      />
-                    )}
-                    {preview?.workoutDetails ? (
-                      <ListRow
-                        title="Include exercises, sets, reps and weights"
-                        chevron={false}
-                        disabled={submitting}
-                        onPress={() => {
-                          publicationOperation.current = null;
-                          setIncludeWorkoutDetails((value) => !value);
-                        }}
-                        accessibilityRole="checkbox"
-                        accessibilityLabel="Include exercises, sets, reps and weights"
-                        accessibilityState={{
-                          checked: includeWorkoutDetails,
-                          disabled: submitting,
-                        }}
-                        trailing={
-                          <Icon
-                            name={
-                              includeWorkoutDetails ? "checkCircle" : "circle"
-                            }
-                            size={22}
-                            color={
-                              includeWorkoutDetails ? "primary" : "textTertiary"
-                            }
-                          />
-                        }
-                      />
-                    ) : null}
-                  </ListGroup>
-                ) : null}
-                {includeWorkoutDetails && preview?.workoutDetails ? (
-                  <Card>
-                    <ThemedText type="smallBold" themeColor="textSecondary">
-                      These workout details will be shared
-                    </ThemedText>
-                    <SharedWorkoutDetails details={preview.workoutDetails} />
-                  </Card>
-                ) : null}
-
-                {preview?.workoutDetails ? (
-                  <ThemedText type="footnote" themeColor="textSecondary">
-                    Check every exercise name before sharing. Custom names can
-                    contain personal information.
+                {/* Day */}
+                <View style={styles.section}>
+                  <ThemedText
+                    type="caption"
+                    themeColor="textSecondary"
+                    style={styles.sectionLabel}
+                  >
+                    DAY
                   </ThemedText>
-                ) : preview?.existingActivity?.workoutDetails ? (
-                  <ThemedText type="footnote" themeColor="textSecondary">
-                    Current workout details are unavailable. Confirming this
-                    update removes the previously shared exercise and set
-                    details.
-                  </ThemedText>
-                ) : null}
-                {/* Sharing disclosure */}
-                <Notice
-                  tone="info"
-                  title="Your sharing choices"
-                  message="Your category and selected day are shared. Duration and workout details are shared only when selected above. Workout titles, notes, health integrations, Coach context and unselected fields stay private. Updating clears encouragement reactions."
-                />
-
-                {/* Audience badge */}
-                <ThemedText type="footnote" themeColor="textSecondary">
-                  Audience: current and future approved followers.{" "}
-                  {preview?.followerCount ?? 0} currently approved. Already
-                  viewed or copied content cannot be recalled.
-                </ThemedText>
-
-                {/* Action buttons */}
-                <View style={styles.btnCol}>
-                  <Button
-                    block
-                    label={
-                      preview?.existingActivity?.revokedAt
-                        ? "Share again"
-                        : effectiveActivityId
-                          ? "Update shared workout"
-                          : "Publish workout"
-                    }
-                    onPress={handlePublish}
-                    loading={submitting}
-                    disabled={
-                      submitting || !preview || preview.workoutId !== workoutId
-                    }
-                  />
-
-                  {effectiveActivityId &&
-                    !preview?.existingActivity?.revokedAt && (
-                      <Button
-                        block
-                        variant="destructive"
-                        label="Unpublish workout"
-                        onPress={() =>
-                          Alert.alert(
-                            "Unpublish this card?",
-                            "Friends lose access immediately. Copies they already made cannot be recalled. Your private workout stays intact.",
-                            [
-                              { text: "Cancel", style: "cancel" },
-                              {
-                                text: "Unpublish",
-                                style: "destructive",
-                                onPress: () => void handleUnpublish(),
-                              },
-                            ],
-                          )
-                        }
-                        disabled={submitting}
-                      />
-                    )}
-
-                  <Button
-                    block
-                    variant="plain"
-                    label={effectiveActivityId ? "Cancel" : "Keep private"}
-                    onPress={onDismiss}
-                    disabled={submitting}
+                  <FormTextInput
+                    value={preview?.sharedDay ?? ""}
+                    accessibilityLabel="Shared calendar day YYYY-MM-DD"
+                    placeholder="YYYY-MM-DD"
+                    keyboardType="numbers-and-punctuation"
+                    autoCorrect={false}
+                    editable={!submitting}
+                    onChangeText={(sharedDay) => {
+                      publicationOperation.current = null;
+                      setPreview((current) =>
+                        current ? { ...current, sharedDay } : current,
+                      );
+                    }}
                   />
                 </View>
+
+                {/* Sharing disclosure */}
+                <View style={styles.privacyBox}>
+                  <View style={styles.privacyTitle}>
+                    <Icon name="privacy" size={16} color="textSecondary" />
+                    <ThemedText type="smallBold" themeColor="textSecondary">
+                      Your sharing choices
+                    </ThemedText>
+                  </View>
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    Your category and selected day are shared. Duration and
+                    workout details are shared only when selected above. Workout
+                    titles, notes, health integrations, Coach context and
+                    unselected fields stay private.
+                  </ThemedText>
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    Audience: current and future approved followers.{" "}
+                    {followerCount} currently approved. Already viewed or copied
+                    content cannot be recalled. Updating clears encouragement
+                    reactions.
+                  </ThemedText>
+                </View>
+
+                {isUpdate && (
+                  <Button
+                    block
+                    variant="destructive"
+                    icon="trash"
+                    label="Unpublish workout"
+                    onPress={() =>
+                      Alert.alert(
+                        "Unpublish this card?",
+                        "Friends lose access immediately. Copies they already made cannot be recalled. Your private workout stays intact.",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Unpublish",
+                            style: "destructive",
+                            onPress: () => void handleUnpublish(),
+                          },
+                        ],
+                      )
+                    }
+                    disabled={submitting}
+                  />
+                )}
               </View>
             )}
           </ScrollView>
+
+          {/* Pinned actions */}
+          {showForm ? (
+            <View style={styles.footer}>
+              <Button
+                block
+                icon="share"
+                label={
+                  preview?.existingActivity?.revokedAt
+                    ? "Share again"
+                    : effectiveActivityId
+                      ? "Update shared workout"
+                      : "Publish workout"
+                }
+                onPress={handlePublish}
+                loading={submitting}
+                disabled={
+                  submitting || !preview || preview.workoutId !== workoutId
+                }
+              />
+              <Button
+                block
+                variant="plain"
+                label={effectiveActivityId ? "Cancel" : "Keep private"}
+                onPress={onDismiss}
+                disabled={submitting}
+              />
+            </View>
+          ) : null}
         </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
@@ -686,7 +842,6 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
     overlay: {
       flex: 1,
       backgroundColor: colors.background,
-      justifyContent: "flex-end",
     },
     card: {
       backgroundColor: colors.background,
@@ -694,30 +849,86 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
     },
     content: {
       paddingHorizontal: PageGutter,
-      paddingTop: Spacing.three,
-      paddingBottom: Spacing.five,
+      paddingTop: Spacing.two,
+      paddingBottom: Spacing.four,
       gap: Spacing.three,
     },
     headerRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      gap: Spacing.two,
+      paddingHorizontal: PageGutter,
+      paddingTop: Spacing.three,
+      paddingBottom: Spacing.two,
     },
+    headerText: { flex: 1, gap: 2 },
     stack: { gap: Spacing.three },
+    sections: { gap: Spacing.four },
+    section: { gap: Spacing.two },
+    sectionLabel: {
+      paddingHorizontal: Spacing.three,
+      letterSpacing: 0.5,
+    },
+    sectionFootnote: { paddingHorizontal: Spacing.three },
+    previewCard: {
+      gap: Spacing.three,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
     authorRow: {
       flexDirection: "row",
       alignItems: "center",
+      gap: Spacing.two + 2,
     },
-    authorTextCol: {
-      marginLeft: Spacing.three - 4,
+    authorTextCol: { flex: 1 },
+    previewDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.separator,
+    },
+    activityRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.three - 4,
+    },
+    activityText: { flex: 1, gap: 2 },
+    metaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: Spacing.one,
+    },
+    metaGap: { marginLeft: Spacing.two },
+    previewDetails: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+      paddingTop: Spacing.three,
     },
     chips: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: Spacing.two,
     },
-    btnCol: {
+    privacyBox: {
       gap: Spacing.two,
+      padding: Spacing.three,
+      borderRadius: Radius.lg,
+      borderCurve: "continuous",
+      backgroundColor: colors.backgroundSelected,
+    },
+    privacyTitle: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.one + 2,
+    },
+    footer: {
+      gap: Spacing.one,
+      paddingHorizontal: PageGutter,
+      paddingTop: Spacing.three,
+      paddingBottom: Spacing.two,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+      backgroundColor: colors.backgroundElement,
     },
     centerBox: {
       padding: Spacing.five,

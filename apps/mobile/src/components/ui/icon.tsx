@@ -27,6 +27,11 @@ export const IconNames = {
   arrowUp: { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward" },
   back: { ios: "chevron.left", android: "arrow_back", web: "arrow_back" },
   bell: { ios: "bell", android: "notifications", web: "notifications" },
+  bike: {
+    ios: "figure.outdoor.cycle",
+    android: "directions_bike",
+    web: "directions_bike",
+  },
   book: { ios: "book", android: "menu_book", web: "menu_book" },
   calendar: {
     ios: "calendar",
@@ -99,6 +104,11 @@ export const IconNames = {
   },
   info: { ios: "info.circle", android: "info", web: "info" },
   minus: { ios: "minus", android: "remove", web: "remove" },
+  mobility: {
+    ios: "figure.flexibility",
+    android: "self_improvement",
+    web: "self_improvement",
+  },
   more: { ios: "ellipsis", android: "more_horiz", web: "more_horiz" },
   person: {
     ios: "person.crop.circle",
