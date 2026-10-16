@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   boulderGradePyramid,
   boulderHardestSendTimeline,
+  boulderingShareDetails,
   boulderSessionAchievements,
   isBoulderSend,
   readBoulderSession,
@@ -308,5 +309,50 @@ describe("boulderHardestSendTimeline", () => {
       "early",
       "late",
     ]);
+  });
+});
+
+describe("boulderingShareDetails (ADR-0067)", () => {
+  const ascents = [
+    ascent("6B", "flash"),
+    ascent("7A", "sent", 3),
+    ascent("6B", "sent"),
+    ascent("7B", "not_yet", 4),
+  ];
+  it("projects only the allowlisted snapshot", () => {
+    const details = boulderingShareDetails("2026-10-16", ascents, false);
+    expect(details).toEqual({
+      activityDate: "2026-10-16",
+      topGrade: "7A",
+      sends: 3,
+      flashes: 1,
+      gradeBreakdown: null,
+    });
+    expect(Object.keys(details).sort()).toEqual([
+      "activityDate",
+      "flashes",
+      "gradeBreakdown",
+      "sends",
+      "topGrade",
+    ]);
+  });
+  it("lists sends per grade hardest first when opted in", () => {
+    expect(
+      boulderingShareDetails("2026-10-16", ascents, true).gradeBreakdown,
+    ).toEqual([
+      { grade: "7A", sends: 1 },
+      { grade: "6B", sends: 2 },
+    ]);
+  });
+  it("shares a session without sends", () => {
+    expect(
+      boulderingShareDetails("2026-10-16", [ascent("7B", "not_yet")], true),
+    ).toEqual({
+      activityDate: "2026-10-16",
+      topGrade: null,
+      sends: 0,
+      flashes: 0,
+      gradeBreakdown: [],
+    });
   });
 });

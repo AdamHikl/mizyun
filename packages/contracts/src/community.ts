@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { fontGradeCodeSchema } from "./bouldering";
+
 export const COMMUNITY_TERMS_VERSION = "2026-09-30" as const;
 
 export const RESERVED_COMMUNITY_HANDLES = [
@@ -336,6 +338,55 @@ export const sharedMealDetailsSchema = z
   .strict();
 export type SharedMealDetails = z.infer<typeof sharedMealDetailsSchema>;
 
+const calendarDaySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+  .refine((day) => {
+    const date = new Date(`${day}T00:00:00Z`);
+    return (
+      Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day
+    );
+  }, "Use a real calendar date");
+
+/**
+ * ADR-0067 allowlist for a shared bouldering session: exact keys only. Gym
+ * name, notes, photos, hold colours, attempts, times and projects never appear.
+ */
+export const sharedBoulderingDetailsSchema = z
+  .object({
+    activityDate: calendarDaySchema,
+    topGrade: fontGradeCodeSchema.nullable(),
+    sends: z.number().int().min(0).max(10000),
+    flashes: z.number().int().min(0).max(10000),
+    gradeBreakdown: z
+      .array(
+        z
+          .object({
+            grade: fontGradeCodeSchema,
+            sends: z.number().int().min(1).max(10000),
+          })
+          .strict(),
+      )
+      .max(23)
+      .nullable(),
+  })
+  .strict()
+  .refine((value) => value.flashes <= value.sends, "Flashes are sends")
+  .refine(
+    (value) => (value.sends === 0) === (value.topGrade === null),
+    "A top grade needs a send",
+  );
+export type SharedBoulderingDetails = z.infer<
+  typeof sharedBoulderingDetailsSchema
+>;
+
+export const sharedActivityKindSchema = z.enum([
+  "workout",
+  "meal",
+  "bouldering",
+]);
+export type SharedActivityKind = z.infer<typeof sharedActivityKindSchema>;
+
 export const publishWorkoutActivitySchema = z
   .object({
     workoutId: z.string().uuid(),
@@ -380,14 +431,32 @@ export type PublishMealActivityInput = z.infer<
   typeof publishMealActivitySchema
 >;
 
+export const publishBoulderingActivitySchema = z
+  .object({
+    sessionId: z.string().uuid(),
+    enrollmentGeneration: z.number().int().positive(),
+    operationId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative().default(0),
+    expectedRevoked: z.boolean().default(false),
+    sharedDay: publishWorkoutActivitySchema.shape.sharedDay,
+    includeGradeBreakdown: z.boolean().default(false),
+    expectedBoulderingDetails: sharedBoulderingDetailsSchema,
+  })
+  .strict();
+export type PublishBoulderingActivityInput = z.infer<
+  typeof publishBoulderingActivitySchema
+>;
+
 export const sharedActivityFeedItemDtoSchema = z.object({
   id: z.string().uuid(),
   authorUserId: z.string().uuid(),
   authorHandle: z.string(),
   authorDisplayName: z.string(),
   authorAvatarSymbol: z.string(),
-  activityKind: z.enum(["workout", "meal"]).default("workout"),
+  activityKind: sharedActivityKindSchema.default("workout"),
   mealDetails: sharedMealDetailsSchema.nullable().default(null),
+  // Optional (no default) so pre-bouldering DTO literals stay type-compatible.
+  boulderingDetails: sharedBoulderingDetailsSchema.nullable().optional(),
   category: workoutCategorySchema,
   sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   durationSeconds: z.number().int().nonnegative().nullable(),
@@ -401,10 +470,11 @@ export const sharedActivityFeedItemDtoSchema = z.object({
 });
 export type SharedActivityFeedItemDto = Omit<
   z.infer<typeof sharedActivityFeedItemDtoSchema>,
-  "activityKind" | "mealDetails"
+  "activityKind" | "mealDetails" | "boulderingDetails"
 > & {
-  activityKind?: "workout" | "meal";
+  activityKind?: SharedActivityKind;
   mealDetails?: SharedMealDetails | null;
+  boulderingDetails?: SharedBoulderingDetails | null | undefined;
 };
 
 export const authorSharedActivityDtoSchema =
@@ -416,10 +486,11 @@ export const authorSharedActivityDtoSchema =
   });
 export type AuthorSharedActivityDto = Omit<
   z.infer<typeof authorSharedActivityDtoSchema>,
-  "activityKind" | "mealDetails" | "sourceMealId"
+  "activityKind" | "mealDetails" | "boulderingDetails" | "sourceMealId"
 > & {
-  activityKind?: "workout" | "meal";
+  activityKind?: SharedActivityKind;
   mealDetails?: SharedMealDetails | null;
+  boulderingDetails?: SharedBoulderingDetails | null | undefined;
   sourceMealId?: string | null;
 };
 
@@ -692,6 +763,20 @@ export const mealSharePreviewDtoSchema = z.object({
   followerCount: z.number().int().nonnegative(),
 });
 export type MealSharePreviewDto = z.infer<typeof mealSharePreviewDtoSchema>;
+
+/** Both exact server projections, so the client preview cannot drift. */
+export const boulderingSharePreviewDtoSchema = z.object({
+  sessionId: z.string().uuid(),
+  enrollmentGeneration: z.number().int().positive(),
+  existingActivity: authorSharedActivityDtoSchema.nullable(),
+  sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  boulderingDetails: sharedBoulderingDetailsSchema,
+  boulderingDetailsWithBreakdown: sharedBoulderingDetailsSchema,
+  followerCount: z.number().int().nonnegative(),
+});
+export type BoulderingSharePreviewDto = z.infer<
+  typeof boulderingSharePreviewDtoSchema
+>;
 
 export const withdrawCommunityResponseSchema = z.object({
   withdrawn: z.boolean(),

@@ -6,6 +6,8 @@ export * from "./use-community-profile";
 export * from "./share-workout-modal";
 export * from "./share-meal-modal";
 export { CommunityShareMealScreen } from "./share-meal-screen";
+export * from "./share-bouldering-modal";
+export { CommunityShareBoulderingScreen } from "./share-bouldering-screen";
 export { CommunityShareWorkoutScreen } from "./share-workout-screen";
 export * from "./invitation-actions";
 export * from "./invitation-links";

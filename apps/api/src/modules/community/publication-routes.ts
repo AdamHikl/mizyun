@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import {
+  hasBoulderingActivity,
   isNonStrengthWorkoutDetails,
   isSessionDetails,
   validateContentSafety,
@@ -226,6 +227,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
             durationSeconds: existing.durationSeconds,
             activityKind: existing.activityKind ?? "workout",
             mealDetails: existing.mealDetails ?? null,
+            boulderingDetails: existing.boulderingDetails ?? null,
             workoutDetails: existing.workoutDetails ?? null,
             publishedAt: existing.publishedAt.toISOString(),
             sourceWorkoutId: existing.sourceWorkoutId,
@@ -430,6 +432,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         durationSeconds: published.durationSeconds,
         activityKind: published.activityKind ?? "workout",
         mealDetails: published.mealDetails ?? null,
+        boulderingDetails: published.boulderingDetails ?? null,
         workoutDetails: published.workoutDetails ?? null,
         publishedAt: published.publishedAt.toISOString(),
         sourceWorkoutId: published.sourceWorkoutId,
@@ -503,6 +506,14 @@ export const communityPublicationRoutes: FastifyPluginAsync<
           422,
           "VALIDATION_ERROR",
           "Preview the meal again to update its share.",
+        );
+      if (activity.activityKind === "bouldering")
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Preview the session again to update its share.",
         );
 
       const parsed = updateSharedActivitySchema.safeParse(request.body);
@@ -585,6 +596,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         durationSeconds: updated.durationSeconds,
         activityKind: updated.activityKind ?? "workout",
         mealDetails: updated.mealDetails ?? null,
+        boulderingDetails: updated.boulderingDetails ?? null,
         workoutDetails: updated.workoutDetails ?? null,
         publishedAt: updated.publishedAt.toISOString(),
         sourceWorkoutId: updated.sourceWorkoutId,
@@ -709,6 +721,20 @@ export const communityPublicationRoutes: FastifyPluginAsync<
           !source.confirmedByUser
         )
           return unavailable();
+      } else if (activity.activityKind === "bouldering") {
+        const source = activity.sourceWorkoutId
+          ? await options.workoutRepository.getById(
+              activity.sourceWorkoutId,
+              access,
+            )
+          : null;
+        if (
+          !source ||
+          source.userId !== principal.userId ||
+          !source.completedAt ||
+          !hasBoulderingActivity(source.details)
+        )
+          return unavailable();
       } else {
         const source = activity.sourceWorkoutId
           ? await options.workoutRepository.getById(
@@ -735,6 +761,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         durationSeconds: activity.durationSeconds,
         activityKind: activity.activityKind ?? "workout",
         mealDetails: activity.mealDetails ?? null,
+        boulderingDetails: activity.boulderingDetails ?? null,
         workoutDetails: activity.workoutDetails ?? null,
         publishedAt: activity.publishedAt.toISOString(),
         sourceWorkoutId: activity.sourceWorkoutId,
@@ -862,6 +889,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         durationSeconds: activity.durationSeconds,
         activityKind: activity.activityKind ?? "workout",
         mealDetails: activity.mealDetails ?? null,
+        boulderingDetails: activity.boulderingDetails ?? null,
         workoutDetails: activity.workoutDetails ?? null,
         publishedAt: activity.publishedAt.toISOString(),
         reactionCounts: reactions.reactionCounts,

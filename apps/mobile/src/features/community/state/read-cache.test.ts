@@ -560,3 +560,35 @@ describe("Community navigation reads", () => {
     expect(request).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("rendered activity kinds (BLD-05 S1)", () => {
+  it("sends the activity-kinds header on feed and profile-activity reads while keeping them cached", async () => {
+    const { cache, request } = fixture();
+    for (const path of [
+      "/v1/community/feed?limit=20",
+      "/v1/community/profiles/bob/activities?limit=20",
+    ]) {
+      request.mockClear();
+      const read = { ...options, path, expectedUserId: "alice" };
+      expect((await cache.request(read)).ok).toBe(true);
+      expect(request).toHaveBeenCalledOnce();
+      expect(request.mock.calls[0]![0].headers).toEqual({
+        "x-mizyun-activity-kinds": "bouldering",
+      });
+      // The constant header does not change the read identity.
+      await cache.request(read);
+      expect(request).toHaveBeenCalledOnce();
+    }
+  });
+  it("does not add the header to other Community requests", async () => {
+    const { cache, request } = fixture();
+    await cache.request({ ...options, expectedUserId: "alice" });
+    await cache.request({
+      method: "GET",
+      path: "/v1/community/activities/a",
+      expectedUserId: "alice",
+    });
+    for (const call of request.mock.calls)
+      expect(call[0].headers).toBeUndefined();
+  });
+});

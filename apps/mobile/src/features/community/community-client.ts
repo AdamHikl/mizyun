@@ -6,7 +6,6 @@ import {
   mutedUserListResponseSchema,
   setCommunityMuteSchema,
   communityBlockDtoSchema,
-  communityFeedResponseSchema,
   communityInvitationListResponseSchema,
   communityProfileDtoSchema,
   communityReportListResponseSchema,
@@ -20,6 +19,7 @@ import {
   type CommunityProfileViewDto,
   publishWorkoutActivitySchema,
   mealSharePreviewDtoSchema,
+  boulderingSharePreviewDtoSchema,
   relationshipListResponseSchema,
   removeFollowerResponseSchema,
   resolveInvitationResponseSchema,
@@ -55,6 +55,8 @@ import {
   type PublishWorkoutActivityInput,
   type PublishMealActivityInput,
   type MealSharePreviewDto,
+  type BoulderingSharePreviewDto,
+  type PublishBoulderingActivityInput,
   type ReactorSummary,
   type RelationshipListResponse,
   type RemoveFollowerResponse,
@@ -71,6 +73,7 @@ import {
   type WithdrawCommunityResponse,
   type WorkoutSharePreviewDto,
 } from "@mizyun/contracts";
+import { tolerantCommunityFeedResponseSchema } from "./activity-feed-schema";
 import type { Result } from "@mizyun/core";
 
 export type ScopedCommunityClient = ApiClient;
@@ -183,7 +186,7 @@ export async function fetchCommunityProfileActivities(
   return client.request<CommunityFeedResponse>({
     method: "GET",
     path: `/v1/community/profiles/${encodeURIComponent(targetUserId)}/activities${communityPageQuery(page)}`,
-    schema: communityFeedResponseSchema,
+    schema: tolerantCommunityFeedResponseSchema,
   });
 }
 
@@ -461,6 +464,30 @@ export async function publishMealActivity(
   });
 }
 
+/** ADR-0067: both exact server projections for a finished bouldering session. */
+export async function fetchBoulderingSharePreview(
+  client: ApiClient,
+  sessionId: string,
+): Promise<Result<BoulderingSharePreviewDto, ApiError>> {
+  return client.request<BoulderingSharePreviewDto>({
+    method: "GET",
+    path: `/v1/community/bouldering-sessions/${encodeURIComponent(sessionId)}/preview`,
+    schema: boulderingSharePreviewDtoSchema,
+  });
+}
+
+export async function publishBoulderingActivity(
+  client: ApiClient,
+  input: PublishBoulderingActivityInput,
+): Promise<Result<AuthorSharedActivityDto, ApiError>> {
+  return client.request<AuthorSharedActivityDto>({
+    method: "POST",
+    path: "/v1/community/bouldering-activities",
+    body: input,
+    schema: authorSharedActivityDtoSchema,
+  });
+}
+
 export async function updateSharedActivity(
   client: ApiClient,
   activityId: string,
@@ -508,7 +535,7 @@ export async function fetchCommunityFeed(
   return client.request<CommunityFeedResponse>({
     method: "GET",
     path: `/v1/community/feed${qs ? `?${qs}` : ""}`,
-    schema: communityFeedResponseSchema,
+    schema: tolerantCommunityFeedResponseSchema,
   });
 }
 

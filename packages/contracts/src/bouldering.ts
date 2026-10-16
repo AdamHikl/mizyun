@@ -30,6 +30,8 @@ const FONT_GRADES = [
   "8C+",
 ] as const;
 export type BoulderFontGrade = (typeof FONT_GRADES)[number];
+/** Exact canonical Font code (no normalisation), for stored snapshots. */
+export const fontGradeCodeSchema = z.enum(FONT_GRADES);
 const normaliseFontGrade = (input: string): BoulderFontGrade | null => {
   const candidate = input.trim().toUpperCase();
   return (FONT_GRADES as readonly string[]).includes(candidate)

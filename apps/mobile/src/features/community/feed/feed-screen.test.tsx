@@ -428,13 +428,14 @@ describe("Community home participation and navigation", () => {
     expect(sessionRead).not.toHaveBeenCalled();
     const { getCommunityReadDeadline, peekCommunityRead } =
       await import("../state/read-cache");
-    const { communityFeedResponseSchema } = await import("@mizyun/contracts");
+    const { tolerantCommunityFeedResponseSchema } =
+      await import("../activity-feed-schema");
     const response = peekCommunityRead(
       mocks.realCache,
       {
         method: "GET",
         path: "/v1/community/feed?limit=20",
-        schema: communityFeedResponseSchema,
+        schema: tolerantCommunityFeedResponseSchema,
         expectedUserId: mocks.userId,
       },
       { user: { id: mocks.userId }, accessToken: mocks.token },

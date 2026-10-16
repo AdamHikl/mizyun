@@ -1691,7 +1691,8 @@
         "apps/api/src/modules/community/group-routes.ts",
         "apps/api/src/modules/community/media-routes.ts",
         "apps/api/src/modules/community/messaging-routes.ts",
-        "apps/api/src/modules/community/routine-routes.ts"
+        "apps/api/src/modules/community/routine-routes.ts",
+        "apps/api/src/modules/community/bouldering-publication-routes.ts"
       ],
       "ui": [
         "apps/mobile/src/features/community/community-client.ts",
@@ -1841,7 +1842,8 @@
         "supabase/migrations/20261007110000_community_author_activities.sql",
         "supabase/migrations/20261007120000_community_messaging_reads.sql",
         "supabase/migrations/20261007130000_community_artifact_authors.sql",
-        "supabase/migrations/20261008120000_community_revocation_ledger.sql"
+        "supabase/migrations/20261008120000_community_revocation_ledger.sql",
+        "supabase/migrations/20261016180000_community_bouldering_sharing.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -1944,7 +1946,9 @@
         "supabase/tests/scratch/0043_community_account_cleanup_restart.test.sql",
         "supabase/tests/scratch/0044_community_challenge_time_source.test.sql",
         "supabase/tests/scratch/0045_community_routine_projection_refusal.test.sql",
-        "apps/mobile/src/features/community/invitation-fallback.test.ts"
+        "apps/mobile/src/features/community/invitation-fallback.test.ts",
+        "supabase/tests/database/0050_community_bouldering_sharing.test.sql",
+        "apps/api/src/modules/community/bouldering-publication-routes.test.ts"
       ],
       "relations": [
         {
@@ -1987,7 +1991,8 @@
         "docs/COMMUNITY_DEV_QUARANTINE_SYNTHETIC_2026-10-01.json",
         "docs/adr/0052-community-revocation-capture-and-quarantined-replay.md",
         "docs/COMMUNITY_CLOSURE_MATERIALS_2026-10-08.md",
-        "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md"
+        "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md",
+        "docs/adr/0067-explicit-community-bouldering-publication.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",
@@ -2018,7 +2023,8 @@
         "COMMUNITY-14",
         "COMMUNITY-15",
         "COMMUNITY-16",
-        "SEC-03"
+        "SEC-03",
+        "BOULDER-05"
       ],
       "openAcceptance": [
         "COMM-01 genuine adult target-user validation including voluntary decliner; design/source complete",

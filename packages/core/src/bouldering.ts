@@ -1,4 +1,5 @@
 import { type FontGrade, fontGradeFromRank } from "./bouldering-grades";
+import type { SharedBoulderingDetails } from "./community";
 
 export const BOULDER_RESULTS = ["flash", "sent", "not_yet"] as const;
 export type BoulderResult = (typeof BOULDER_RESULTS)[number];
@@ -409,3 +410,32 @@ export const isOlderBoulderProject = (
 ): boolean =>
   now.getTime() - Date.parse(lastTriedAt) >
   BOULDER_PROJECT_OLDER_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * ADR-0067 Community snapshot of a completed session; mirrors SQL
+ * `community_bouldering_details`. Only the session's local day, the hardest
+ * send, send and flash counts and (opt-in) sends per grade, hardest first.
+ */
+export const boulderingShareDetails = (
+  activityDate: string,
+  ascents: readonly Pick<BoulderAscentCore, "grade" | "gradeRank" | "result">[],
+  includeGradeBreakdown: boolean,
+): SharedBoulderingDetails => {
+  const sends = ascents.filter((ascent) => isBoulderSend(ascent.result));
+  const byRank = new Map<number, { grade: FontGrade; sends: number }>();
+  for (const ascent of sends) {
+    const entry = byRank.get(ascent.gradeRank);
+    if (entry) entry.sends += 1;
+    else byRank.set(ascent.gradeRank, { grade: ascent.grade, sends: 1 });
+  }
+  const ranks = [...byRank.keys()].sort((a, b) => b - a);
+  return {
+    activityDate,
+    topGrade: ranks.length ? byRank.get(ranks[0]!)!.grade : null,
+    sends: sends.length,
+    flashes: ascents.filter((ascent) => ascent.result === "flash").length,
+    gradeBreakdown: includeGradeBreakdown
+      ? ranks.map((rank) => ({ ...byRank.get(rank)! }))
+      : null,
+  };
+};

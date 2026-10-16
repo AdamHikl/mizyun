@@ -17,6 +17,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { apiClient } from "@/composition/api-client";
 import { isBoulderingEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
+import { useCommunityProfile } from "@/features/community";
 import {
   getBoulderSession,
   listBoulderProjects,
@@ -31,6 +32,7 @@ import {
 import { projectName, projectsSentInSession, sentAfterText } from "./progress";
 import { recallFinish } from "./session-rows";
 import { sessionGradeBars } from "./session-summary";
+import { canShareBoulderingSession, shareBoulderingHref } from "./share-gate";
 
 type Loaded = {
   session: BoulderSessionRecord;
@@ -41,8 +43,12 @@ type Loaded = {
 /** Session summary (ADR-0066 sketch). Achievements come from the finish response. */
 export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
   const theme = useTheme();
-  const { session: auth } = useAuth();
+  const { session: auth, profile: accountProfile } = useAuth();
   const userId = auth?.user.id ?? "";
+  const community = useCommunityProfile({
+    principalKey: auth?.user.id ?? null,
+    birthYear: accountProfile?.birthYear,
+  });
   const ownerRef = useRef(userId);
   ownerRef.current = userId;
   const [data, setData] = useState<Loaded | null>(() => {
@@ -284,6 +290,20 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
             </Card>
           )}
 
+          {canShareBoulderingSession({
+            boulderingEnabled: isBoulderingEnabled(),
+            communityEnrolled: community.isEnrolled,
+            completedAt: session.completedAt,
+          }) ? (
+            <Button
+              label="Share session"
+              icon="share"
+              variant="secondary"
+              block
+              accessibilityHint="Preview the card before sharing it with your approved followers"
+              onPress={() => router.push(shareBoulderingHref(session.id))}
+            />
+          ) : null}
           <Button
             label="View progress"
             icon="chart"

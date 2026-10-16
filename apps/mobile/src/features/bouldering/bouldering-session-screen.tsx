@@ -40,6 +40,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { apiClient } from "@/composition/api-client";
 import { isBoulderingEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
+import { useCommunityProfile } from "@/features/community";
 import {
   activeBoulderingFromResponse,
   computeElapsedSeconds,
@@ -109,6 +110,7 @@ import {
   rememberFinish,
   type BoulderRow,
 } from "./session-rows";
+import { canShareBoulderingSession, shareBoulderingHref } from "./share-gate";
 
 type ScreenStatus =
   | { kind: "loading" }
@@ -158,10 +160,14 @@ export function BoulderingSessionScreen({
   startOnOpen?: boolean;
 }) {
   const theme = useTheme();
-  const { session: auth } = useAuth();
+  const { session: auth, profile: accountProfile } = useAuth();
   const workoutContext = useOptionalActiveWorkout();
   const userId = auth?.user.id ?? "";
   const enabled = isBoulderingEnabled();
+  const community = useCommunityProfile({
+    principalKey: auth?.user.id ?? null,
+    birthYear: accountProfile?.birthYear,
+  });
 
   const ownerRef = useRef(userId);
   ownerRef.current = userId;
@@ -1159,17 +1165,35 @@ export function BoulderingSessionScreen({
               onPress={finish}
             />
           ) : (
-            <Button
-              label="View summary"
-              variant="secondary"
-              block
-              onPress={() =>
-                router.push({
-                  pathname: "/bouldering/summary/[id]",
-                  params: { id: record.id },
-                })
-              }
-            />
+            <>
+              <Button
+                label="View summary"
+                variant="secondary"
+                block
+                onPress={() =>
+                  router.push({
+                    pathname: "/bouldering/summary/[id]",
+                    params: { id: record.id },
+                  })
+                }
+              />
+              {mode === "history" &&
+              canShareBoulderingSession({
+                boulderingEnabled: enabled,
+                communityEnrolled: community.isEnrolled,
+                completedAt: record.completedAt,
+                pendingChanges: commands.length,
+              }) ? (
+                <Button
+                  label="Share session"
+                  icon="share"
+                  variant="secondary"
+                  block
+                  accessibilityHint="Preview the card before sharing it with your approved followers"
+                  onPress={() => router.push(shareBoulderingHref(record.id))}
+                />
+              ) : null}
+            </>
           )}
           <Button
             label={isActive ? "Discard session" : "Delete session"}

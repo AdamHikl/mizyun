@@ -214,6 +214,7 @@ import {
 } from "./modules/community/discovery-routes.js";
 import { communityInvitationRoutes } from "./modules/community/invitation-routes.js";
 import { communityMealPublicationRoutes } from "./modules/community/meal-publication-routes.js";
+import { communityBoulderingPublicationRoutes } from "./modules/community/bouldering-publication-routes.js";
 import { communityPublicationRoutes } from "./modules/community/publication-routes.js";
 import { communityFeedRoutes } from "./modules/community/feed-routes.js";
 import { communityReactionRoutes } from "./modules/community/reaction-routes.js";
@@ -873,6 +874,17 @@ export const buildApp = (
     (sp
       ? new SupabaseCommunityRepository({ clientFor: sp.clientFor })
       : new InMemoryCommunityRepository());
+  // Supabase revokes through ADR-0067 triggers; the in-memory pair mirrors them.
+  if (boulderingRepository instanceof InMemoryBoulderingRepository)
+    boulderingRepository.setCommunitySourceChangeObserverForTest(
+      (userId, sessionId) => {
+        void communityRepository.revokeActivitiesForBoulderingSession(
+          sessionId,
+          userId,
+          { accessToken: "in-memory" },
+        );
+      },
+    );
 
   const communityNotifications =
     dependencies.communityNotifications ??
@@ -1589,6 +1601,12 @@ export const buildApp = (
     communityRepository,
     foodEntryRepository,
     profileRepository,
+  });
+  void app.register(communityBoulderingPublicationRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+    boulderingRepository,
+    enabled: dependencies.boulderingEnabled ?? boulderingEnabled(process.env),
   });
   void app.register(communityPublicationRoutes, {
     foodEntryRepository,

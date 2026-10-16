@@ -4,6 +4,8 @@
 
 **Meal extension (2026-10-12):** [#238](https://github.com/AdamHikl/mizyun/issues/238) and [ADR-0056](adr/0056-explicit-community-meal-publication.md) extend deliberate publication to confirmed meals. This bounded extension supersedes workout-only publication and nutrition exclusions only for an explicitly previewed meal name/day and separately selected calories/protein/carbs/fat. The audience, lifecycle, safety, retention and rollout gates below apply equally to meals. Simulator acceptance is deferred by Adam; no deployment or release acceptance is implied.
 
+**Bouldering extension (2026-10-16):** [#276](https://github.com/AdamHikl/mizyun/issues/276) and [ADR-0067](adr/0067-explicit-community-bouldering-publication.md) add a `bouldering` card for a completed indoor session. It shares only the previewed local day, top grade, send and flash counts and an optional sends-per-grade breakdown (off by default). Gym name, notes, photos, hold colours, attempts, times and projects are never shared. Editing the session or any of its boulders, or deleting the session, revokes the card. The audience, lifecycle, safety, retention and rollout gates below apply equally; mobile, simulator-pair and release acceptance remain open.
+
 **Parent:** [#137](https://github.com/AdamHikl/mizyun/issues/137). **Architecture:** [ADR-0030](adr/0030-explicit-community-publication.md). **Inventory and per-issue plans:** [master implementation plan](COMMUNITY_IMPLEMENTATION_PLAN_2026-09-29.md). **Current code evidence:** [September 30 review](COMMUNITY_REVIEW_EVIDENCE_2026-09-30.md).
 
 ## 1. Scope and permissions

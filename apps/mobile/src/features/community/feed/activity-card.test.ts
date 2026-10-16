@@ -164,6 +164,79 @@ describe("ActivityCard", () => {
     expect(content.props.accessibilityRole).toBeUndefined();
     expect(content.props.accessibilityHint).toBeUndefined();
   });
+  it("renders a bouldering card from the allowlisted snapshot only", () => {
+    const details = {
+      activityDate: "2026-09-29",
+      topGrade: "6C" as const,
+      sends: 9,
+      flashes: 4,
+      gradeBreakdown: [
+        { grade: "6C" as const, sends: 2 },
+        { grade: "6B" as const, sends: 7 },
+      ],
+    };
+    const element = ActivityCard({
+      item: {
+        ...mockItem,
+        category: "other",
+        // A stray duration must never be shown on a bouldering card.
+        durationSeconds: 3600,
+        activityKind: "bouldering",
+        boulderingDetails: details,
+      },
+    });
+    const content = element.props.children[1];
+    const label = content.props.accessibilityLabel;
+    expect(label).toContain("Bouldering session, top grade 6C");
+    expect(label).toContain("9 sends, 4 flashes");
+    expect(label).toContain("6C: 2 sends, 6B: 7 sends");
+    expect(label).not.toContain("duration");
+    expect(label).not.toContain("Other");
+    expect(content.props.accessibilityHint).toBe(
+      "Open shared bouldering session",
+    );
+    expect(content.props.children[0].props.children).toBe(
+      "Bouldering · Top grade 6C",
+    );
+    const projection = content.props.children.find(
+      (child: any) => child?.props?.details === details,
+    );
+    expect(projection.props.compact).toBe(true);
+  });
+  it("renders a bouldering card without breakdown or sends", () => {
+    const element = ActivityCard({
+      item: {
+        ...mockItem,
+        durationSeconds: null,
+        activityKind: "bouldering",
+        boulderingDetails: {
+          activityDate: "2026-09-29",
+          topGrade: null,
+          sends: 0,
+          flashes: 0,
+          gradeBreakdown: null,
+        },
+      },
+    });
+    const content = element.props.children[1];
+    expect(content.props.children[0].props.children).toBe(
+      "Bouldering · No sends",
+    );
+    expect(content.props.accessibilityLabel).toContain("0 sends, 0 flashes");
+    expect(content.props.accessibilityLabel).not.toContain("sends by grade");
+  });
+  it("keeps the workout fallback for an unknown future kind", () => {
+    const element = ActivityCard({
+      item: {
+        ...mockItem,
+        activityKind: "future_kind" as never,
+        boulderingDetails: undefined,
+      },
+    });
+    const content = element.props.children[1];
+    expect(content.props.accessibilityLabel).toContain("Strength workout");
+    expect(content.props.accessibilityHint).toBe("Open shared workout details");
+  });
   it("handles null duration gracefully", () => {
     const itemWithoutDuration = { ...mockItem, durationSeconds: null };
     const element = ActivityCard({

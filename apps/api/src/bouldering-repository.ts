@@ -116,11 +116,22 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
   private readonly ascents = new Map<string, StoredBoulderAscent>();
   private readonly projects = new Map<string, StoredBoulderProject>();
   private tail: Promise<unknown> = Promise.resolve();
+  private sourceChanged: (userId: UserId, sessionId: string) => void = () => {};
 
   constructor(
     private readonly workouts: WorkoutRepository,
     private readonly media?: Pick<MediaAssetRepository, "getById">,
   ) {}
+
+  /**
+   * Mirrors the ADR-0067 database triggers: any session change or delete and
+   * any boulder insert, update or delete revokes that session's Community card.
+   */
+  setCommunitySourceChangeObserverForTest(
+    observer: (userId: UserId, sessionId: string) => void,
+  ): void {
+    this.sourceChanged = observer;
+  }
 
   private atomic<T>(action: () => Promise<T>): Promise<T> {
     const result = this.tail.then(action);
@@ -331,6 +342,7 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
         },
         options,
       );
+      this.sourceChanged(userId, id);
       this.receipts.set(key, {
         kind: "session_finish",
         sessionId: id,
@@ -361,6 +373,7 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
           r.sessionId === id ||
           (r.ascentId !== null && removed.has(r.ascentId)),
       );
+      this.sourceChanged(userId, id);
       await this.workouts.delete(id, options);
     });
   }
@@ -530,6 +543,7 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
       };
       this.ascents.set(row.id, row);
       this.refreshProject(projectId);
+      this.sourceChanged(userId, sessionId);
       this.receipts.set(key, {
         kind: "ascent_create",
         sessionId,
@@ -606,6 +620,9 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
       this.ascents.set(id, next);
       // The link never changes on edit; the project re-derives its state.
       this.refreshProject(existing.projectId);
+      // Only grade or result reach a shared card (as the SQL trigger).
+      if (existing.grade !== next.grade || existing.result !== next.result)
+        this.sourceChanged(userId, existing.sessionId);
       this.receipts.set(key, {
         kind: "ascent_update",
         sessionId: existing.sessionId,
@@ -631,6 +648,7 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
       this.ascents.delete(id);
       this.refreshProject(row.projectId);
       this.tombstone(userId, (r) => r.ascentId === id);
+      this.sourceChanged(userId, row.sessionId);
       return row;
     });
   }

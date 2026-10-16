@@ -905,3 +905,80 @@ describe("Meal activity adapter", () => {
     expect(result.mealDetails).toEqual(mealDetails);
   });
 });
+
+describe("Bouldering activity adapter", () => {
+  const boulderingDetails = {
+    activityDate: "2026-10-16",
+    topGrade: "7A" as const,
+    sends: 3,
+    flashes: 1,
+    gradeBreakdown: null,
+  };
+  const row: SharedActivityRow = {
+    id: "a2500000-0000-4000-8000-000000000001",
+    user_id: "c2500000-0000-4000-8000-000000000001",
+    activity_kind: "bouldering",
+    source_workout_id: "d2500000-0000-4000-8000-000000000001",
+    source_meal_id: null,
+    meal_details: null,
+    bouldering_details: boulderingDetails,
+    category: "other",
+    shared_day: "2026-10-16",
+    duration_seconds: null,
+    version: 1,
+    published_at: "2026-10-16T12:00:00Z",
+    revoked_at: null,
+  };
+  it("passes only the previewed allowlist to the atomic publication RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [row], error: null });
+    const clientFor = vi.fn(
+      () => ({ rpc }) as unknown as RepositorySupabaseClient,
+    );
+    const repo = new SupabaseCommunityRepository({ clientFor });
+    const result = await repo.publishBoulderingActivity(
+      row.user_id as UserId,
+      {
+        sourceSessionId: row.source_workout_id!,
+        enrollmentGeneration: 1,
+        operationId: row.id,
+        expectedVersion: 0,
+        expectedRevoked: false,
+        sharedDay: row.shared_day,
+        boulderingDetails,
+        currentSourceBoulderingDetails: boulderingDetails,
+      },
+      { accessToken: "owner-token" },
+    );
+    expect(clientFor).toHaveBeenCalledWith("owner-token");
+    expect(rpc).toHaveBeenCalledExactlyOnceWith(
+      "community_publish_bouldering_activity",
+      {
+        p_source_session_id: row.source_workout_id,
+        p_enrollment_generation: 1,
+        p_operation_id: row.id,
+        p_expected_version: 0,
+        p_expected_revoked: false,
+        p_shared_day: row.shared_day,
+        p_bouldering_details: boulderingDetails,
+      },
+    );
+    expect(result.activityKind).toBe("bouldering");
+    expect(result.boulderingDetails).toEqual(boulderingDetails);
+  });
+  it("revokes through the owner-scoped RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    const clientFor = vi.fn(
+      () => ({ rpc }) as unknown as RepositorySupabaseClient,
+    );
+    const repo = new SupabaseCommunityRepository({ clientFor });
+    await repo.revokeActivitiesForBoulderingSession(
+      row.source_workout_id!,
+      row.user_id as UserId,
+      { accessToken: "owner-token" },
+    );
+    expect(rpc).toHaveBeenCalledExactlyOnceWith(
+      "community_revoke_bouldering_activities",
+      { p_source_session_id: row.source_workout_id },
+    );
+  });
+});

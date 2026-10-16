@@ -10,6 +10,11 @@ import { PageGutter, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import type { ScopedCommunityClient } from "../community-client";
 import { SharedMealDetails } from "../shared-meal-details";
+import {
+  SharedBoulderingDetails,
+  boulderingCardSpoken,
+  boulderingCardTitle,
+} from "../shared-bouldering-details";
 import { SharedWorkoutDetails } from "../shared-workout-details";
 import { CommunityIdentityLink } from "../ui";
 import { REACTION_EMOJIS, ReactionBar } from "../reactions";
@@ -47,12 +52,17 @@ export function ActivityCard({
 }: ActivityCardProps) {
   const colors = useTheme();
   const isMeal = item.activityKind === "meal";
-  const duration = isMeal ? null : formatDuration(item.durationSeconds);
+  const isBouldering = item.activityKind === "bouldering";
+  // Every kind other than meal and bouldering keeps the workout presentation.
+  const isWorkout = !isMeal && !isBouldering;
+  const duration = isWorkout ? formatDuration(item.durationSeconds) : null;
   const sharedDayLabel = formatSharedDay(item.sharedDay);
   const publishedAtLabel = formatPublishedAt(item.publishedAt);
   const categoryLabel = isMeal
     ? `Meal · ${item.mealDetails?.name ?? "Shared meal"}`
-    : formatCategory(item.category);
+    : isBouldering
+      ? boulderingCardTitle(item.boulderingDetails)
+      : formatCategory(item.category);
 
   return (
     <Card
@@ -94,13 +104,15 @@ export function ActivityCard({
         onPress={readOnly ? undefined : onPress}
         disabled={readOnly}
         accessibilityRole={readOnly ? undefined : "button"}
-        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${!isMeal && item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
+        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${isBouldering ? boulderingCardSpoken(item.boulderingDetails) : categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${isWorkout && item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
         accessibilityHint={
           readOnly
             ? undefined
             : isMeal
               ? "Open shared meal details"
-              : "Open shared workout details"
+              : isBouldering
+                ? "Open shared bouldering session"
+                : "Open shared workout details"
         }
       >
         <ThemedText type="headline">{categoryLabel}</ThemedText>
@@ -126,7 +138,10 @@ export function ActivityCard({
         {isMeal && item.mealDetails ? (
           <SharedMealDetails details={item.mealDetails} compact />
         ) : null}
-        {!isMeal && item.workoutDetails ? (
+        {isBouldering && item.boulderingDetails ? (
+          <SharedBoulderingDetails details={item.boulderingDetails} compact />
+        ) : null}
+        {isWorkout && item.workoutDetails ? (
           <SharedWorkoutDetails details={item.workoutDetails} compact />
         ) : null}
       </Pressable>
