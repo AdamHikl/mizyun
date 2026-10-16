@@ -432,6 +432,18 @@ function TabLayoutContent() {
               />
               <Stack.Screen name="run/[id]" options={{ title: "Run" }} />
               <Stack.Screen
+                name="bouldering/session"
+                options={{ title: "Bouldering" }}
+              />
+              <Stack.Screen
+                name="bouldering/[id]"
+                options={{ title: "Bouldering session" }}
+              />
+              <Stack.Screen
+                name="bouldering/summary/[id]"
+                options={{ title: "Session summary" }}
+              />
+              <Stack.Screen
                 name="log-weight"
                 options={{ title: "Log weight", presentation: "modal" }}
               />

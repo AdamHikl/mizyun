@@ -277,7 +277,7 @@ export interface ClearLocalUserDataOptions {
 
 /**
  * Clears all locally persisted state for the given user, including
- * meal/workout/weight/coach drafts, AI consent decisions, scheduled
+ * meal/workout/run/bouldering/weight/coach drafts, AI consent decisions, scheduled
  * coach reminder notifications, scheduled first-meal notifications,
  * scheduled evening catch-up notifications, confirmed day completions,
  * deletion challenges, workout preferences, offline profile/dashboard
@@ -293,6 +293,7 @@ export const clearLocalUserData = async (
     "meal-completed",
     "workout",
     "run",
+    "bouldering",
     "weight",
     "coach",
   ];

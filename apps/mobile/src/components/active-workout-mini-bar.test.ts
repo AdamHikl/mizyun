@@ -204,4 +204,44 @@ describe("ActiveWorkoutMiniBar", () => {
       params: { workoutId: "workout-long" },
     });
   });
+
+  it("resumes an active bouldering session into its own screen", () => {
+    vi.mocked(usePathname).mockReturnValue("/workouts");
+    mockActiveWorkoutContext = {
+      activeWorkout: null,
+      elapsedSeconds: 0,
+      restTimer: null,
+      restRemainingSeconds: 0,
+      activeBouldering: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Bouldering",
+        startedAt: "2026-10-16T10:00:00.000Z",
+      },
+      boulderingElapsedSeconds: 65,
+    };
+    const element = ActiveWorkoutMiniBar();
+    const pressable = (element?.props as any).children;
+    expect(pressable.props.accessibilityLabel).toBe(
+      "Resume bouldering session: Bouldering, 01:05 elapsed",
+    );
+    pressable.props.onPress();
+    expect(router.push).toHaveBeenCalledWith("/bouldering/session");
+  });
+
+  it("hides the bouldering mini-bar on bouldering screens", () => {
+    vi.mocked(usePathname).mockReturnValue("/bouldering/session");
+    mockActiveWorkoutContext = {
+      activeWorkout: null,
+      elapsedSeconds: 0,
+      restTimer: null,
+      restRemainingSeconds: 0,
+      activeBouldering: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Bouldering",
+        startedAt: "2026-10-16T10:00:00.000Z",
+      },
+      boulderingElapsedSeconds: 65,
+    };
+    expect(ActiveWorkoutMiniBar()).toBeNull();
+  });
 });

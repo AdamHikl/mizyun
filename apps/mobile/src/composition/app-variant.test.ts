@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getAppVariant,
+  isBoulderingEnabled,
   isProgressPhotosEnabled,
   resolveAppVariant,
 } from "./app-variant";
@@ -104,6 +105,46 @@ describe("app-variant", () => {
     it("returns a valid AppVariant", () => {
       const variant = getAppVariant();
       expect(variant === "dev" || variant === "production").toBe(true);
+    });
+  });
+
+  describe("isBoulderingEnabled", () => {
+    it("is on for Dev and off for Production by default", () => {
+      expect(isBoulderingEnabled({ expoExtraVariant: "dev" })).toBe(true);
+      expect(isBoulderingEnabled({ expoExtraVariant: "production" })).toBe(
+        false,
+      );
+      expect(
+        isBoulderingEnabled({
+          expoExtraVariant: null,
+          authRedirectUri: null,
+          apiUrl: null,
+        }),
+      ).toBe(false);
+    });
+
+    it("turns Production on only with an explicit true flag", () => {
+      expect(
+        isBoulderingEnabled({
+          expoExtraVariant: "production",
+          expoExtraBouldering: true,
+        }),
+      ).toBe(true);
+      expect(
+        isBoulderingEnabled({
+          expoExtraVariant: "production",
+          expoExtraBouldering: "true",
+        }),
+      ).toBe(false);
+    });
+
+    it("lets an explicit false flag switch Dev off", () => {
+      expect(
+        isBoulderingEnabled({
+          expoExtraVariant: "dev",
+          expoExtraBouldering: false,
+        }),
+      ).toBe(false);
     });
   });
 });

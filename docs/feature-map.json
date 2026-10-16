@@ -263,7 +263,8 @@
         "apps/mobile/src/features/workouts/index.ts",
         "apps/api/src/modules/runs/routes.ts",
         "apps/mobile/src/features/log-run/index.ts",
-        "apps/api/src/modules/bouldering/routes.ts"
+        "apps/api/src/modules/bouldering/routes.ts",
+        "apps/mobile/src/features/bouldering/index.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -288,7 +289,9 @@
         "packages/core/src/bouldering.ts",
         "packages/core/src/bouldering-grades.ts",
         "packages/core/src/bouldering-repository.ts",
-        "packages/config/src/bouldering.ts"
+        "packages/config/src/bouldering.ts",
+        "apps/mobile/src/features/bouldering",
+        "apps/mobile/src/app/bouldering"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
@@ -326,7 +329,9 @@
         "apps/mobile/src/app/import-runs.tsx",
         "apps/mobile/src/features/run-import/run-import-screen.tsx",
         "apps/mobile/src/features/workouts/workout-repeat.ts",
-        "apps/mobile/src/features/workouts/workout-routine-suggestion-store.ts"
+        "apps/mobile/src/features/workouts/workout-routine-suggestion-store.ts",
+        "apps/mobile/src/features/bouldering/bouldering-session-screen.tsx",
+        "apps/mobile/src/app/bouldering/session.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/workout-repository.ts",
@@ -375,7 +380,9 @@
         "packages/contracts/src/bouldering.test.ts",
         "packages/adapters/supabase-server/src/bouldering-repository.test.ts",
         "apps/api/src/modules/bouldering/routes.test.ts",
-        "supabase/tests/database/0048_indoor_bouldering.test.sql"
+        "supabase/tests/database/0048_indoor_bouldering.test.sql",
+        "apps/mobile/src/features/bouldering/pending-ascents.test.ts",
+        "apps/mobile/src/features/bouldering/log-boulder-sheet.test.tsx"
       ],
       "relations": [
         {
@@ -408,7 +415,8 @@
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
         "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout",
         "pnpm --filter @mizyun/api test src/modules/bouldering",
-        "pnpm --filter @mizyun/core test src/bouldering"
+        "pnpm --filter @mizyun/core test src/bouldering",
+        "pnpm --filter @mizyun/mobile test src/features/bouldering"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",

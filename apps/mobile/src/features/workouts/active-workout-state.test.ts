@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Workout } from "@mizyun/contracts";
 import { withWorkoutLifecycle } from "@mizyun/core";
 import {
+  activeBoulderingFromResponse,
   computeElapsedSeconds,
+  guardSessionStart,
   computeRestRemainingSeconds,
   findIncompleteWorkout,
   formatStopwatch,
@@ -142,5 +144,112 @@ describe("active-workout-state", () => {
       expect(computeRestRemainingSeconds(timer, 105000)).toBe(0);
       expect(computeRestRemainingSeconds(null, 95000)).toBe(0);
     });
+  });
+});
+
+describe("bouldering and strength sessions (ADR-0066 §3)", () => {
+  const strength = {
+    id: "00000000-0000-4000-8000-000000000001",
+    name: "Upper Body",
+    startedAt: "2026-10-16T10:00:00.000Z",
+  };
+  const bouldering = {
+    id: "33333333-3333-4333-8333-333333333333",
+    name: "Bouldering",
+    startedAt: "2026-10-16T10:00:00.000Z",
+  };
+
+  it("never recovers a bouldering session or run as a strength workout", () => {
+    const boulder: Workout = {
+      ...BASE_WORKOUT,
+      details: {
+        activityType: "bouldering",
+        workoutLifecycle: { kind: "session" },
+        boulderSession: {
+          version: 1,
+          gradeScale: "font",
+          recordingTimezone: "UTC",
+          activityDate: "2026-09-24",
+          gymName: null,
+        },
+      },
+    };
+    expect(findIncompleteWorkout([boulder], "2026-09-24")).toBeNull();
+    expect(
+      findIncompleteWorkout([boulder, BASE_WORKOUT], "2026-09-24")?.id,
+    ).toBe(BASE_WORKOUT.id);
+  });
+
+  it("blocks starting strength while bouldering is active and offers Resume", () => {
+    const guard = guardSessionStart("strength", {
+      workout: null,
+      bouldering,
+    });
+    expect(guard).toMatchObject({
+      kind: "blocked",
+      resumeLabel: "Resume bouldering",
+      resume: { pathname: "/bouldering/session" },
+    });
+  });
+
+  it("blocks starting bouldering while a strength workout is active", () => {
+    expect(
+      guardSessionStart("bouldering", { workout: strength, bouldering: null }),
+    ).toMatchObject({
+      kind: "blocked",
+      resumeLabel: "Resume workout",
+      resume: { pathname: "/log-workout", workoutId: strength.id },
+    });
+  });
+
+  it("allows a start when the other kind is idle", () => {
+    expect(
+      guardSessionStart("strength", { workout: strength, bouldering: null }),
+    ).toEqual({ kind: "allowed" });
+    expect(
+      guardSessionStart("bouldering", { workout: null, bouldering: null }),
+    ).toEqual({ kind: "allowed" });
+  });
+
+  it("reads only an unfinished active bouldering session", () => {
+    const record = {
+      id: bouldering.id,
+      clientOperationId: "11111111-1111-4111-8111-111111111111",
+      name: "Bouldering",
+      notes: null,
+      startedAt: bouldering.startedAt,
+      completedAt: null,
+      session: {
+        version: 1 as const,
+        gradeScale: "font" as const,
+        recordingTimezone: "UTC",
+        activityDate: "2026-10-16",
+        gymName: "Boulder Gym",
+      },
+      summary: {
+        boulders: 0,
+        sends: 0,
+        flashes: 0,
+        attempts: 0,
+        attemptsComplete: true,
+        topGrade: null,
+      },
+    };
+    expect(
+      activeBoulderingFromResponse({ session: record, ascents: [] }),
+    ).toEqual({
+      id: bouldering.id,
+      name: "Bouldering · Boulder Gym",
+      startedAt: bouldering.startedAt,
+    });
+    expect(
+      activeBoulderingFromResponse({ session: null, ascents: [] }),
+    ).toBeNull();
+    expect(
+      activeBoulderingFromResponse({
+        session: { ...record, completedAt: "2026-10-16T11:00:00.000Z" },
+        ascents: [],
+      }),
+    ).toBeNull();
   });
 });
