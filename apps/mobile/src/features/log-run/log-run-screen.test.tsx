@@ -90,7 +90,11 @@ vi.mock("@/composition/api-client", () => ({
   },
   invalidateSessionReads: vi.fn(),
 }));
-vi.mock("@/features/running/client", () => ({ getRun: vi.fn() }));
+const runs = vi.hoisted(() => ({ list: vi.fn() }));
+vi.mock("@/features/running/client", () => ({
+  getRun: vi.fn(),
+  listRuns: runs.list,
+}));
 vi.mock("./run-draft", () => ({
   runDraftStore: { load: mocks.load, save: mocks.persist, clear: mocks.clear },
   sendRunCommand: mocks.send,
@@ -157,6 +161,10 @@ beforeEach(() => {
   mocks.params = {};
   vi.clearAllMocks();
   mocks.load.mockResolvedValue(null);
+  runs.list.mockResolvedValue({
+    ok: true,
+    value: { runs: [], nextCursor: null },
+  });
   mocks.persist.mockResolvedValue(true);
   mocks.clear.mockResolvedValue(true);
   mocks.send.mockResolvedValue({
@@ -517,5 +525,93 @@ describe("queued run draft confirmations", () => {
     expect(mocks.dispatch).not.toHaveBeenCalled();
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(mocks.back).not.toHaveBeenCalled();
+  });
+});
+
+const lastRun = {
+  userId: "user-a",
+  name: "Tempo",
+  notes: "old notes",
+  summary: {
+    activityDate: "2026-09-01",
+    startedAt: null,
+    durationSeconds: 1530,
+    distanceMeters: 5000,
+    environment: "treadmill",
+    perceivedExertion: 7,
+  },
+};
+const chip = (tree: any) =>
+  find(
+    tree,
+    (n) =>
+      n.type === "Pressable" &&
+      String(n.props.accessibilityLabel).startsWith("Same as last run"),
+  );
+async function open() {
+  render();
+  await flush();
+  render();
+  await flush();
+  return render();
+}
+describe("run entry shortcuts", () => {
+  it("sets exact half-marathon metres from a quick distance chip", async () => {
+    let tree = await open();
+    action(tree, "Set distance to half marathon").props.onPress();
+    tree = render();
+    expect(input(tree, "Distance (km, optional)").props.value).toBe("21.1");
+    input(tree, "Minutes").props.onChangeText("100");
+    tree = render();
+    action(tree, "Save run").props.onPress();
+    await flush();
+    expect(mocks.send.mock.calls[0]?.[1].pending.body.distanceMeters).toBe(
+      21097.5,
+    );
+  });
+  it("fills duration, distance, environment and name but not date, effort or notes", async () => {
+    runs.list.mockResolvedValue({
+      ok: true,
+      value: { runs: [lastRun], nextCursor: null },
+    });
+    let tree = await open();
+    expect(chip(tree).props.accessibilityLabel).toBe(
+      "Same as last run · 5.00 km · 25:30",
+    );
+    chip(tree).props.onPress();
+    await flush();
+    tree = render();
+    expect(input(tree, "Minutes").props.value).toBe("25");
+    expect(input(tree, "Seconds").props.value).toBe("30");
+    expect(input(tree, "Distance (km, optional)").props.value).toBe("5");
+    expect(chip(tree)).toBeFalsy();
+    const saved = hooks.slots.find((s) => s?.form && s.editingRunId === null);
+    expect(saved.form).toMatchObject({
+      environment: "treadmill",
+      name: "Tempo",
+      effort: "",
+      notes: "",
+      distanceCanonicalMeters: 5000,
+    });
+    expect(saved.form.activityDate).not.toBe("2026-09-01");
+  });
+  it("hides the shortcut with no runs, on load failure and in edit mode", async () => {
+    expect(chip(await open())).toBeFalsy();
+    hooks.slots = [];
+    runs.list.mockResolvedValue({ ok: false, message: "offline" });
+    expect(chip(await open())).toBeFalsy();
+    hooks.slots = [];
+    runs.list.mockRejectedValue(new Error("boom"));
+    expect(chip(await open())).toBeFalsy();
+    hooks.slots = [];
+    runs.list.mockClear();
+    runs.list.mockResolvedValue({
+      ok: true,
+      value: { runs: [lastRun], nextCursor: null },
+    });
+    mocks.params = { runId: "r1" };
+    mocks.load.mockResolvedValue({ ...restored, editingRunId: "r1" });
+    expect(chip(await open())).toBeFalsy();
+    expect(runs.list).not.toHaveBeenCalled();
   });
 });

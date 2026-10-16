@@ -4,6 +4,8 @@
   <uses-sdk tools:overrideLibrary="androidx.health.connect.client" />
   <uses-permission android:name="android.permission.health.READ_WEIGHT" />
   <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+  <!-- Requested only with READ_EXERCISE for Import runs; optional for session reads. -->
+  <uses-permission android:name="android.permission.health.READ_DISTANCE" />
   <queries>
     <package android:name="com.google.android.apps.healthdata" />
   </queries>

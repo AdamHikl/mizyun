@@ -1,6 +1,6 @@
 # Mizyun status
 
-> Updated 2026-10-15 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-16 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
@@ -17,7 +17,7 @@
 
 ## Running and usability acceptance
 
-**#216/RUN-01–05:** 938efc5 in Deva64a158; gate/API PASS, iPhone launched; native/import/GPS exits open. #210/#211/#213 automatic/usability gate and Dev simulatorPASS; physical/max-font/VoiceOver remain open. #214 workflow/source/full-gatePASS; #207 navigation and physical/provider gates retained. [Preserved detail](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md#preserved-prior-runningusability-handoff).
+**#216 running:** RUN-01–05 938efc5 Dev; native/GPS exits open. RUN-06 Health run imports + Log run shortcuts (ADR0065, migration20261016120000) local; 2 reviews/gatePASS, db:verify/Dev/device open. [Evidence](docs/RUN_IMPORTS_EVIDENCE_2026-10-16.md). #210/#211/#213/#214/#207 exits: [detail](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md#preserved-prior-runningusability-handoff).
 
 **Next retained release checks:** version9 native workout journeys, physical/accessibility acceptance, then Adam's manual IPA/AAB upload. #27/#32 Store exits open; Community prior closure does not accept this new meal extension. Photos/App Preview remain Dev-only.
 

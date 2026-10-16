@@ -15,13 +15,14 @@ const apps: ReturnType<typeof buildApp>[] = [];
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((a) => a.close()));
 });
-const setup = () => {
+const setup = (runHealthImportsEnabled = false) => {
   const workouts = new InMemoryWorkoutRepository();
   const runs = new InMemoryRunRepository(workouts);
   const make = () => {
     const app = buildApp({
       workoutRepository: workouts,
       runRepository: runs,
+      runHealthImportsEnabled,
       tokenVerifier: {
         verify: async (token) =>
           token === "A" || token === "B"
@@ -342,5 +343,279 @@ describe("manual running mutations", () => {
       (await app.inject({ method: "POST", url: "/v1/runs", payload }))
         .statusCode,
     ).toBe(401);
+  });
+});
+const healthRun = {
+  clientOperationId: "00000000-0000-4000-8000-000000000010",
+  provider: "apple_health",
+  sourceAppId: "com.apple.health.watch",
+  sourceAppName: "Apple Watch",
+  externalId: "HK-0001",
+  startedAt: "2026-10-01T22:30:00Z",
+  recordingTimezone: "Europe/Bratislava",
+  durationSeconds: 1800,
+  durationBasis: "active",
+  distanceMeters: 5012.37,
+  environment: "outdoor",
+};
+const importRun = (
+  app: ReturnType<typeof buildApp>,
+  body: Record<string, unknown> = healthRun,
+  auth = headers,
+) =>
+  app.inject({
+    method: "POST",
+    url: "/v1/runs/imports",
+    headers: auth,
+    payload: body,
+  });
+describe("Health running imports", () => {
+  it("is not available outside Dev, while existing imports stay readable", async () => {
+    const enabled = setup(true);
+    const created = await importRun(enabled.app);
+    expect(created.statusCode).toBe(201);
+    const disabledApp = buildApp({
+      workoutRepository: enabled.workouts,
+      runRepository: new InMemoryRunRepository(enabled.workouts),
+      runHealthImportsEnabled: false,
+      tokenVerifier: {
+        verify: async (token) =>
+          token === "A"
+            ? { userId: A, accessToken: token, role: "authenticated" }
+            : null,
+      },
+      agent: new AgentOrchestrator({
+        provider: new DisabledAgentProvider(),
+        memories: new InMemoryMemoryStore(),
+      }),
+    });
+    apps.push(disabledApp);
+    expect(
+      (
+        await importRun(disabledApp, {
+          ...healthRun,
+          clientOperationId: crypto.randomUUID(),
+          externalId: "HK-0002",
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await disabledApp.inject({
+          method: "POST",
+          url: "/v1/runs/imports",
+          payload: healthRun,
+        })
+      ).statusCode,
+    ).toBe(404);
+    const listed = await disabledApp.inject({
+      method: "GET",
+      url: "/v1/runs?include=imports",
+      headers,
+    });
+    expect(listed.json().runs).toHaveLength(1);
+    const id = created.json().run.id;
+    expect(
+      (
+        await disabledApp.inject({
+          method: "DELETE",
+          url: `/v1/runs/${id}`,
+          headers,
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+  it("creates once, replays a lost response and returns an existing copy for a new operation", async () => {
+    const { app, make } = setup(true);
+    const [first, second] = await Promise.all([importRun(app), importRun(app)]);
+    expect([first!.statusCode, second!.statusCode]).toEqual([201, 201]);
+    const run = first!.json().run;
+    expect(second!.json().run.id).toBe(run.id);
+    expect(first!.json().created).toBe(true);
+    expect(run).toMatchObject({
+      name: "Run",
+      notes: null,
+      summary: {
+        activityDate: "2026-10-02",
+        timePrecision: "instant",
+        startedAt: "2026-10-01T22:30:00Z",
+        durationBasis: "active",
+        perceivedExertion: null,
+        revision: 1,
+        origin: {
+          kind: "health_import",
+          provider: "apple_health",
+          sourceAppId: "com.apple.health.watch",
+          sourceAppName: "Apple Watch",
+          externalId: "HK-0001",
+        },
+      },
+    });
+    const again = await importRun(make(), {
+      ...healthRun,
+      clientOperationId: crypto.randomUUID(),
+      durationSeconds: 1700,
+    });
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toMatchObject({ created: false, run: { id: run.id } });
+    expect(again.json().run.summary.durationSeconds).toBe(1800);
+    expect(
+      (await importRun(app, { ...healthRun, durationSeconds: 1700 }))
+        .statusCode,
+    ).toBe(409);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/v1/runs",
+          headers,
+          payload: {
+            ...payload,
+            clientOperationId: healthRun.clientOperationId,
+          },
+        })
+      ).statusCode,
+    ).toBe(409);
+    expect(
+      (await importRun(app, healthRun, { authorization: "Bearer B" }))
+        .statusCode,
+    ).toBe(201);
+  });
+  it("rejects invalid, future and forged imports", async () => {
+    const { app } = setup(true);
+    for (const patch of [
+      { provider: "garmin" },
+      { externalId: "" },
+      { externalId: "x".repeat(256) },
+      { durationBasis: "moving" },
+      { startedAt: null },
+      { startedAt: new Date(Date.now() - 60_000).toISOString() },
+      { recordingTimezone: "Mars/Olympus" },
+      { distanceMeters: 0 },
+      { activityDate: "2026-10-01" },
+      { name: "Forged" },
+      { perceivedExertion: 5 },
+      { origin: { kind: "manual" } },
+    ])
+      expect(
+        (
+          await importRun(app, {
+            ...healthRun,
+            clientOperationId: crypto.randomUUID(),
+            ...patch,
+          })
+        ).statusCode,
+      ).toBe(422);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/v1/runs/imports",
+          payload: healthRun,
+        })
+      ).statusCode,
+    ).toBe(401);
+  });
+  it("lists imports only on request and keeps provider metrics read-only on edit", async () => {
+    const { app } = setup(true);
+    await app.inject({ method: "POST", url: "/v1/runs", headers, payload });
+    const id = (await importRun(app)).json().run.id;
+    const plain = await app.inject({ method: "GET", url: "/v1/runs", headers });
+    expect(
+      plain
+        .json()
+        .runs.map((r: { summary: { origin: unknown } }) => r.summary.origin),
+    ).toEqual([{ kind: "manual" }]);
+    const all = await app.inject({
+      method: "GET",
+      url: "/v1/runs?include=imports",
+      headers,
+    });
+    expect(all.json().runs).toHaveLength(2);
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/v1/runs?include=everything",
+          headers,
+        })
+      ).statusCode,
+    ).toBe(422);
+    const edit = {
+      clientOperationId: crypto.randomUUID(),
+      expectedRevision: 1,
+      activityDate: "2026-10-02",
+      recordingTimezone: "Europe/Bratislava",
+      startedAt: "2026-10-02T00:30:00+02:00",
+      durationSeconds: 1800,
+      distanceMeters: 5012.37,
+      environment: "treadmill",
+      perceivedExertion: 7,
+      name: "Evening run",
+      notes: "Felt strong",
+    };
+    const saved = await app.inject({
+      method: "PUT",
+      url: `/v1/runs/${id}`,
+      headers,
+      payload: edit,
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().run).toMatchObject({
+      name: "Evening run",
+      notes: "Felt strong",
+      summary: {
+        environment: "treadmill",
+        perceivedExertion: 7,
+        revision: 2,
+        startedAt: "2026-10-01T22:30:00Z",
+        durationBasis: "active",
+        origin: { kind: "health_import", externalId: "HK-0001" },
+      },
+    });
+    for (const patch of [
+      { durationSeconds: 1700 },
+      { distanceMeters: null },
+      { distanceMeters: 5000 },
+      { startedAt: "2026-10-01T22:00:00Z" },
+      { startedAt: null },
+      { activityDate: "2026-10-01" },
+      { recordingTimezone: "Europe/Vienna" },
+    ])
+      expect(
+        (
+          await app.inject({
+            method: "PUT",
+            url: `/v1/runs/${id}`,
+            headers,
+            payload: {
+              ...edit,
+              clientOperationId: crypto.randomUUID(),
+              expectedRevision: 2,
+              ...patch,
+            },
+          })
+        ).statusCode,
+      ).toBe(422);
+    expect(
+      (
+        await app.inject({
+          method: "PUT",
+          url: `/v1/runs/${id}`,
+          headers: { authorization: "Bearer B" },
+          payload: { ...edit, clientOperationId: crypto.randomUUID() },
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect(
+      (await app.inject({ method: "DELETE", url: `/v1/runs/${id}`, headers }))
+        .statusCode,
+    ).toBe(200);
+    const reimported = await importRun(app, {
+      ...healthRun,
+      clientOperationId: crypto.randomUUID(),
+    });
+    expect(reimported.statusCode).toBe(201);
+    expect(reimported.json().run.id).not.toBe(id);
   });
 });

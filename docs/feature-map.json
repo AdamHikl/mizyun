@@ -276,6 +276,7 @@
         "apps/api/src/run-repository.ts",
         "apps/mobile/src/features/log-run",
         "apps/mobile/src/features/running",
+        "apps/mobile/src/features/run-import",
         "packages/core/src/running.ts",
         "packages/core/src/run-repository.ts"
       ],
@@ -307,6 +308,8 @@
         "apps/mobile/src/features/workouts/exercise-progression-data.ts",
         "apps/mobile/src/app/log-run.tsx",
         "apps/mobile/src/app/run/[id].tsx",
+        "apps/mobile/src/app/import-runs.tsx",
+        "apps/mobile/src/features/run-import/run-import-screen.tsx",
         "apps/mobile/src/features/workouts/workout-repeat.ts",
         "apps/mobile/src/features/workouts/workout-routine-suggestion-store.ts"
       ],
@@ -326,7 +329,8 @@
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260721100000_persist_002_workout_columns.sql",
         "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql",
-        "supabase/migrations/20261006120000_manual_running.sql"
+        "supabase/migrations/20261006120000_manual_running.sql",
+        "supabase/migrations/20261016120000_running_health_imports.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",
@@ -343,6 +347,8 @@
         "packages/contracts/src/run.test.ts",
         "packages/adapters/supabase-server/src/run-repository.test.ts",
         "apps/api/src/modules/runs/routes.test.ts",
+        "apps/mobile/src/features/run-import/run-import.test.ts",
+        "supabase/tests/database/0047_running_health_imports.test.sql",
         "packages/core/src/workout-routine-suggestion.test.ts",
         "apps/mobile/src/features/workouts/workout-repeat.test.ts"
       ],
@@ -368,7 +374,8 @@
         "docs/patterns/README.md#pat-003",
         "docs/adr/0040-free-exercise-catalog-and-legacy-identity.md",
         "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md",
-        "docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md"
+        "docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md",
+        "docs/adr/0065-selected-health-run-imports.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",

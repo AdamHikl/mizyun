@@ -5,8 +5,11 @@
 and `invalidateAsync()`. The JS wrapper remains usable on web and native binaries
 without this module. A native rebuild is required to enable HealthKit/Health Connect.
 
-Only `weight` and `workout` are accepted. Each permission request selects one read
-type. There are no health writes, history/background permissions, observers,
+Only `weight`, `workout` and `run` are accepted. Each permission request selects one
+read kind: `weight` and `workout` request one read type; `run` requests completed
+workouts plus walking/running distance only (HealthKit `workoutType()` and
+`distanceWalkingRunning`; Android `READ_EXERCISE` and `READ_DISTANCE`). There are no
+health writes, routes, heart rate, calories, history/background permissions, observers,
 network calls, storage, or steps/nutrition reads. The app must call `invalidateAsync`
 when clearing the preview, leaving its screen, or switching accounts. Native
 background/destruction also retire all read paging state. Pending/queued old
@@ -23,10 +26,29 @@ Recognized provider activity enums become readable names; other enums become
 `Other workout`. HealthKit uses workout duration; Health Connect uses session
 elapsed duration. No sets, calories, photos, routes, or full metadata are returned.
 
+`run` returns only running workouts: HealthKit `.running` (filtered in the query, so
+the source limit applies to runs) and Health Connect `EXERCISE_TYPE_RUNNING` /
+`EXERCISE_TYPE_RUNNING_TREADMILL` (filtered after each native page, so a page may hold
+fewer than 100 records, or none, while a continuation remains). Each run has
+`startedAt`, `endedAt`, `durationSeconds`, `durationBasis` (`active` for HealthKit
+workout duration, `elapsed` for Health Connect session end minus start),
+`distanceMeters` and `indoor`. HealthKit distance is the workout's
+`statistics(for: distanceWalkingRunning)` sum (iOS 16+; the deprecated `totalDistance`
+is not read). Health Connect distance aggregates `DistanceRecord.DISTANCE_TOTAL` over
+the session's `[start,end)` restricted to the session's own data origin, so other apps'
+or unrelated samples are not summed. Distance is `null` when unavailable, not positive,
+not permitted or revoked during the read; it is never zero-filled or estimated. Other
+distance aggregation failures fail the page (`read_failed`) instead of returning a
+transient `null`. `indoor` is HealthKit `HKMetadataKeyIndoorWorkout` (the only metadata
+key read besides the timezone), `true` for Health Connect treadmill runs and otherwise
+`null`.
+
 All results include `status`, `records`, `nextPageToken`, and `readAccess`, optionally
 a fixed `errorCode`. HealthKit read access stays `unknown` even after a successful
-permission callback or empty read. Android returns `granted` only for the selected
-type when the grant is verified. Empty HealthKit reads never prove denial or a
+permission callback or empty read. Android returns `granted` only when every permission of the
+selected kind is verified. A `run` with exercise but not distance access is `ready`
+with `readAccess: "unknown"`, returning sessions with `distanceMeters: null` and no
+error code. Empty HealthKit reads never prove denial or a
 confirmed absence of source data. Native exceptions are reduced to fixed codes.
 
 HealthKit queries at most 1,001 samples and rejects source coverage above 1,000

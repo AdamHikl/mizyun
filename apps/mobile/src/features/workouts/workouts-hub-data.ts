@@ -6,6 +6,7 @@ import {
 } from "@/features/health-exports";
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import * as Crypto from "expo-crypto";
+import { runListBaseQuery } from "@/features/running/run-list-query";
 import {
   type Result,
   isRoutineDetails,
@@ -402,7 +403,7 @@ const workoutSetsRead = (id: string): RequestOptions => ({
 const runListRead = (
   options: { cursor?: string; from?: string; to?: string } = {},
 ): RequestOptions => {
-  const query = new URLSearchParams({ limit: "50" });
+  const query = new URLSearchParams(runListBaseQuery());
   if (options.cursor) query.set("cursor", options.cursor);
   if (options.from) query.set("from", options.from);
   if (options.to) query.set("to", options.to);

@@ -32,6 +32,8 @@ export interface RunForm {
   distanceCanonicalMeters?: number | null;
   distanceCanonicalInput?: string;
   distanceCanonicalUnit?: "km" | "mi";
+  /** Imported runs: date, time, duration and distance belong to the source app. */
+  metricsLocked?: boolean;
 }
 export type RunCommand =
   | { kind: "create"; body: RunCreate }
@@ -84,6 +86,8 @@ export const isRunDraft = (value: unknown): value is RunDraft => {
   )
     return false;
   if (f.name !== undefined && typeof f.name !== "string") return false;
+  if (f.metricsLocked !== undefined && typeof f.metricsLocked !== "boolean")
+    return false;
   if (
     f.observedActivityDate !== undefined &&
     typeof f.observedActivityDate !== "string"

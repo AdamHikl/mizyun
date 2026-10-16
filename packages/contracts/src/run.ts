@@ -32,6 +32,28 @@ export const runEnvironmentSchema = z.enum([
   "unspecified",
 ]);
 
+export const runImportProviderSchema = z.enum([
+  "apple_health",
+  "health_connect",
+]);
+export type RunImportProvider = z.infer<typeof runImportProviderSchema>;
+const healthIdentifierSchema = z.string().trim().min(1).max(255);
+/** Imported runs keep their provider identity; metrics are read-only provider facts. */
+export const runHealthImportOriginSchema = z
+  .object({
+    kind: z.literal("health_import"),
+    provider: runImportProviderSchema,
+    sourceAppId: healthIdentifierSchema,
+    sourceAppName: z.string().trim().min(1).max(200).nullable(),
+    externalId: healthIdentifierSchema,
+  })
+  .strict();
+export const runOriginSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("manual") }).strict(),
+  runHealthImportOriginSchema,
+]);
+export type RunOrigin = z.infer<typeof runOriginSchema>;
+
 export const runSummarySchema = z
   .object({
     version: z.literal(1),
@@ -40,11 +62,11 @@ export const runSummarySchema = z
     timePrecision: z.enum(["day", "instant"]),
     startedAt: instantSchema.nullable(),
     durationSeconds: durationSchema,
-    durationBasis: z.literal("elapsed"),
+    durationBasis: z.enum(["elapsed", "active"]),
     distanceMeters: distanceSchema.nullable(),
     environment: runEnvironmentSchema,
     perceivedExertion: effortSchema.nullable(),
-    origin: z.object({ kind: z.literal("manual") }).strict(),
+    origin: runOriginSchema,
     timestampEnvelope: z.enum(["observed", "date_anchor"]),
     revision: z.number().int().positive(),
   })
@@ -59,6 +81,18 @@ export const runSummarySchema = z
         code: z.ZodIssueCode.custom,
         message: "Run time precision must match its timestamp source.",
         path: ["timePrecision"],
+      });
+    }
+    if (
+      value.origin.kind === "manual"
+        ? value.durationBasis !== "elapsed"
+        : value.timePrecision !== "instant"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Manual runs use elapsed duration; imported runs need a start time.",
+        path: ["origin"],
       });
     }
   });
@@ -103,6 +137,8 @@ export const runListQuerySchema = z
     to: activityDateSchema.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
     cursor: z.string().min(1).max(500).optional(),
+    /** Older clients parse only manual runs, so imported runs are opt-in. */
+    include: z.literal("imports").optional(),
   })
   .strict()
   .refine(
@@ -114,6 +150,42 @@ export const runListResponseSchema = z
   .object({ runs: z.array(runRecordSchema), nextCursor: z.string().nullable() })
   .strict();
 export type RunListResponse = z.infer<typeof runListResponseSchema>;
+/**
+ * One user-selected Health workout copied into the account. The server derives
+ * the activity date from `startedAt` in `recordingTimezone`; re-importing the
+ * same provider/source/external ID while that run exists is a no-op.
+ */
+/**
+ * Named IANA zones the database accepts (`run_validate`). Health Connect offsets
+ * such as "+02:00" or "GMT+0200" pass Intl but are not storable run zones.
+ */
+export const isStorableRunTimezone = (value: string): boolean =>
+  /^[A-Za-z_]+(\/[A-Za-z0-9_+.-]+)*$/.test(value) &&
+  !["Factory", "localtime"].includes(value) &&
+  !/^(posix|right)\//.test(value);
+export const runImportSchema = z
+  .object({
+    clientOperationId: z.string().uuid(),
+    provider: runImportProviderSchema,
+    sourceAppId: healthIdentifierSchema,
+    sourceAppName: z.string().trim().min(1).max(200).nullable(),
+    externalId: healthIdentifierSchema,
+    startedAt: instantSchema,
+    recordingTimezone: timezoneSchema.refine(
+      isStorableRunTimezone,
+      "Enter a named timezone.",
+    ),
+    durationSeconds: durationSchema,
+    durationBasis: z.enum(["elapsed", "active"]),
+    distanceMeters: distanceSchema.nullable(),
+    environment: runEnvironmentSchema,
+  })
+  .strict();
+export type RunImport = z.infer<typeof runImportSchema>;
+export const runImportResponseSchema = z
+  .object({ run: runRecordSchema, created: z.boolean() })
+  .strict();
+export type RunImportResponse = z.infer<typeof runImportResponseSchema>;
 export const runRemovedResponseSchema = z
   .object({ removed: z.literal(true) })
   .strict();

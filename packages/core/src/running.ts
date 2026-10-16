@@ -1,5 +1,15 @@
-/** Pure manual-running rules. Timestamp anchors are transport values, not observations. */
+/** Pure running rules. Timestamp anchors are transport values, not observations. */
 export type RunDistanceUnit = "km" | "mi";
+export type RunImportProviderCore = "apple_health" | "health_connect";
+export interface RunHealthImportOriginCore {
+  readonly kind: "health_import";
+  readonly provider: RunImportProviderCore;
+  readonly sourceAppId: string;
+  readonly sourceAppName: string | null;
+  readonly externalId: string;
+}
+export type RunOriginCore =
+  { readonly kind: "manual" } | RunHealthImportOriginCore;
 export interface RunSummaryCore {
   readonly version: 1;
   readonly activityDate: string;
@@ -7,11 +17,11 @@ export interface RunSummaryCore {
   readonly timePrecision: "day" | "instant";
   readonly startedAt: string | null;
   readonly durationSeconds: number;
-  readonly durationBasis: "elapsed";
+  readonly durationBasis: "elapsed" | "active";
   readonly distanceMeters: number | null;
   readonly environment: "outdoor" | "treadmill" | "unspecified";
   readonly perceivedExertion: number | null;
-  readonly origin: { readonly kind: "manual" };
+  readonly origin: RunOriginCore;
   readonly timestampEnvelope: "observed" | "date_anchor";
   readonly revision: number;
 }
@@ -44,6 +54,38 @@ export const runningDate = (date: Date, timezone: string): string => {
 };
 const object = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+const boundedText = (value: unknown, max: number): value is string =>
+  typeof value === "string" &&
+  value.length >= 1 &&
+  value.length <= max &&
+  value.trim() === value;
+/** Strictly read a run origin: exact keys, closed provider enum and bounded identifiers. */
+const validRunOrigin = (value: unknown): value is RunOriginCore => {
+  if (!object(value)) return false;
+  const keys = Object.keys(value);
+  if (value.kind === "manual") return keys.length === 1;
+  const importKeys = [
+    "kind",
+    "provider",
+    "sourceAppId",
+    "sourceAppName",
+    "externalId",
+  ];
+  return (
+    value.kind === "health_import" &&
+    keys.length === importKeys.length &&
+    keys.every((key) => importKeys.includes(key)) &&
+    (value.provider === "apple_health" ||
+      value.provider === "health_connect") &&
+    boundedText(value.sourceAppId, 255) &&
+    boundedText(value.externalId, 255) &&
+    (value.sourceAppName === null || boundedText(value.sourceAppName, 200))
+  );
+};
+export const isImportedRunSummary = (
+  summary: RunSummaryCore,
+): summary is RunSummaryCore & { readonly origin: RunHealthImportOriginCore } =>
+  summary.origin.kind === "health_import";
 export const hasRunningActivity = (
   details: Readonly<Record<string, unknown>>,
 ): boolean => details.activityType === "running";
@@ -77,10 +119,15 @@ export const readRunSummary = (
     typeof s.activityDate !== "string" ||
     !validRunningDate(s.activityDate) ||
     typeof s.recordingTimezone !== "string" ||
-    s.durationBasis !== "elapsed" ||
-    !object(s.origin) ||
-    s.origin.kind !== "manual" ||
-    Object.keys(s.origin).length !== 1
+    (s.durationBasis !== "elapsed" && s.durationBasis !== "active") ||
+    !validRunOrigin(s.origin)
+  )
+    return null;
+  // Manual runs record elapsed time; imported provider facts need an observed start.
+  if (
+    s.origin.kind === "manual"
+      ? s.durationBasis !== "elapsed"
+      : s.timePrecision !== "instant"
   )
     return null;
   if (
@@ -167,6 +214,95 @@ export const createRunSummary = (
       summary.activityDate
   )
     throw new Error("Run start does not match its activity date");
+  return summary;
+};
+export interface ImportedRunSummaryInput {
+  readonly provider: RunImportProviderCore;
+  readonly sourceAppId: string;
+  readonly sourceAppName: string | null;
+  readonly externalId: string;
+  readonly startedAt: string;
+  readonly recordingTimezone: string;
+  readonly durationSeconds: number;
+  readonly durationBasis: "elapsed" | "active";
+  readonly distanceMeters: number | null;
+  readonly environment: RunSummaryCore["environment"];
+}
+/**
+ * Build the summary for one user-selected Health workout. The activity date is
+ * the local date of the observed start in the recording timezone.
+ */
+export const createImportedRunSummary = (
+  input: ImportedRunSummaryInput,
+): RunSummaryCore => {
+  const start = new Date(input.startedAt);
+  if (!Number.isFinite(start.getTime()))
+    throw new Error("Invalid imported run start");
+  const summary: RunSummaryCore = {
+    version: 1,
+    activityDate: runningDate(start, input.recordingTimezone),
+    recordingTimezone: input.recordingTimezone,
+    timePrecision: "instant",
+    startedAt: input.startedAt,
+    durationSeconds: input.durationSeconds,
+    durationBasis: input.durationBasis,
+    distanceMeters: input.distanceMeters,
+    environment: input.environment,
+    perceivedExertion: null,
+    origin: {
+      kind: "health_import",
+      provider: input.provider,
+      sourceAppId: input.sourceAppId,
+      sourceAppName: input.sourceAppName,
+      externalId: input.externalId,
+    },
+    timestampEnvelope: "observed",
+    revision: 1,
+  };
+  if (!readRunSummary({ activityType: "running", runSummary: summary }))
+    throw new Error("Invalid imported running summary");
+  return summary;
+};
+/** Provider facts an imported run keeps for its whole life. */
+export const sameImportedRunMetrics = (
+  a: RunSummaryCore,
+  b: RunSummaryCore,
+): boolean => {
+  if (a.origin.kind !== "health_import" || b.origin.kind !== "health_import")
+    return false;
+  return (
+    a.activityDate === b.activityDate &&
+    a.recordingTimezone === b.recordingTimezone &&
+    a.timePrecision === b.timePrecision &&
+    a.startedAt === b.startedAt &&
+    a.durationSeconds === b.durationSeconds &&
+    a.durationBasis === b.durationBasis &&
+    a.distanceMeters === b.distanceMeters &&
+    a.origin.provider === b.origin.provider &&
+    a.origin.sourceAppId === b.origin.sourceAppId &&
+    a.origin.sourceAppName === b.origin.sourceAppName &&
+    a.origin.externalId === b.origin.externalId
+  );
+};
+/** Apply the user-editable fields to a stored imported run, keeping its provider facts. */
+export const reviseImportedRunSummary = (
+  stored: RunSummaryCore,
+  edits: {
+    readonly environment: RunSummaryCore["environment"];
+    readonly perceivedExertion: number | null;
+  },
+  revision: number,
+): RunSummaryCore => {
+  if (stored.origin.kind !== "health_import")
+    throw new Error("Only imported runs keep provider metrics");
+  const summary: RunSummaryCore = {
+    ...stored,
+    environment: edits.environment,
+    perceivedExertion: edits.perceivedExertion,
+    revision,
+  };
+  if (!readRunSummary({ activityType: "running", runSummary: summary }))
+    throw new Error("Invalid imported running summary");
   return summary;
 };
 /** Resolve local noon without assuming a fixed DST offset. Verify the resulting local day. */

@@ -149,6 +149,8 @@ const run = {
     distanceMeters: null,
     environment: "unspecified",
     perceivedExertion: null,
+    durationBasis: "elapsed",
+    origin: { kind: "manual" },
   },
 };
 beforeEach(() => {

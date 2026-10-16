@@ -16,13 +16,21 @@ import {
   type Href,
 } from "expo-router";
 import * as Crypto from "expo-crypto";
-import { formFromRun, parseRunForm } from "./run-form";
+import {
+  distancePatch,
+  formFromRun,
+  lastRunPatch,
+  parseRunForm,
+  quickDistances,
+} from "./run-form";
 import {
   runningDate,
   metresFromDistance,
   distanceFromMetres,
   formatRunPace,
+  formatRunDuration,
 } from "@mizyun/core";
+import type { RunRecord } from "@mizyun/contracts";
 import type { ApiClient } from "@mizyun/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -30,7 +38,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useTheme } from "@/hooks/use-theme";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
-import { getRun } from "@/features/running/client";
+import { getRun, listRuns } from "@/features/running/client";
 import {
   runDraftStore,
   hasRunDraftContent,
@@ -73,6 +81,7 @@ export function LogRunScreen() {
   const [conflict, setConflict] = useState(false);
   const [more, setMore] = useState(false);
   const [otherDraft, setOtherDraft] = useState(false);
+  const [lastRun, setLastRun] = useState<RunRecord | null>(null);
   const unit = profile?.unitSystem === "imperial" ? "mi" : "km";
   const isCurrent = () => current.current === hydrationOwner;
   const draftBelongsHere = loaded && draftOwner === hydrationOwner;
@@ -157,6 +166,21 @@ export function LogRunScreen() {
       active = false;
     };
     // Session identity retires hydration and keeps draft writes scoped to their original account.
+  }, [principal, runId]);
+  useEffect(() => {
+    // Best-effort shortcut: failures hide it and never touch the form.
+    let active = true;
+    setLastRun(null);
+    if (!userId || runId) return;
+    void (async () => {
+      const result = await listRuns(scoped);
+      if (!active || !isCurrent()) return;
+      const newest = result.ok ? result.value.runs[0] : undefined;
+      if (newest && newest.userId === userId) setLastRun(newest);
+    })().catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [principal, runId]);
   useEffect(() => {
     if (
@@ -383,7 +407,11 @@ export function LogRunScreen() {
         editable={
           !draft?.pending &&
           !busy &&
-          !(key === "activityDate" && draft?.form.startedAt)
+          !(key === "activityDate" && draft?.form.startedAt) &&
+          !(
+            draft?.form.metricsLocked &&
+            ["activityDate", "minutes", "seconds", "distance"].includes(key)
+          )
         }
         onChangeText={(text) =>
           change({
@@ -460,6 +488,22 @@ export function LogRunScreen() {
                   : "Save pending. These details stay fixed until the server confirms the result."}
               </ThemedText>
             ) : null}
+            {lastRun &&
+            !runId &&
+            !draft.pending &&
+            !draft.form.minutes &&
+            !draft.form.seconds &&
+            !draft.form.distance
+              ? button(
+                  `Same as last run · ${
+                    lastRun.summary.distanceMeters === null
+                      ? ""
+                      : `${distanceFromMetres(lastRun.summary.distanceMeters, draft.form.unit).toFixed(2)} ${draft.form.unit} · `
+                  }${formatRunDuration(lastRun.summary.durationSeconds)}`,
+                  () => change(lastRunPatch(lastRun, draft.form.unit)),
+                  busy,
+                )
+              : null}
             {field(
               draft.form.activityDate ===
                 runningDate(new Date(), draft.form.recordingTimezone)
@@ -477,12 +521,33 @@ export function LogRunScreen() {
               {field("Seconds", "seconds", "number-pad")}
             </View>
             <ThemedText type="small" themeColor="textSecondary">
-              Total time including pauses. Minutes can be greater than 59.
+              {draft.form.metricsLocked
+                ? "Date, time, duration and distance come from Health and can't be edited."
+                : "Total time including pauses. Minutes can be greater than 59."}
             </ThemedText>
             {field(
               `Distance (${draft.form.unit}, optional)`,
               "distance",
               "decimal-pad",
+            )}
+            {draft.form.metricsLocked ? null : (
+              <View style={styles.row}>
+                {quickDistances.map((q) => (
+                  <Pressable
+                    key={q.label}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Set distance to ${q.spoken}`}
+                    accessibilityState={{ disabled: !!draft.pending || busy }}
+                    disabled={!!draft.pending || busy}
+                    onPress={() =>
+                      change(distancePatch(q.meters, draft.form.unit))
+                    }
+                    style={[styles.button, { borderColor: theme.border }]}
+                  >
+                    <ThemedText>{q.label}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
             )}
             <View style={styles.row}>
               {(["km", "mi"] as const).map((u) => (

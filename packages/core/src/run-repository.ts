@@ -14,6 +14,13 @@ export interface RunListOptions {
   readonly cursor?: string | undefined;
   readonly limit: number;
   readonly accessToken: string;
+  /** Imported Health runs are opt-in so Coach and older clients see manual runs only. */
+  readonly includeImports?: boolean | undefined;
+}
+export interface RunImportResult {
+  readonly workout: StoredWorkout;
+  /** False when this provider/source/external ID already exists or the operation replays a dedupe. */
+  readonly created: boolean;
 }
 export class RunRepositoryError extends Error {
   constructor(
@@ -40,6 +47,12 @@ export interface RunRepository {
     expectedRevision: number,
     options: { accessToken: string },
   ): Promise<StoredWorkout>;
+  /** One-time copy of a user-selected Health workout; not a sync. */
+  importRun(
+    userId: UserId,
+    input: RunMutationInput,
+    options: { accessToken: string },
+  ): Promise<RunImportResult>;
   get(
     userId: UserId,
     id: string,

@@ -1,6 +1,7 @@
 import {
   Alert,
   AppState,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,6 +19,7 @@ import * as Crypto from "expo-crypto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RunCard, RunningWeek, listRuns } from "@/features/running";
+import { runImportAvailable } from "@/features/run-import";
 import { apiClient } from "@/composition/api-client";
 import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
 import type { Workout } from "@mizyun/contracts";
@@ -699,6 +701,20 @@ export function WorkoutsHubScreen() {
               accessibilityLabel="Log run"
               onPress={() => router.push("/log-run" as Href)}
             />
+            {runImportAvailable() ? (
+              <ListRow
+                key="import-runs"
+                icon="history"
+                title="Import runs"
+                subtitle={
+                  Platform.OS === "ios"
+                    ? "From Apple Health"
+                    : "From Health Connect"
+                }
+                accessibilityLabel="Import runs from Health"
+                onPress={() => router.push("/import-runs" as Href)}
+              />
+            ) : null}
             <ListRow
               key="create-routine"
               icon="add"

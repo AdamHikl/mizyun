@@ -5,6 +5,49 @@ import {
   distanceFromMetres,
 } from "@mizyun/core";
 import type { RunForm } from "./run-draft";
+export const quickDistances = [
+  { label: "5K", meters: 5000, spoken: "5 kilometres" },
+  { label: "10K", meters: 10000, spoken: "10 kilometres" },
+  { label: "Half", meters: 21097.5, spoken: "half marathon" },
+  { label: "Marathon", meters: 42195, spoken: "marathon" },
+] as const;
+// Canonical metres stay exact; the field shows a readable rounded value.
+const displayDistance = (meters: number, unit: "km" | "mi") =>
+  String(Number(distanceFromMetres(meters, unit).toFixed(2)));
+/** Sets distance to exact metres while showing the rounded value in the unit. */
+export function distancePatch(
+  meters: number | null,
+  unit: "km" | "mi",
+): Pick<
+  RunForm,
+  | "distance"
+  | "unit"
+  | "distanceCanonicalMeters"
+  | "distanceCanonicalInput"
+  | "distanceCanonicalUnit"
+> {
+  const distance = meters === null ? "" : displayDistance(meters, unit);
+  return {
+    distance,
+    unit,
+    distanceCanonicalMeters: meters,
+    distanceCanonicalInput: distance,
+    distanceCanonicalUnit: unit,
+  };
+}
+/** Copies only duration, distance, environment and name from a previous run. */
+export function lastRunPatch(
+  run: RunRecord,
+  unit: "km" | "mi",
+): Partial<RunForm> {
+  return {
+    minutes: String(Math.floor(run.summary.durationSeconds / 60)),
+    seconds: String(run.summary.durationSeconds % 60),
+    environment: run.summary.environment,
+    name: run.name,
+    ...distancePatch(run.summary.distanceMeters, unit),
+  };
+}
 export function formFromRun(run: RunRecord, unit: "km" | "mi"): RunForm {
   const distance =
     run.summary.distanceMeters === null
@@ -35,6 +78,9 @@ export function formFromRun(run: RunRecord, unit: "km" | "mi"): RunForm {
         ? ""
         : String(run.summary.perceivedExertion),
     notes: run.notes ?? "",
+    ...(run.summary.origin.kind === "health_import"
+      ? { metricsLocked: true }
+      : {}),
   };
 }
 export function parseRunForm(form: RunForm, operationId: string) {

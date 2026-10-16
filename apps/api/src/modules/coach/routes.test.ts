@@ -1365,6 +1365,62 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
     expect(limited.statusCode).toBe(429);
   });
 
+  it("never targets a run, including an imported Health run, with a workout_edit proposal", async () => {
+    const seen: { excludeRunning?: boolean; limit: number }[] = [];
+    const run = {
+      id: "00000000-0000-4000-8000-000000000056",
+      userId,
+      source: "manual" as const,
+      name: "Run",
+      startedAt: new Date("2026-08-27T06:00:00.000Z"),
+      completedAt: new Date("2026-08-27T06:30:00.000Z"),
+      notes: null,
+      details: {
+        activityType: "running",
+        workoutLifecycle: { kind: "session" },
+        runSummary: { origin: { kind: "health_import" } },
+      },
+      createdAt: new Date("2026-08-27T07:00:00.000Z"),
+      updatedAt: new Date("2026-08-27T07:00:00.000Z"),
+    };
+    const workoutRepository: WorkoutRepository = {
+      list: async (_user, options) => {
+        seen.push(options);
+        return options.excludeRunning ? [] : [run];
+      },
+      getById: async () => null,
+      create: async () => {
+        throw new Error("not implemented");
+      },
+      update: async () => {
+        throw new Error("not implemented");
+      },
+      delete: async () => true,
+    };
+    const { app } = makeApp(
+      undefined,
+      undefined,
+      undefined,
+      tokenVerifier,
+      undefined,
+      workoutRepository,
+    );
+    const id = await createConversation(app);
+    const response = await sendMessage(
+      app,
+      id,
+      "workout-edit-key-0002",
+      "Replace running with cycling in my Run workout",
+    );
+    expect(response.statusCode).toBe(200);
+    // The in-memory run repository reads all rows and filters runs itself;
+    // the workout-edit lookup (limit 50) must exclude runs at the source.
+    const editLookups = seen.filter((options) => options.limit === 50);
+    expect(editLookups).toHaveLength(1);
+    expect(editLookups[0]!.excludeRunning).toBe(true);
+    expect(JSON.stringify(response.json())).not.toContain(run.id);
+  });
+
   it("attaches a workout_edit action proposal when user asks to edit or substitute an exercise in a planned workout", async () => {
     const workoutRepository: WorkoutRepository = {
       list: async () => [

@@ -56,3 +56,4 @@ export {
 export * from "./community";
 
 export { loadMealPhotosEnabled } from "./meal-photos";
+export { runHealthImportsEnabled } from "./run-health-imports";

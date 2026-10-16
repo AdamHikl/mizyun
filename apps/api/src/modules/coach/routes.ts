@@ -1026,9 +1026,11 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           actionProposal === null &&
           isWorkoutEditProposalIntent(parsed.data.text)
         ) {
+          // Runs (manual or imported from Health) are never workout-edit targets.
           const workouts = await options.workoutRepository.list(
             principal.userId,
             {
+              excludeRunning: true,
               from: new Date(now().getTime() - 28 * 86_400_000),
               to: new Date(now().getTime() + 14 * 86_400_000),
               limit: 50,

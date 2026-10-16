@@ -1,7 +1,10 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import {
+  createImportedRunSummary,
   createRunSummary,
+  isImportedRunSummary,
   readRunSummary,
+  reviseImportedRunSummary,
   runningDate,
   runTimestampEnvelope,
   RunRepositoryError,
@@ -11,10 +14,12 @@ import {
 } from "@mizyun/core";
 import {
   runCreateSchema,
+  runImportSchema,
   runUpdateSchema,
   runListQuerySchema,
   runRecordSchema,
   type RunCreate,
+  type RunUpdate,
 } from "@mizyun/contracts";
 import { sendApiError } from "../../errors.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -101,9 +106,45 @@ const handle = async <T>(
     );
   }
 };
+/**
+ * Imported runs keep provider facts from the stored row. A client may resend
+ * them unchanged (instants compare by time), but any different value is invalid.
+ */
+const importedEdit = (
+  stored: StoredWorkout,
+  body: RunUpdate,
+): RunMutationInput | null => {
+  const summary = readRunSummary(stored.details);
+  if (!summary || !isImportedRunSummary(summary)) return null;
+  if (
+    body.activityDate !== summary.activityDate ||
+    body.recordingTimezone !== summary.recordingTimezone ||
+    body.startedAt === null ||
+    summary.startedAt === null ||
+    Date.parse(body.startedAt) !== Date.parse(summary.startedAt) ||
+    body.durationSeconds !== summary.durationSeconds ||
+    body.distanceMeters !== summary.distanceMeters
+  )
+    throw new RunRepositoryError("invalid");
+  return {
+    clientOperationId: body.clientOperationId,
+    name: body.name,
+    notes: body.notes,
+    summary: reviseImportedRunSummary(
+      summary,
+      {
+        environment: body.environment,
+        perceivedExertion: body.perceivedExertion,
+      },
+      body.expectedRevision + 1,
+    ),
+  };
+};
 export const runsRoutes: FastifyPluginAsync<{
   runRepository: RunRepository;
-}> = async (app, { runRepository: repo }) => {
+  /** Saving new Health imports is Dev-only; existing imported runs stay readable/editable. */
+  healthImportsEnabled?: boolean;
+}> = async (app, { runRepository: repo, healthImportsEnabled = false }) => {
   const auth = { preHandler: app.authenticate };
   app.get("/", auth, async (request, reply) =>
     handle(request, reply, async () => {
@@ -113,9 +154,12 @@ export const runsRoutes: FastifyPluginAsync<{
       if (q.cursor && !/^\d{4}-\d{2}-\d{2}:[0-9a-f-]{36}$/i.test(q.cursor))
         throw new RunRepositoryError("invalid");
       const rows = await repo.list(request.principal!.userId, {
-        ...q,
+        from: q.from,
+        to: q.to,
+        cursor: q.cursor,
         limit: q.limit + 1,
         accessToken: request.principal!.accessToken,
+        includeImports: q.include === "imports",
       });
       const page = rows.slice(0, q.limit).map(wire);
       const last = page.at(-1);
@@ -147,6 +191,48 @@ export const runsRoutes: FastifyPluginAsync<{
       };
     }),
   );
+  // One-time copy of a user-selected Health workout; not registered outside Dev.
+  if (healthImportsEnabled)
+    app.post("/imports", auth, async (request, reply) =>
+      handle(request, reply, async () => {
+        const parsed = runImportSchema.safeParse(request.body);
+        if (!parsed.success) throw new RunRepositoryError("invalid");
+        const body = parsed.data;
+        let mutation: RunMutationInput;
+        try {
+          const summary = createImportedRunSummary({
+            provider: body.provider,
+            sourceAppId: body.sourceAppId,
+            sourceAppName: body.sourceAppName,
+            externalId: body.externalId,
+            startedAt: body.startedAt,
+            recordingTimezone: body.recordingTimezone,
+            durationSeconds: body.durationSeconds,
+            durationBasis: body.durationBasis,
+            distanceMeters: body.distanceMeters,
+            environment: body.environment,
+          });
+          if (runTimestampEnvelope(summary).completedAt.getTime() > Date.now())
+            throw new RunRepositoryError("invalid");
+          mutation = {
+            clientOperationId: body.clientOperationId,
+            name: "Run",
+            notes: null,
+            summary,
+          };
+        } catch {
+          throw new RunRepositoryError("invalid");
+        }
+        const result = await repo.importRun(
+          request.principal!.userId,
+          mutation,
+          { accessToken: request.principal!.accessToken },
+        );
+        const run = wire(result.workout);
+        void reply.code(result.created ? 201 : 200);
+        return { run, created: result.created };
+      }),
+    );
   app.get("/:id", auth, async (request, reply) =>
     handle(request, reply, async () => {
       const { id } = request.params as { id: string };
@@ -164,9 +250,14 @@ export const runsRoutes: FastifyPluginAsync<{
       if (!UUID.test(id)) throw new RunRepositoryError("not_found");
       const parsed = runUpdateSchema.safeParse(request.body);
       if (!parsed.success) throw new RunRepositoryError("invalid");
+      const stored = await repo.get(request.principal!.userId, id, {
+        accessToken: request.principal!.accessToken,
+      });
       let mutation: RunMutationInput;
       try {
-        mutation = input(parsed.data, parsed.data.expectedRevision + 1);
+        mutation =
+          (stored && importedEdit(stored, parsed.data)) ??
+          input(parsed.data, parsed.data.expectedRevision + 1);
       } catch {
         throw new RunRepositoryError("invalid");
       }

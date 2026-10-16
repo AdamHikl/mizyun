@@ -1,4 +1,4 @@
-import { spokenRunPace } from "@/features/running/presentation";
+import { runSourceLabel, spokenRunPace } from "@/features/running/presentation";
 import { StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
 import type { RunRecord } from "@mizyun/contracts";
@@ -26,6 +26,9 @@ export function RunCard({ run, unit }: { run: RunRecord; unit: "km" | "mi" }) {
           <ThemedText type="headline">{run.name}</ThemedText>
           <ThemedText type="footnote" themeColor="textSecondary">
             {run.summary.activityDate}
+            {run.summary.origin.kind === "health_import"
+              ? ` · ${runSourceLabel(run)}`
+              : ""}
           </ThemedText>
         </View>
       </View>

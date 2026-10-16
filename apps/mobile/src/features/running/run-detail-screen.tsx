@@ -1,4 +1,8 @@
-import { spokenRunPace } from "@/features/running/presentation";
+import {
+  runDurationBasisLabel,
+  runSourceLabel,
+  spokenRunPace,
+} from "@/features/running/presentation";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet } from "react-native";
 import { router, useLocalSearchParams, type Href } from "expo-router";
@@ -173,7 +177,7 @@ export function RunDetailScreen() {
             <ThemedText>
               Duration · {formatRunDuration(run.summary.durationSeconds)}
             </ThemedText>
-            <ThemedText type="small">Total time including pauses</ThemedText>
+            <ThemedText type="small">{runDurationBasisLabel(run)}</ThemedText>
             <ThemedText>
               {run.summary.distanceMeters === null
                 ? "Distance not recorded"
@@ -196,7 +200,13 @@ export function RunDetailScreen() {
               </ThemedText>
             ) : null}
             {run.notes ? <ThemedText selectable>{run.notes}</ThemedText> : null}
-            <ThemedText type="small">Entered manually</ThemedText>
+            <ThemedText type="small">{runSourceLabel(run)}</ThemedText>
+            {run.summary.origin.kind === "health_import" ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                Date, time, duration and distance come from the source app and
+                can't be edited here. Deleting this run doesn't change Health.
+              </ThemedText>
+            ) : null}
             {action("Edit run", () =>
               router.push({
                 pathname: "/log-run",

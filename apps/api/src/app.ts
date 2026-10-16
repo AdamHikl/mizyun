@@ -24,7 +24,7 @@ import type { RunRepository } from "@mizyun/core";
 import { SupabaseRunRepository } from "@mizyun/adapter-supabase-server";
 import { InMemoryRunRepository } from "./run-repository.js";
 import { runsRoutes } from "./modules/runs/routes.js";
-import { loadMealPhotosEnabled } from "@mizyun/config";
+import { loadMealPhotosEnabled, runHealthImportsEnabled } from "@mizyun/config";
 import {
   SupabaseMealPhotoService,
   createMealPhotoStorage,
@@ -363,6 +363,8 @@ export interface AppDependencies {
   readonly exerciseRepository?: ExerciseRepository;
   readonly workoutRepository?: WorkoutRepository;
   readonly runRepository?: RunRepository;
+  /** Overrides the Dev-only Health run import switch (tests). */
+  readonly runHealthImportsEnabled?: boolean;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -1317,7 +1319,13 @@ export const buildApp = (
     prefix: "/v1/exercises",
     exerciseRepository,
   });
-  void app.register(runsRoutes, { prefix: "/v1/runs", runRepository });
+  void app.register(runsRoutes, {
+    prefix: "/v1/runs",
+    runRepository,
+    healthImportsEnabled:
+      dependencies.runHealthImportsEnabled ??
+      runHealthImportsEnabled(process.env),
+  });
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",
     workoutRepository,

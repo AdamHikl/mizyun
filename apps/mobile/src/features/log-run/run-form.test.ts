@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseRunForm, formFromRun } from "./run-form";
+import {
+  parseRunForm,
+  formFromRun,
+  distancePatch,
+  quickDistances,
+} from "./run-form";
 import type { RunForm } from "./run-draft";
 const form: RunForm = {
   activityDate: "2026-10-01",
@@ -53,6 +58,7 @@ describe("existing run edit fidelity", () => {
       distanceMeters: 100.01,
       environment: "outdoor",
       perceivedExertion: null,
+      origin: { kind: "manual" },
     },
   } as unknown as import("@mizyun/contracts").RunRecord;
   it("keeps observed start precision and name for a notes-only edit", () =>
@@ -86,4 +92,66 @@ describe("existing run edit fidelity", () => {
     expect(
       parseRunForm({ ...formFromRun(run, "mi"), distance: "1" }, id),
     ).toMatchObject({ ok: true, body: { distanceMeters: 1609.34 } }));
+});
+
+describe("quick distances", () => {
+  it.each(["km", "mi"] as const)(
+    "submits exact half marathon metres in %s",
+    (unit) => {
+      const half = quickDistances.find((q) => q.label === "Half")!;
+      const patch = distancePatch(half.meters, unit);
+      expect(patch.distanceCanonicalUnit).toBe(unit);
+      expect(patch.distance).toBe(unit === "km" ? "21.1" : "13.11");
+      expect(parseRunForm({ ...form, ...patch }, id)).toMatchObject({
+        ok: true,
+        body: { distanceMeters: 21097.5 },
+      });
+    },
+  );
+});
+describe("imported run edits", () => {
+  const imported = {
+    name: "Run",
+    notes: null,
+    summary: {
+      activityDate: "2026-10-15",
+      recordingTimezone: "Europe/Bratislava",
+      startedAt: "2026-10-15T05:00:00Z",
+      durationSeconds: 1800,
+      durationBasis: "active",
+      distanceMeters: 5012.35,
+      environment: "outdoor",
+      perceivedExertion: null,
+      origin: {
+        kind: "health_import",
+        provider: "apple_health",
+        sourceAppId: "com.example.watch",
+        sourceAppName: null,
+        externalId: "hk-1",
+      },
+    },
+  } as unknown as import("@mizyun/contracts").RunRecord;
+  it("locks provider metrics and resubmits them unchanged", () => {
+    const form = formFromRun(imported, "mi");
+    expect(form.metricsLocked).toBe(true);
+    expect(parseRunForm({ ...form, notes: "Easy" }, id)).toMatchObject({
+      ok: true,
+      body: {
+        startedAt: "2026-10-15T05:00:00Z",
+        durationSeconds: 1800,
+        distanceMeters: 5012.35,
+        notes: "Easy",
+      },
+    });
+  });
+  it("leaves manual runs editable", () =>
+    expect(
+      formFromRun(
+        {
+          ...imported,
+          summary: { ...imported.summary, origin: { kind: "manual" } },
+        } as typeof imported,
+        "km",
+      ).metricsLocked,
+    ).toBeUndefined());
 });

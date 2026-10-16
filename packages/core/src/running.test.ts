@@ -9,6 +9,10 @@ import {
   distanceFromMetres,
   readRunSummary,
   summarizeRuns,
+  createImportedRunSummary,
+  sameImportedRunMetrics,
+  reviseImportedRunSummary,
+  isImportedRunSummary,
 } from "./running";
 const input = {
   activityDate: "2026-10-06",
@@ -112,6 +116,124 @@ describe("running display and aggregation", () => {
       durationSeconds: 3600,
       distanceMeters: 5000,
       missingDistanceCount: 1,
+    });
+  });
+});
+const imported = {
+  provider: "apple_health" as const,
+  sourceAppId: "com.apple.health.watch",
+  sourceAppName: "Apple Watch",
+  externalId: "8F1C-HK-UUID",
+  startedAt: "2026-10-06T22:30:00Z",
+  recordingTimezone: "Europe/Bratislava",
+  durationSeconds: 1800,
+  durationBasis: "active" as const,
+  distanceMeters: 5012.37,
+  environment: "outdoor" as const,
+};
+const read = (runSummary: unknown) =>
+  readRunSummary({ activityType: "running", runSummary });
+describe("imported Health runs", () => {
+  it("derives the local activity date from the observed start", () => {
+    const summary = createImportedRunSummary(imported);
+    expect(summary.activityDate).toBe("2026-10-07");
+    expect(summary).toMatchObject({
+      timePrecision: "instant",
+      timestampEnvelope: "observed",
+      revision: 1,
+      perceivedExertion: null,
+      durationBasis: "active",
+      origin: {
+        kind: "health_import",
+        provider: "apple_health",
+        sourceAppId: "com.apple.health.watch",
+        sourceAppName: "Apple Watch",
+        externalId: "8F1C-HK-UUID",
+      },
+    });
+    expect(isImportedRunSummary(summary)).toBe(true);
+    expect(isImportedRunSummary(createRunSummary(input))).toBe(false);
+    expect(read(summary)).toEqual(summary);
+    expect(
+      createImportedRunSummary({ ...imported, recordingTimezone: "UTC" })
+        .activityDate,
+    ).toBe("2026-10-06");
+  });
+  it("rejects malformed origins and basis combinations", () => {
+    const summary = createImportedRunSummary(imported);
+    const origin = summary.origin;
+    for (const bad of [
+      { ...origin, extra: 1 },
+      { ...origin, provider: "garmin" },
+      { ...origin, sourceAppId: "" },
+      { ...origin, sourceAppId: " padded" },
+      { ...origin, externalId: "x".repeat(256) },
+      { ...origin, sourceAppName: "x".repeat(201) },
+      { ...origin, sourceAppName: "" },
+      { kind: "health_import" },
+      { kind: "manual", provider: "apple_health" },
+      { kind: "strava" },
+    ])
+      expect(read({ ...summary, origin: bad })).toBeNull();
+    expect(
+      read({ ...summary, origin: { ...origin, sourceAppName: null } }),
+    ).not.toBeNull();
+    expect(read({ ...summary, durationBasis: "moving" })).toBeNull();
+    // Manual runs keep elapsed time; imports need an observed instant.
+    expect(
+      read({ ...createRunSummary(input), durationBasis: "active" }),
+    ).toBeNull();
+    const dayOnly = createRunSummary(input);
+    expect(read({ ...dayOnly, origin, durationBasis: "elapsed" })).toBeNull();
+    expect(() =>
+      createImportedRunSummary({ ...imported, startedAt: "not a date" }),
+    ).toThrow();
+    expect(() =>
+      createImportedRunSummary({ ...imported, sourceAppId: "" }),
+    ).toThrow();
+  });
+  it("keeps provider metrics while allowing user edits", () => {
+    const stored = createImportedRunSummary(imported);
+    const revised = reviseImportedRunSummary(
+      stored,
+      { environment: "treadmill", perceivedExertion: 6.5 },
+      2,
+    );
+    expect(revised).toMatchObject({
+      environment: "treadmill",
+      perceivedExertion: 6.5,
+      revision: 2,
+    });
+    expect(sameImportedRunMetrics(stored, revised)).toBe(true);
+    expect(
+      sameImportedRunMetrics(stored, { ...stored, durationSeconds: 1801 }),
+    ).toBe(false);
+    expect(
+      sameImportedRunMetrics(stored, { ...stored, distanceMeters: null }),
+    ).toBe(false);
+    expect(
+      sameImportedRunMetrics(stored, {
+        ...stored,
+        origin: { ...stored.origin, externalId: "other" },
+      } as typeof stored),
+    ).toBe(false);
+    expect(sameImportedRunMetrics(stored, createRunSummary(input))).toBe(false);
+    expect(() =>
+      reviseImportedRunSummary(
+        createRunSummary(input),
+        { environment: "outdoor", perceivedExertion: null },
+        2,
+      ),
+    ).toThrow();
+  });
+  it("counts imported runs in totals like manual runs", () => {
+    const runs = [
+      { summary: createRunSummary(input) },
+      { summary: createImportedRunSummary(imported) },
+    ];
+    expect(summarizeRuns(runs, "2026-10-05", "2026-10-11")).toMatchObject({
+      count: 2,
+      durationSeconds: 3600,
     });
   });
 });

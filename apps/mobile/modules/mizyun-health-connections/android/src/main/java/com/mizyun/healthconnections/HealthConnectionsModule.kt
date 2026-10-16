@@ -6,8 +6,11 @@ import android.os.Build
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.records.metadata.DataOrigin
+import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.lifecycle.Lifecycle
@@ -87,10 +90,18 @@ class HealthConnectionsModule : Module() {
     if (code != null) put("errorCode", code)
   }
 
+  /** The permission without which a kind cannot return any record. */
   private fun permission(kind: String): String? = when (kind) {
     "weight" -> HealthPermission.getReadPermission(WeightRecord::class)
-    "workout" -> HealthPermission.getReadPermission(ExerciseSessionRecord::class)
+    "workout", "run" -> HealthPermission.getReadPermission(ExerciseSessionRecord::class)
     else -> null
+  }
+
+  /** Every permission requested for a kind. Runs add only distance (no routes/heart rate/calories). */
+  private fun requestedPermissions(kind: String): Set<String> {
+    val required = permission(kind) ?: return emptySet()
+    return if (kind == "run") setOf(required, HealthPermission.getReadPermission(DistanceRecord::class))
+    else setOf(required)
   }
 
   private fun availability(): Map<String, Any?> {
@@ -119,6 +130,7 @@ class HealthConnectionsModule : Module() {
     val available = availability()
     if (available["status"] != "ready") return available
     val required = permission(kind) ?: return result("error", code = "invalid_kind")
+    val requested = requestedPermissions(kind)
     if (!isForeground()) return result("error", code = "foreground_required")
     val context = appContext.reactContext ?: return result("unavailable")
     var deferred: CompletableDeferred<Set<String>>? = null
@@ -126,11 +138,11 @@ class HealthConnectionsModule : Module() {
     var launchSubmitted = false
     return try {
       val client = HealthConnectClient.getOrCreate(context)
-      val alreadyGranted = withTimeout(30_000) {
-        required in client.permissionController.getGrantedPermissions()
+      val grantedBefore = withTimeout(30_000) {
+        client.permissionController.getGrantedPermissions()
       }
       if (generation.get() != requestGeneration) return result("error", code = "permission_invalidated")
-      if (alreadyGranted) {
+      if (grantedBefore.containsAll(requested)) {
         return result("ready", access = "granted")
       }
       val request = CompletableDeferred<Set<String>>()
@@ -152,7 +164,7 @@ class HealthConnectionsModule : Module() {
           }
           throw IllegalStateException("permission_unavailable")
         }
-        permissionLauncher.launch(hashSetOf(required)) { granted ->
+        permissionLauncher.launch(HashSet(requested)) { granted ->
           synchronized(stateLock) {
             if (permissionLaunchId == id) {
               permissionLaunchId = null
@@ -165,8 +177,11 @@ class HealthConnectionsModule : Module() {
       }
       // Timeout cancels the waiting continuation. An outstanding system sheet
       // retains its launch gate until its callback/destruction, avoiding late-result reuse.
-      val granted = withTimeout(120_000) { request.await() }
-      if (required in granted) result("ready", access = "granted")
+      // Earlier grants remain valid even if the sheet result lists only new grants.
+      val granted = withTimeout(120_000) { request.await() } + grantedBefore
+      if (granted.containsAll(requested)) result("ready", access = "granted")
+      // Runs remain readable without distance; access is not reported as granted.
+      else if (required in granted) result("ready")
       else result("permission_required")
     } catch (_: TimeoutCancellationException) {
       result("error", code = "permission_timeout")
@@ -198,6 +213,7 @@ class HealthConnectionsModule : Module() {
       val available = availability()
       if (available["status"] != "ready") return@withLock available
       val required = permission(kind) ?: return@withLock result("error", code = "invalid_kind")
+      val requested = requestedPermissions(kind)
       val from: Instant
       val to: Instant
       try {
@@ -225,9 +241,12 @@ class HealthConnectionsModule : Module() {
       try {
         withTimeout(30_000) {
           val client = HealthConnectClient.getOrCreate(context)
-          if (required !in client.permissionController.getGrantedPermissions()) {
+          val grantedBefore = client.permissionController.getGrantedPermissions()
+          if (required !in grantedBefore) {
             return@withTimeout result("permission_required")
           }
+          // Distance is optional for runs: without it sessions are returned with null distance.
+          val distanceReadable = kind == "run" && grantedBefore.containsAll(requested)
           if (!isForeground() || generation.get() != requestGeneration) {
             return@withTimeout result("error", code = "read_invalidated")
           }
@@ -247,16 +266,24 @@ class HealthConnectionsModule : Module() {
               timeRangeFilter = TimeRangeFilter.between(from, to),
               ascendingOrder = false, pageSize = 100, pageToken = binding?.providerToken
             ))
-            records = response.records.mapNotNull { workout(it, from, to) }
+            records = if (kind == "run") {
+              response.records.mapNotNull { runSession(client, it, from, to, distanceReadable) }
+            } else {
+              response.records.mapNotNull { workout(it, from, to) }
+            }
             providerToken = response.pageToken?.takeIf { it.isNotEmpty() }
           }
           if (!isForeground() || generation.get() != requestGeneration) {
             return@withTimeout result("error", code = "read_invalidated")
           }
           // Recheck revocation before delivering this page, including cached tokens.
-          if (required !in client.permissionController.getGrantedPermissions()) {
+          val grantedAfter = client.permissionController.getGrantedPermissions()
+          if (required !in grantedAfter) {
             return@withTimeout result("permission_required")
           }
+          val access = if (grantedAfter.containsAll(requested) && (kind != "run" || distanceReadable)) {
+            "granted"
+          } else "unknown"
           synchronized(stateLock) {
             if (generation.get() != requestGeneration) return@synchronized result("error", code = "read_invalidated")
             val next = providerToken?.let {
@@ -265,7 +292,7 @@ class HealthConnectionsModule : Module() {
                 bindings[opaque] = PageBinding(kind, from, to, it, now + 300_000)
               }
             }
-            result("ready", records, next, "granted")
+            result("ready", records, next, access)
           }
         }
       } catch (_: TimeoutCancellationException) {
@@ -299,17 +326,52 @@ class HealthConnectionsModule : Module() {
     }
   }
 
-  private fun workout(record: ExerciseSessionRecord, from: Instant, to: Instant): Map<String, Any?>? {
+  /** Shared completed-session fields; null when outside the window or from an excluded source. */
+  private fun session(record: ExerciseSessionRecord, kind: String, from: Instant, to: Instant): MutableMap<String, Any?>? {
     if (record.startTime < from || record.startTime >= to || record.endTime > to || record.endTime <= record.startTime) return null
     val seconds = Duration.between(record.startTime, record.endTime).toMillis() / 1_000.0
     if (!seconds.isFinite() || seconds <= 0) return null
     return source(record.metadata.id, record.metadata.dataOrigin.packageName, record.startZoneOffset?.id)?.apply {
-      put("kind", "workout")
+      put("kind", kind)
       put("startedAt", record.startTime.toString())
       put("endedAt", record.endTime.toString())
-      put("activityType", activityName(record.exerciseType))
       put("durationSeconds", seconds)
     }
+  }
+
+  private fun workout(record: ExerciseSessionRecord, from: Instant, to: Instant): Map<String, Any?>? =
+    session(record, "workout", from, to)?.apply { put("activityType", activityName(record.exerciseType)) }
+
+  private suspend fun runSession(
+    client: HealthConnectClient, record: ExerciseSessionRecord,
+    from: Instant, to: Instant, distanceReadable: Boolean
+  ): Map<String, Any?>? {
+    val indoor: Boolean? = when (record.exerciseType) {
+      ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL -> true
+      ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> null
+      else -> return null
+    }
+    val value = session(record, "run", from, to) ?: return null
+    value["durationBasis"] = "elapsed"
+    value["distanceMeters"] = if (distanceReadable) distanceMeters(client, record) else null
+    value["indoor"] = indoor
+    return value
+  }
+
+  /**
+   * Distance is stored as separate records. Aggregate only the session's own data
+   * origin over [start, end) so other apps' or unrelated samples are not summed.
+   * Missing data, a non-positive total or revoked distance access stay unavailable (null).
+   * Other provider failures propagate so a transient failure is not reported as "no distance".
+   */
+  private suspend fun distanceMeters(client: HealthConnectClient, record: ExerciseSessionRecord): Double? = try {
+    client.aggregate(AggregateRequest(
+      metrics = setOf(DistanceRecord.DISTANCE_TOTAL),
+      timeRangeFilter = TimeRangeFilter.between(record.startTime, record.endTime),
+      dataOriginFilter = setOf(DataOrigin(record.metadata.dataOrigin.packageName))
+    ))[DistanceRecord.DISTANCE_TOTAL]?.inMeters?.takeIf { it.isFinite() && it > 0 }
+  } catch (_: SecurityException) {
+    null
   }
 
   private fun activityName(type: Int): String = when (type) {

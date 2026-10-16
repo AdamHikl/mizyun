@@ -106,3 +106,4 @@
 - [0063 — Frozen offline recipe evaluation](0063-frozen-offline-recipe-evaluation.md) — REC-06 synthetic references, immutable thresholds and qualified provider/native acceptance.
 
 - [0064 — Rate-based goal modes and weekly calorie review](0064-rate-based-goal-modes-and-weekly-calorie-review.md) — ENG-07/08 %BW modes, trend weight, adaptive maintenance and user-accepted weekly calorie proposals.
+- [0065 — Selected Health run imports](0065-selected-health-run-imports.md) — RUN-06 Dev-only user-selected Apple Health/Health Connect run copies with read-only provider metrics, dedup and Coach exclusion.

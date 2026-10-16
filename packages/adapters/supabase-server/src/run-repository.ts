@@ -76,6 +76,25 @@ export class SupabaseRunRepository implements RunRepository {
       userId,
     );
   }
+  /** The caller created the run only when the stored row carries its operation ID. */
+  async importRun(
+    userId: UserId,
+    input: RunMutationInput,
+    options: { accessToken: string },
+  ) {
+    const workout = this.owned(
+      await this.call(options.accessToken, "run_import", {
+        p_operation: input.clientOperationId,
+        p_name: input.name,
+        p_summary: input.summary,
+      }),
+      userId,
+    );
+    return {
+      workout,
+      created: workout.clientOperationId === input.clientOperationId,
+    };
+  }
   async get(userId: UserId, id: string, options: { accessToken: string }) {
     const rows = await this.call(options.accessToken, "run_get", { p_id: id });
     if (!rows[0]) return null;
@@ -87,6 +106,7 @@ export class SupabaseRunRepository implements RunRepository {
       p_to: options.to ?? null,
       p_cursor: options.cursor ?? null,
       p_limit: options.limit,
+      p_include_imports: options.includeImports === true,
     });
     if (rows.some((row) => row.user_id !== userId))
       throw new RunRepositoryError("not_found");

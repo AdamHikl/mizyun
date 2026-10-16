@@ -182,6 +182,7 @@ vi.mock("expo-secure-store", () => ({
     mocks.secure.delete(key);
   },
 }));
+vi.mock("@/features/run-import", () => ({ runImportAvailable: () => false }));
 vi.mock("@/features/health-exports", () => ({
   markFirstPartyWorkout: (details: unknown) => details,
 }));
@@ -651,7 +652,10 @@ describe("running history ownership before effects settle", () => {
     hooks.focus!();
     const client = mocks.fetch.mock.calls[0]?.[0];
     expect(client).toBeTruthy();
-    await client.request({ method: "GET", path: "/v1/runs?limit=50" });
+    await client.request({
+      method: "GET",
+      path: "/v1/runs?limit=50",
+    });
     const scopedOptions = mocks.apiRequest.mock.calls[0]?.[0];
     expect(scopedOptions.expectedUserId).toBe("user-a");
     expect(scopedOptions.isCurrent()).toBe(true);

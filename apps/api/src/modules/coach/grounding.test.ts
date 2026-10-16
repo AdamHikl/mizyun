@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createRunSummary, type UserId } from "@mizyun/core";
+import {
+  createImportedRunSummary,
+  createRunSummary,
+  type RunListOptions,
+  type UserId,
+} from "@mizyun/core";
 
 import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
@@ -510,5 +515,59 @@ describe("running grounding boundaries", () => {
     });
     expect(JSON.stringify(training.running)).not.toContain("private notes");
     expect(training.running.calorieCredit).toBe("none");
+  });
+  it("excludes imported Health runs from Coach grounding", async () => {
+    const deps = buildDeps();
+    const imported = await deps.runRepository.importRun(
+      USER_ID,
+      {
+        clientOperationId: "f2160000-0000-4000-8000-000000000004",
+        name: "Run",
+        notes: null,
+        summary: createImportedRunSummary({
+          provider: "apple_health",
+          sourceAppId: "com.apple.health.watch",
+          sourceAppName: "Apple Watch",
+          externalId: "HK-private-id",
+          startedAt: "2026-09-09T06:00:00Z",
+          recordingTimezone: "Europe/Bratislava",
+          durationSeconds: 2400,
+          durationBasis: "active",
+          distanceMeters: 6000,
+          environment: "outdoor",
+        }),
+      },
+      { accessToken: "token" },
+    );
+    expect(imported.created).toBe(true);
+    const seen: RunListOptions[] = [];
+    const runRepository = Object.assign(
+      Object.create(Object.getPrototypeOf(deps.runRepository)),
+      deps.runRepository,
+      {
+        // A repository that ignores the opt-in still cannot leak imports.
+        list: (userId: UserId, options: RunListOptions) => {
+          seen.push(options);
+          return deps.runRepository.list(userId, {
+            ...options,
+            includeImports: true,
+          });
+        },
+      },
+    );
+    for (const repo of [deps.runRepository, runRepository]) {
+      const items = await buildCoachGrounding(
+        { ...deps, runRepository: repo },
+        USER_ID,
+        "token",
+        NOW,
+      );
+      const training = items.find((item) => item.kind === "training")!
+        .data as any;
+      expect(training.running.last7Days.count).toBe(0);
+      expect(training.running.recentRuns).toEqual([]);
+      expect(JSON.stringify(items)).not.toContain("HK-private-id");
+    }
+    expect(seen[0]?.includeImports).toBeUndefined();
   });
 });

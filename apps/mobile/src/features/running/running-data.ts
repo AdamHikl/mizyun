@@ -5,6 +5,10 @@ import {
   runResponseSchema,
   runListResponseSchema,
   runRemovedResponseSchema,
+  runImportSchema,
+  runImportResponseSchema,
+  type RunImport,
+  type RunImportResponse,
   type RunCreate,
   type RunUpdate,
   type RunRecord,
@@ -12,6 +16,7 @@ import {
   type RunListResponse,
 } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
+import { runListBaseQuery } from "./run-list-query";
 export type RunResult<T> =
   { ok: true; value: T } | { ok: false; message: string; conflict?: boolean };
 const failure = (error: ApiError): RunResult<never> => ({
@@ -45,6 +50,22 @@ export async function createRun(
   return result.ok
     ? { ok: true, value: result.value.run }
     : failure(result.error);
+}
+/** Copies one user-selected Health run; an already imported run returns `created: false`. */
+export async function importRun(
+  body: RunImport,
+  client: ApiClient = apiClient,
+): Promise<RunResult<{ run: RunRecord; created: boolean }>> {
+  const parsed = runImportSchema.safeParse(body);
+  if (!parsed.success)
+    return { ok: false, message: "This Health run can't be imported." };
+  const result = await client.request<RunImportResponse>({
+    method: "POST",
+    path: "/v1/runs/imports",
+    body: parsed.data,
+    schema: runImportResponseSchema,
+  });
+  return result.ok ? { ok: true, value: result.value } : failure(result.error);
 }
 export async function updateRun(
   id: string,
@@ -84,7 +105,7 @@ export async function listRuns(
   client: ApiClient = apiClient,
   options: { cursor?: string; from?: string; to?: string } = {},
 ): Promise<RunResult<{ runs: RunRecord[]; nextCursor: string | null }>> {
-  const query = new URLSearchParams({ limit: "50" });
+  const query = new URLSearchParams(runListBaseQuery());
   if (options.cursor) query.set("cursor", options.cursor);
   if (options.from) query.set("from", options.from);
   if (options.to) query.set("to", options.to);

@@ -40,7 +40,7 @@ const queryKeys: Readonly<Record<string, ReadonlyArray<string>>> = {
   ],
   "/v1/food-entries/summary": ["date", "from", "to", "utcOffsetMinutes"],
   "/v1/workouts": ["limit", "cursor", "from", "to", "kind"],
-  "/v1/runs": ["limit", "cursor", "from", "to"],
+  "/v1/runs": ["limit", "cursor", "from", "to", "include"],
   "/v1/coach/conversations": ["limit", "cursor"],
 };
 

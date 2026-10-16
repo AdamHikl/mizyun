@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import {
   RunRepositoryError,
+  readRunSummary,
   runTimestampEnvelope,
+  sameImportedRunMetrics,
+  type RunImportResult,
+  type RunSummaryCore,
   type RunRepository,
   type RunMutationInput,
   type RunListOptions,
@@ -11,7 +15,7 @@ import {
 } from "@mizyun/core";
 
 interface Receipt {
-  kind: "create" | "update";
+  kind: "create" | "update" | "import";
   digest: string | null;
   runId: string | null;
   deleted: boolean;
@@ -29,6 +33,16 @@ const canonical = (value: unknown): string => {
 const digest = (input: RunMutationInput) =>
   createHash("sha256").update(canonical(input)).digest("hex");
 const isRun = (w: StoredWorkout) => w.details.activityType === "running";
+const summaryOf = (w: StoredWorkout): RunSummaryCore | null =>
+  readRunSummary(w.details);
+const importIdentity = (summary: RunSummaryCore | null): string | null =>
+  summary?.origin.kind === "health_import"
+    ? JSON.stringify([
+        summary.origin.provider,
+        summary.origin.sourceAppId,
+        summary.origin.externalId,
+      ])
+    : null;
 export class InMemoryRunRepository implements RunRepository {
   private readonly receipts = new Map<string, Receipt>();
   private tail: Promise<unknown> = Promise.resolve();
@@ -76,6 +90,11 @@ export class InMemoryRunRepository implements RunRepository {
     });
     return rows
       .filter(isRun)
+      .filter(
+        (w) =>
+          options.includeImports === true ||
+          summaryOf(w)?.origin.kind === "manual",
+      )
       .filter((w) => {
         const date = (w.details.runSummary as { activityDate: string })
           .activityDate;
@@ -110,6 +129,71 @@ export class InMemoryRunRepository implements RunRepository {
         if (!row) throw new RunRepositoryError("removed");
         return row;
       }
+      if (input.summary.origin.kind !== "manual")
+        throw new RunRepositoryError("invalid");
+      return this.insert(userId, input, "create", options);
+    });
+  }
+  importRun(
+    userId: UserId,
+    input: RunMutationInput,
+    options: { accessToken: string },
+  ): Promise<RunImportResult> {
+    return this.atomic(async () => {
+      const key = this.key(userId, input.clientOperationId);
+      const receipt = this.receipts.get(key);
+      const result = (workout: StoredWorkout): RunImportResult => ({
+        workout,
+        created: workout.clientOperationId === input.clientOperationId,
+      });
+      if (receipt) {
+        if (receipt.deleted) throw new RunRepositoryError("removed");
+        if (receipt.kind !== "import" || receipt.digest !== digest(input))
+          throw new RunRepositoryError("conflict");
+        const row = receipt.runId
+          ? await this.get(userId, receipt.runId, options)
+          : null;
+        if (!row) throw new RunRepositoryError("removed");
+        return result(row);
+      }
+      const identity = importIdentity(input.summary);
+      if (
+        identity === null ||
+        input.summary.revision !== 1 ||
+        input.summary.perceivedExertion !== null
+      )
+        throw new RunRepositoryError("invalid");
+      const rows = await this.workouts.list(userId, {
+        from: null,
+        to: null,
+        limit: Number.MAX_SAFE_INTEGER,
+        accessToken: options.accessToken,
+      });
+      const existing = rows.find(
+        (w) => isRun(w) && importIdentity(summaryOf(w)) === identity,
+      );
+      if (existing) {
+        this.receipts.set(key, {
+          kind: "import",
+          digest: digest(input),
+          runId: existing.id,
+          deleted: false,
+          revision: 0,
+        });
+        return result(existing);
+      }
+      return result(await this.insert(userId, input, "import", options));
+    });
+  }
+  /** Caller holds the atomic section. */
+  private async insert(
+    userId: UserId,
+    input: RunMutationInput,
+    kind: "create" | "import",
+    options: { accessToken: string },
+  ): Promise<StoredWorkout> {
+    {
+      const key = this.key(userId, input.clientOperationId);
       const now = new Date();
       const envelope = runTimestampEnvelope(input.summary);
       const rowId = crypto.randomUUID();
@@ -121,6 +205,7 @@ export class InMemoryRunRepository implements RunRepository {
           clientOperationId: input.clientOperationId,
           name: input.name,
           notes: input.notes,
+          // WorkoutSource is closed to "manual"; SQL stores imports as "health_import".
           source: "manual",
           ...envelope,
           details: {
@@ -135,14 +220,14 @@ export class InMemoryRunRepository implements RunRepository {
       );
       if (row.id !== rowId) throw new RunRepositoryError("conflict");
       this.receipts.set(key, {
-        kind: "create",
+        kind,
         digest: digest(input),
         runId: row.id,
         deleted: false,
         revision: 1,
       });
       return row;
-    });
+    }
   }
   update(
     userId: UserId,
@@ -177,6 +262,14 @@ export class InMemoryRunRepository implements RunRepository {
       }
       if (revision !== expectedRevision)
         throw new RunRepositoryError("conflict");
+      // Mirror SQL: imported provider facts are read-only; origins never switch.
+      const stored = summaryOf(row);
+      if (
+        stored?.origin.kind === "health_import"
+          ? !sameImportedRunMetrics(stored, input.summary)
+          : input.summary.origin.kind !== "manual"
+      )
+        throw new RunRepositoryError("invalid");
       const next = await this.workouts.update(
         {
           ...row,

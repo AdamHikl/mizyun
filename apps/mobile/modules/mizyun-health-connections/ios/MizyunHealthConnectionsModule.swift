@@ -47,7 +47,7 @@ public final class MizyunHealthConnectionsModule: Module {
       }
       self.permissionTimeout = timeout
       DispatchQueue.main.asyncAfter(deadline: .now() + 120, execute: timeout)
-      self.healthStore.requestAuthorization(toShare: [], read: [type]) { [weak self] completed, error in
+      self.healthStore.requestAuthorization(toShare: [], read: self.readTypes(kind, type)) { [weak self] completed, error in
         DispatchQueue.main.async {
           guard let self else { return }
           self.permissionTimeout?.cancel()
@@ -76,9 +76,24 @@ public final class MizyunHealthConnectionsModule: Module {
   private func sampleType(_ kind: String) -> HKSampleType? {
     switch kind {
     case "weight": return HKObjectType.quantityType(forIdentifier: .bodyMass)
-    case "workout": return HKObjectType.workoutType()
+    case "workout", "run": return HKObjectType.workoutType()
     default: return nil
     }
+  }
+
+  /// Read types requested for one kind. Runs add only walking/running distance,
+  /// used for workout statistics; no routes, heart rate or energy are requested.
+  private func readTypes(_ kind: String, _ type: HKSampleType) -> Set<HKObjectType> {
+    kind == "run" ? [type, HKQuantityType(.distanceWalkingRunning)] : [type]
+  }
+
+  private func predicate(_ kind: String, _ from: Date, _ to: Date) -> NSPredicate {
+    let window = HKQuery.predicateForSamples(withStart: from, end: to, options: [.strictStartDate])
+    guard kind == "run" else { return window }
+    // Filter in HealthKit so the 1,001-sample limit applies to running workouts only.
+    return NSCompoundPredicate(andPredicateWithSubpredicates: [
+      window, HKQuery.predicateForWorkouts(with: .running)
+    ])
   }
 
   private func result(
@@ -142,9 +157,9 @@ public final class MizyunHealthConnectionsModule: Module {
       promise.resolve(result("error", code: "read_busy")); return
     }
     let requestGeneration = generation
-    let predicate = HKQuery.predicateForSamples(withStart: from, end: to, options: [.strictStartDate])
+    let samplePredicate = predicate(kind, from, to)
     let query = HKSampleQuery(
-      sampleType: type, predicate: predicate, limit: 1_001,
+      sampleType: type, predicate: samplePredicate, limit: 1_001,
       sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
     ) { [weak self] query, samples, error in
       DispatchQueue.main.async {
@@ -208,7 +223,7 @@ public final class MizyunHealthConnectionsModule: Module {
     let source = sample.sourceRevision.source
     guard !ownSources.contains(source.bundleIdentifier), !source.bundleIdentifier.isEmpty,
           sample.startDate >= from, sample.startDate < to else { return nil }
-    // Only this one whitelisted metadata field is read; no full metadata crosses JS.
+    // Only whitelisted metadata keys are read (timezone; indoor for runs); no full metadata crosses JS.
     let timeZone = (sample.metadata?[HKMetadataKeyTimeZone] as? String)
       .flatMap { TimeZone(identifier: $0)?.identifier }
     var value: [String: Any] = [
@@ -222,16 +237,37 @@ public final class MizyunHealthConnectionsModule: Module {
       guard kg.isFinite, kg > 0 else { return nil }
       value["measuredAt"] = iso(sample.startDate)
       value["weightKg"] = kg
-    } else if kind == "workout", let workout = sample as? HKWorkout {
-      guard workout.endDate > workout.startDate, workout.endDate <= to,
-            workout.duration.isFinite, workout.duration >= 0,
-            workout.duration <= workout.endDate.timeIntervalSince(workout.startDate) else { return nil }
+    } else if kind == "workout", let workout = sample as? HKWorkout, completed(workout, to) {
       value["startedAt"] = iso(workout.startDate)
       value["endedAt"] = iso(workout.endDate)
       value["activityType"] = activityName(workout.workoutActivityType)
       value["durationSeconds"] = workout.duration
+    } else if kind == "run", let workout = sample as? HKWorkout,
+              workout.workoutActivityType == .running, completed(workout, to) {
+      value["startedAt"] = iso(workout.startDate)
+      value["endedAt"] = iso(workout.endDate)
+      value["durationSeconds"] = workout.duration
+      value["durationBasis"] = "active"
+      value["distanceMeters"] = distanceMeters(workout) as Any? ?? NSNull()
+      // Only the indoor flag is read in addition to the timezone key.
+      value["indoor"] = (workout.metadata?[HKMetadataKeyIndoorWorkout] as? Bool) as Any? ?? NSNull()
     } else { return nil }
     return value
+  }
+
+  private func completed(_ workout: HKWorkout, _ to: Date) -> Bool {
+    workout.endDate > workout.startDate && workout.endDate <= to &&
+      workout.duration.isFinite && workout.duration >= 0 &&
+      workout.duration <= workout.endDate.timeIntervalSince(workout.startDate)
+  }
+
+  /// Workout statistics (iOS 16+, the module's floor is 16.4) rather than the
+  /// deprecated `totalDistance`. Missing or non-positive sums stay unavailable.
+  private func distanceMeters(_ workout: HKWorkout) -> Double? {
+    guard let sum = workout.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()
+    else { return nil }
+    let meters = sum.doubleValue(for: .meter())
+    return meters.isFinite && meters > 0 ? meters : nil
   }
 
   private func activityName(_ type: HKWorkoutActivityType) -> String {

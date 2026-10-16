@@ -92,9 +92,11 @@ export const buildCoachGrounding = async (
         accessToken,
       })
     : [];
+  // Imported Health runs are excluded from AI grounding pending a product decision;
+  // the list omits them by default and this filter keeps that boundary local.
   const runs = runRows.slice(0, 100).flatMap((row) => {
     const summary = readRunSummary(row.details);
-    return summary ? [{ summary }] : [];
+    return summary?.origin.kind === "manual" ? [{ summary }] : [];
   });
   const runLast7Days = summarizeRuns(
     runs,

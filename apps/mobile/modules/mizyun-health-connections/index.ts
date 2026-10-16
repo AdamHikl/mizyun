@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from "expo";
 
-export type HealthConnectionKind = "weight" | "workout";
+export type HealthConnectionKind = "weight" | "workout" | "run";
 export type HealthConnectionProvider = "apple_health" | "health_connect";
 
 interface HealthConnectionSource {
@@ -25,8 +25,22 @@ export interface HealthConnectionWorkout extends HealthConnectionSource {
   durationSeconds: number;
 }
 
+/** A completed running workout. Distance is never zero-filled or estimated. */
+export interface HealthConnectionRun extends HealthConnectionSource {
+  kind: "run";
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+  /** HealthKit workout duration is "active"; Health Connect session end-start is "elapsed". */
+  durationBasis: "active" | "elapsed";
+  /** Source distance in metres, or null when unavailable, not permitted or not positive. */
+  distanceMeters: number | null;
+  /** True for indoor/treadmill runs, false only when the source says outdoor, otherwise null. */
+  indoor: boolean | null;
+}
+
 export type HealthConnectionRecord =
-  HealthConnectionWeight | HealthConnectionWorkout;
+  HealthConnectionWeight | HealthConnectionWorkout | HealthConnectionRun;
 
 export interface HealthConnectionResult {
   status:
