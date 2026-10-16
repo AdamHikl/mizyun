@@ -2,6 +2,12 @@
 
 > Planned 2026-10-16 (Claude Code). Package [BOULDER-001/#276](https://github.com/AdamHikl/mizyun/issues/276). Planning only: no runtime code, migration, build, deployment or provider call was made. Stages BLD-00 to BLD-06 below are proposals until each stage's exit criteria are evidenced.
 
+## Implementation progress (2026-10-16, Claude Code)
+
+Source-level implementation of BLD-00 to BLD-06 (challenge days) is committed on branch `worktree-bridge-cse_018Ygr4LHdqMb1XUUaMc7i8W`; nothing is deployed. Each stage is one commit: BLD-00 `1a7c2d42`, BLD-01 `4af310c2`, BLD-02 `c9014780`, BLD-03 `68fe626c`, BLD-04 `94206c73` (+ Coach route fix `2d95a404`), BLD-05 `c872098e`, BLD-06 (this commit). Migrations `20261016140000`, `20261016160000`, `20261016180000`, `20261016200000`; pgTAP `0048`–`0051`. Independent non-author Opus reviews of BLD-02, BLD-04 (server) and BLD-05 (server) found no blockers; their should-fix items are resolved. Decisions that differ from this plan are recorded in [ADR-0066](adr/0066-indoor-bouldering-sessions.md) and [ADR-0067](adr/0067-explicit-community-bouldering-publication.md): cross-kind active-session blocking is a client rule; projects are removed with their last boulder and Try again accepts archived projects; Community cards are sent only to clients declaring the kind; edits that don't change shared data don't revoke a card.
+
+Open exits: full `pnpm db:verify` on the disposable Mac database (pgTAP files were run individually inside rolled-back transactions against the shared local container); Adam's review of the ADR-0066 sketches; iOS simulator and paired-simulator journeys; Dev deployment and iPhone acceptance; Android; VoiceOver/largest text. The photo-on-card part of BLD-06 is deferred: it needs a new ADR and Adam's decision after using BLD-05.
+
 ## A. Context and scope
 
 ### Product decision
