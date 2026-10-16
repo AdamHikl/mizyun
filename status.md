@@ -23,7 +23,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#276 bouldering:** [plan](docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md) only; next BLD-00. **Share sheet:** live preview polish; device check open.
+- **#276 bouldering:** BLD-00–06 source 641549ed; gate/db:verify/3 reviews PASS; undeployed. Next sim/Dev. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). **Share sheet:** device check open.
 - **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok; gatePASS. Dev deployed; iPhone Dev check next. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
 - **Community audit (Oct15):** 8b9fc0d5; review/gatePASS; Dev/device open. #265 needs Adam. [Evidence](docs/COMMUNITY_AUDIT_FIXES_2026-10-15.md)
 - **#253–#257:** e2ee8b3a habit automation; reviews/gatePASS; Dev1642d9dd; ship app before Prod (old builds hide weekly). [Evidence](docs/HABIT_AUTOMATION_EVIDENCE_2026-10-15.md)
