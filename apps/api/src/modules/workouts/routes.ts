@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
+  isNonStrengthWorkoutDetails,
   applyWorkoutPatch,
   isRoutineDetails,
   readWorkoutLifecycle,
@@ -30,8 +31,8 @@ interface WorkoutsRoutesOptions {
   readonly communityRepository?: CommunityRepository;
 }
 
-const isRun = (details: Readonly<Record<string, unknown>>) =>
-  details.activityType === "running" || "runSummary" in details;
+/** Running and bouldering sessions use their own write paths. */
+const isRun = isNonStrengthWorkoutDetails;
 
 const GENERIC_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -192,7 +193,7 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         from,
         to,
         limit: cappedLimit,
-        excludeRunning: true,
+        excludeNonStrength: true,
         ...(parsed.data.kind !== undefined ? { kind: parsed.data.kind } : {}),
         accessToken: principal.accessToken,
       });
@@ -232,7 +233,7 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
           request,
           409,
           "CONFLICT",
-          "Use run logging to save a run.",
+          "Save runs and bouldering sessions from their own logging screens.",
         );
         return;
       }
@@ -559,7 +560,7 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
           request,
           409,
           "CONFLICT",
-          "Use run logging to edit a run.",
+          "Edit runs and bouldering sessions from their own logging screens.",
         );
         return;
       }
@@ -655,7 +656,7 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
           request,
           409,
           "CONFLICT",
-          "Use run logging to delete a run.",
+          "Delete runs and bouldering sessions from their own logging screens.",
         );
         return;
       }

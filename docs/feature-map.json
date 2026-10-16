@@ -262,7 +262,8 @@
         "apps/api/src/modules/exercises/routes.ts",
         "apps/mobile/src/features/workouts/index.ts",
         "apps/api/src/modules/runs/routes.ts",
-        "apps/mobile/src/features/log-run/index.ts"
+        "apps/mobile/src/features/log-run/index.ts",
+        "apps/api/src/modules/bouldering/routes.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -281,13 +282,20 @@
         "apps/mobile/src/features/running",
         "apps/mobile/src/features/run-import",
         "packages/core/src/running.ts",
-        "packages/core/src/run-repository.ts"
+        "packages/core/src/run-repository.ts",
+        "apps/api/src/modules/bouldering",
+        "apps/api/src/bouldering-repository.ts",
+        "packages/core/src/bouldering.ts",
+        "packages/core/src/bouldering-grades.ts",
+        "packages/core/src/bouldering-repository.ts",
+        "packages/config/src/bouldering.ts"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
         "packages/contracts/src/workout-set.ts",
         "packages/contracts/src/exercise.ts",
-        "packages/contracts/src/run.ts"
+        "packages/contracts/src/run.ts",
+        "packages/contracts/src/bouldering.ts"
       ],
       "domainPort": [
         "packages/core/src/workout.ts",
@@ -297,12 +305,16 @@
         "packages/core/src/exercise-catalog.ts",
         "packages/core/src/running.ts",
         "packages/core/src/run-repository.ts",
-        "packages/core/src/workout-routine-suggestion.ts"
+        "packages/core/src/workout-routine-suggestion.ts",
+        "packages/core/src/bouldering.ts",
+        "packages/core/src/bouldering-grades.ts",
+        "packages/core/src/bouldering-repository.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
         "apps/api/src/modules/workout-sets/routes.ts",
-        "apps/api/src/modules/exercises/routes.ts"
+        "apps/api/src/modules/exercises/routes.ts",
+        "apps/api/src/modules/bouldering/routes.ts"
       ],
       "ui": [
         "apps/mobile/src/app/(tabs)/workouts.tsx",
@@ -320,20 +332,24 @@
         "packages/adapters/supabase-server/src/workout-repository.ts",
         "packages/adapters/supabase-server/src/workout-set-repository.ts",
         "packages/adapters/supabase-server/src/exercise-repository.ts",
-        "packages/adapters/supabase-server/src/run-repository.ts"
+        "packages/adapters/supabase-server/src/run-repository.ts",
+        "packages/adapters/supabase-server/src/bouldering-repository.ts"
       ],
       "dataTables": [
         "exercises",
         "workouts",
         "workout_sets",
-        "run_operation_receipts"
+        "run_operation_receipts",
+        "boulder_ascents",
+        "boulder_operation_receipts"
       ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260721100000_persist_002_workout_columns.sql",
         "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql",
         "supabase/migrations/20261006120000_manual_running.sql",
-        "supabase/migrations/20261016120000_running_health_imports.sql"
+        "supabase/migrations/20261016120000_running_health_imports.sql",
+        "supabase/migrations/20261016140000_indoor_bouldering.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",
@@ -353,7 +369,13 @@
         "apps/mobile/src/features/run-import/run-import.test.ts",
         "supabase/tests/database/0047_running_health_imports.test.sql",
         "packages/core/src/workout-routine-suggestion.test.ts",
-        "apps/mobile/src/features/workouts/workout-repeat.test.ts"
+        "apps/mobile/src/features/workouts/workout-repeat.test.ts",
+        "packages/core/src/bouldering.test.ts",
+        "packages/core/src/bouldering-grades.test.ts",
+        "packages/contracts/src/bouldering.test.ts",
+        "packages/adapters/supabase-server/src/bouldering-repository.test.ts",
+        "apps/api/src/modules/bouldering/routes.test.ts",
+        "supabase/tests/database/0048_indoor_bouldering.test.sql"
       ],
       "relations": [
         {
@@ -384,7 +406,9 @@
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
-        "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout"
+        "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout",
+        "pnpm --filter @mizyun/api test src/modules/bouldering",
+        "pnpm --filter @mizyun/core test src/bouldering"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",

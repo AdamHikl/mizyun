@@ -113,6 +113,7 @@ const accountExportToWire = (
       mealImagePaths: exportDoc.mealImagePaths,
       recurringMeals: exportDoc.recurringMeals,
       runOperationReceipts: exportDoc.runOperationReceipts,
+      bouldering: exportDoc.bouldering,
       productAnalytics: analytics
         ? {
             catalog: catalog ?? "legacy-v2",

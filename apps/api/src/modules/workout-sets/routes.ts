@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
+  isNonStrengthWorkoutDetails,
   summariseExerciseSets,
   validateWorkoutSetCreate,
   isRoutineDetails,
@@ -189,8 +190,7 @@ const getOwnedWorkout = async (
   if (
     workout === null ||
     workout.userId !== userId ||
-    workout.details.activityType === "running" ||
-    "runSummary" in workout.details
+    isNonStrengthWorkoutDetails(workout.details)
   )
     return null;
   return workout;

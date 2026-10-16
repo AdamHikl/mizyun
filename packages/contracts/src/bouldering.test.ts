@@ -59,9 +59,15 @@ describe("bouldering contracts", () => {
     ).toBe(false);
   });
   it("finish and update schemas", () => {
-    expect(boulderSessionFinishSchema.parse({}).notes).toBeNull();
     expect(
-      boulderSessionFinishSchema.safeParse({ notes: "x".repeat(4001) }).success,
+      boulderSessionFinishSchema.parse({ clientOperationId: id }).notes,
+    ).toBeNull();
+    expect(boulderSessionFinishSchema.safeParse({}).success).toBe(false);
+    expect(
+      boulderSessionFinishSchema.safeParse({
+        clientOperationId: id,
+        notes: "x".repeat(4001),
+      }).success,
     ).toBe(false);
     expect(boulderSessionUpdateSchema.safeParse({}).success).toBe(false);
     expect(

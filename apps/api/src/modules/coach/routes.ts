@@ -1030,7 +1030,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           const workouts = await options.workoutRepository.list(
             principal.userId,
             {
-              excludeRunning: true,
+              excludeNonStrength: true,
               from: new Date(now().getTime() - 28 * 86_400_000),
               to: new Date(now().getTime() + 14 * 86_400_000),
               limit: 50,

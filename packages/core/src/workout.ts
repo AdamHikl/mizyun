@@ -260,7 +260,8 @@ export interface WorkoutRepository {
       readonly to: Date | null;
       readonly limit: number;
       readonly kind?: "routine" | "session" | undefined;
-      readonly excludeRunning?: boolean;
+      /** Omit running and bouldering sessions (NON_STRENGTH_ACTIVITY_TYPES). */
+      readonly excludeNonStrength?: boolean;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>>;

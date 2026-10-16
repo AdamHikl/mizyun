@@ -139,7 +139,7 @@ const loadEnergyContext = async (
       accessToken,
     }),
     deps.workoutRepository.list(userId, {
-      excludeRunning: true,
+      excludeNonStrength: true,
       from,
       to: now,
       limit: 100,
@@ -231,7 +231,7 @@ export const buildTrainingPrescriptionForUser = async (
     deps.profileRepository.getOrCreate(userId, { now, accessToken }),
     deps.goalRepository.getActive(userId, { accessToken }),
     deps.workoutRepository.list(userId, {
-      excludeRunning: true,
+      excludeNonStrength: true,
       from,
       to: now,
       limit: 100,
@@ -350,7 +350,7 @@ export const buildWeeklyAdaptationForUser = async (
     await loadEnergyContext(deps, userId, accessToken, now);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
   const workoutsLast7Days = await deps.workoutRepository.list(userId, {
-    excludeRunning: true,
+    excludeNonStrength: true,
     from: sevenDaysAgo,
     to: now,
     limit: 50,
@@ -503,7 +503,7 @@ export const buildGetRecentWorkoutsTool = (
       const now = resolveClock(deps, clock).now();
       const from = new Date(now.getTime() - daysBack * 86_400_000);
       const workouts = await deps.workoutRepository.list(principalUserId, {
-        excludeRunning: true,
+        excludeNonStrength: true,
         from,
         to: now,
         limit: 100,
@@ -592,7 +592,7 @@ export const buildGetAvailableRoutinesTool = (
     execute: async ({ principalUserId, args, accessToken, clock }) => {
       const now = resolveClock(deps, clock).now();
       const workouts = await deps.workoutRepository.list(principalUserId, {
-        excludeRunning: true,
+        excludeNonStrength: true,
         from: null,
         to: null,
         limit: 100,

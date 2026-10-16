@@ -195,3 +195,36 @@ describe("SupabaseWorkoutRepository.delete", () => {
     expect(removed).toBe(true);
   });
 });
+
+describe("SupabaseWorkoutRepository non-strength exclusion", () => {
+  it("filters running and bouldering in the query, before the limit", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    const builder: Record<string, unknown> = {};
+    for (const name of ["select", "eq", "order", "limit", "or", "is"])
+      builder[name] = (...args: unknown[]) => {
+        calls.push([name, args]);
+        return builder;
+      };
+    builder.then = (resolve: (v: RepositoryListResult<unknown>) => void) =>
+      resolve({ data: [], error: null });
+    const repo = new SupabaseWorkoutRepository({
+      clientFor: () =>
+        ({ from: () => builder }) as unknown as RepositorySupabaseClient,
+    } as never);
+    await repo.list("00000000-0000-4000-8000-000000000001" as UserId, {
+      from: null,
+      to: null,
+      limit: 5,
+      excludeNonStrength: true,
+      accessToken: "t",
+    });
+    expect(calls).toContainEqual([
+      "or",
+      [
+        "details->>activityType.is.null,details->>activityType.not.in.(running,bouldering)",
+      ],
+    ]);
+    expect(calls).toContainEqual(["is", ["details->runSummary", null]]);
+    expect(calls).toContainEqual(["is", ["details->boulderSession", null]]);
+  });
+});

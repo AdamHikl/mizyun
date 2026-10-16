@@ -1,5 +1,9 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
-import { isSessionDetails, validateContentSafety } from "@mizyun/core";
+import {
+  isNonStrengthWorkoutDetails,
+  isSessionDetails,
+  validateContentSafety,
+} from "@mizyun/core";
 import type {
   CommunityRepository,
   FoodEntryRepository,
@@ -143,8 +147,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
       }
 
       if (
-        workout.details.activityType === "running" ||
-        "runSummary" in workout.details ||
+        isNonStrengthWorkoutDetails(workout.details) ||
         workout.completedAt === null ||
         !isSessionDetails(workout.details)
       ) {
@@ -310,8 +313,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
       }
 
       if (
-        workout.details.activityType === "running" ||
-        "runSummary" in workout.details ||
+        isNonStrengthWorkoutDetails(workout.details) ||
         workout.completedAt === null ||
         !isSessionDetails(workout.details)
       ) {

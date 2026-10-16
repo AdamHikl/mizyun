@@ -136,8 +136,10 @@ export {
 
 export {
   NOTES_MAX,
+  NON_STRENGTH_ACTIVITY_TYPES,
   WORKOUT_NAME_MAX,
   applyWorkoutPatch,
+  isNonStrengthWorkoutDetails,
   validateWorkoutCreate,
   validateWorkoutPatch,
   type StoredWorkout,

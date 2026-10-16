@@ -239,6 +239,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     let recurringMeals: AccountExport["recurringMeals"];
     let calorieAdjustmentProposals: AccountExport["calorieAdjustmentProposals"];
     let runOperationReceipts: AccountExport["runOperationReceipts"];
+    let bouldering: AccountExport["bouldering"];
     let mealImagePaths: AccountExport["mealImagePaths"];
 
     if (this.#clientFor !== null) {
@@ -267,6 +268,24 @@ export class SupabaseAccountRepository implements AccountRepository {
         true,
         "operation_id",
       );
+      bouldering = {
+        ascents: await fetchAllPaged(
+          client,
+          "boulder_ascents",
+          "user_id",
+          userId,
+          "logged_at",
+        ),
+        receipts: await fetchAllPaged(
+          client,
+          "boulder_operation_receipts",
+          "user_id",
+          userId,
+          "created_at",
+          true,
+          "operation_id",
+        ),
+      };
       recurringMeals = {
         schedules: await fetchAllPaged(
           client,
@@ -719,6 +738,7 @@ export class SupabaseAccountRepository implements AccountRepository {
       ...(recurringMeals ? { recurringMeals } : {}),
       ...(calorieAdjustmentProposals ? { calorieAdjustmentProposals } : {}),
       ...(runOperationReceipts ? { runOperationReceipts } : {}),
+      ...(bouldering ? { bouldering } : {}),
       userId,
       generatedAt: now,
       profile,

@@ -24,7 +24,15 @@ import type { RunRepository } from "@mizyun/core";
 import { SupabaseRunRepository } from "@mizyun/adapter-supabase-server";
 import { InMemoryRunRepository } from "./run-repository.js";
 import { runsRoutes } from "./modules/runs/routes.js";
-import { loadMealPhotosEnabled, runHealthImportsEnabled } from "@mizyun/config";
+import type { BoulderingRepository } from "@mizyun/core";
+import { SupabaseBoulderingRepository } from "@mizyun/adapter-supabase-server";
+import { InMemoryBoulderingRepository } from "./bouldering-repository.js";
+import { boulderingRoutes } from "./modules/bouldering/routes.js";
+import {
+  boulderingEnabled,
+  loadMealPhotosEnabled,
+  runHealthImportsEnabled,
+} from "@mizyun/config";
 import {
   SupabaseMealPhotoService,
   createMealPhotoStorage,
@@ -365,6 +373,9 @@ export interface AppDependencies {
   readonly runRepository?: RunRepository;
   /** Overrides the Dev-only Health run import switch (tests). */
   readonly runHealthImportsEnabled?: boolean;
+  readonly boulderingRepository?: BoulderingRepository;
+  /** Overrides `MIZYUN_BOULDERING_ENABLED` (tests). */
+  readonly boulderingEnabled?: boolean;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -763,6 +774,14 @@ export const buildApp = (
     (sp
       ? new SupabaseMediaAssetRepository({ clientFor: sp.clientFor })
       : new InMemoryMediaAssetRepository());
+  const boulderingRepository =
+    dependencies.boulderingRepository ??
+    (sp
+      ? new SupabaseBoulderingRepository(sp.clientFor)
+      : new InMemoryBoulderingRepository(
+          workoutRepository,
+          mediaAssetRepository,
+        ));
   // The bucket id matches the SQL migration; a Supabase swap
   // reads the same id from `storage.buckets`. The local
   // composition root hard-codes it for now.
@@ -971,6 +990,7 @@ export const buildApp = (
             ? { recurringMealSuggestionRepository }
             : {}),
           runRepository,
+          boulderingRepository,
           profileRepository,
           goalRepository,
           foodEntryRepository,
@@ -1325,6 +1345,11 @@ export const buildApp = (
     healthImportsEnabled:
       dependencies.runHealthImportsEnabled ??
       runHealthImportsEnabled(process.env),
+  });
+  void app.register(boulderingRoutes, {
+    prefix: "/v1/bouldering",
+    repository: boulderingRepository,
+    enabled: dependencies.boulderingEnabled ?? boulderingEnabled(process.env),
   });
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",

@@ -1366,7 +1366,7 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
   });
 
   it("never targets a run, including an imported Health run, with a workout_edit proposal", async () => {
-    const seen: { excludeRunning?: boolean; limit: number }[] = [];
+    const seen: { excludeNonStrength?: boolean; limit: number }[] = [];
     const run = {
       id: "00000000-0000-4000-8000-000000000056",
       userId,
@@ -1386,7 +1386,7 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
     const workoutRepository: WorkoutRepository = {
       list: async (_user, options) => {
         seen.push(options);
-        return options.excludeRunning ? [] : [run];
+        return options.excludeNonStrength ? [] : [run];
       },
       getById: async () => null,
       create: async () => {
@@ -1417,7 +1417,7 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
     // the workout-edit lookup (limit 50) must exclude runs at the source.
     const editLookups = seen.filter((options) => options.limit === 50);
     expect(editLookups).toHaveLength(1);
-    expect(editLookups[0]!.excludeRunning).toBe(true);
+    expect(editLookups[0]!.excludeNonStrength).toBe(true);
     expect(JSON.stringify(response.json())).not.toContain(run.id);
   });
 

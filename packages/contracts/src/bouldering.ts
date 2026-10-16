@@ -127,7 +127,10 @@ export const boulderSessionStartSchema = z
 export type BoulderSessionStart = z.infer<typeof boulderSessionStartSchema>;
 
 export const boulderSessionFinishSchema = z
-  .object({ notes: sessionNotesSchema.nullable().default(null) })
+  .object({
+    clientOperationId: z.string().uuid(),
+    notes: sessionNotesSchema.nullable().default(null),
+  })
   .strict();
 export type BoulderSessionFinish = z.infer<typeof boulderSessionFinishSchema>;
 
@@ -184,13 +187,6 @@ export const boulderAscentUpdateSchema = z
   .strict()
   .superRefine(attemptsRefinement);
 export type BoulderAscentUpdate = z.infer<typeof boulderAscentUpdateSchema>;
-
-export const boulderAscentRemoveQuerySchema = z
-  .object({ operationId: z.string().uuid() })
-  .strict();
-export type BoulderAscentRemoveQuery = z.infer<
-  typeof boulderAscentRemoveQuerySchema
->;
 
 export const boulderAscentRecordSchema = z
   .object({
