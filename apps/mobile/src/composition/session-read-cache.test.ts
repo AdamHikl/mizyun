@@ -414,6 +414,43 @@ describe("personal screen navigation reads", () => {
     ).toBe(false);
     expect(f.request).toHaveBeenCalledTimes(1);
   });
+  it("reports a read retired by locking the phone as suspended, not signed out", async () => {
+    const f = fixture();
+    const pending = deferred();
+    f.request.mockReturnValueOnce(pending.promise);
+    const read = f.cache.request(options);
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+    f.cache.setForeground(false);
+    pending.resolve(success);
+    expect(await read).toEqual({
+      ok: false,
+      error: { kind: "context_changed" },
+    });
+    // A read started while still backgrounded is suspended the same way.
+    expect(await f.cache.request(options)).toEqual({
+      ok: false,
+      error: { kind: "context_changed" },
+    });
+    f.cache.setForeground(true);
+    expect(await f.cache.request(options)).toEqual(success);
+  });
+  it("reports a failed session lookup as a network failure, not a sign-out", async () => {
+    const f = fixture();
+    const cause = new Error("refresh unreachable");
+    f.sessionLookup.mockRejectedValueOnce(cause);
+    expect(await f.cache.request(options)).toEqual({
+      ok: false,
+      error: { kind: "network_error", cause },
+    });
+    expect(f.request).not.toHaveBeenCalled();
+    expect(await f.cache.request(options)).toEqual(success);
+    f.setSession(null);
+    f.cache.clear();
+    expect(await f.cache.request(options)).toEqual({
+      ok: false,
+      error: { kind: "no_session" },
+    });
+  });
   it("lifts a token denial only for a new token of that owner", async () => {
     const f = fixture();
     f.request.mockResolvedValueOnce({

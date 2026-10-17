@@ -23,6 +23,7 @@
 
 ## Local follow-ups awaiting acceptance
 
+- **#290 (Oct17):** lock/resume keeps logged sets, no false sign-out; 2 reviews/gatePASS; pushed main. Next: Dev/iPhone lock test; #291.
 - **#288 Log activity (Oct17):** runs here (no hub Log run), typed activity, any date/time, text drafts; reviews/gatePASS; Dev 47c814e5 health200;iPhone install 13:08Z;Adam next. [Evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)
 - **#278 timed workouts (Oct17):** load/reps·duration·duration+distance modes, Swimming/Outdoor Cycling/Hiking, Log activity; no migration (ADR0068). 2 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)
 - **#279 past workouts (WO-08, Oct17):** Log past workout form; resumable save; recent sets by completed_at. 3 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/PAST_WORKOUT_LOGGING_EVIDENCE_2026-10-17.md)
@@ -42,7 +43,6 @@
 - **#139/#168/#169 closed; native/device exits open:** [archived detail](docs/archive/status/STATUS_CLOSED_RETAINED_EXITS_2026-10-17.md).
 - **#226:** d5c2e06 workout review on Dev; review/gatePASS. Next: history/active-rest/accessibility acceptance. [Evidence](docs/COMPLETED_WORKOUT_REVIEW_EVIDENCE_2026-10-07.md).
 - **#223:**3984c35 Home one-time start/Resume/retry/account guards on Dev; review/gatePASS. Next: device start/add/finish/resume. [Evidence](docs/HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md).
-- **#222:**3984c35 first-meal shortcut on Dev; TZ/review/gatePASS. Next: device Copy to Today/empty-yesterday. [Evidence](docs/FIRST_MEAL_SHORTCUT_EVIDENCE_2026-10-07.md).
 - **#218/#225 photos:** local7d5c9d0; async copy/iOS owner/raw-error fixes;244focused/review/gatePASS (1765mobile/892API+15skips). Installed above. Next: selection/Process/Save/reopen/retry; native/offline/account/multi-photo/AX/Android/provider open; Prod disabled. [Evidence](docs/MEAL_PHOTO_COPY_FIX_EVIDENCE_2026-10-07.md).
 - **#217 Pro multi-photo:**3984c35 on Dev; Meals/Coach up to3, separate drafts. Focused477/review/gatePASS; native/live-provider acceptance open. [Evidence](docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md).
 - **Usability #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136:** implementation/native/provider/release and combined acceptance exits open: [prior status](docs/archive/status/STATUS_PRE_MEAL_PHOTO_DELIVERY_2026-10-06.md).
@@ -50,7 +50,7 @@
 ## Earlier implemented packages with open exits
 
 - **#183 recurring:** Dev SQL; tick/reopen/totals, edit/delete/pause/resume/skip/stop; TZ/DST/network/two-account open. [Evidence](docs/RECURRING_MEALS_PLAN_2026-10-03.md). **#242:** copy fix in main283bf05. [Fix](docs/MEAL_ROUTINE_COPY_REFRESH_2026-10-14.md); client/native next. **#252:** any-time fix Dev37ffcca9; device check open.
-- **#184/#185/#188/#190:** integrated/Dev; device acceptance exits open. [Moved entries](docs/archive/status/STATUS_EARLIER_PACKAGES_2026-10-17.md)
+- **#184/#185/#188/#190/#222:** integrated/Dev; device acceptance exits open. [Moved entries](docs/archive/status/STATUS_EARLIER_PACKAGES_2026-10-17.md)
 - **#186/#192 analytics:** Mac3034 real/3033 synthetic; manual collector. #240 CLOSED: SQL64/unit69/review/gate/livePASS; reload next. [Evidence](docs/ANALYTICS_REGISTRATION_ZERO_DAYS_2026-10-12.md).
 - **#187 one-time workouts** — Dev; accept start/add-before-first-set/restart/log/finish/history, retries/offline, appearance/keyboard/AX. Restart-safe. [Evidence](docs/ONE_TIME_WORKOUTS_EVIDENCE_2026-10-04.md)
 - **#189/#191 catalog:**609active/888original IDs; historical gatePASS. All609 need per-entry form/variant acceptance;3duplicate pairs/swimming/cycling gaps remain. Next: search/readability/history/targets/restart;200-record saved pagination deferred#191. [Evidence](docs/evidence/exercise-catalog/verification-2026-10-04.md).

@@ -298,6 +298,7 @@ export function LogWorkoutScreen() {
   );
 
   const refreshCounter = useRef(0);
+  const lastLoadFailed = useRef(false);
   const routineStartRef = useRef<string | null>(null);
 
   const refresh = useCallback(
@@ -312,7 +313,14 @@ export function LogWorkoutScreen() {
         return;
       }
       setWorkspace((current) => {
-        if (next.workout === null && current.workout !== null) {
+        // A failed read (for example one interrupted by locking the phone
+        // right after a set save) never replaces the logged sets with an
+        // empty list or presents a workout as if nothing were logged.
+        const sameWorkout =
+          current.workout !== null &&
+          (next.workout === null || next.workout.id === current.workout.id) &&
+          (!workoutId || workoutId.trim() === current.workout.id);
+        if (sameWorkout && (next.message !== null || next.workout === null)) {
           return {
             ...current,
             message: next.message,
@@ -321,6 +329,7 @@ export function LogWorkoutScreen() {
         return next;
       });
       setMessage(next.message);
+      lastLoadFailed.current = next.message !== null;
       if (next.message !== null) {
         hadFailure.current = true;
         attempt?.fail("load", classifyAnalyticsFailure(next.message), true);
@@ -333,6 +342,24 @@ export function LogWorkoutScreen() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Reads are retired while the app is locked or in the background. Recover
+  // automatically on return instead of leaving the failure on screen.
+  useEffect(() => {
+    if (isCompletedWorkout) return;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      // Defer so the shared read cache observes the return to active first.
+      if (nextState === "active" && lastLoadFailed.current) {
+        clearTimeout(retry);
+        retry = setTimeout(() => void refresh(), 0);
+      }
+    });
+    return () => {
+      clearTimeout(retry);
+      subscription.remove();
+    };
+  }, [isCompletedWorkout, refresh]);
 
   // Deep links and older Coach cards may still point at the routine itself.
   // Convert that intent into a fresh session rather than ever timing or

@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   measurement: vi.fn(),
   theme: { text: "#F8FAFC" },
   scheme: "dark",
+  workoutId: "workout-one-time",
 }));
 
 vi.mock("react", async (original) => ({
@@ -84,7 +85,7 @@ vi.mock("react-native-safe-area-context", () => ({
 vi.mock("expo-router", () => ({
   router: { back: mocks.back, replace: vi.fn() },
   Stack: { Screen: "StackScreen" },
-  useLocalSearchParams: () => ({ workoutId: "workout-one-time" }),
+  useLocalSearchParams: () => ({ workoutId: mocks.workoutId }),
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
@@ -328,6 +329,7 @@ function persistedWorkout(entries: any[]): Workout {
 beforeEach(() => {
   mocks.theme = { text: "#F8FAFC" };
   mocks.scheme = "dark";
+  mocks.workoutId = "workout-one-time";
   mocks.cells = [];
   mocks.context = null;
   mocks.effects = [];
@@ -968,6 +970,101 @@ it("logs entered load and reps through the existing set API and finishes without
   expect(mocks.progression).not.toHaveBeenCalled();
   expect(mocks.clearDraft).toHaveBeenCalledWith("workout-owner", "workout");
   expect(mocks.back).toHaveBeenCalledTimes(1);
+});
+
+it("keeps logged sets when locking the phone interrupts the post-save reload, then recovers on return", async () => {
+  openLibrary().props.onSelectExercises([catalogExercise]);
+  await settle();
+  let active = feed();
+  const entry = active.props.exercises[0];
+  active.props.onUpdatePendingInput(entry.id, { load: "60", reps: "5" });
+  active = feed();
+  const saved = {
+    id: "set-one",
+    exerciseId: exercise.id,
+    loadKg: 60,
+    repetitions: 5,
+    completedAt: "2026-10-04T10:01:00.000Z",
+  };
+  mocks.addSet.mockImplementationOnce(async () => {
+    mocks.workspace = { ...mocks.workspace, sets: [saved] };
+    return { ok: true, workoutSet: saved };
+  });
+  // The background reconcile read is retired because the app went inactive.
+  const interrupted =
+    "This request is no longer current. Refresh before continuing.";
+  mocks.load.mockImplementationOnce(async () => ({
+    ...mocks.workspace,
+    sets: [],
+    message: interrupted,
+  }));
+  await active.props.onLogSet(entry);
+  await settle();
+  expect(mocks.load).toHaveBeenCalledTimes(1);
+  expect(feed().props.savedSets).toEqual([saved]);
+
+  // Register the screen's AppState listeners; the next read still fails.
+  const { loadRecentPerformance } = await import("./log-workout-data");
+  vi.mocked(loadRecentPerformance).mockResolvedValue(null as never);
+  mocks.load.mockImplementationOnce(async () => ({
+    ...mocks.workspace,
+    sets: [],
+    message: interrupted,
+  }));
+  mocks.effects = [];
+  render();
+  for (const effect of mocks.effects) effect();
+  await settle();
+  expect(feed().props.savedSets).toEqual([saved]);
+  mocks.load.mockClear();
+  const listeners = mocks.appState.mock.calls
+    .filter(([event]) => event === "change")
+    .map(([, listener]) => listener as (state: string) => void);
+  expect(listeners.length).toBeGreaterThan(0);
+  for (const listener of listeners) listener("active");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await settle();
+  expect(mocks.load).toHaveBeenCalledTimes(1);
+  expect(feed().props.savedSets).toEqual([saved]);
+  // A healthy return does not keep reloading.
+  for (const listener of listeners) listener("active");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await settle();
+  expect(mocks.load).toHaveBeenCalledTimes(1);
+});
+
+it("never shows the previous workout's sets when the route switches to another workout whose sets fail", async () => {
+  const saved = {
+    id: "set-a",
+    exerciseId: exercise.id,
+    loadKg: 60,
+    repetitions: 5,
+    completedAt: "2026-10-04T10:01:00.000Z",
+  };
+  mocks.load.mockImplementationOnce(async () => ({
+    ...mocks.workspace,
+    sets: [saved],
+  }));
+  mocks.effects = [];
+  render();
+  for (const effect of mocks.effects) effect();
+  await settle();
+  expect(feed().props.savedSets).toEqual([saved]);
+
+  const other = { ...workout, id: "workout-other" };
+  mocks.workoutId = other.id;
+  mocks.load.mockImplementationOnce(async () => ({
+    ...mocks.workspace,
+    workout: other,
+    sets: [],
+    message: "Network unavailable. Refresh your sets when you're online.",
+  }));
+  mocks.effects = [];
+  render();
+  for (const effect of mocks.effects) effect();
+  await settle();
+  expect(mocks.load).toHaveBeenLastCalledWith(other.id);
+  expect(feed().props.savedSets).not.toContainEqual(saved);
 });
 
 it("keeps one-time exercise cards consistent while showing actual sets instead of prescribed targets", async () => {

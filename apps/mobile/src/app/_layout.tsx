@@ -192,7 +192,9 @@ function WorkoutNotificationBridge() {
     const open = (notification: Notifications.Notification) => {
       const data = notification.request.content.data ?? {};
       if (data.url !== "/log-workout") return;
-      router.push({
+      // Navigate reuses an already-focused workout instead of stacking a fresh
+      // copy that reloads at resume time and can briefly show no sets.
+      router.navigate({
         pathname: "/log-workout",
         params: {
           ...(typeof data.workoutId === "string"

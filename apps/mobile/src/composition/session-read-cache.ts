@@ -11,6 +11,16 @@ const retired = (): Result<never, ApiError> => ({
   ok: false,
   error: { kind: "no_session" },
 });
+// Locking the phone or backgrounding the app retires reads; that is not a
+// sign-out. Callers may retry once the app is active again.
+const suspended = (): Result<never, ApiError> => ({
+  ok: false,
+  error: { kind: "context_changed" },
+});
+const lookupFailed = (cause: unknown): Result<never, ApiError> => ({
+  ok: false,
+  error: { kind: "network_error", cause },
+});
 
 function cacheable(options: RequestOptions): boolean {
   if (
@@ -336,6 +346,8 @@ export class SessionReadCache implements ApiClient {
     for (let tries = 1; ; tries++) {
       const outcome = await this.read<T>(attempt);
       if ("result" in outcome) return outcome.result;
+      if (!this.foreground && options.isCurrent?.() !== false)
+        return suspended();
       if (
         tries >= 3 ||
         !outcome.owner ||
@@ -369,7 +381,15 @@ export class SessionReadCache implements ApiClient {
     options: RequestOptions,
   ): Promise<{ result: Result<T, ApiError> } | { owner: string | null }> {
     const beforeLookup = this.revision;
-    const session = await this.session().catch(() => null);
+    const lookup = await this.session().then(
+      (session) => ({ session }),
+      (cause: unknown) => ({ session: null, cause }),
+    );
+    // A token refresh that cannot reach Auth (for example right after
+    // unlocking) is a transient failure, not a missing session.
+    if ("cause" in lookup && this.foreground && beforeLookup === this.revision)
+      return { result: lookupFailed(lookup.cause) };
+    const session = lookup.session;
     if (!this.foreground || beforeLookup !== this.revision)
       return { owner: session?.user.id ?? null };
     const identity = this.key(session);
