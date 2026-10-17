@@ -21,5 +21,5 @@ Rule-based parser instead of a Gemini draft: the user's examples are covered wit
 
 ## Open
 
-- Deployed to Hetzner Dev `47c814e5` (deploy:dev re-ran the gate; migrations up to date; public health 200 at 2026-10-17T13:05:22Z). The change is client-side: the installed iPhone Dev app needs a new build (`pnpm mobile:founder-dev:ios`) before acceptance. No device acceptance yet.
+- Deployed to Hetzner Dev `47c814e5` (deploy:dev re-ran the gate; migrations up to date; public health 200 at 2026-10-17T13:05:22Z). Release Dev build of `66abf1f2` (contains `47c814e5`) installed and launched on iPhone `00008140-001114501A86801C` (`com.mizyun.development`, team LQJNDVBL43) at 2026-10-17T13:08:56Z via `pnpm mobile:install:ios:dev`. Install and launch only; Log activity device acceptance is open (Adam).
 - #289: durable pending run across app restart, DST nonexistent start time, optional AI drafting. Known parser limits: earliest-named activity wins ("walked the dog then ran 5k" → Walking); standalone "seventy"/"eighty".
