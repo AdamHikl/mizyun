@@ -22,6 +22,7 @@
     "@mizyun/core": "workspace:*",
     "@mizyun/identity": "workspace:*",
     "@mizyun/memory": "workspace:*",
+    "@mizyun/provider-anthropic": "workspace:*",
     "@mizyun/provider-gemini": "workspace:*",
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.1",

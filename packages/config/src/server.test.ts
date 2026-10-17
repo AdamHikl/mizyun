@@ -382,6 +382,95 @@ describe("loadServerConfig — closed-world", () => {
     }
   });
 
+  it("builds Anthropic config only when AGENT_PROVIDER=anthropic and the key is set", () => {
+    const selected = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicApiKey]: "test-anthropic-key-12345",
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+      },
+    });
+    expect(selected.ok).toBe(true);
+    if (selected.ok) {
+      expect(selected.value.anthropicConfig).toEqual({
+        apiKey: "test-anthropic-key-12345",
+        model: "claude-haiku-5-5",
+        effort: "low",
+        timeoutMs: 30_000,
+        visionTimeoutMs: 45_000,
+        maxOutputTokens: 8_192,
+        webSearch: true,
+      });
+    }
+
+    const keyOnly = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: "test-gemini-key-12345",
+        [SERVER_ENV_KEYS.anthropicApiKey]: "test-anthropic-key-12345",
+      },
+    });
+    expect(keyOnly.ok && keyOnly.value.anthropicConfig).toBeNull();
+  });
+
+  it("keeps AGENT_PROVIDER=anthropic loadable before the key is pasted", () => {
+    const pending = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.geminiApiKey]: "test-gemini-key-12345",
+      },
+    });
+    expect(pending.ok).toBe(true);
+    if (pending.ok) {
+      expect(pending.value.anthropicConfig).toBeNull();
+      expect(pending.value.geminiConfig).not.toBeNull();
+    }
+  });
+
+  it("rejects an unsupported ANTHROPIC_EFFORT", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicApiKey]: "test-anthropic-key-12345",
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+        [SERVER_ENV_KEYS.anthropicEffort]: "max",
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("refuses Anthropic without the Dev-testing acknowledgement", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicApiKey]: "test-anthropic-key-12345",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContainEqual(
+      expect.objectContaining({ key: SERVER_ENV_KEYS.anthropicDevTesting }),
+    );
+  });
+
+  it("only accepts claude-haiku-5-5 as ANTHROPIC_MODEL", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicApiKey]: "test-anthropic-key-12345",
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+        [SERVER_ENV_KEYS.anthropicModel]: "claude-opus-5-5",
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("validates bounded per-user AI request controls", () => {
     const configured = loadServerConfig({
       env: {

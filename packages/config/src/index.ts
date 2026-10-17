@@ -13,6 +13,7 @@ export {
   type ServerAppleAuthConfiguration,
   type ServerConfig,
   type ServerConfigResult,
+  type ServerAnthropicConfiguration,
   type ServerGeminiConfiguration,
   type ServerGeminiVisionConfiguration,
   type ServerSupabaseConfiguration,

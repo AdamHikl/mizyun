@@ -860,6 +860,8 @@
         "coach",
         "ai",
         "gemini",
+        "anthropic",
+        "claude",
         "consent",
         "memory",
         "tokens",
@@ -873,6 +875,7 @@
         "packages/agent-runtime",
         "packages/memory",
         "packages/providers/gemini",
+        "packages/providers/anthropic",
         "scripts/check-beta-pro-requests.mjs",
         "scripts/manage-beta-pro.mjs",
         "scripts/check-coach-feature-knowledge.mjs",
@@ -899,6 +902,9 @@
       "adapters": [
         "packages/providers/gemini/src/index.ts",
         "packages/providers/gemini/src/vision.ts",
+        "packages/providers/anthropic/src/index.ts",
+        "packages/providers/anthropic/src/vision.ts",
+        "packages/providers/anthropic/src/meal-recipe.ts",
         "packages/adapters/supabase-server/src/conversation-repository.ts",
         "packages/adapters/supabase-server/src/memory-store.ts"
       ],

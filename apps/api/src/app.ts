@@ -18,6 +18,13 @@ import {
   processMealIllustration,
 } from "@mizyun/adapter-supabase-server";
 import { GeminiMealIllustrationProvider } from "@mizyun/provider-gemini";
+import {
+  AnthropicAgentProvider,
+  AnthropicContentModerator,
+  AnthropicIngredientRecognitionProvider,
+  AnthropicRecipeGenerationProvider,
+  AnthropicVisionProvider,
+} from "@mizyun/provider-anthropic";
 import { mealIllustrationRoutes } from "./modules/meal-illustrations/routes.js";
 import { InMemoryMealIllustrationRepository } from "./modules/meal-illustrations/repository.js";
 import type { RunRepository } from "@mizyun/core";
@@ -434,6 +441,7 @@ const defaultDependencies = (): AppDependencies => {
         aiAllowedEmails: [],
       };
   const geminiConfig = config.geminiConfig;
+  const anthropicConfig = config.anthropicConfig ?? null;
   const emailSender: EmailSender =
     config.sesConfig !== null
       ? new SesEmailSender({
@@ -446,19 +454,28 @@ const defaultDependencies = (): AppDependencies => {
         })
       : new InMemoryEmailSender();
   const provider =
-    geminiConfig !== null && config.agentProvider === "gemini"
-      ? new GeminiAgentProvider({
-          apiKey: geminiConfig.apiKey,
-          model: geminiConfig.model,
-          ...(geminiConfig.fallbackModel
-            ? { fallbackModel: geminiConfig.fallbackModel }
-            : {}),
-          thinkingBudget: geminiConfig.thinkingBudget,
-          timeoutMs: geminiConfig.timeoutMs,
-          maxOutputTokens: geminiConfig.maxOutputTokens,
+    anthropicConfig !== null
+      ? new AnthropicAgentProvider({
+          apiKey: anthropicConfig.apiKey,
+          model: anthropicConfig.model,
+          effort: anthropicConfig.effort,
+          timeoutMs: anthropicConfig.timeoutMs,
+          maxOutputTokens: anthropicConfig.maxOutputTokens,
           externalAccess: config.aiExternalAccess,
         })
-      : new DisabledAgentProvider();
+      : geminiConfig !== null && config.agentProvider !== "disabled"
+        ? new GeminiAgentProvider({
+            apiKey: geminiConfig.apiKey,
+            model: geminiConfig.model,
+            ...(geminiConfig.fallbackModel
+              ? { fallbackModel: geminiConfig.fallbackModel }
+              : {}),
+            thinkingBudget: geminiConfig.thinkingBudget,
+            timeoutMs: geminiConfig.timeoutMs,
+            maxOutputTokens: geminiConfig.maxOutputTokens,
+            externalAccess: config.aiExternalAccess,
+          })
+        : new DisabledAgentProvider();
   // The default memory store is in-memory. When Supabase is
   // configured, the buildApp step swaps it for a Supabase-backed
   // store below; we leave the in-memory default here so dev/test
@@ -468,13 +485,19 @@ const defaultDependencies = (): AppDependencies => {
     emailSender,
     memories: new InMemoryMemoryStore() as MemoryStore,
     tokenVerifier: tokenVerifierFromConfig(config),
-    ...(geminiConfig !== null && config.agentProvider === "gemini"
+    ...(anthropicConfig !== null
       ? {
-          moderator: new GeminiContentModerator({
+          moderator: new AnthropicContentModerator({
             externalAccess: config.aiExternalAccess,
           }),
         }
-      : {}),
+      : geminiConfig !== null && config.agentProvider !== "disabled"
+        ? {
+            moderator: new GeminiContentModerator({
+              externalAccess: config.aiExternalAccess,
+            }),
+          }
+        : {}),
   };
   // VISION-001 — default vision provider for the dev/test path.
   // When `VISION_PROVIDER=stub` is set we wire the deterministic
@@ -1071,28 +1094,54 @@ export const buildApp = (
   // so the route returns 503 AI_CONFIGURATION_ERROR). The dev
   // stub returns a deterministic candidate. GeminiVisionProvider
   // is wired when GEMINI_VISION_API_KEY or GEMINI_API_KEY is configured.
-  const geminiVisionProvider =
-    configResult.ok && configResult.value.geminiVisionConfig !== null
-      ? new GeminiVisionProvider({
-          apiKey: configResult.value.geminiVisionConfig.apiKey,
-          model: configResult.value.geminiVisionConfig.model,
-          fallbackModel: configResult.value.geminiVisionConfig.fallbackModel,
-          thinkingBudget: configResult.value.geminiVisionConfig.thinkingBudget,
-          timeoutMs: configResult.value.geminiVisionConfig.timeoutMs,
-          maxOutputTokens:
-            configResult.value.geminiVisionConfig.maxOutputTokens,
-          externalAccess: configResult.value.aiExternalAccess,
-          enableSearchGrounding:
-            configResult.value.geminiVisionConfig.searchGrounding,
+  // ADR-0069 — when Anthropic is selected it replaces Gemini for every
+  // text and vision feature; meal illustrations stay on Gemini.
+  const anthropicConfig = configResult.ok
+    ? (configResult.value.anthropicConfig ?? null)
+    : null;
+  if (
+    configResult.ok &&
+    configResult.value.agentProvider === "anthropic" &&
+    anthropicConfig === null
+  ) {
+    app.log.warn(
+      "AGENT_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set; using Gemini when configured.",
+    );
+  }
+  const modelVisionProvider =
+    anthropicConfig !== null
+      ? new AnthropicVisionProvider({
+          apiKey: anthropicConfig.apiKey,
+          model: anthropicConfig.model,
+          effort: anthropicConfig.effort,
+          timeoutMs: anthropicConfig.visionTimeoutMs,
+          maxOutputTokens: anthropicConfig.maxOutputTokens,
+          externalAccess:
+            configResult.ok && configResult.value.aiExternalAccess,
+          enableWebSearch: anthropicConfig.webSearch,
         })
-      : null;
+      : configResult.ok && configResult.value.geminiVisionConfig !== null
+        ? new GeminiVisionProvider({
+            apiKey: configResult.value.geminiVisionConfig.apiKey,
+            model: configResult.value.geminiVisionConfig.model,
+            fallbackModel: configResult.value.geminiVisionConfig.fallbackModel,
+            thinkingBudget:
+              configResult.value.geminiVisionConfig.thinkingBudget,
+            timeoutMs: configResult.value.geminiVisionConfig.timeoutMs,
+            maxOutputTokens:
+              configResult.value.geminiVisionConfig.maxOutputTokens,
+            externalAccess: configResult.value.aiExternalAccess,
+            enableSearchGrounding:
+              configResult.value.geminiVisionConfig.searchGrounding,
+          })
+        : null;
 
   const visionProvider: VisionDraftProvider = dependencies.coachControls
     ?.visionProvider
     ? dependencies.coachControls.visionProvider
     : dependencies.visionProvider
       ? dependencies.visionProvider
-      : (geminiVisionProvider ?? new DisabledVisionProvider());
+      : (modelVisionProvider ?? new DisabledVisionProvider());
 
   const resolveVisionProvider = (
     _providerKind?: AiProvider,
@@ -1103,31 +1152,26 @@ export const buildApp = (
     if (dependencies.visionProvider) {
       return dependencies.visionProvider;
     }
-    if (geminiVisionProvider !== null) {
-      return geminiVisionProvider;
+    if (modelVisionProvider !== null) {
+      return modelVisionProvider;
     }
     return visionProvider;
   };
 
-  const geminiAgent =
-    configResult.ok && configResult.value.geminiConfig !== null
+  const anthropicAgent =
+    configResult.ok && anthropicConfig !== null
       ? new AgentOrchestrator({
-          provider: new GeminiAgentProvider({
-            apiKey: configResult.value.geminiConfig.apiKey,
-            model: configResult.value.geminiConfig.model,
-            ...(configResult.value.geminiConfig.fallbackModel
-              ? {
-                  fallbackModel: configResult.value.geminiConfig.fallbackModel,
-                }
-              : {}),
-            thinkingBudget: configResult.value.geminiConfig.thinkingBudget,
-            timeoutMs: configResult.value.geminiConfig.timeoutMs,
-            maxOutputTokens: configResult.value.geminiConfig.maxOutputTokens,
+          provider: new AnthropicAgentProvider({
+            apiKey: anthropicConfig.apiKey,
+            model: anthropicConfig.model,
+            effort: anthropicConfig.effort,
+            timeoutMs: anthropicConfig.timeoutMs,
+            maxOutputTokens: anthropicConfig.maxOutputTokens,
             externalAccess: configResult.value.aiExternalAccess,
           }),
           memories: resolveMemoryStore(dependencies),
           maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
-          moderator: new GeminiContentModerator({
+          moderator: new AnthropicContentModerator({
             externalAccess: configResult.value.aiExternalAccess,
           }),
           ...(defaultToolSet.list().length > 0
@@ -1135,13 +1179,42 @@ export const buildApp = (
             : {}),
         })
       : null;
+  const modelAgent =
+    anthropicAgent !== null
+      ? anthropicAgent
+      : configResult.ok && configResult.value.geminiConfig !== null
+        ? new AgentOrchestrator({
+            provider: new GeminiAgentProvider({
+              apiKey: configResult.value.geminiConfig.apiKey,
+              model: configResult.value.geminiConfig.model,
+              ...(configResult.value.geminiConfig.fallbackModel
+                ? {
+                    fallbackModel:
+                      configResult.value.geminiConfig.fallbackModel,
+                  }
+                : {}),
+              thinkingBudget: configResult.value.geminiConfig.thinkingBudget,
+              timeoutMs: configResult.value.geminiConfig.timeoutMs,
+              maxOutputTokens: configResult.value.geminiConfig.maxOutputTokens,
+              externalAccess: configResult.value.aiExternalAccess,
+            }),
+            memories: resolveMemoryStore(dependencies),
+            maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
+            moderator: new GeminiContentModerator({
+              externalAccess: configResult.value.aiExternalAccess,
+            }),
+            ...(defaultToolSet.list().length > 0
+              ? { tools: defaultToolSet }
+              : {}),
+          })
+        : null;
 
   const resolveAgent = (_providerKind?: AiProvider): AgentOrchestrator => {
     if (dependencies.agent !== undefined) {
       return dependencies.agent;
     }
-    if (geminiAgent !== null) {
-      return geminiAgent;
+    if (modelAgent !== null) {
+      return modelAgent;
     }
     return agent;
   };
@@ -1289,6 +1362,16 @@ export const buildApp = (
   });
   // A separate explicit switch keeps the new provider surface disabled until accepted.
   const recipeConfig = configResult.ok ? configResult.value.geminiConfig : null;
+  const anthropicRecipeOptions =
+    anthropicConfig !== null
+      ? {
+          apiKey: anthropicConfig.apiKey,
+          model: anthropicConfig.model,
+          timeoutMs: anthropicConfig.timeoutMs,
+          externalAccess:
+            configResult.ok && configResult.value.aiExternalAccess,
+        }
+      : null;
   const recipeProviderOptions = recipeConfig
     ? {
         apiKey: recipeConfig.apiKey,
@@ -1322,14 +1405,18 @@ export const buildApp = (
     ledger: recipeRequestLedger,
     generationProvider:
       recipeControls?.generationProvider ??
-      (recipeProviderOptions
-        ? new GeminiRecipeGenerationProvider(recipeProviderOptions)
-        : new DisabledRecipeGenerationProvider()),
+      (anthropicRecipeOptions
+        ? new AnthropicRecipeGenerationProvider(anthropicRecipeOptions)
+        : recipeProviderOptions
+          ? new GeminiRecipeGenerationProvider(recipeProviderOptions)
+          : new DisabledRecipeGenerationProvider()),
     recognitionProvider:
       recipeControls?.recognitionProvider ??
-      (recipeProviderOptions
-        ? new GeminiIngredientRecognitionProvider(recipeProviderOptions)
-        : new DisabledIngredientRecognitionProvider()),
+      (anthropicRecipeOptions
+        ? new AnthropicIngredientRecognitionProvider(anthropicRecipeOptions)
+        : recipeProviderOptions
+          ? new GeminiIngredientRecognitionProvider(recipeProviderOptions)
+          : new DisabledIngredientRecognitionProvider()),
     ...(recipeControls?.now ? { now: recipeControls.now } : {}),
     ...(recipeControls?.timeoutMs !== undefined
       ? { timeoutMs: recipeControls.timeoutMs }

@@ -60,7 +60,7 @@
     "feedback": "node scripts/check-user-feedback.mjs",
     "beta-pro": "node scripts/check-beta-pro-requests.mjs",
     "beta-pro:check": "node scripts/check-beta-pro-requests.mjs",
-    "ai:eval:offline": "pnpm --filter @mizyun/agent-runtime test && pnpm --filter @mizyun/core test && pnpm --filter @mizyun/contracts test && pnpm --filter @mizyun/provider-gemini test && pnpm --filter @mizyun/api test",
+    "ai:eval:offline": "pnpm --filter @mizyun/agent-runtime test && pnpm --filter @mizyun/core test && pnpm --filter @mizyun/contracts test && pnpm --filter @mizyun/provider-gemini test && pnpm --filter @mizyun/provider-anthropic test && pnpm --filter @mizyun/api test",
     "ai:eval": "pnpm check && pnpm db:verify",
     "mem:smoke": "bash scripts/mem-001-smoke.sh",
     "vision:smoke": "bash scripts/vision-001-smoke.sh",

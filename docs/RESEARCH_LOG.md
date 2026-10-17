@@ -3467,3 +3467,20 @@ Checked [Expo SDK57 ImagePicker](https://docs.expo.dev/versions/v57.0.0/sdk/imag
 ## 2026-10-17 — Timed exercise tracking and Log activity (#278)
 
 Checked [React Native TextInput](https://reactnative.dev/docs/textinput) (fetched 2026-10-17). `keyboardType` `numbers-and-punctuation` is iOS-only, and `number-pad`/`decimal-pad` have no colon; `inputMode` takes precedence over `keyboardType`. Consequence: time inputs accept plain minutes or `mm:ss`, use `numbers-and-punctuation` on iOS and the default keyboard elsewhere, and do not set a numeric `inputMode`. No backend, Health or provider API is affected: sets already store duration and distance. Decision in [ADR-0068](adr/0068-timed-exercise-tracking-and-log-activity.md).
+
+## 2026-10-17 — AI model selection for Coach, meal vision and recipes
+
+Checked [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) (updated 2026-10-16), [Gemini deprecations](https://ai.google.dev/gemini-api/docs/deprecations), [Gemini API terms](https://ai.google.dev/gemini-api/terms), [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Claude data residency](https://platform.claude.com/docs/en/manage-claude/data-residency) and [OpenAI pricing](https://developers.openai.com/api/docs/pricing). Consequences: the current `gemini-3.8-flash` primary and `gemini-3.6-flash` fallback both double in price on 2027-01-01, and the fallback gives no saving. `gemini-3.5-flash-lite` ($0.30/$2.50) is the in-vendor cost candidate. Claude Haiku 5.5 ($0.10/$0.50, image input) is the cheapest capable candidate for Coach, but it adds a second vendor with US/global-only processing and needs privacy, DPA and consent work. Food-vision evidence (one preprint) favors Gemini Flash models. No model or config changed; a live evaluation (#29) is required before switching. See [the research note](AI_MODEL_SELECTION_RESEARCH_2026-10-17.md).
+
+## 2026-10-17 — Claude Haiku 5.5 provider for Dev (ADR-0069)
+
+Checked [Claude models overview](https://platform.claude.com/docs/en/about-claude/models/overview), [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), [web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool) and [data residency](https://platform.claude.com/docs/en/manage-claude/data-residency), plus Anthropic's Haiku 5.5 migration guidance. Consequences:
+
+- Haiku 5.5 returns a 400 on non-default `temperature`/`top_p`/`top_k` and on assistant prefill, so the providers send neither, and Coach history never ends on an assistant turn.
+- `thinking: disabled` is accepted only at effort `high` or below, so the providers use effort `low` with thinking disabled.
+- Structured outputs require `additionalProperties: false`. They reject numeric and length bounds and `maxItems`, and allow at most 24 optional and 16 union-typed properties per request. Schemas are reduced to that subset and re-validated with Zod.
+- `stop_reason: "refusal"` has no server-side fallback on Haiku.
+- Web search (`web_search_20250305`, $10 per 1,000 searches) reports its errors as HTTP 200 result blocks.
+- Inference geography is `global` or `us` only.
+
+`@anthropic-ai/sdk` is pinned to 0.131.0, released 2026-09-30.

@@ -50,6 +50,21 @@ export interface ServerGeminiVisionConfiguration {
   readonly searchGrounding: boolean;
 }
 
+/**
+ * ADR-0069 — Anthropic (Claude) serves Coach, meal drafts and recipes when
+ * `AGENT_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` are both set. Meal
+ * illustrations stay on Gemini because Claude does not generate images.
+ */
+export interface ServerAnthropicConfiguration {
+  readonly apiKey: string;
+  readonly model: string;
+  readonly effort: "low" | "medium" | "high";
+  readonly timeoutMs: number;
+  readonly visionTimeoutMs: number;
+  readonly maxOutputTokens: number;
+  readonly webSearch: boolean;
+}
+
 export interface ServerSesConfiguration {
   readonly region: string;
   readonly accessKeyId: string;
@@ -75,10 +90,12 @@ export interface ServerConfig {
   readonly env: NodeEnv;
   readonly supabase: AuthConfigurationStatus;
   readonly supabaseConfig: ServerSupabaseConfiguration | null;
-  readonly agentProvider: "disabled" | "gemini";
+  readonly agentProvider: "disabled" | "gemini" | "anthropic";
   readonly visionProvider: "disabled" | "stub";
   readonly geminiConfig: ServerGeminiConfiguration | null;
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
+  /** Non-null only when Anthropic is selected and its key is present. */
+  readonly anthropicConfig?: ServerAnthropicConfiguration | null;
   readonly sesConfig: ServerSesConfiguration | null;
   readonly appleAuthConfig: ServerAppleAuthConfiguration | null;
   readonly appleRevocationEncryptionKey?: string | undefined;
@@ -115,6 +132,14 @@ export const SERVER_ENV_KEYS = {
   geminiVisionTimeoutMs: "GEMINI_VISION_TIMEOUT_MS",
   geminiVisionMaxOutputTokens: "GEMINI_VISION_MAX_OUTPUT_TOKENS",
   geminiVisionSearchGrounding: "GEMINI_VISION_SEARCH_GROUNDING",
+  anthropicApiKey: "ANTHROPIC_API_KEY",
+  anthropicModel: "ANTHROPIC_MODEL",
+  anthropicEffort: "ANTHROPIC_EFFORT",
+  anthropicTimeoutMs: "ANTHROPIC_TIMEOUT_MS",
+  anthropicVisionTimeoutMs: "ANTHROPIC_VISION_TIMEOUT_MS",
+  anthropicMaxOutputTokens: "ANTHROPIC_MAX_OUTPUT_TOKENS",
+  anthropicWebSearch: "ANTHROPIC_WEB_SEARCH",
+  anthropicDevTesting: "ANTHROPIC_DEV_TESTING",
   sesRegion: "SES_REGION",
   sesAccessKeyId: "SES_ACCESS_KEY_ID",
   sesSecretAccessKey: "SES_SECRET_ACCESS_KEY",
@@ -156,7 +181,9 @@ const baseServerSchema = z.object({
     .string()
     .min(20, "SUPABASE_SERVICE_ROLE_KEY must be at least 20 characters")
     .nullish(),
-  agentProvider: z.enum(["disabled", "gemini"]).default("disabled"),
+  agentProvider: z
+    .enum(["disabled", "gemini", "anthropic"])
+    .default("disabled"),
   /**
    * VISION-001 — overrides the photo-draft vision provider.
    * `disabled` (default) returns 503 AI_CONFIGURATION_ERROR on
@@ -229,6 +256,40 @@ const baseServerSchema = z.object({
   geminiVisionSearchGrounding: z
     .enum(["true", "false"])
     .default("true")
+    .transform((value) => value === "true"),
+  anthropicApiKey: z
+    .string()
+    .min(10, "ANTHROPIC_API_KEY must not be empty")
+    .optional(),
+  // Only Haiku 5.5 accepts the disabled-thinking/low-effort controls the
+  // providers send; other Claude models would change cost and 400.
+  anthropicModel: z.enum(["claude-haiku-5-5"]).default("claude-haiku-5-5"),
+  anthropicEffort: z.enum(["low", "medium", "high"]).default("low"),
+  anthropicTimeoutMs: z.coerce
+    .number()
+    .int("ANTHROPIC_TIMEOUT_MS must be an integer")
+    .min(1_000, "ANTHROPIC_TIMEOUT_MS must be >= 1000")
+    .max(120_000, "ANTHROPIC_TIMEOUT_MS must be <= 120000")
+    .default(30_000),
+  anthropicVisionTimeoutMs: z.coerce
+    .number()
+    .int("ANTHROPIC_VISION_TIMEOUT_MS must be an integer")
+    .min(1_000, "ANTHROPIC_VISION_TIMEOUT_MS must be >= 1000")
+    .max(120_000, "ANTHROPIC_VISION_TIMEOUT_MS must be <= 120000")
+    .default(45_000),
+  anthropicMaxOutputTokens: z.coerce
+    .number()
+    .int("ANTHROPIC_MAX_OUTPUT_TOKENS must be an integer")
+    .min(128, "ANTHROPIC_MAX_OUTPUT_TOKENS must be >= 128")
+    .max(32_768, "ANTHROPIC_MAX_OUTPUT_TOKENS must be <= 32768")
+    .default(8_192),
+  anthropicWebSearch: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  anthropicDevTesting: z
+    .enum(["true", "false"])
+    .default("false")
     .transform((value) => value === "true"),
   sesRegion: z
     .string()
@@ -386,6 +447,21 @@ export const loadServerConfig = (
   ) {
     issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.geminiApiKey] });
   }
+  if (
+    parsed.success &&
+    parsed.data.agentProvider === "anthropic" &&
+    parsed.data.anthropicApiKey !== undefined &&
+    !parsed.data.anthropicDevTesting
+  ) {
+    // ADR-0069 — Dev and Production both run NODE_ENV=production, so the
+    // Dev-only approval is an explicit opt-in that a copied env cannot omit.
+    issues.push({
+      kind: "malformed",
+      key: SERVER_ENV_KEYS.anthropicDevTesting,
+      reason:
+        "AGENT_PROVIDER=anthropic is approved for Dev testing only; set ANTHROPIC_DEV_TESTING=true to acknowledge.",
+    });
+  }
   if (parsed.success && parsed.data.env === "production") {
     if (!bothPresent) {
       issues.push({
@@ -488,6 +564,18 @@ export const loadServerConfig = (
           searchGrounding: value.geminiVisionSearchGrounding,
         }
       : null;
+  const anthropicConfig: ServerAnthropicConfiguration | null =
+    value.agentProvider === "anthropic" && value.anthropicApiKey !== undefined
+      ? {
+          apiKey: value.anthropicApiKey,
+          model: value.anthropicModel,
+          effort: value.anthropicEffort,
+          timeoutMs: value.anthropicTimeoutMs,
+          visionTimeoutMs: value.anthropicVisionTimeoutMs,
+          maxOutputTokens: value.anthropicMaxOutputTokens,
+          webSearch: value.anthropicWebSearch,
+        }
+      : null;
   const sesConfig: ServerSesConfiguration | null =
     value.sesAccessKeyId !== undefined && value.sesSecretAccessKey !== undefined
       ? {
@@ -529,6 +617,7 @@ export const loadServerConfig = (
     visionProvider: value.visionProvider,
     geminiConfig,
     geminiVisionConfig,
+    anthropicConfig,
     sesConfig,
     appleAuthConfig,
     ...(value.appleRevocationEncryptionKey !== undefined

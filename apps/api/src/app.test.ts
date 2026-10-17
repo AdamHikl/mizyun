@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentOrchestrator,
@@ -14,6 +14,7 @@ const apps: ReturnType<typeof buildApp>[] = [];
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
+  vi.unstubAllEnvs();
 });
 
 describe("API foundation", () => {
@@ -151,5 +152,73 @@ describe("API foundation", () => {
 
     expect(response.statusCode).toBe(503);
     expect(response.json().error?.code).toBe("AUTHENTICATION_UNAVAILABLE");
+  });
+});
+
+describe("AI vendor selection (ADR-0069)", () => {
+  const stubAiEnv = (values: Record<string, string>) => {
+    for (const key of [
+      "AGENT_PROVIDER",
+      "AI_EXTERNAL_ACCESS",
+      "GEMINI_API_KEY",
+      "GEMINI_VISION_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_DEV_TESTING",
+      "SUPABASE_URL",
+      "SUPABASE_PUBLISHABLE_KEY",
+    ]) {
+      vi.stubEnv(key, values[key] ?? "");
+    }
+  };
+
+  const coachStatus = async () => {
+    const app = buildApp();
+    apps.push(app);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/coach/status",
+    });
+    expect(response.statusCode).toBe(200);
+    return response.json() as { provider: string; model?: string };
+  };
+
+  it("serves Coach from Claude Haiku 5.5 when selected with a key", async () => {
+    stubAiEnv({
+      AGENT_PROVIDER: "anthropic",
+      AI_EXTERNAL_ACCESS: "true",
+      GEMINI_API_KEY: "test-gemini-key-12345",
+      ANTHROPIC_API_KEY: "test-anthropic-key-12345",
+      ANTHROPIC_DEV_TESTING: "true",
+    });
+    await expect(coachStatus()).resolves.toMatchObject({
+      ready: true,
+      provider: "anthropic",
+      model: "claude-haiku-5-5",
+    });
+  });
+
+  it("keeps Gemini until the Anthropic key is pasted", async () => {
+    stubAiEnv({
+      AGENT_PROVIDER: "anthropic",
+      AI_EXTERNAL_ACCESS: "true",
+      GEMINI_API_KEY: "test-gemini-key-12345",
+      ANTHROPIC_DEV_TESTING: "true",
+    });
+    await expect(coachStatus()).resolves.toMatchObject({
+      provider: "gemini",
+    });
+  });
+
+  it("reports Claude as not ready while external AI access is off", async () => {
+    stubAiEnv({
+      AGENT_PROVIDER: "anthropic",
+      AI_EXTERNAL_ACCESS: "false",
+      ANTHROPIC_API_KEY: "test-anthropic-key-12345",
+      ANTHROPIC_DEV_TESTING: "true",
+    });
+    await expect(coachStatus()).resolves.toMatchObject({
+      ready: false,
+      provider: "anthropic",
+    });
   });
 });
