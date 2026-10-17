@@ -114,7 +114,10 @@ export function WorkoutsHubScreen() {
       }),
     [],
   );
-  const params = useLocalSearchParams<{ runSaved?: string }>();
+  const params = useLocalSearchParams<{
+    runSaved?: string;
+    pastWorkoutSaved?: string;
+  }>();
   const [historyFilter, setHistoryFilter] = useState<
     "all" | "strength" | "running" | "bouldering"
   >("all");
@@ -189,11 +192,11 @@ export function WorkoutsHubScreen() {
   }, [owner]);
   const [activeTab, setActiveTab] = useState<WorkoutsTab>("all");
   useEffect(() => {
-    if (params.runSaved) {
+    if (params.runSaved || params.pastWorkoutSaved) {
       setActiveTab("history");
       setHistoryFilter("all");
     }
-  }, [params.runSaved]);
+  }, [params.runSaved, params.pastWorkoutSaved]);
   const [busyWorkoutId, setBusyWorkoutId] = useState<string | null>(null);
   const startingRoutineIds = useRef(new Set<string>());
   const routineOperationIds = useRef(new Map<string, string>());
@@ -777,6 +780,14 @@ export function WorkoutsHubScreen() {
               />
             ) : null}
             <ListRow
+              key="log-past-workout"
+              icon="calendar"
+              title="Log past workout"
+              subtitle="Done without your phone"
+              accessibilityLabel="Log past workout"
+              onPress={() => router.push("/log-past-workout" as Href)}
+            />
+            <ListRow
               key="log-run"
               icon="run"
               title="Log run"
@@ -1025,6 +1036,9 @@ export function WorkoutsHubScreen() {
               ) : null}
               {params.runSaved ? (
                 <Notice tone="success" message="Run saved" />
+              ) : null}
+              {params.pastWorkoutSaved ? (
+                <Notice tone="success" message="Past workout saved" />
               ) : null}
               {(historyFilter === "all" || historyFilter === "running") &&
               data.runWeek ? (

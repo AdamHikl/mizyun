@@ -272,6 +272,7 @@
         "apps/api/src/modules/exercises",
         "apps/mobile/src/features/workouts",
         "apps/mobile/src/features/log-workout",
+        "apps/mobile/src/features/log-past-workout",
         "packages/core/src/exercise-catalog.ts",
         "packages/core/src/exercise-catalog-data.ts",
         "packages/core/src/exercise-catalog-legacy.ts",
@@ -325,6 +326,8 @@
         "apps/mobile/src/features/log-workout/log-workout-data.ts",
         "apps/mobile/src/features/workouts/exercise-progression-data.ts",
         "apps/mobile/src/app/log-run.tsx",
+        "apps/mobile/src/app/log-past-workout.tsx",
+        "apps/mobile/src/features/log-past-workout/log-past-workout-screen.tsx",
         "apps/mobile/src/app/run/[id].tsx",
         "apps/mobile/src/app/import-runs.tsx",
         "apps/mobile/src/features/run-import/run-import-screen.tsx",
@@ -368,6 +371,9 @@
         "apps/mobile/src/features/workouts/exercise-progression-data.test.ts",
         "apps/mobile/src/features/log-workout/log-workout-data.test.ts",
         "apps/mobile/src/features/log-workout/one-time-workout-screen.test.tsx",
+        "apps/mobile/src/features/log-past-workout/past-workout.test.ts",
+        "apps/mobile/src/features/log-past-workout/log-past-workout-screen.test.tsx",
+        "apps/api/src/workout-set-repository.test.ts",
         "packages/core/src/workout-lifecycle.test.ts",
         "packages/core/src/training-prescription.test.ts",
         "packages/core/src/exercise-catalog.test.ts",
@@ -422,7 +428,7 @@
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
-        "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout",
+        "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout src/features/log-past-workout",
         "pnpm --filter @mizyun/api test src/modules/bouldering",
         "pnpm --filter @mizyun/core test src/bouldering",
         "pnpm --filter @mizyun/mobile test src/features/bouldering"
@@ -435,6 +441,7 @@
         "TRAIN-02",
         "TRAIN-03",
         "WO-07",
+        "WO-08",
         "BOULDER-01",
         "BOULDER-02",
         "BOULDER-03",
@@ -442,7 +449,8 @@
         "BOULDER-05"
       ],
       "openAcceptance": [
-        "WO-07 exact-candidate standalone Dev start/add-before-first-set/restart/log/finish/history and appearance/accessibility acceptance (#187)"
+        "WO-07 exact-candidate standalone Dev start/add-before-first-set/restart/log/finish/history and appearance/accessibility acceptance (#187)",
+        "WO-08 Dev/iPhone log past workout enter/save/history/review, restart and offline retry, discard, large text/VoiceOver acceptance (#279)"
       ]
     },
     {

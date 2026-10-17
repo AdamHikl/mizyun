@@ -127,6 +127,9 @@ export class SupabaseWorkoutSetRepository implements WorkoutSetRepository {
       .select("*")
       .eq("user_id", userId)
       .eq("exercise_id", exerciseId)
+      // "Recent" means when the set was performed, so backdated sets
+      // do not outrank newer performances. created_at breaks ties.
+      .order("completed_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) {

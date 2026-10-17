@@ -14,7 +14,8 @@ import type {
  *   - `listForWorkout` returns sets ordered by `sequence`
  *     ascending.
  *   - `recentForExercise` filters by tenant and exercise id,
- *     sorts by `createdAt` descending, and caps at `limit`.
+ *     sorts by `completedAt` descending (null last, then
+ *     `createdAt` descending), and caps at `limit`.
  *   - `getById` is tenant-blind: the route enforces ownership
  *     against the verified principal.
  *   - `deleteAllForWorkout` cascades a workout deletion so the
@@ -69,7 +70,16 @@ export class InMemoryWorkoutSetRepository implements WorkoutSetRepository {
       (s) => s.userId === userId && s.exerciseId === exerciseId,
     );
     return all
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .sort((a, b) => {
+        const ac = a.completedAt?.getTime();
+        const bc = b.completedAt?.getTime();
+        if (ac !== bc) {
+          if (ac === undefined) return 1;
+          if (bc === undefined) return -1;
+          return bc - ac;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      })
       .slice(0, Math.max(0, limit));
   }
 
