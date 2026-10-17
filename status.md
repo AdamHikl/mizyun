@@ -10,8 +10,8 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev=main (Oct16):**1e1de3e421495a1613bc108b7e6c1600488f7f6e (#248+#270) deploy:dev gatePASS, DB20261015130000, health200 09:25Z. #270 auth outage→503; device recheck next. [Oct15](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md); Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
-- **iPhone Dev (Oct15):**b9166d85 installed on iPhone 00008140-001114501A86801C 19:58Z; launch blocked (locked); acceptance open.
+- **Dev=main (Oct17):**45f1ccfe9afabdcd2768573dcb8693ef2d57c164 (#278+#279+plate calculator on d175da95 incl. #276 bouldering, #216 imports) gatePASS(3108mobile/1186API+15skips), deploy:dev OK, migrations through20261016200000, health200 10:49Z. Merge review: no blockers; #285/#286 filed. Prior: [Oct15](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md); Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
+- **iPhone Dev (Oct17): BLOCKED** 45f1ccfe build fails: Xcode updated Oct16 to 27.1/Swift 6.4; Expo 57 ExpoModulesJSI/Core interfaces built with Swift 6.3.1 (EXPO_USE_PRECOMPILED_MODULES=0 not enough). Needs older Xcode via DEVELOPER_DIR or Expo update. Last install b9166d85 (Oct15).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **AI:** Hetzner Dev/Prod; Pi encrypted recovery. Gemini-or-disabled; adult/consent/usage/kill switches; no email allowlist. Founder/partner shared-Gemini Dev exception; Qwen paused. `docs/BEFORE_TESTING.md`/live-provider gates retained.
 
@@ -23,9 +23,9 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#278 timed workouts (Oct17):** load/reps·duration·duration+distance modes, Swimming/Outdoor Cycling/Hiking, Log activity; no migration (ADR0068). 2 reviews resolved; gatePASS(3075mobile/1183API+15skips); uncommitted/undeployed. Next: commit, sim/Dev. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)
-- **#279 past workouts (WO-08, Oct17):** Log past workout form; resumable save; recent sets by completed_at. 3 reviews resolved, gatePASS; Dev/iPhone next. [Evidence](docs/PAST_WORKOUT_LOGGING_EVIDENCE_2026-10-17.md)
-- **#276 bouldering:** BLD-00–06 source 641549ed; gate/db:verify/3 reviews PASS; undeployed. Next sim/Dev. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). **Share sheet:** device check open.
+- **#278 timed workouts (Oct17):** load/reps·duration·duration+distance modes, Swimming/Outdoor Cycling/Hiking, Log activity; no migration (ADR0068). 2 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)
+- **#279 past workouts (WO-08, Oct17):** Log past workout form; resumable save; recent sets by completed_at. 3 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/PAST_WORKOUT_LOGGING_EVIDENCE_2026-10-17.md)
+- **#276 bouldering:** BLD-00–06 source 641549ed; gate/db:verify/3 reviews PASS; Dev 45f1ccfe. Next device. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). **Share sheet:** device check open.
 - **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok; gatePASS. Dev deployed; iPhone Dev check next. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
 - **Community audit (Oct15):** 8b9fc0d5; review/gatePASS; Dev/device open. #265 needs Adam. [Evidence](docs/COMMUNITY_AUDIT_FIXES_2026-10-15.md)
 - **#253–#257:** e2ee8b3a habit automation; reviews/gatePASS; Dev1642d9dd; ship app before Prod (old builds hide weekly). [Evidence](docs/HABIT_AUTOMATION_EVIDENCE_2026-10-15.md)
