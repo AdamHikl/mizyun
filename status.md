@@ -13,7 +13,7 @@
 - **Dev=main (Oct17):**45f1ccfe9afabdcd2768573dcb8693ef2d57c164 (#278+#279+plate calculator on d175da95 incl. #276 bouldering, #216 imports) gatePASS(3108mobile/1186API+15skips), deploy:dev OK, migrations through20261016200000, health200 10:49Z. Merge review: no blockers; #285/#286 filed. Prior: [Oct15](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md); Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
 - **iPhone Dev (Oct17):** main45f1ccfe+Expo JSI fix installed/launched on iPhone 00008140-001114501A86801C 11:29Z (1.0.9/9); acceptance open. Xcode27.1/Swift6.4 fix: patch expo-modules-jsi@57.1.0 (expo#50569/#51234) + plugin `with-ios-source-built-expo-modules` (EXPO_USE_PRECOMPILED_MODULES=false); drop at SDK58. #287 flaky core test.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
-- **AI:** Gemini live. Claude Haiku5.5 (ADR0069) bcfb68a3 Dev gatePASS/2 reviews; off until Adam sets dev.env provider/ack/key. [Evidence](docs/ANTHROPIC_DEV_PROVIDER_EVIDENCE_2026-10-17.md). Adult/consent/usage/kill switches; partner Dev exception; Qwen paused; BEFORE_TESTING gates kept.
+- **AI:** Gemini live. Claude Haiku5.5 (ADR0069) bcfb68a3 Dev gatePASS/2 reviews; ACTIVE Dev 16:42Z (key OK); device test next. [Evidence](docs/ANTHROPIC_DEV_PROVIDER_EVIDENCE_2026-10-17.md). Adult/consent/usage/kill switches; partner Dev exception; Qwen paused; BEFORE_TESTING gates kept.
 
 ## Running and usability acceptance
 
