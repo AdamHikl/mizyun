@@ -304,6 +304,7 @@ export {
   MAX_TRACKED_DURATION_SECONDS,
   TIMED_ACTIVITY_IDS,
   bareDurationUnit,
+  findCatalogExerciseByExactName,
   formatTrackedDuration,
   getCatalogTrackingMode,
   isExerciseTrackingMode,
@@ -472,3 +473,4 @@ export * from "./reminder-timing";
 export * from "./bouldering-repository";
 
 export * from "./barbell-plates";
+export * from "./activity-description";

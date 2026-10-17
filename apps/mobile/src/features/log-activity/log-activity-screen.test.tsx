@@ -2,17 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
+  saveRun: vi.fn(),
+  push: vi.fn(),
   back: vi.fn(),
   unitSystem: "metric",
   userId: "u",
+  effects: [] as Array<() => void>,
+  runDraft: null as unknown,
 }));
 const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useRef: (current: unknown) => (hooks.slots[hooks.index++] ??= { current }),
+  useEffect: (effect: () => void) => {
+    mocks.effects.push(effect);
+  },
   useState: (initial: any) => {
     const index = hooks.index++;
-    if (!(index in hooks.slots)) hooks.slots[index] = initial;
+    if (!(index in hooks.slots))
+      hooks.slots[index] = typeof initial === "function" ? initial() : initial;
     return [
       hooks.slots[index],
       (next: any) => {
@@ -28,15 +36,17 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: unknown) => s },
 }));
 vi.mock("expo-router", () => ({
-  router: { back: mocks.back },
+  router: { back: mocks.back, push: mocks.push },
   Stack: { Screen: "StackScreen" },
 }));
-vi.mock("expo-crypto", () => ({ randomUUID: () => "op-1" }));
+vi.mock("expo-crypto", () => ({
+  randomUUID: () => "11111111-2222-4333-8444-555555555555",
+}));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/constants/theme", () => ({
   MaxContentWidth: 600,
-  Spacing: { four: 16, three: 12 },
+  Spacing: { four: 16, three: 12, one: 4 },
 }));
 vi.mock("@/components/ui", () => ({
   Button: "Button",
@@ -45,6 +55,7 @@ vi.mock("@/components/ui", () => ({
   FormField: "FormField",
   FormStatus: "FormStatus",
   FormTextInput: "FormTextInput",
+  Notice: "Notice",
 }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
@@ -56,7 +67,17 @@ vi.mock("@/composition/api-client", () => ({
   apiClient: { status: () => ({ configured: false }), request: vi.fn() },
   invalidateSessionReads: vi.fn(),
 }));
-vi.mock("./log-activity-data", () => ({ saveLoggedActivityWith: mocks.save }));
+vi.mock("@/features/log-run", () => ({
+  runDraftStore: { load: () => Promise.resolve(mocks.runDraft) },
+  hasRunDraftContent: (draft: { content?: boolean }) => !!draft.content,
+}));
+vi.mock("./activity-date-picker", () => ({
+  ActivityDatePicker: "ActivityDatePicker",
+}));
+vi.mock("./log-activity-data", () => ({
+  saveLoggedActivityWith: mocks.save,
+  saveLoggedRunWith: mocks.saveRun,
+}));
 
 import { LogActivityScreen } from "./log-activity-screen";
 
@@ -83,6 +104,8 @@ beforeEach(() => {
   hooks.index = 0;
   mocks.unitSystem = "metric";
   mocks.userId = "u";
+  mocks.effects = [];
+  mocks.runDraft = null;
   vi.clearAllMocks();
   mocks.save.mockResolvedValue({
     ok: false,
@@ -95,21 +118,25 @@ beforeEach(() => {
 describe("log activity screen", () => {
   it("shows distance for Swimming and hides it for Jump Rope", () => {
     let tree = render();
+    chip(tree, "Swimming").props.onPress();
+    tree = render();
     expect(byLabel(tree, "Distance (m, optional)")).toBeTruthy();
-    chip(tree, "Jump Rope").props.onPress();
+    byLabel(tree, "Activity").props.onChangeText("Jump Rope");
     tree = render();
     expect(
       find(tree, (n) =>
         String(n.props?.accessibilityLabel).startsWith("Distance"),
       ),
     ).toBeNull();
-    chip(tree, "Outdoor Cycling").props.onPress();
+    byLabel(tree, "Activity").props.onChangeText("Outdoor Cycling");
     tree = render();
     expect(byLabel(tree, "Distance (km, optional)")).toBeTruthy();
   });
 
   it("blocks save on an invalid duration", async () => {
     let tree = render();
+    byLabel(tree, "Activity").props.onChangeText("Swimming");
+    tree = render();
     byLabel(tree, "Save").props.onPress();
     await flush();
     tree = render();
@@ -119,6 +146,7 @@ describe("log activity screen", () => {
 
   it("keeps the form locked and retries with the same operation", async () => {
     let tree = render();
+    byLabel(tree, "Activity").props.onChangeText("Swimming");
     byLabel(tree, "Minutes").props.onChangeText("45");
     tree = render();
     byLabel(tree, "Save").props.onPress();
@@ -126,7 +154,7 @@ describe("log activity screen", () => {
     tree = render();
     expect(mocks.save.mock.calls[0]?.[1]).toMatchObject({
       ownerId: "u",
-      operationId: "op-1",
+      operationId: "11111111-2222-4333-8444-555555555555",
       durationSeconds: 2700,
     });
     expect(byLabel(tree, "Minutes").props.editable).toBe(false);
@@ -139,6 +167,7 @@ describe("log activity screen", () => {
 
   const startSave = async () => {
     let tree = render();
+    byLabel(tree, "Activity").props.onChangeText("Swimming");
     byLabel(tree, "Minutes").props.onChangeText("45");
     tree = render();
     byLabel(tree, "Save").props.onPress();
@@ -208,5 +237,136 @@ describe("log activity screen", () => {
     expect(plans).toHaveLength(3);
     expect(new Set(plans.map((p) => p.operationId)).size).toBe(1);
     expect(mocks.back).toHaveBeenCalled();
+  });
+
+  it("requires an activity before saving", async () => {
+    let tree = render();
+    byLabel(tree, "Minutes").props.onChangeText("45");
+    tree = render();
+    byLabel(tree, "Save").props.onPress();
+    await flush();
+    tree = render();
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.saveRun).not.toHaveBeenCalled();
+    expect(
+      String(find(tree, (n) => n.type === "FormStatus")?.props.children),
+    ).toContain("Enter an activity");
+  });
+
+  it("saves Running through the runs API, not the workout flow", async () => {
+    mocks.saveRun.mockResolvedValue({ ok: true });
+    let tree = render();
+    byLabel(tree, "Activity").props.onChangeText("Running");
+    byLabel(tree, "Minutes").props.onChangeText("30");
+    tree = render();
+    byLabel(tree, "Save").props.onPress();
+    await flush();
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.saveRun).toHaveBeenCalledTimes(1);
+    const plan = mocks.saveRun.mock.calls[0]?.[1];
+    expect(plan.ownerId).toBe("u");
+    expect(plan.body).toMatchObject({
+      clientOperationId: "11111111-2222-4333-8444-555555555555",
+      durationSeconds: 1800,
+      startedAt: null,
+    });
+    expect(mocks.back).toHaveBeenCalled();
+  });
+
+  it("saves an unknown name as a custom activity", async () => {
+    mocks.save.mockResolvedValue({ ok: true, workout: {} });
+    let tree = render();
+    byLabel(tree, "Activity").props.onChangeText("Padel");
+    byLabel(tree, "Minutes").props.onChangeText("60");
+    tree = render();
+    byLabel(tree, "Save").props.onPress();
+    await flush();
+    expect(mocks.saveRun).not.toHaveBeenCalled();
+    expect(mocks.save.mock.calls[0]?.[1]).toMatchObject({
+      activity: { custom: true, name: "Padel" },
+      durationSeconds: 3600,
+    });
+  });
+
+  it("fills the fields from a description", () => {
+    let tree = render();
+    byLabel(tree, "Describe it (optional)").props.onChangeText(
+      "I ran for 45 minutes and 10km, yesterday at 19:00",
+    );
+    tree = render();
+    byLabel(tree, "Fill in from description").props.onPress();
+    tree = render();
+    expect(byLabel(tree, "Activity").props.value).toBe("Running");
+    expect(byLabel(tree, "Minutes").props.value).toBe("45");
+    expect(byLabel(tree, "Distance (km, optional)").props.value).toBe("10");
+    expect(byLabel(tree, "Start time (optional)").props.value).toBe("19:00");
+    expect(
+      String(find(tree, (n) => n.type === "FormStatus")?.props.children),
+    ).toContain("Filled in");
+  });
+
+  it("says so when a description has nothing usable", () => {
+    let tree = render();
+    byLabel(tree, "Describe it (optional)").props.onChangeText("hello there");
+    tree = render();
+    byLabel(tree, "Fill in from description").props.onPress();
+    tree = render();
+    expect(
+      String(find(tree, (n) => n.type === "FormStatus")?.props.children),
+    ).toContain("Couldn't find");
+  });
+  it("refuses a sets-and-reps catalog exercise", async () => {
+    let tree = render();
+    byLabel(tree, "Activity").props.onChangeText("Barbell Bench Press");
+    byLabel(tree, "Minutes").props.onChangeText("10");
+    tree = render();
+    byLabel(tree, "Save").props.onPress();
+    await flush();
+    tree = render();
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.saveRun).not.toHaveBeenCalled();
+    expect(
+      String(find(tree, (n) => n.type === "FormStatus")?.props.children),
+    ).toContain("Use Log workout");
+  });
+
+  it("starts a 'just' activity that long ago", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 17, 15, 10, 30));
+    try {
+      let tree = render();
+      byLabel(tree, "Describe it (optional)").props.onChangeText(
+        "I just went swimming for half an hour in the ocean",
+      );
+      tree = render();
+      byLabel(tree, "Fill in from description").props.onPress();
+      tree = render();
+      expect(byLabel(tree, "Activity").props.value).toBe("Swimming");
+      expect(byLabel(tree, "Minutes").props.value).toBe("30");
+      expect(byLabel(tree, "Start time (optional)").props.value).toBe("14:40");
+      expect(byLabel(tree, "Notes (optional)").props.value).toBe(
+        "In the ocean",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("links to a run left unfinished in the run editor", async () => {
+    mocks.runDraft = { content: true };
+    render();
+    for (const effect of mocks.effects) effect();
+    await flush();
+    const tree = render();
+    const notice = find(tree, (n) => n.type === "Notice");
+    expect(notice.props.title).toBe("Unfinished run");
+    notice.props.action.props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith("/log-run");
+  });
+
+  it("shows no unfinished-run notice without a draft", async () => {
+    render();
+    for (const effect of mocks.effects) effect();
+    await flush();
+    expect(find(render(), (n) => n.type === "Notice")).toBeNull();
   });
 });

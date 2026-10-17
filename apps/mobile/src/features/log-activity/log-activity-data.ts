@@ -1,6 +1,9 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
   exerciseCreateSchema,
+  runResponseSchema,
+  type RunCreate,
+  type RunResponse,
   exerciseListResponseSchema,
   exerciseResponseSchema,
   workoutCreateSchema,
@@ -19,6 +22,7 @@ import {
 import {
   getCatalogExerciseNames,
   getCatalogTrackingMode,
+  resolveExerciseTrackingMode,
   withWorkoutLifecycle,
   type CatalogExercise,
 } from "@mizyun/core";
@@ -27,6 +31,16 @@ import { findCatalogExerciseRecord } from "@/features/workouts/catalog-exercise-
 
 /** Page size used to list saved exercises; a full page may be truncated. */
 export const EXERCISE_LIST_LIMIT = 200;
+
+/** An activity typed by the user that is not in the catalog. */
+export interface CustomActivity {
+  readonly custom: true;
+  readonly name: string;
+}
+
+export const isCustomActivity = (
+  activity: CatalogExercise | CustomActivity,
+): activity is CustomActivity => "custom" in activity;
 
 /**
  * One finished timed activity. The operation ID and both instants are fixed
@@ -37,7 +51,7 @@ export interface LogActivityPlan {
   /** The account the plan was made for; a retry under another is refused. */
   readonly ownerId: string;
   readonly operationId: string;
-  readonly activity: CatalogExercise;
+  readonly activity: CatalogExercise | CustomActivity;
   readonly startedAt: string;
   readonly completedAt: string;
   readonly durationSeconds: number;
@@ -98,7 +112,12 @@ const failure = (
   message: string,
   workoutRequested: boolean,
   retryable: boolean,
-): LogActivityResult => ({ ok: false, message, workoutRequested, retryable });
+): Exclude<LogActivityResult, { ok: true }> => ({
+  ok: false,
+  message,
+  workoutRequested,
+  retryable,
+});
 
 const instructionsFor = (activity: CatalogExercise): string =>
   activity.instructions
@@ -131,7 +150,16 @@ export const resolveActivityExerciseWith = async (
   }
   const saved = listed.value.exercises;
   const match = findCatalogExerciseRecord(saved, activity);
-  if (match) return { ok: true, exercise: match };
+  if (match) {
+    // A record changed to sets and reps must not gain a timed set.
+    if (resolveExerciseTrackingMode(match) === "load_reps") {
+      return {
+        ok: false,
+        message: `Your saved ${activity.name} exercise is logged with sets and reps. Use Log workout for it.`,
+      };
+    }
+    return { ok: true, exercise: match };
+  }
   const known = new Set(
     getCatalogExerciseNames(activity).map((name) => name.trim().toLowerCase()),
   );
@@ -173,6 +201,104 @@ export const resolveActivityExerciseWith = async (
 };
 
 /**
+ * Find the saved exercise named like a custom activity or create it. Fails
+ * closed when the list may be truncated or several records share the name.
+ */
+export const resolveCustomExerciseWith = async (
+  client: ApiClient,
+  activity: CustomActivity,
+): Promise<ExerciseOutcome> => {
+  const listed = await client.request<ExerciseListResponse>({
+    method: "GET",
+    path: `/v1/exercises?limit=${EXERCISE_LIST_LIMIT}`,
+    schema: exerciseListResponseSchema,
+  });
+  if (!listed.ok) {
+    return {
+      ok: false,
+      message: describe(listed.error, "Load your exercises"),
+    };
+  }
+  const name = activity.name.trim();
+  const key = name.toLowerCase();
+  const saved = listed.value.exercises;
+  const matches = saved.filter(
+    (exercise) => exercise.name.trim().toLowerCase() === key,
+  );
+  if (matches.length === 1 && matches[0]) {
+    // A sets-and-reps exercise must not gain a duration/distance set.
+    if (resolveExerciseTrackingMode(matches[0]) === "load_reps") {
+      return {
+        ok: false,
+        message: `Your saved ${name} exercise is logged with sets and reps. Use Log workout for it, or choose another name.`,
+      };
+    }
+    return { ok: true, exercise: matches[0] };
+  }
+  if (matches.length > 1) {
+    return {
+      ok: false,
+      message: `Multiple saved exercises are named ${name}. Open the one you use in Log workout to keep its history.`,
+    };
+  }
+  if (saved.length >= EXERCISE_LIST_LIMIT) {
+    return {
+      ok: false,
+      message: `Your saved exercise list may be incomplete. Open the existing ${name} exercise in Log workout before logging it here.`,
+    };
+  }
+  const body = exerciseCreateSchema.safeParse({
+    name,
+    metadata: { trackingMode: "duration_distance" },
+  });
+  if (!body.success) {
+    return { ok: false, message: "Please double-check the activity name." };
+  }
+  const created = await client.request<ExerciseResponse>({
+    method: "POST",
+    path: "/v1/exercises",
+    body: body.data,
+    schema: exerciseResponseSchema,
+  });
+  return created.ok
+    ? { ok: true, exercise: created.value.exercise }
+    : {
+        ok: false,
+        message: describe(created.error, "Create the exercise"),
+      };
+};
+
+/** A finished run; the operation ID inside the body makes retries safe. */
+export interface LogRunPlan {
+  readonly ownerId: string;
+  readonly body: RunCreate;
+}
+
+/**
+ * Save a run through the runs API. Resending the same body after a failure
+ * or lost response returns the run already created for its operation ID.
+ */
+export const saveLoggedRunWith = async (
+  client: ApiClient,
+  plan: LogRunPlan,
+): Promise<
+  { readonly ok: true } | Exclude<LogActivityResult, { ok: true }>
+> => {
+  const created = await client.request<RunResponse>({
+    method: "POST",
+    path: "/v1/runs",
+    body: plan.body,
+    schema: runResponseSchema,
+  });
+  if (created.ok) return { ok: true };
+  const message =
+    created.error.kind === "http_error" && created.error.status === 409
+      ? "The server already has a different run for this save. Close this sheet and check your runs."
+      : describe(created.error, "Save your run").replaceAll("activity", "run");
+  return failure(message, true, isRetryable(created.error));
+};
+
+/**
  * Save a finished timed activity as a completed workout with one set.
  * Safe to call again with the same plan after any failure or lost response:
  * the workout is deduplicated by operation ID, the exercise is looked up by
@@ -182,7 +308,9 @@ export const saveLoggedActivityWith = async (
   client: ApiClient,
   plan: LogActivityPlan,
 ): Promise<LogActivityResult> => {
-  const exercise = await resolveActivityExerciseWith(client, plan.activity);
+  const exercise = isCustomActivity(plan.activity)
+    ? await resolveCustomExerciseWith(client, plan.activity)
+    : await resolveActivityExerciseWith(client, plan.activity);
   // Nothing was sent yet, so the user can change the details and try again.
   if (!exercise.ok) return failure(exercise.message, false, true);
 

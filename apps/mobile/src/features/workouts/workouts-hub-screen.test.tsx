@@ -550,16 +550,19 @@ it("resumes the active workout from the primary action without creating another"
 });
 
 describe("running inside Workouts", () => {
-  it("opens Log run directly while preserving the active strength workout", () => {
+  it("logs runs through Log activity while preserving the active strength workout", () => {
     mocks.activeWorkout = { id: "active-strength" };
     const tree = render();
-    const logRun = find(
+    expect(
+      find(tree, (node) => node.props?.accessibilityLabel === "Log run"),
+    ).toBeFalsy();
+    const logActivity = find(
       tree,
-      (node) => node.props?.accessibilityLabel === "Log run",
+      (node) => node.props?.accessibilityLabel === "Log activity",
     );
-    expect(logRun).toBeTruthy();
-    logRun.props.onPress();
-    expect(mocks.push).toHaveBeenCalledWith("/log-run");
+    expect(logActivity.props.subtitle).toMatch(/^Running/);
+    logActivity.props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith("/log-activity");
     expect(mocks.activeWorkout.id).toBe("active-strength");
   });
   it("mixes run cards with strength cards and supports a Running history filter", async () => {
@@ -924,7 +927,7 @@ describe("indoor bouldering entry (ADR-0066)", () => {
     expect(boulderingRow(render())).toBeFalsy();
   });
 
-  it("shows Start bouldering beside Log run when enabled", () => {
+  it("shows Start bouldering beside Log activity when enabled", () => {
     mocks.boulderingEnabled = true;
     mocks.fetch.mockReturnValue(new Promise(() => {}));
     const row = boulderingRow(render());

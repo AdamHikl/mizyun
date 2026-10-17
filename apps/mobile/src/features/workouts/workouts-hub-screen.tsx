@@ -788,18 +788,10 @@ export function WorkoutsHubScreen() {
               onPress={() => router.push("/log-past-workout" as Href)}
             />
             <ListRow
-              key="log-run"
-              icon="run"
-              title="Log run"
-              subtitle="Distance is optional"
-              accessibilityLabel="Log run"
-              onPress={() => router.push("/log-run" as Href)}
-            />
-            <ListRow
               key="log-activity"
               icon="timer"
               title="Log activity"
-              subtitle="Swimming, cycling and more"
+              subtitle="Running, swimming, cycling and more"
               accessibilityLabel="Log activity"
               onPress={() => router.push("/log-activity" as Href)}
             />
@@ -1071,7 +1063,7 @@ export function WorkoutsHubScreen() {
                     }
                     message={
                       historyFilter === "running"
-                        ? "Use Log run to add a completed run. Duration is enough when distance is unknown."
+                        ? "Use Log activity to add a completed run. Duration is enough when distance is unknown."
                         : "Completed sessions will appear here."
                     }
                   />

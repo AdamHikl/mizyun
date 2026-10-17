@@ -126,6 +126,12 @@ const catalogByExactName = (): ReadonlyMap<string, CatalogExercise> => {
   return index;
 };
 
+/** The catalog exercise with exactly this current or previous name. */
+export const findCatalogExerciseByExactName = (
+  name: string,
+): CatalogExercise | null =>
+  catalogByExactName().get(normalizeName(name)) ?? null;
+
 /**
  * Resolve the mode for a saved exercise record. An explicit valid
  * `metadata.trackingMode` wins, then the catalog entry (see above).
@@ -198,7 +204,7 @@ export const bareDurationUnit = (
   mode: ExerciseTrackingMode,
 ): "minutes" | "seconds" => (mode === "duration" ? "seconds" : "minutes");
 
-/** Catalog activities offered by Log activity; running has Log run. */
+/** Catalog activities offered by Log activity; running saves as a run. */
 export const TIMED_ACTIVITY_IDS = [
   "exercise-swimming",
   "exercise-outdoor-cycling",

@@ -3,7 +3,9 @@ import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import { listTimedActivities, readWorkoutLifecycle } from "@mizyun/core";
 import type { Exercise, Workout, WorkoutSet } from "@mizyun/contracts";
 import {
+  resolveCustomExerciseWith,
   saveLoggedActivityWith,
+  saveLoggedRunWith,
   type LogActivityPlan,
 } from "./log-activity-data";
 
@@ -201,5 +203,145 @@ describe("saveLoggedActivityWith", () => {
       workoutRequested: true,
       retryable: false,
     });
+  });
+});
+
+describe("resolveCustomExerciseWith", () => {
+  const padel = { custom: true as const, name: "Padel" };
+
+  it("reuses a single exact case-insensitive match", async () => {
+    const existing = {
+      ...exercise("00000000-0000-4000-8000-0000000000e2", " padel "),
+      metadata: { trackingMode: "duration_distance" },
+    };
+    const s = server({ exercises: [existing, exercise("x", "Squash")] });
+    const result = await resolveCustomExerciseWith(s.client, padel);
+    expect(result).toEqual({ ok: true, exercise: existing });
+    expect(s.log.some((o) => o.method === "POST")).toBe(false);
+  });
+
+  it("refuses a same-named sets-and-reps exercise", async () => {
+    const s = server({ exercises: [exercise("p", "Padel")] });
+    const result = await resolveCustomExerciseWith(s.client, padel);
+    expect(result).toMatchObject({ ok: false });
+    expect(!result.ok && result.message).toMatch(/sets and reps/);
+    expect(s.log.some((o) => o.method === "POST")).toBe(false);
+  });
+
+  it("fails closed on duplicate names", async () => {
+    const s = server({
+      exercises: [exercise("a", "Padel"), exercise("b", "PADEL")],
+    });
+    const result = await resolveCustomExerciseWith(s.client, padel);
+    expect(result.ok).toBe(false);
+    expect(s.exercises).toHaveLength(2);
+  });
+
+  it("fails closed when the saved list may be truncated", async () => {
+    const many = Array.from({ length: 200 }, (_, i) =>
+      exercise(`e${i}`, `Move ${i}`),
+    );
+    const s = server({ exercises: many });
+    const result = await resolveCustomExerciseWith(s.client, padel);
+    expect(result.ok).toBe(false);
+    expect(s.exercises).toHaveLength(200);
+  });
+
+  it("creates the exercise with distance tracking metadata", async () => {
+    const s = server();
+    const result = await resolveCustomExerciseWith(s.client, {
+      custom: true,
+      name: "  Padel ",
+    });
+    expect(result.ok).toBe(true);
+    const body = s.log.find((o) => o.path === "/v1/exercises")!.body as any;
+    expect(body).toMatchObject({
+      name: "Padel",
+      metadata: { trackingMode: "duration_distance" },
+    });
+    expect(s.exercises.map((e) => e.name)).toEqual(["Padel"]);
+  });
+
+  it("saves a custom activity as a workout named after it", async () => {
+    const s = server();
+    const result = await saveLoggedActivityWith(s.client, {
+      ...plan,
+      activity: padel,
+    });
+    expect(result.ok).toBe(true);
+    const created = s.log.find((o) => o.path === "/v1/workouts")!.body as any;
+    expect(created.name).toBe("Padel");
+    expect(s.sets).toHaveLength(1);
+  });
+});
+
+describe("saveLoggedRunWith", () => {
+  const runPlan = {
+    ownerId: "u",
+    body: {
+      clientOperationId: "11111111-2222-4333-8444-555555555555",
+      activityDate: "2026-10-16",
+      recordingTimezone: "Europe/London",
+      startedAt: null,
+      durationSeconds: 2700,
+      distanceMeters: 10000,
+      environment: "outdoor",
+      name: "Run",
+      notes: null,
+    },
+  } as Parameters<typeof saveLoggedRunWith>[1];
+  const runClient = (
+    respond: (o: RequestOptions) => { ok: boolean; error?: ApiError },
+  ) => {
+    const log: RequestOptions[] = [];
+    const client: ApiClient = {
+      status: () => ({ configured: true, baseUrl: "https://x.test" }),
+      request: async <T>(o: RequestOptions) => {
+        log.push(o);
+        const r = respond(o);
+        return r.ok
+          ? { ok: true as const, value: { run: {} } as T }
+          : { ok: false as const, error: r.error! };
+      },
+    };
+    return { client, log };
+  };
+
+  it("posts the exact body to /v1/runs", async () => {
+    const c = runClient(() => ({ ok: true }));
+    // The response schema is checked by the real client, not this fake.
+    const result = await saveLoggedRunWith(c.client, runPlan);
+    expect(result).toEqual({ ok: true });
+    expect(c.log).toHaveLength(1);
+    expect(c.log[0]).toMatchObject({
+      method: "POST",
+      path: "/v1/runs",
+      body: runPlan.body,
+    });
+  });
+
+  it("reports a network error as retryable with the request sent", async () => {
+    const c = runClient(() => ({ ok: false, error: net }));
+    const result = await saveLoggedRunWith(c.client, runPlan);
+    expect(result).toMatchObject({
+      ok: false,
+      workoutRequested: true,
+      retryable: true,
+    });
+    if (!result.ok) expect(result.message).toContain("Retry");
+  });
+
+  it("does not retry a 409 conflict", async () => {
+    const c = runClient(() => ({
+      ok: false,
+      error: { kind: "http_error", status: 409 } as ApiError,
+    }));
+    const result = await saveLoggedRunWith(c.client, runPlan);
+    expect(result).toMatchObject({
+      ok: false,
+      workoutRequested: true,
+      retryable: false,
+    });
+    if (!result.ok) expect(result.message).toContain("different run");
   });
 });

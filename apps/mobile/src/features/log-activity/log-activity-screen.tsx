@@ -1,8 +1,14 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { router, Stack } from "expo-router";
+import { router, Stack, type Href } from "expo-router";
 import * as Crypto from "expo-crypto";
-import { listTimedActivities } from "@mizyun/core";
+import {
+  draftActivityFromDescription,
+  listTimedActivities,
+  resolveActivityName,
+  resolvedActivityLabel,
+  type LocalDate,
+} from "@mizyun/core";
 import type { ApiClient } from "@mizyun/api-client";
 
 import { ThemedText } from "@/components/themed-text";
@@ -14,23 +20,52 @@ import {
   FormField,
   FormStatus,
   FormTextInput,
+  Notice,
 } from "@/components/ui";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
+import { hasRunDraftContent, runDraftStore } from "@/features/log-run";
+import { ActivityDatePicker } from "./activity-date-picker";
 import {
   saveLoggedActivityWith,
+  saveLoggedRunWith,
   type LogActivityPlan,
+  type LogRunPlan,
 } from "./log-activity-data";
 import {
-  activityDistanceUnit,
   activityTimes,
-  activityTracksDistance,
+  deviceTimeZone,
+  distanceFieldText,
+  endedNowStart,
+  formatTimeInput,
+  localDateLabel,
   parseActivityForm,
-  recentDayLabels,
+  parseTimeInput,
+  resolvedDistance,
+  runCreateBody,
+  toLocalDate,
 } from "./log-activity-form";
 
-const activities = listTimedActivities();
+const SUGGESTIONS = [
+  "Running",
+  ...listTimedActivities().map((activity) => activity.name),
+];
+
+type PendingSave =
+  | { readonly kind: "workout"; readonly plan: LogActivityPlan }
+  | { readonly kind: "run"; readonly plan: LogRunPlan };
+
+type Environment = "outdoor" | "treadmill" | "unspecified";
+
+const FIELD_NAMES = {
+  activity: "activity",
+  duration: "duration",
+  distance: "distance",
+  date: "date",
+  time: "start time",
+  note: "note",
+} as const;
 
 export function LogActivityScreen() {
   const { session, profile } = useAuth();
@@ -40,34 +75,187 @@ export function LogActivityScreen() {
   owner.current = userId;
   const busyRef = useRef(false);
   // Set on the first save attempt; kept so every retry sends the same body.
-  const pending = useRef<LogActivityPlan | null>(null);
-  // True once any attempt for the pending plan may have sent its workout.
+  const pending = useRef<PendingSave | null>(null);
+  // True once any attempt for the pending save may have reached the server.
   const workoutSent = useRef(false);
 
-  const [activityId, setActivityId] = useState(activities[0]?.id ?? "");
-  const [dayOffset, setDayOffset] = useState(0);
+  const [description, setDescription] = useState("");
+  const [drafted, setDrafted] = useState<string | null>(null);
+  const [activityText, setActivityText] = useState("");
+  const [date, setDate] = useState<LocalDate>(() => toLocalDate(new Date()));
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [startTime, setStartTime] = useState("");
   const [minutes, setMinutes] = useState("");
   const [seconds, setSeconds] = useState("");
   const [distance, setDistance] = useState("");
+  const [environment, setEnvironment] = useState<Environment>("unspecified");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [retryable, setRetryable] = useState(true);
+  const [unfinishedRun, setUnfinishedRun] = useState(false);
 
-  const activity =
-    activities.find((candidate) => candidate.id === activityId) ??
-    activities[0];
+  useEffect(() => {
+    // A run left unfinished in the run editor stays reachable from here.
+    let active = true;
+    setUnfinishedRun(false);
+    if (!userId) return;
+    void runDraftStore
+      .load(userId)
+      .then((draft) => {
+        if (active && owner.current === userId) {
+          setUnfinishedRun(!!draft && hasRunDraftContent(draft));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const activity = resolveActivityName(activityText);
   const unitSystem = profile?.unitSystem === "imperial" ? "imperial" : "metric";
-  const tracksDistance = activity ? activityTracksDistance(activity) : false;
-  const unit = activity ? activityDistanceUnit(activity, unitSystem) : "km";
+  const { tracksDistance, unit } = resolvedDistance(activity, unitSystem);
+  const today = toLocalDate(new Date());
   const disabled = busy || locked;
+  const typed = activityText.trim().toLowerCase();
+  const suggestions = SUGGESTIONS.filter(
+    (name) => typed.length === 0 || name.toLowerCase().includes(typed),
+  );
+
+  const fillFromDescription = () => {
+    const draft = draftActivityFromDescription(description, new Date());
+    const filled: string[] = [];
+    let nextActivity = activity;
+    if (draft.activity) {
+      nextActivity = draft.activity;
+      setActivityText(resolvedActivityLabel(draft.activity));
+      filled.push(FIELD_NAMES.activity);
+    }
+    if (draft.durationSeconds !== null) {
+      setMinutes(String(Math.floor(draft.durationSeconds / 60)));
+      setSeconds(
+        draft.durationSeconds % 60 === 0
+          ? ""
+          : String(draft.durationSeconds % 60),
+      );
+      filled.push(FIELD_NAMES.duration);
+    }
+    const nextDistance = resolvedDistance(nextActivity, unitSystem);
+    if (draft.distance && nextDistance.tracksDistance) {
+      setDistance(distanceFieldText(draft.distance, nextDistance.unit));
+      filled.push(FIELD_NAMES.distance);
+    }
+    if (draft.date) {
+      setDate(draft.date);
+      filled.push(FIELD_NAMES.date);
+    }
+    const duration =
+      draft.durationSeconds ??
+      parseActivityForm({
+        minutes,
+        seconds,
+        distance: "",
+        unit,
+        tracksDistance: false,
+      });
+    const knownDuration =
+      typeof duration === "number"
+        ? duration
+        : duration.ok
+          ? duration.durationSeconds
+          : null;
+    if (draft.startTime) {
+      setStartTime(formatTimeInput(draft.startTime));
+      filled.push(FIELD_NAMES.time);
+    } else if (draft.endedNow && knownDuration !== null) {
+      // "Just": it started that long ago, possibly yesterday.
+      const start = endedNowStart(new Date(), knownDuration);
+      setDate(start.date);
+      setStartTime(formatTimeInput(start.startTime));
+      filled.push(FIELD_NAMES.time);
+    } else if (draft.endedNow || draft.date) {
+      // A day without a time: today ends now, earlier days at noon.
+      setStartTime("");
+    }
+    if (draft.environment) setEnvironment(draft.environment);
+    if (draft.note && notes.trim().length === 0) {
+      setNotes(draft.note);
+      filled.push(FIELD_NAMES.note);
+    }
+    setError(null);
+    setDrafted(
+      filled.length > 0
+        ? `Filled in ${filled.join(", ")}. Check the details, then save.`
+        : "Couldn't find activity details in that description. Fill in the fields below.",
+    );
+  };
+
+  const buildSave = (): PendingSave | string => {
+    if (!userId) return "Sign in to log an activity.";
+    if (!activity) return "Enter an activity, such as Running or Swimming.";
+    if (activity.kind === "strength") {
+      return `${activity.exercise.name} is logged with sets and reps. Use Log workout instead.`;
+    }
+    const parsed = parseActivityForm({
+      minutes,
+      seconds,
+      distance,
+      unit,
+      tracksDistance,
+    });
+    if (!parsed.ok) return parsed.message;
+    const time = parseTimeInput(startTime);
+    if (time === "invalid") {
+      return "Enter the start time like 19:00 or 7pm, or leave it blank.";
+    }
+    const now = new Date();
+    if (activity.kind === "running") {
+      const timeZone = deviceTimeZone();
+      if (!timeZone) {
+        return "This device's time zone is unavailable, so the run's date can't be recorded. Check the date and time settings.";
+      }
+      const run = runCreateBody({
+        operationId: Crypto.randomUUID(),
+        now,
+        date,
+        startTime: time,
+        durationSeconds: parsed.durationSeconds,
+        distanceMeters: parsed.distanceMeters,
+        environment,
+        notes,
+        timeZone,
+      });
+      return run.ok
+        ? { kind: "run", plan: { ownerId: userId, body: run.body } }
+        : run.message;
+    }
+    const times = activityTimes(now, date, time, parsed.durationSeconds);
+    if (!times.ok) return times.message;
+    return {
+      kind: "workout",
+      plan: {
+        ownerId: userId,
+        operationId: Crypto.randomUUID(),
+        activity:
+          activity.kind === "catalog"
+            ? activity.exercise
+            : { custom: true, name: activity.name },
+        startedAt: times.startedAt,
+        completedAt: times.completedAt,
+        durationSeconds: parsed.durationSeconds,
+        distanceMeters: parsed.distanceMeters,
+        notes,
+      },
+    };
+  };
 
   const save = async () => {
-    if (!activity || !userId || busyRef.current) return;
+    if (!userId || busyRef.current) return;
     const saveOwner = owner.current;
     let plan = pending.current;
-    if (plan && plan.ownerId !== userId) {
+    if (plan && plan.plan.ownerId !== userId) {
       // Never resend one account's activity under another account.
       pending.current = null;
       workoutSent.current = false;
@@ -80,31 +268,12 @@ export function LogActivityScreen() {
       return;
     }
     if (!plan) {
-      const parsed = parseActivityForm({
-        minutes,
-        seconds,
-        distance,
-        unit,
-        tracksDistance,
-      });
-      if (!parsed.ok) {
-        setError(parsed.message);
+      const built = buildSave();
+      if (typeof built === "string") {
+        setError(built);
         return;
       }
-      const times = activityTimes(
-        new Date(),
-        dayOffset,
-        parsed.durationSeconds,
-      );
-      plan = {
-        ownerId: userId,
-        operationId: Crypto.randomUUID(),
-        activity,
-        ...times,
-        durationSeconds: parsed.durationSeconds,
-        distanceMeters: parsed.distanceMeters,
-        notes,
-      };
+      plan = built;
       pending.current = plan;
       setLocked(true);
     }
@@ -118,8 +287,11 @@ export function LogActivityScreen() {
     setBusy(true);
     setError(null);
     try {
-      const result = await saveLoggedActivityWith(scoped, plan);
-      // Record a possibly sent workout even if the response is now stale.
+      const result =
+        plan.kind === "run"
+          ? await saveLoggedRunWith(scoped, plan.plan)
+          : await saveLoggedActivityWith(scoped, plan.plan);
+      // Record a possibly sent save even if the response is now stale.
       if (!result.ok && result.workoutRequested) workoutSent.current = true;
       if (!isCurrent()) return;
       if (result.ok) {
@@ -129,14 +301,14 @@ export function LogActivityScreen() {
       }
       setError(result.message);
       if (!workoutSent.current) {
-        // No attempt reached the workout step: edit and save afresh.
+        // No attempt reached the server: edit and save afresh.
         pending.current = null;
         setLocked(false);
       } else {
         setRetryable(result.retryable);
       }
     } catch {
-      // The workout may have been sent; keep the plan for an identical retry.
+      // The save may have been sent; keep the plan for an identical retry.
       workoutSent.current = true;
       if (isCurrent())
         setError(
@@ -157,31 +329,119 @@ export function LogActivityScreen() {
         contentContainerStyle={styles.content}
       >
         <ThemedText type="subtitle">Log a finished activity</ThemedText>
-        <FormField label="Activity">
-          <ChoiceGroup>
-            {activities.map((candidate) => (
-              <ChoiceChip
-                key={candidate.id}
-                label={candidate.name}
-                selected={candidate.id === activityId}
-                disabled={disabled}
-                onPress={() => setActivityId(candidate.id)}
+        {unfinishedRun ? (
+          <Notice
+            tone="warning"
+            title="Unfinished run"
+            message="A run you started editing earlier hasn't been saved yet."
+            action={
+              <Button
+                label="Open unfinished run"
+                accessibilityLabel="Open unfinished run"
+                variant="secondary"
+                onPress={() => {
+                  // It may be saved there; don't show a stale notice on return.
+                  setUnfinishedRun(false);
+                  router.push("/log-run" as Href);
+                }}
               />
-            ))}
-          </ChoiceGroup>
+            }
+          />
+        ) : null}
+        <FormField label="Describe it (optional)">
+          <FormTextInput
+            accessibilityLabel="Describe it (optional)"
+            placeholder="I ran 10 km in 45 minutes yesterday at 19:00"
+            value={description}
+            editable={!disabled}
+            multiline
+            maxLength={500}
+            onChangeText={setDescription}
+          />
         </FormField>
-        <FormField label="Date">
+        <Button
+          label="Fill in from description"
+          accessibilityLabel="Fill in from description"
+          variant="secondary"
+          disabled={disabled || description.trim().length === 0}
+          onPress={fillFromDescription}
+        />
+        {drafted ? <FormStatus tone="neutral">{drafted}</FormStatus> : null}
+        <FormField label="Activity">
+          <FormTextInput
+            accessibilityLabel="Activity"
+            placeholder="Running, swimming, padel…"
+            value={activityText}
+            editable={!disabled}
+            autoCapitalize="sentences"
+            maxLength={200}
+            onChangeText={setActivityText}
+          />
+        </FormField>
+        {suggestions.length > 0 &&
+        !(
+          activity &&
+          suggestions.length === 1 &&
+          suggestions[0] === resolvedActivityLabel(activity)
+        ) ? (
           <ChoiceGroup>
-            {recentDayLabels(new Date()).map((day) => (
+            {suggestions.map((name) => (
               <ChoiceChip
-                key={day.offset}
-                label={day.label}
-                selected={day.offset === dayOffset}
+                key={name}
+                label={name}
+                selected={
+                  activity ? resolvedActivityLabel(activity) === name : false
+                }
                 disabled={disabled}
-                onPress={() => setDayOffset(day.offset)}
+                onPress={() => setActivityText(name)}
               />
             ))}
           </ChoiceGroup>
+        ) : null}
+        {activity?.kind === "running" ? (
+          <ThemedText type="footnote" themeColor="textSecondary">
+            Saved to your runs.
+          </ThemedText>
+        ) : activity?.kind === "strength" ? (
+          <ThemedText type="footnote" themeColor="textSecondary">
+            {activity.exercise.name} is logged with sets and reps. Use Log
+            workout instead.
+          </ThemedText>
+        ) : activity?.kind === "custom" ? (
+          <ThemedText type="footnote" themeColor="textSecondary">
+            Saved as a new activity named {activity.name}.
+          </ThemedText>
+        ) : null}
+        <FormField label="Date">
+          <Button
+            label={localDateLabel(date, today)}
+            accessibilityLabel={`Date, ${localDateLabel(date, today)}`}
+            variant="secondary"
+            icon="calendar"
+            disabled={disabled}
+            onPress={() => setCalendarOpen((open) => !open)}
+          />
+        </FormField>
+        {calendarOpen && !disabled ? (
+          <ActivityDatePicker
+            value={date}
+            today={today}
+            onChange={(next) => {
+              setDate(next);
+              setCalendarOpen(false);
+            }}
+          />
+        ) : null}
+        <FormField label="Start time (optional)">
+          <FormTextInput
+            accessibilityLabel="Start time (optional)"
+            placeholder="19:00"
+            value={startTime}
+            editable={!disabled}
+            keyboardType="numbers-and-punctuation"
+            maxLength={8}
+            onChangeText={setStartTime}
+          />
         </FormField>
         <View style={styles.row}>
           <View style={styles.cell}>
@@ -224,6 +484,30 @@ export function LogActivityScreen() {
             />
           </FormField>
         ) : null}
+        {activity?.kind === "running" ? (
+          <FormField label="Where">
+            <ChoiceGroup>
+              {(
+                [
+                  ["outdoor", "Outdoors"],
+                  ["treadmill", "Treadmill"],
+                ] as const
+              ).map(([value, label]) => (
+                <ChoiceChip
+                  key={value}
+                  label={label}
+                  selected={environment === value}
+                  disabled={disabled}
+                  onPress={() =>
+                    setEnvironment(
+                      environment === value ? "unspecified" : value,
+                    )
+                  }
+                />
+              ))}
+            </ChoiceGroup>
+          </FormField>
+        ) : null}
         <FormField label="Notes (optional)">
           <FormTextInput
             accessibilityLabel="Notes (optional)"
@@ -255,7 +539,7 @@ export function LogActivityScreen() {
         {locked && !busy && retryable ? (
           <ThemedText type="footnote" themeColor="textSecondary">
             Details are locked while this save is unfinished so a retry cannot
-            create a second workout.
+            create a second entry.
           </ThemedText>
         ) : null}
       </ScrollView>
