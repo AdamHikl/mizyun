@@ -44,6 +44,10 @@ import {
 } from "../log-weight/weigh-in-reminders";
 import { clearReminderSuggestionDismissals } from "./reminder-time-suggestion";
 import {
+  clearLoggingConsistencyPreferences,
+  type LoggingConsistencyStore,
+} from "../dashboard/logging-consistency-preferences";
+import {
   clearWeeklyReviewReminder,
   type WeeklyReviewReminderScheduler,
 } from "../weekly-review/weekly-review-notification";
@@ -268,6 +272,7 @@ export interface ClearLocalUserDataOptions {
   readonly challengeStore?: SecureKeyValueStore;
   readonly offlineCacheStore?: Parameters<typeof purgeOfflineCache>[1];
   readonly workoutPreferencesStore?: SecureKeyValueStore;
+  readonly loggingConsistencyStore?: LoggingConsistencyStore;
   readonly clearHealthExports?: (userId: string) => Promise<void>;
   readonly listExportFiles?: () => ReadonlyArray<{
     readonly name: string;
@@ -378,6 +383,10 @@ export const clearLocalUserData = async (
     clearReminderSuggestionDismissals(
       userId,
       options.eveningReminderStore ?? options.reminderStore,
+    ),
+    clearLoggingConsistencyPreferences(
+      userId,
+      options.loggingConsistencyStore ?? options.reminderStore,
     ),
     clearWeeklyReviewSeen(userId, options.reminderStore),
     clearFoodDayCompletions(

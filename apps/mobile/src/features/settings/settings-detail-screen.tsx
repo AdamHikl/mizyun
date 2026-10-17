@@ -31,6 +31,7 @@ import { RegionalFoodStandardsCard } from "./regional-food-standards-card";
 import { WorkoutSettingsCard } from "./workout-settings-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
 import { FirstMealRemindersCard } from "./first-meal-reminders-card";
+import { LoggingGoalCard } from "./logging-goal-card";
 import { EveningCatchUpRemindersCard } from "./evening-catch-up-reminders-card";
 import { WeeklyReviewReminderCard } from "./weekly-review-reminder-card";
 import { WeighInReminderCard } from "./weigh-in-reminder-card";
@@ -127,7 +128,12 @@ export function SettingsDetailScreen({
 
       case "goal":
         return profile !== null ? (
-          <GoalSettingsCard unitSystem={profile.unitSystem} />
+          <View style={styles.cardGroup}>
+            <GoalSettingsCard unitSystem={profile.unitSystem} />
+            {session !== null ? (
+              <LoggingGoalCard userId={session.user.id} />
+            ) : null}
+          </View>
         ) : (
           <ThemedText type="footnote" themeColor="textSecondary">
             Goal settings are not available.

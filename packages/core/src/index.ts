@@ -263,6 +263,14 @@ export {
 } from "./coaching-plan";
 
 export {
+  PROTEIN_RANGE_VERSION,
+  dailyProteinRange,
+  proteinProgressStatus,
+  type DailyProteinRange,
+  type ProteinProgressStatus,
+} from "./protein-range";
+
+export {
   DAILY_ACTION_PLAN_VERSION,
   buildDailyActionPlan,
   type DailyActionPlan,
@@ -474,3 +482,15 @@ export * from "./bouldering-repository";
 
 export * from "./barbell-plates";
 export * from "./activity-description";
+
+export {
+  WEEKLY_LOG_GOAL_DEFAULT,
+  WEEKLY_LOG_GOAL_MAX,
+  WEEKLY_LOG_GOAL_MIN,
+  WELCOME_BACK_AFTER_DAYS,
+  addLocalDays,
+  clampWeeklyLogGoal,
+  computeLoggingConsistency,
+  type LoggingConsistency,
+  type LoggingConsistencyDay,
+} from "./logging-consistency";

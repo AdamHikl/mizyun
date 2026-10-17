@@ -62,7 +62,8 @@ export interface CoachingPlan {
   readonly safetyNotice: string;
 }
 
-const proteinMultipliers = (
+/** Protein grams per kilogram of body weight for a goal (min, target, max). */
+export const proteinMultipliers = (
   goalKind: GoalKind,
 ): {
   readonly min: number;

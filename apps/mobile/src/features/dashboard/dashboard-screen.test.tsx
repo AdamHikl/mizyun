@@ -667,6 +667,61 @@ describe("dashboard cached display and refresh status", () => {
     expect(card.props.summary).toBeNull();
   });
 
+  it("frames protein as a range and offers diet-aware ideas only while building (#293)", async () => {
+    render();
+    focus();
+    await settle();
+    const card = nutrition(render());
+    const proteinEnergy = {
+      ...energy,
+      targetProteinG: 140,
+      targetCarbohydrateG: 220,
+      targetFatG: 60,
+      inputs: { weightKg: 70, goalKind: "cut" },
+    };
+    const renderCard = (overrides: Record<string, unknown>) =>
+      card.type({ ...card.props, energy: proteinEnergy, ...overrides });
+    const proteinBar = (tree: any) =>
+      find(
+        tree,
+        (node) =>
+          node.type?.name === "MacroBar" && node.props.label === "Protein",
+      );
+
+    const vegan = renderCard({ dietaryPreferences: ["vegan"] });
+    expect(proteinBar(vegan).props.rangeLow).toBe(112);
+    expect(proteinBar(vegan).props.inRange).toBe(false);
+    const bar = proteinBar(vegan).type(proteinBar(vegan).props);
+    expect(text(bar)).toContain("112–140g");
+    expect(bar.props.accessibilityLabel).toBe(
+      "Protein, 40 grams, good range 112 to 140 grams",
+    );
+    expect(text(vegan)).toContain("Protein ideas for later today");
+    expect(text(vegan)).toContain("Tofu or tempeh");
+    expect(text(vegan)).not.toContain("Eggs");
+
+    expect(
+      text(renderCard({ dietaryPreferences: ["omnivore"] })),
+    ).not.toContain("Protein ideas");
+    const reached = renderCard({
+      dietaryPreferences: ["vegan"],
+      summary: { ...summary, proteinG: 120 },
+    });
+    expect(proteinBar(reached).props.inRange).toBe(true);
+    expect(text(proteinBar(reached).type(proteinBar(reached).props))).toContain(
+      "In range",
+    );
+    expect(text(reached)).not.toContain("Protein ideas");
+    expect(
+      text(
+        renderCard({
+          dietaryPreferences: ["vegan"],
+          summary: { ...summary, proteinG: null },
+        }),
+      ),
+    ).not.toContain("Protein ideas");
+  });
+
   it("shows cached numbers immediately without claiming offline before the live read settles", async () => {
     const pending = deferred<any>();
     mocks.daily.mockReturnValueOnce(pending.promise);

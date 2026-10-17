@@ -45,7 +45,7 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
   goal: {
     title: "Goal & target pace",
     categoryId: "profile-goals",
-    validAnchors: ["target-weight", "weekly-pace"],
+    validAnchors: ["target-weight", "weekly-pace", "logging-goal"],
   },
   "food-standards": {
     title: "Regional food standards",

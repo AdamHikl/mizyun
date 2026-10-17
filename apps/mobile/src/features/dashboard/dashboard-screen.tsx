@@ -16,7 +16,7 @@ import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Network from "expo-network";
 import * as Crypto from "expo-crypto";
-import type { FoodEntry } from "@mizyun/contracts";
+import type { CoachingPreferences, FoodEntry } from "@mizyun/contracts";
 import {
   createBlankWorkout,
   formatStopwatch,
@@ -86,6 +86,8 @@ import {
 } from "../log-meal/first-meal-reminders";
 import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminders";
 import { DailyNutrients } from "./daily-nutrients";
+import { proteinIdeasFor } from "./protein-ideas";
+import { LoggingConsistencyCard } from "./logging-consistency-card";
 import { WeeklyReviewPopup } from "../weekly-review/weekly-review-modal";
 import { reconcileWeeklyReviewReminder } from "../weekly-review/weekly-review-notification";
 import { energyPlanNotes, hasEnergyPlanNotes } from "./energy-plan-notes";
@@ -1072,6 +1074,9 @@ export function DashboardScreen() {
             caloriesToday={metrics.caloriesToday}
             loading={metrics.sectionStatus.nutritionToday.loading}
             hasError={metrics.sectionStatus.nutritionToday.hasError}
+            dietaryPreferences={
+              profile?.coachingPreferences?.dietaryPreferences ?? null
+            }
             onPress={() => {
               trackDashboardControl("nutrition_card");
               void router.push("/meals" as Href);
@@ -1119,6 +1124,13 @@ export function DashboardScreen() {
               />
             ))}
           </ListGroup>
+
+          {userId !== null ? (
+            <LoggingConsistencyCard
+              userId={userId}
+              refreshKey={metrics.macros?.entryCount ?? 0}
+            />
+          ) : null}
 
           {userId !== null && (metrics.macros?.entryCount ?? 0) === 0 ? (
             <FirstMealDashboardCard
@@ -1664,6 +1676,8 @@ function DailyNutritionCard(props: {
   readonly caloriesToday: number | null;
   readonly loading?: boolean;
   readonly hasError?: boolean;
+  readonly dietaryPreferences?:
+    CoachingPreferences["dietaryPreferences"] | null;
   readonly onPress: () => void;
 }) {
   const {
@@ -1672,6 +1686,7 @@ function DailyNutritionCard(props: {
     caloriesToday,
     loading = false,
     hasError = false,
+    dietaryPreferences = null,
     onPress,
   } = props;
   const theme = useTheme();
@@ -1683,6 +1698,13 @@ function DailyNutritionCard(props: {
     loading,
     hasError,
   });
+  // Ideas help once a meal is logged and protein is still building; they are
+  // hidden while totals are unknown so missing data never reads as a deficit.
+  const proteinIdeas =
+    display.proteinStatus === "building" &&
+    (display.status === "complete" || display.status === "incomplete")
+      ? proteinIdeasFor(dietaryPreferences)
+      : [];
   const badge = {
     normal: { bg: theme.primaryLight, fg: theme.primary },
     over: { bg: theme.dangerLight, fg: theme.danger },
@@ -1765,6 +1787,9 @@ function DailyNutritionCard(props: {
               target={display.targetProteinG}
               color={theme.protein}
               percent={display.proteinPercent}
+              rangeLow={display.proteinRangeLowG}
+              rangeMarkerPercent={display.proteinRangeMarkerPercent}
+              inRange={display.proteinStatus === "in_range"}
             />
             <MacroBar
               label="Carbs"
@@ -1781,6 +1806,15 @@ function DailyNutritionCard(props: {
               percent={display.fatPercent}
             />
           </View>
+
+          {proteinIdeas.length > 0 ? (
+            <View style={styles.proteinIdeas}>
+              <ThemedText type="footnote" themeColor="textSecondary">
+                Protein ideas for later today
+              </ThemedText>
+              <ThemedText type="small">{proteinIdeas.join(" · ")}</ThemedText>
+            </View>
+          ) : null}
 
           {display.hasIncompleteMeals ? (
             <Notice
@@ -1806,24 +1840,63 @@ function MacroBar(props: {
   readonly target: number | null;
   readonly color: string;
   readonly percent: number;
+  /** Lower end of a good range; shown as "low–target" with a bar marker. */
+  readonly rangeLow?: number | null;
+  readonly rangeMarkerPercent?: number | null;
+  readonly inRange?: boolean;
 }) {
-  const { label, current, target, color, percent } = props;
+  const {
+    label,
+    current,
+    target,
+    color,
+    percent,
+    rangeLow = null,
+    rangeMarkerPercent = null,
+    inRange = false,
+  } = props;
   const theme = useTheme();
   const roundedCurrent = current !== null ? Math.round(current) : null;
   const roundedTarget = target !== null ? Math.round(target) : null;
+  const goalText =
+    roundedTarget === null
+      ? null
+      : rangeLow !== null
+        ? `${rangeLow}–${roundedTarget}g`
+        : `${roundedTarget}g`;
 
   return (
-    <View style={styles.macroBarItem}>
+    <View
+      style={styles.macroBarItem}
+      accessible
+      accessibilityLabel={[
+        label,
+        roundedCurrent !== null ? `${roundedCurrent} grams` : "unknown",
+        goalText !== null
+          ? rangeLow !== null
+            ? `good range ${rangeLow} to ${roundedTarget} grams`
+            : `target ${roundedTarget} grams`
+          : null,
+        inRange ? "in range" : null,
+      ]
+        .filter(Boolean)
+        .join(", ")}
+    >
       <ThemedText type="footnote" themeColor="textSecondary">
         {label}
+        {inRange ? (
+          <ThemedText type="footnote" themeColor="primary">
+            {" · In range"}
+          </ThemedText>
+        ) : null}
       </ThemedText>
       <ThemedText type="small">
         <ThemedText type="smallBold">
           {roundedCurrent !== null ? `${roundedCurrent}g` : "—"}
         </ThemedText>
-        {roundedTarget !== null ? (
+        {goalText !== null ? (
           <ThemedText type="small" themeColor="textSecondary">
-            {` / ${roundedTarget}g`}
+            {` / ${goalText}`}
           </ThemedText>
         ) : null}
       </ThemedText>
@@ -1842,6 +1915,17 @@ function MacroBar(props: {
             },
           ]}
         />
+        {rangeMarkerPercent !== null ? (
+          <View
+            style={[
+              styles.macroRangeMarker,
+              {
+                left: `${rangeMarkerPercent}%`,
+                backgroundColor: theme.textSecondary,
+              },
+            ]}
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -2194,6 +2278,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.half,
   },
   macroFill: { height: "100%", borderRadius: Radius.pill },
+  macroRangeMarker: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 2,
+    marginLeft: -1,
+  },
+  proteinIdeas: { gap: Spacing.half },
   planNotes: { gap: Spacing.one },
   cardHeading: {
     flexDirection: "row",

@@ -500,6 +500,28 @@ describe("account-data-management", () => {
     ).toEqual([]);
   });
 
+  it("clearLocalUserData erases the weekly logging preference", async () => {
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const other = "00000000-0000-4000-8000-000000000002";
+    const values = new Map<string, string>([
+      [`mizyun.logging-consistency.${userId}`, '{"weeklyGoal":3}'],
+      [`mizyun.logging-consistency.${other}`, '{"weeklyGoal":4}'],
+    ]);
+    await clearLocalUserData(userId, {
+      clearHealthExports: async () => undefined,
+      loggingConsistencyStore: {
+        getItemAsync: async (k: string) => values.get(k) ?? null,
+        setItemAsync: async (k: string, v: string) => {
+          values.set(k, v);
+        },
+        deleteItemAsync: async (k: string) => {
+          values.delete(k);
+        },
+      },
+    });
+    expect([...values.keys()]).toEqual([`mizyun.logging-consistency.${other}`]);
+  });
+
   it("clearLocalUserData purges offline cache, workout preferences, routine dismissals, and step opt-in", async () => {
     const userId = "00000000-0000-4000-8000-000000000001";
     const cacheMap = new Map<string, string>([

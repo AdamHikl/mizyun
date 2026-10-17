@@ -14,7 +14,12 @@ import {
 
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 
-import type { Result } from "@mizyun/core";
+import {
+  dailyProteinRange,
+  proteinProgressStatus,
+  type ProteinProgressStatus,
+  type Result,
+} from "@mizyun/core";
 import { savedDisplayTime } from "@/composition/personal-read-events";
 
 /**
@@ -382,7 +387,7 @@ export const fetchWorkoutCountForPeriod = async (
   };
 };
 
-export interface DailyNutritionDisplay {
+interface BaseDailyNutritionDisplay {
   readonly status:
     "loading" | "error" | "no_entries" | "incomplete" | "complete";
   readonly consumedKcal: number | null;
@@ -403,13 +408,47 @@ export interface DailyNutritionDisplay {
   readonly hasIncompleteMeals: boolean;
 }
 
-export const computeDailyNutritionDisplay = (params: {
+export interface DailyNutritionDisplay extends BaseDailyNutritionDisplay {
+  /** Lower end of the good protein range, when body weight is known. */
+  readonly proteinRangeLowG: number | null;
+  /** Position of the range's lower end on the protein bar (0–100). */
+  readonly proteinRangeMarkerPercent: number | null;
+  readonly proteinStatus: ProteinProgressStatus;
+}
+
+interface DailyNutritionParams {
   readonly summary: DailySummary | null;
   readonly energy: EnergySummary | null;
   readonly caloriesToday: number | null;
   readonly loading: boolean;
   readonly hasError: boolean;
-}): DailyNutritionDisplay => {
+}
+
+export const computeDailyNutritionDisplay = (
+  params: DailyNutritionParams,
+): DailyNutritionDisplay => {
+  const base = computeBaseNutritionDisplay(params);
+  const range = dailyProteinRange({
+    targetProteinG: base.targetProteinG,
+    weightKg: params.energy?.inputs?.weightKg ?? null,
+    goalKind: params.energy?.inputs?.goalKind ?? null,
+  });
+  const lowG = range?.lowG ?? null;
+  return {
+    ...base,
+    proteinRangeLowG:
+      lowG !== null && lowG < (range?.targetG ?? 0) ? lowG : null,
+    proteinRangeMarkerPercent:
+      range !== null && lowG !== null && lowG < range.targetG
+        ? Math.round((lowG / range.targetG) * 100)
+        : null,
+    proteinStatus: proteinProgressStatus(base.proteinG, range),
+  };
+};
+
+const computeBaseNutritionDisplay = (
+  params: DailyNutritionParams,
+): BaseDailyNutritionDisplay => {
   const { summary, energy, caloriesToday, loading, hasError } = params;
 
   const targetKcal = energy?.dailyTargetKcal

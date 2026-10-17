@@ -111,6 +111,19 @@ describe("settings-search", () => {
       expect(results[0].item.anchorId).toBe("first-meal");
     });
 
+    it("finds the weekly logging goal and card toggle", () => {
+      for (const query of [
+        "weekly logging goal",
+        "hide the weekly logging card",
+      ]) {
+        const results = searchSettings(query, SETTINGS_CATALOG);
+        expect(results.length, query).toBeGreaterThan(0);
+        expect(results[0].item.id, query).toBe("logging-goal");
+        expect(results[0].item.destinationId).toBe("goal");
+        expect(results[0].item.anchorId).toBe("logging-goal");
+      }
+    });
+
     it("Case 6: matches evening reminder for 'stop evening reminders'", () => {
       const results = searchSettings(
         "stop evening reminders",

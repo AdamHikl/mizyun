@@ -1398,3 +1398,85 @@ describe("DASH-LOAD-001: Historical failure and delay regressions", () => {
     });
   });
 });
+
+describe("computeDailyNutritionDisplay protein range (#293)", () => {
+  const energy = {
+    dailyTargetKcal: 2000,
+    targetProteinG: 140,
+    targetCarbohydrateG: 200,
+    targetFatG: 60,
+    inputs: { weightKg: 70, goalKind: "cut" },
+  };
+  const summary = (proteinG: number | null) => ({
+    date: "2026-10-17",
+    entryCount: 2,
+    caloriesKcal: 900,
+    proteinG,
+    carbohydrateG: 100,
+    fatG: 30,
+  });
+
+  it("shows the lower end of the range and its bar position", () => {
+    const result = computeDailyNutritionDisplay({
+      summary: summary(60),
+      energy: energy as any,
+      caloriesToday: 900,
+      loading: false,
+      hasError: false,
+    });
+    expect(result.proteinRangeLowG).toBe(112);
+    expect(result.proteinRangeMarkerPercent).toBe(80);
+    expect(result.proteinStatus).toBe("building");
+  });
+
+  it("is in range from the lower end, before the full target", () => {
+    const result = computeDailyNutritionDisplay({
+      summary: summary(115),
+      energy: energy as any,
+      caloriesToday: 900,
+      loading: false,
+      hasError: false,
+    });
+    expect(result.proteinStatus).toBe("in_range");
+  });
+
+  it("keeps unknown protein unknown instead of a deficit", () => {
+    const result = computeDailyNutritionDisplay({
+      summary: summary(null),
+      energy: energy as any,
+      caloriesToday: 900,
+      loading: false,
+      hasError: false,
+    });
+    expect(result.proteinG).toBeNull();
+    expect(result.proteinStatus).toBe("unknown");
+  });
+
+  it("omits the range without a confirmed weight", () => {
+    const result = computeDailyNutritionDisplay({
+      summary: summary(60),
+      energy: { ...energy, inputs: { weightKg: null, goalKind: "cut" } } as any,
+      caloriesToday: 900,
+      loading: false,
+      hasError: false,
+    });
+    expect(result.proteinRangeLowG).toBeNull();
+    expect(result.proteinRangeMarkerPercent).toBeNull();
+    expect(result.proteinStatus).toBe("building");
+  });
+
+  it("is unknown while loading or after a failed read", () => {
+    for (const state of [
+      { loading: true, hasError: false },
+      { loading: false, hasError: true },
+    ]) {
+      const result = computeDailyNutritionDisplay({
+        summary: null,
+        energy: energy as any,
+        caloriesToday: null,
+        ...state,
+      });
+      expect(result.proteinStatus).toBe("unknown");
+    }
+  });
+});

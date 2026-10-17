@@ -280,6 +280,33 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     ],
   },
   {
+    id: "logging-goal",
+    destinationId: "goal",
+    label: "Weekly logging goal",
+    description:
+      "Choose how many days a week you aim to log meals, or hide the dashboard card",
+    categoryId: "profile-goals",
+    categoryLabel: "Profile & goals",
+    breadcrumb: "Account → Profile & goals",
+    aliases: [
+      "weekly logging goal",
+      "days logged this week",
+      "logging goal",
+      "logging card",
+    ],
+    intentPhrases: [
+      "change how many days I log",
+      "hide the weekly logging card",
+      "stop showing days logged",
+      "log fewer days a week",
+    ],
+    targetType: "setting-detail",
+    settingDetailKey: "goal",
+    anchorId: "logging-goal",
+    availabilityRule: "has-profile",
+    keywords: ["habit", "consistency", "weekly", "dashboard card", "hide"],
+  },
+  {
     id: "energy-targets",
     destinationId: "energy-setup",
     label: "Energy targets",
