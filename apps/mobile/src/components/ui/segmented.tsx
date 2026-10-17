@@ -120,7 +120,10 @@ export function Chip({
   const content = (
     <>
       {icon ? <Icon name={icon} size={13} tintColor={palette.fg} /> : null}
-      <ThemedText type="footnote" style={[styles.label, { color: palette.fg }]}>
+      <ThemedText
+        type="footnote"
+        style={[styles.chipLabel, { color: palette.fg }]}
+      >
         {label}
       </ThemedText>
     </>
@@ -181,10 +184,13 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   label: { fontWeight: "600", textAlign: "center" },
+  // Long labels wrap inside the pill instead of overflowing its container.
+  chipLabel: { fontWeight: "600", flexShrink: 1 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    maxWidth: "100%",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
