@@ -451,3 +451,5 @@ export * from "./workout-routine-suggestion";
 
 export * from "./reminder-timing";
 export * from "./bouldering-repository";
+
+export * from "./barbell-plates";
