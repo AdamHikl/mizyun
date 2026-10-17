@@ -30,7 +30,11 @@ import {
   getCatalogExerciseNames,
   isRoutineDetails,
   readWorkoutLifecycle,
+  formatTrackedDuration,
+  getCatalogTrackingMode,
   type CatalogExercise,
+  type ExerciseTrackingMode,
+  type TrackedDistanceUnit,
 } from "@mizyun/core";
 
 import { ThemedText } from "@/components/themed-text";
@@ -116,6 +120,15 @@ import {
   type CompanionWorkoutView,
 } from "@/features/workout-companion";
 import { CompletedWorkoutFeed } from "./completed-workout-feed";
+import {
+  buildTimedSetFields,
+  distanceUnitName,
+  entryDistanceUnit,
+  entryTrackingMode,
+  formatTimedSet,
+  isTimedTrackingMode,
+  metersToDisplayDistance,
+} from "./timed-set-input";
 import { plannedSetTypeForSequence } from "@/features/workouts/planned-set-types";
 
 interface WorkoutDraft {
@@ -170,6 +183,8 @@ interface PendingSetInput {
   rpe: string;
   setType?: WorkoutSetType;
   setTypeSequence?: number;
+  /** Inline validation message for the timed inputs (#278). */
+  timeError?: string;
 }
 
 function pendingSetType(
@@ -733,7 +748,12 @@ export function LogWorkoutScreen() {
     const nextSetSequence = completedForEntry.length + 1;
 
     const nextSetSummary = formatNextSetSummary(
-      currentEntry,
+      {
+        ...currentEntry,
+        timed: isTimedTrackingMode(
+          entryTrackingMode(currentEntry, workspace.exercises),
+        ),
+      },
       nextSetSequence,
       unitSystem,
       lastCompletedSet,
@@ -910,6 +930,10 @@ export function LogWorkoutScreen() {
               catalogEx.instructions
                 .map((step, index) => `${index + 1}. ${step}`)
                 .join("\n"),
+              {
+                catalogId: catalogEx.id,
+                trackingMode: getCatalogTrackingMode(catalogEx),
+              },
             );
             if (currentWorkoutOwner.current !== owner) return false;
             if (!created.ok) {
@@ -1008,6 +1032,31 @@ export function LogWorkoutScreen() {
         setSaveInFlight.current
       )
         return "rejected";
+      const trackingMode = entryTrackingMode(entry, workspace.exercises);
+      const timed = isTimedTrackingMode(trackingMode);
+      let timedFields: Extract<
+        ReturnType<typeof buildTimedSetFields>,
+        { ok: true }
+      > | null = null;
+      if (timed) {
+        // The watch companion cannot supply a time or distance.
+        if (watchInput) return "rejected";
+        const pending =
+          pendingInputs[entry.id] ?? pendingInputs[entry.name] ?? null;
+        const fields = buildTimedSetFields(
+          trackingMode,
+          {
+            durationSeconds: pending?.durationSeconds ?? "",
+            distanceMeters: pending?.distanceMeters ?? "",
+          },
+          entryDistanceUnit(entry, workspace.exercises, unitSystem),
+        );
+        if (!fields.ok) {
+          updatePendingInput(entry.id, { timeError: fields.message });
+          return "rejected";
+        }
+        timedFields = fields;
+      }
       const mutationOwner = currentWorkoutOwner.current;
       setSaveInFlight.current = true;
       attempt?.tap();
@@ -1074,7 +1123,9 @@ export function LogWorkoutScreen() {
         let loadVal = currentInput.load.trim();
         let repsVal = currentInput.reps.trim();
 
-        if (loadVal.length === 0) {
+        if (timed) {
+          // Time-based sets carry no load or reps, so skip those defaults.
+        } else if (loadVal.length === 0) {
           if (completedSets.length > 0) {
             const lastSet = completedSets[completedSets.length - 1];
             if (lastSet?.loadKg !== null && lastSet?.loadKg !== undefined) {
@@ -1107,7 +1158,10 @@ export function LogWorkoutScreen() {
           }
         }
 
-        if (repsVal.length === 0) {
+        if (timed) {
+          loadVal = "";
+          repsVal = "";
+        } else if (repsVal.length === 0) {
           if (completedSets.length > 0) {
             const lastSet = completedSets[completedSets.length - 1];
             if (
@@ -1130,8 +1184,12 @@ export function LogWorkoutScreen() {
           exerciseId: resolvedExerciseId,
           repetitions: repsVal,
           load: loadVal,
-          durationSeconds: currentInput.durationSeconds,
-          distanceMeters: currentInput.distanceMeters,
+          durationSeconds: timedFields
+            ? timedFields.durationSeconds
+            : currentInput.durationSeconds,
+          distanceMeters: timedFields
+            ? timedFields.distanceMeters
+            : currentInput.distanceMeters,
           perceivedExertion: currentInput.rpe,
           setType: setTypeVal,
           unitSystem,
@@ -1210,7 +1268,12 @@ export function LogWorkoutScreen() {
           : [];
         const nextSetSummary = nextExercise
           ? formatNextSetSummary(
-              nextExercise,
+              {
+                ...nextExercise,
+                timed: isTimedTrackingMode(
+                  entryTrackingMode(nextExercise, workspace.exercises),
+                ),
+              },
               nextExerciseSets.length + 1,
               unitSystem,
               nextExerciseSets[nextExerciseSets.length - 1] ?? null,
@@ -1263,16 +1326,21 @@ export function LogWorkoutScreen() {
           entry.setTypes,
           completedSets.length + 2,
         );
+        const carriedInput = timed
+          ? {
+              durationSeconds: currentInput.durationSeconds,
+              distanceMeters: currentInput.distanceMeters,
+              timeError: "",
+            }
+          : { load: loadVal, reps: repsVal };
         updatePendingInput(entry.id, {
-          load: loadVal,
-          reps: repsVal,
+          ...carriedInput,
           setType: nextSetType,
           setTypeSequence: completedSets.length + 2,
         });
         if (resolvedExerciseId !== entry.id) {
           updatePendingInput(resolvedExerciseId, {
-            load: loadVal,
-            reps: repsVal,
+            ...carriedInput,
             setType: nextSetType,
             setTypeSequence: completedSets.length + 2,
           });
@@ -1589,7 +1657,11 @@ export function LogWorkoutScreen() {
       canLogSet:
         !workout.completedAt &&
         !busy &&
-        Boolean(entry && entry.durationMinutes === null),
+        Boolean(
+          entry &&
+          entry.durationMinutes === null &&
+          !isTimedTrackingMode(entryTrackingMode(entry, workspace.exercises)),
+        ),
       canFinish: !workout.completedAt && !busy,
     };
   }, [
@@ -1617,7 +1689,14 @@ export function LogWorkoutScreen() {
       const entry = exerciseEntries.find(
         (item) => item.id === command.exerciseId,
       );
-      if (!entry || entry.durationMinutes !== null) return "rejected";
+      // Planned aerobic entries and time-based exercises need a time (and
+      // distance) that the watch cannot send, so they are logged on the phone.
+      if (
+        !entry ||
+        entry.durationMinutes !== null ||
+        isTimedTrackingMode(entryTrackingMode(entry, workspace.exercises))
+      )
+        return "rejected";
       return handleLogSet(entry, command);
     },
     [
@@ -1628,6 +1707,7 @@ export function LogWorkoutScreen() {
       handleFinish,
       skipCompanionRest,
       handleLogSet,
+      workspace.exercises,
     ],
   );
 
@@ -2207,6 +2287,12 @@ function ActiveWorkoutFeed(props: {
               key={`${entry.name}-${index}`}
               oneTime={props.oneTime}
               entry={entry}
+              trackingMode={entryTrackingMode(entry, props.allExercises)}
+              distanceUnit={entryDistanceUnit(
+                entry,
+                props.allExercises,
+                props.unitSystem,
+              )}
               index={index}
               totalExercises={props.exercises.length}
               completedSets={completedSets}
@@ -2328,6 +2414,8 @@ function renderSetBadge(setType: WorkoutSetType | undefined, sequence: number) {
 function LiveExerciseCard(props: {
   readonly oneTime: boolean;
   readonly entry: ExerciseEntry;
+  readonly trackingMode: ExerciseTrackingMode;
+  readonly distanceUnit: TrackedDistanceUnit;
   readonly index: number;
   readonly totalExercises: number;
   readonly completedSets: ReadonlyArray<WorkoutSet>;
@@ -2392,6 +2480,32 @@ function LiveExerciseCard(props: {
     { color: props.inputColor, backgroundColor: theme.backgroundSelected },
   ];
 
+  const timed = isTimedTrackingMode(props.trackingMode);
+  const showDistance = props.trackingMode === "duration_distance";
+  const distanceUnit = props.distanceUnit;
+  const previousTimedSet =
+    previousSet !== null &&
+    (previousSet.durationSeconds !== null ||
+      previousSet.distanceMeters !== null)
+      ? previousSet
+      : null;
+  const timePlaceholder =
+    previousTimedSet?.durationSeconds != null
+      ? formatTrackedDuration(previousTimedSet.durationSeconds)
+      : props.trackingMode === "duration"
+        ? "sec or m:ss"
+        : "mm:ss";
+  const distancePlaceholder =
+    previousTimedSet?.distanceMeters != null
+      ? String(
+          metersToDisplayDistance(
+            previousTimedSet.distanceMeters,
+            distanceUnit,
+          ),
+        )
+      : "0";
+  const timeError = props.pendingInput.timeError || null;
+
   return (
     <Card style={styles.exerciseCard}>
       {/* Exercise Card Header */}
@@ -2404,12 +2518,16 @@ function LiveExerciseCard(props: {
             ) : (
               <>
                 Target: {props.entry.targetSets} sets ·{" "}
-                {props.entry.repsMin === null
+                {timed
                   ? props.entry.durationMinutes
                     ? `${props.entry.durationMinutes} min`
-                    : "reps"
-                  : `${props.entry.repsMin}–${props.entry.repsMax} reps`}
-                {targetLoadDisplay !== null
+                    : "time"
+                  : props.entry.repsMin === null
+                    ? props.entry.durationMinutes
+                      ? `${props.entry.durationMinutes} min`
+                      : "reps"
+                    : `${props.entry.repsMin}–${props.entry.repsMax} reps`}
+                {targetLoadDisplay !== null && !timed
                   ? ` · ${targetLoadDisplay} ${unit}`
                   : ""}{" "}
                 · {props.entry.restSeconds}s rest
@@ -2492,15 +2610,17 @@ function LiveExerciseCard(props: {
             themeColor="textTertiary"
             style={styles.colInputHeader}
           >
-            {unit}
+            {timed ? "Time" : unit}
           </ThemedText>
-          <ThemedText
-            type="caption"
-            themeColor="textTertiary"
-            style={styles.colInputHeader}
-          >
-            Reps
-          </ThemedText>
+          {timed && !showDistance ? null : (
+            <ThemedText
+              type="caption"
+              themeColor="textTertiary"
+              style={styles.colInputHeader}
+            >
+              {timed ? `Dist (${distanceUnit})` : "Reps"}
+            </ThemedText>
+          )}
           <View style={styles.colCheckHeader}>
             <Icon name="check" size={13} color="textTertiary" />
           </View>
@@ -2527,20 +2647,39 @@ function LiveExerciseCard(props: {
                 themeColor="textSecondary"
                 style={styles.colPrev}
               >
-                {loadStr} {unit} × {repsStr}
+                {timed
+                  ? formatTimedSet(set, distanceUnit)
+                  : `${loadStr} ${unit} × ${repsStr}`}
               </ThemedText>
               <ThemedText
                 type="headline"
                 style={[styles.colInputDone, { color: theme.text }]}
               >
-                {loadStr}
+                {timed
+                  ? set.durationSeconds !== null
+                    ? formatTrackedDuration(set.durationSeconds)
+                    : set.distanceMeters === null && set.repetitions !== null
+                      ? `${set.repetitions} reps`
+                      : "—"
+                  : loadStr}
               </ThemedText>
-              <ThemedText
-                type="headline"
-                style={[styles.colInputDone, { color: theme.text }]}
-              >
-                {repsStr}
-              </ThemedText>
+              {timed && !showDistance ? null : (
+                <ThemedText
+                  type="headline"
+                  style={[styles.colInputDone, { color: theme.text }]}
+                >
+                  {timed
+                    ? set.distanceMeters !== null
+                      ? String(
+                          metersToDisplayDistance(
+                            set.distanceMeters,
+                            distanceUnit,
+                          ),
+                        )
+                      : "—"
+                    : repsStr}
+                </ThemedText>
+              )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Delete completed set ${i + 1}`}
@@ -2583,42 +2722,95 @@ function LiveExerciseCard(props: {
             style={styles.colPrev}
             numberOfLines={1}
           >
-            {previousSet !== null && smartPlaceholderLoad !== "—"
-              ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
-              : targetLoadDisplay !== null
-                ? `Target: ${targetLoadDisplay} ${unit}`
-                : smartPlaceholderLoad !== "—"
-                  ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
-                  : "First set"}
+            {timed
+              ? previousSet !== null
+                ? formatTimedSet(previousSet, distanceUnit)
+                : "First set"
+              : previousSet !== null && smartPlaceholderLoad !== "—"
+                ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
+                : targetLoadDisplay !== null
+                  ? `Target: ${targetLoadDisplay} ${unit}`
+                  : smartPlaceholderLoad !== "—"
+                    ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
+                    : "First set"}
           </ThemedText>
 
-          <View style={styles.colInputCell}>
-            <TextInput
-              testID={`set-load-input-${props.entry.id}`}
-              value={props.pendingInput.load}
-              onChangeText={(load) => props.onUpdatePendingInput({ load })}
-              onFocus={props.onInteraction}
-              placeholder={
-                smartPlaceholderLoad !== "—" ? smartPlaceholderLoad : "0"
-              }
-              placeholderTextColor={theme.textTertiary}
-              keyboardType="decimal-pad"
-              style={inputStyle}
-            />
-          </View>
+          {timed ? (
+            <>
+              <View style={styles.colInputCell}>
+                <TextInput
+                  testID={`set-duration-input-${props.entry.id}`}
+                  accessibilityLabel={`Time for set ${nextSetSequence} of ${props.entry.name}, minutes and seconds`}
+                  value={props.pendingInput.durationSeconds}
+                  onChangeText={(durationSeconds) =>
+                    props.onUpdatePendingInput({
+                      durationSeconds,
+                      timeError: "",
+                    })
+                  }
+                  onFocus={props.onInteraction}
+                  placeholder={timePlaceholder}
+                  placeholderTextColor={theme.textTertiary}
+                  keyboardType={
+                    Platform.OS === "ios"
+                      ? "numbers-and-punctuation"
+                      : "default"
+                  }
+                  style={inputStyle}
+                />
+              </View>
+              {showDistance ? (
+                <View style={styles.colInputCell}>
+                  <TextInput
+                    testID={`set-distance-input-${props.entry.id}`}
+                    accessibilityLabel={`Distance in ${distanceUnitName(distanceUnit)} for set ${nextSetSequence} of ${props.entry.name}, optional`}
+                    value={props.pendingInput.distanceMeters}
+                    onChangeText={(distanceMeters) =>
+                      props.onUpdatePendingInput({
+                        distanceMeters,
+                        timeError: "",
+                      })
+                    }
+                    onFocus={props.onInteraction}
+                    placeholder={distancePlaceholder}
+                    placeholderTextColor={theme.textTertiary}
+                    keyboardType="decimal-pad"
+                    style={inputStyle}
+                  />
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <View style={styles.colInputCell}>
+                <TextInput
+                  testID={`set-load-input-${props.entry.id}`}
+                  value={props.pendingInput.load}
+                  onChangeText={(load) => props.onUpdatePendingInput({ load })}
+                  onFocus={props.onInteraction}
+                  placeholder={
+                    smartPlaceholderLoad !== "—" ? smartPlaceholderLoad : "0"
+                  }
+                  placeholderTextColor={theme.textTertiary}
+                  keyboardType="decimal-pad"
+                  style={inputStyle}
+                />
+              </View>
 
-          <View style={styles.colInputCell}>
-            <TextInput
-              testID={`set-reps-input-${props.entry.id}`}
-              value={props.pendingInput.reps}
-              onChangeText={(reps) => props.onUpdatePendingInput({ reps })}
-              onFocus={props.onInteraction}
-              placeholder={smartPlaceholderReps}
-              placeholderTextColor={theme.textTertiary}
-              keyboardType="decimal-pad"
-              style={inputStyle}
-            />
-          </View>
+              <View style={styles.colInputCell}>
+                <TextInput
+                  testID={`set-reps-input-${props.entry.id}`}
+                  value={props.pendingInput.reps}
+                  onChangeText={(reps) => props.onUpdatePendingInput({ reps })}
+                  onFocus={props.onInteraction}
+                  placeholder={smartPlaceholderReps}
+                  placeholderTextColor={theme.textTertiary}
+                  keyboardType="decimal-pad"
+                  style={inputStyle}
+                />
+              </View>
+            </>
+          )}
 
           <Pressable
             accessibilityRole="button"
@@ -2641,6 +2833,17 @@ function LiveExerciseCard(props: {
             </View>
           </Pressable>
         </View>
+        {timeError ? (
+          <ThemedText
+            testID={`set-duration-error-${props.entry.id}`}
+            type="footnote"
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            style={{ color: theme.danger }}
+          >
+            {timeError}
+          </ThemedText>
+        ) : null}
       </View>
 
       <Pressable

@@ -3459,3 +3459,7 @@ Checked [App Review Guidelines 5.1.3](https://developer.apple.com/app-store/revi
 ## 2026-10-16 — Indoor bouldering plan (BOULDER-001/#276)
 
 Checked [Expo SDK57 ImagePicker](https://docs.expo.dev/versions/v57.0.0/sdk/imagepicker/) and [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security). ImagePicker `exif` only controls the EXIF object returned to JavaScript; the docs do not promise metadata removal from file bytes, so boulder photos keep the existing ImageManipulator re-encode and need an uploaded-object GPS check. New bouldering tables use `(select auth.uid())`, `user_id`-leading indexes, explicit per-operation policies and security-definer RPCs with an empty `search_path`. The Font grade list is a gym convention chosen for the product, not a cited standard. Planning only; see the [plan](BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md).
+
+## 2026-10-17 — Timed exercise tracking and Log activity (#278)
+
+Checked [React Native TextInput](https://reactnative.dev/docs/textinput) (fetched 2026-10-17). `keyboardType` `numbers-and-punctuation` is iOS-only, and `number-pad`/`decimal-pad` have no colon; `inputMode` takes precedence over `keyboardType`. Consequence: time inputs accept plain minutes or `mm:ss`, use `numbers-and-punctuation` on iOS and the default keyboard elsewhere, and do not set a numeric `inputMode`. No backend, Health or provider API is affected: sets already store duration and distance. Decision in [ADR-0068](adr/0068-timed-exercise-tracking-and-log-activity.md).

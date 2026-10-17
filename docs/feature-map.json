@@ -243,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing.",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278).",
       "aliases": [
         "workout",
         "exercise",
@@ -254,7 +254,12 @@
         "running",
         "bouldering",
         "climbing",
-        "boulder"
+        "boulder",
+        "swimming",
+        "cycling",
+        "cardio",
+        "timed",
+        "activity"
       ],
       "entryPoints": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -264,7 +269,8 @@
         "apps/api/src/modules/runs/routes.ts",
         "apps/mobile/src/features/log-run/index.ts",
         "apps/api/src/modules/bouldering/routes.ts",
-        "apps/mobile/src/features/bouldering/index.ts"
+        "apps/mobile/src/features/bouldering/index.ts",
+        "apps/mobile/src/features/log-activity/index.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -291,7 +297,10 @@
         "packages/core/src/bouldering-repository.ts",
         "packages/config/src/bouldering.ts",
         "apps/mobile/src/features/bouldering",
-        "apps/mobile/src/app/bouldering"
+        "apps/mobile/src/app/bouldering",
+        "packages/core/src/exercise-tracking.ts",
+        "packages/core/src/exercise-catalog-supplement.ts",
+        "apps/mobile/src/features/log-activity"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
@@ -311,7 +320,8 @@
         "packages/core/src/workout-routine-suggestion.ts",
         "packages/core/src/bouldering.ts",
         "packages/core/src/bouldering-grades.ts",
-        "packages/core/src/bouldering-repository.ts"
+        "packages/core/src/bouldering-repository.ts",
+        "packages/core/src/exercise-tracking.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -333,7 +343,10 @@
         "apps/mobile/src/features/bouldering/bouldering-session-screen.tsx",
         "apps/mobile/src/app/bouldering/session.tsx",
         "apps/mobile/src/features/bouldering/progress-screen.tsx",
-        "apps/mobile/src/app/bouldering/progress.tsx"
+        "apps/mobile/src/app/bouldering/progress.tsx",
+        "apps/mobile/src/app/log-activity.tsx",
+        "apps/mobile/src/features/log-activity/log-activity-screen.tsx",
+        "apps/mobile/src/features/log-workout/timed-set-input.ts"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/workout-repository.ts",
@@ -391,7 +404,12 @@
         "apps/mobile/src/features/bouldering/pending-ascents.test.ts",
         "apps/mobile/src/features/bouldering/log-boulder-sheet.test.tsx",
         "apps/mobile/src/features/bouldering/progress-components.test.tsx",
-        "supabase/tests/database/0051_bouldering_challenge_days.test.sql"
+        "supabase/tests/database/0051_bouldering_challenge_days.test.sql",
+        "packages/core/src/exercise-tracking.test.ts",
+        "apps/mobile/src/features/log-workout/timed-set-input.test.ts",
+        "apps/mobile/src/features/log-activity/log-activity-data.test.ts",
+        "apps/mobile/src/features/log-activity/log-activity-form.test.ts",
+        "apps/mobile/src/features/log-activity/log-activity-screen.test.tsx"
       ],
       "relations": [
         {
@@ -418,14 +436,17 @@
         "docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md",
         "docs/adr/0065-selected-health-run-imports.md",
         "docs/adr/0066-indoor-bouldering-sessions.md",
-        "docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md"
+        "docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md",
+        "docs/adr/0068-timed-exercise-tracking-and-log-activity.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
         "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout",
         "pnpm --filter @mizyun/api test src/modules/bouldering",
         "pnpm --filter @mizyun/core test src/bouldering",
-        "pnpm --filter @mizyun/mobile test src/features/bouldering"
+        "pnpm --filter @mizyun/mobile test src/features/bouldering",
+        "pnpm --filter @mizyun/mobile test src/features/log-activity",
+        "pnpm --filter @mizyun/core test src/exercise-tracking"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",

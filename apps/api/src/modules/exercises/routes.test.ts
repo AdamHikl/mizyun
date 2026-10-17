@@ -468,9 +468,10 @@ describe("DELETE /v1/exercises/:id", () => {
 });
 
 describe("GET /v1/exercises/catalog", () => {
-  it("paginates all 609 records and returns form/provenance plus pending demonstrations", async () => {
+  it("paginates all 612 records (609 RepDB + 3 Mizyun-authored) and returns form/provenance plus pending demonstrations", async () => {
     const { app } = build(tokenVerifierFor({ userId: userA }));
     const ids: string[] = [];
+    const supplemental: string[] = [];
     for (const offset of [0, 200, 400, 600]) {
       const response = await app.inject({
         method: "GET",
@@ -479,17 +480,23 @@ describe("GET /v1/exercises/catalog", () => {
       });
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(body.total).toBe(609);
+      expect(body.total).toBe(612);
       for (const exercise of body.exercises) {
         ids.push(exercise.id);
         expect(exercise.instructions.length).toBeGreaterThan(0);
         expect(exercise.description.length).toBeGreaterThan(0);
-        expect(exercise.source.provider).toBe("repdb");
+        if (exercise.source) expect(exercise.source.provider).toBe("repdb");
+        else supplemental.push(exercise.id);
         expect(exercise.demonstration).toBeNull();
       }
     }
-    expect(ids).toHaveLength(609);
-    expect(new Set(ids).size).toBe(609);
+    expect(ids).toHaveLength(612);
+    expect(new Set(ids).size).toBe(612);
+    expect(supplemental.sort()).toEqual([
+      "exercise-hiking",
+      "exercise-outdoor-cycling",
+      "exercise-swimming",
+    ]);
   });
 
   it("rejects invalid offsets and requires authentication", async () => {

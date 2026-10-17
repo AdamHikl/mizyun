@@ -109,3 +109,4 @@
 - [0065 — Selected Health run imports](0065-selected-health-run-imports.md) — RUN-06 Dev-only user-selected Apple Health/Health Connect run copies with read-only provider metrics, dedup and Coach exclusion.
 - [0066 — Indoor bouldering sessions](0066-indoor-bouldering-sessions.md) — BOULDER-001 Font-graded boulder logging in Workouts: session envelope, ascent receipts, one active session, private photos and explicit sharing.
 - [0067 — Explicit Community bouldering publication](0067-explicit-community-bouldering-publication.md) — BOULDER-05 `bouldering` card kind with a previewed day/top grade/sends/flashes/optional grade breakdown allowlist and revocation on any session or boulder change.
+- [0068 — Timed exercise tracking and Log activity](0068-timed-exercise-tracking-and-log-activity.md) — #278 per-exercise load/reps, duration or duration+distance inputs on existing sets, Swimming/Outdoor Cycling/Hiking catalog entries and one-step completed activity logging.

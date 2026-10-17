@@ -784,6 +784,14 @@ export function WorkoutsHubScreen() {
               accessibilityLabel="Log run"
               onPress={() => router.push("/log-run" as Href)}
             />
+            <ListRow
+              key="log-activity"
+              icon="timer"
+              title="Log activity"
+              subtitle="Swimming, cycling and more"
+              accessibilityLabel="Log activity"
+              onPress={() => router.push("/log-activity" as Href)}
+            />
             {boulderingEnabled ? (
               <ListRow
                 key="bouldering"

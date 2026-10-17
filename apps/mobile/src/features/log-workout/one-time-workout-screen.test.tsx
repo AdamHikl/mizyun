@@ -1369,3 +1369,123 @@ it("keeps exercise history and move actions reachable behind the card's more but
     mocks.persist.mock.lastCall?.[1].map((entry: any) => entry.name),
   ).toEqual(["Barbell Row", "Squat"]);
 });
+
+// Time-based tracking (#278)
+async function timedCard(catalogId: string, fallbackName: string) {
+  const catalog = getExerciseFromCatalog(catalogId);
+  const name = catalog?.name ?? fallbackName;
+  const saved = { id: `saved-${catalogId}`, name, metadata: null };
+  mocks.workspace = { ...mocks.workspace, exercises: [saved] };
+  openLibrary().props.onSelectExercises([
+    { id: catalogId, name, instructions: ["Go."] },
+  ]);
+  await settle();
+  const active = feed();
+  const entry = active.props.exercises[0];
+  const cardOf = () => {
+    const current = feed();
+    const card = find(
+      current.type(current.props),
+      (node) => node.type?.name === "LiveExerciseCard",
+    );
+    return card.type(card.props);
+  };
+  return {
+    saved,
+    entry,
+    cardOf,
+    update: (patch: any) => {
+      feed().props.onUpdatePendingInput(entry.id, patch);
+    },
+    log: async () => {
+      await feed().props.onLogSet(entry);
+      await settle();
+    },
+  };
+}
+const byId = (tree: any, testID: string) =>
+  find(tree, (node) => node.props?.testID === testID);
+
+it("shows time and distance inputs for Swimming and logs seconds and metres", async () => {
+  const t = await timedCard("exercise-swimming", "Swimming");
+  const card = t.cardOf();
+  expect(byId(card, `set-duration-input-${t.saved.id}`).props.placeholder).toBe(
+    "mm:ss",
+  );
+  expect(byId(card, `set-distance-input-${t.saved.id}`)).toBeTruthy();
+  expect(byId(card, `set-load-input-${t.saved.id}`)).toBeFalsy();
+  expect(textContent(card)).toContain("Dist (m)");
+  t.update({ durationSeconds: "10:00", distanceMeters: "400" });
+  mocks.addSet.mockResolvedValueOnce({
+    ok: true,
+    workoutSet: { id: "s1", exerciseId: t.saved.id, durationSeconds: 600 },
+  });
+  await t.log();
+  expect(mocks.addSet).toHaveBeenCalledWith(
+    workout.id,
+    expect.objectContaining({
+      exerciseId: t.saved.id,
+      durationSeconds: "600",
+      distanceMeters: "400",
+      repetitions: "",
+      load: "",
+    }),
+  );
+});
+
+it("rejects an invalid or missing time with an inline alert and does not log", async () => {
+  const t = await timedCard("exercise-swimming", "Swimming");
+  t.update({ durationSeconds: "10:99" });
+  await t.log();
+  expect(mocks.addSet).not.toHaveBeenCalled();
+  const error = byId(t.cardOf(), `set-duration-error-${t.saved.id}`);
+  expect(error.props.accessibilityRole).toBe("alert");
+  expect(textContent(error)).toContain("mm:ss");
+  t.update({ durationSeconds: "" });
+  await t.log();
+  expect(mocks.addSet).not.toHaveBeenCalled();
+  expect(
+    textContent(byId(t.cardOf(), `set-duration-error-${t.saved.id}`)),
+  ).toContain("Enter a time");
+});
+
+it("tracks a plank by time only", async () => {
+  const t = await timedCard("front-plank", "Front Plank");
+  const card = t.cardOf();
+  expect(byId(card, `set-duration-input-${t.saved.id}`)).toBeTruthy();
+  expect(byId(card, `set-distance-input-${t.saved.id}`)).toBeFalsy();
+  t.update({ durationSeconds: "1:30", distanceMeters: "50" });
+  mocks.addSet.mockResolvedValueOnce({
+    ok: true,
+    workoutSet: { id: "s2", exerciseId: t.saved.id, durationSeconds: 90 },
+  });
+  await t.log();
+  expect(mocks.addSet).toHaveBeenCalledWith(
+    workout.id,
+    expect.objectContaining({ durationSeconds: "90", distanceMeters: "" }),
+  );
+});
+
+it("reads a bare number on a plank as seconds, not minutes", async () => {
+  const t = await timedCard("front-plank", "Front Plank");
+  t.update({ durationSeconds: "45" });
+  mocks.addSet.mockResolvedValueOnce({
+    ok: true,
+    workoutSet: { id: "s3", exerciseId: t.saved.id, durationSeconds: 45 },
+  });
+  await t.log();
+  expect(mocks.addSet).toHaveBeenCalledWith(
+    workout.id,
+    expect.objectContaining({ durationSeconds: "45" }),
+  );
+  expect(textContent(t.cardOf())).not.toContain("reps ·");
+});
+
+it("keeps load and reps inputs for a bench press", async () => {
+  const t = await timedCard("exercise-bench-press", "Bench Press");
+  const card = t.cardOf();
+  expect(byId(card, `set-load-input-${t.saved.id}`)).toBeTruthy();
+  expect(byId(card, `set-reps-input-${t.saved.id}`)).toBeTruthy();
+  expect(byId(card, `set-duration-input-${t.saved.id}`)).toBeFalsy();
+  expect(textContent(card)).toContain("Reps");
+});

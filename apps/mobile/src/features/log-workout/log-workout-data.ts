@@ -407,16 +407,19 @@ export const startWorkoutWith = async (
 export const createExercise = async (
   name: string,
   instructions: string,
+  metadata?: Record<string, unknown>,
 ): Promise<CreateExerciseResult> =>
-  createExerciseWith(apiClient, name, instructions);
+  createExerciseWith(apiClient, name, instructions, metadata);
 
 export const createExerciseWith = async (
   client: ApiClient,
   name: string,
   instructions: string,
+  metadata?: Record<string, unknown>,
 ): Promise<CreateExerciseResult> => {
   const parsed = exerciseCreateSchema.safeParse({
     name: name.trim(),
+    ...(metadata !== undefined ? { metadata } : {}),
     ...(instructions.trim().length > 0
       ? { instructions: instructions.trim() }
       : {}),

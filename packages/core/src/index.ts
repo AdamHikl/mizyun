@@ -300,6 +300,25 @@ export {
 } from "./exercise-catalog";
 
 export {
+  EXERCISE_TRACKING_MODES,
+  MAX_TRACKED_DURATION_SECONDS,
+  TIMED_ACTIVITY_IDS,
+  bareDurationUnit,
+  formatTrackedDuration,
+  getCatalogTrackingMode,
+  isExerciseTrackingMode,
+  isTimedTrackingMode,
+  listTimedActivities,
+  metresFromTrackedDistance,
+  parseDurationInput,
+  resolveExerciseTrackingMode,
+  resolveTrackedDistanceUnit,
+  trackedDistanceFromMetres,
+  type ExerciseTrackingMode,
+  type TrackedDistanceUnit,
+} from "./exercise-tracking";
+
+export {
   MEDIA_ALLOWED_MIME_TYPES,
   MEDIA_MAX_BYTE_SIZE,
   MEDIA_MAX_DIMENSION,

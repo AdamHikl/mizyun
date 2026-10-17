@@ -4,6 +4,7 @@ import {
   LEGACY_EXERCISE_ALIASES,
 } from "./exercise-catalog-data";
 import { LEGACY_EXERCISE_CATALOG } from "./exercise-catalog-legacy";
+import { SUPPLEMENTAL_EXERCISE_CATALOG } from "./exercise-catalog-supplement";
 
 /** Future assets must describe this exact variant and have independently accepted rights/form. */
 export interface ExerciseDemonstration {
@@ -63,8 +64,23 @@ export interface CatalogExercise {
   readonly demonstration?: ExerciseDemonstration | null;
 }
 
+/**
+ * RepDB import plus Mizyun-authored activities it lacks (#278). Each
+ * supplement is placed before the first imported name that sorts after it,
+ * so browsing stays alphabetical without reordering the import.
+ */
 export const EXERCISE_CATALOG: readonly CatalogExercise[] =
-  REPDB_EXERCISE_CATALOG;
+  SUPPLEMENTAL_EXERCISE_CATALOG.reduce<readonly CatalogExercise[]>(
+    (catalog, extra) => {
+      const index = catalog.findIndex(
+        (ex) => ex.name.localeCompare(extra.name) > 0,
+      );
+      return index === -1
+        ? [...catalog, extra]
+        : [...catalog.slice(0, index), extra, ...catalog.slice(index)];
+    },
+    REPDB_EXERCISE_CATALOG,
+  );
 
 const catalogById = new Map<string, CatalogExercise>(
   EXERCISE_CATALOG.map((ex) => [ex.id, ex]),

@@ -1,4 +1,5 @@
 import * as Notifications from "expo-notifications";
+import { formatTrackedDuration } from "@mizyun/core";
 import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 import { loadWorkoutPreferences } from "./workout-preferences";
@@ -107,14 +108,23 @@ export const formatNextSetSummary = (
     targetLoad?: string;
     repsMin?: number | null;
     repsMax?: number | null;
+    /** Timed exercises (#278) never show load or rep targets. */
+    timed?: boolean;
   },
   nextSequence: number,
   unitSystem: WeightUnitSystem,
   lastCompletedSet?: {
     loadKg?: number | null;
     repetitions?: number | null;
+    durationSeconds?: number | null;
   } | null,
 ): string => {
+  if (entry.timed) {
+    const lastDuration = lastCompletedSet?.durationSeconds;
+    return typeof lastDuration === "number" && lastDuration > 0
+      ? formatTrackedDuration(lastDuration)
+      : `Set ${nextSequence > 0 ? nextSequence : 1}`;
+  }
   if (lastCompletedSet) {
     const hasLoad =
       lastCompletedSet.loadKg !== null &&

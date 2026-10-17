@@ -9,10 +9,14 @@ import {
 } from "./exercise-catalog";
 import { EQUIPMENT_OPTIONS, TRAINING_LIMITATION_OPTIONS } from "./profile";
 import { LEGACY_EXERCISE_CATALOG } from "./exercise-catalog-legacy";
+import { SUPPLEMENTAL_EXERCISE_CATALOG } from "./exercise-catalog-supplement";
+
+/** 609 RepDB entries plus the Mizyun-authored timed activities (#278). */
+const ACTIVE_COUNT = 612;
 
 describe("exercise-catalog", () => {
   it("contains all catalog exercises with non-empty fields", () => {
-    expect(EXERCISE_CATALOG.length).toBe(609);
+    expect(EXERCISE_CATALOG.length).toBe(ACTIVE_COUNT);
 
     const validEquipment = new Set(EQUIPMENT_OPTIONS);
     const validLimitations = new Set(TRAINING_LIMITATION_OPTIONS);
@@ -63,7 +67,10 @@ describe("exercise-catalog", () => {
         true,
       );
       expect(ex.description?.trim().length).toBeGreaterThan(0);
-      expect(ex.source?.provider).toBe("repdb");
+      // Supplements are Mizyun-authored and must not claim RepDB provenance.
+      expect(ex.source?.provider).toBe(
+        SUPPLEMENTAL_EXERCISE_CATALOG.includes(ex) ? undefined : "repdb",
+      );
       expect(ex.contentReview).toEqual({
         status: "pending_professional",
         reviewedAt: null,
@@ -103,16 +110,34 @@ describe("exercise-catalog", () => {
 
   it("makes every active exercise reachable across disjoint pages", () => {
     const ids: string[] = [];
-    for (let offset = 0; offset < 609; offset += 60) {
+    for (let offset = 0; offset < ACTIVE_COUNT; offset += 60) {
       ids.push(
         ...searchExerciseCatalog({ offset, limit: 60 }).map(
           (exercise) => exercise.id,
         ),
       );
     }
-    expect(ids).toHaveLength(609);
-    expect(new Set(ids).size).toBe(609);
-    expect(searchExerciseCatalog({ offset: 609, limit: 60 })).toEqual([]);
+    expect(ids).toHaveLength(ACTIVE_COUNT);
+    expect(new Set(ids).size).toBe(ACTIVE_COUNT);
+    expect(searchExerciseCatalog({ offset: ACTIVE_COUNT, limit: 60 })).toEqual(
+      [],
+    );
+  });
+
+  it("adds swimming, outdoor cycling and hiking in alphabetical position", () => {
+    expect(findCatalogExercise("swimming")?.id).toBe("exercise-swimming");
+    expect(findCatalogExercise("cycling")?.id).toBe("exercise-outdoor-cycling");
+    // Existing lookups (e.g. Coach tools) keep their previous best hit.
+    expect(findCatalogExercise("bike")?.id).toBe("exercise-air-bike");
+    expect(searchExerciseCatalog({ query: "hike" })[0]?.id).toBe(
+      "exercise-hiking",
+    );
+    const names = EXERCISE_CATALOG.map((exercise) => exercise.name);
+    for (const extra of SUPPLEMENTAL_EXERCISE_CATALOG) {
+      const index = names.indexOf(extra.name);
+      expect(names[index - 1]!.localeCompare(extra.name)).toBeLessThan(0);
+      expect(names[index + 1]!.localeCompare(extra.name)).toBeGreaterThan(0);
+    }
   });
 
   it("ranks exact names and shorthand aliases first and normalizes punctuation", () => {
