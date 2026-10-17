@@ -4,16 +4,16 @@
 
 ## Current authority and delivery
 
-- **Oct8 ten/main:**10closed per Adam/pushed;1931mobile/946API+15/3skips,1049SQL/18replayPASS. [Proof](docs/MAIN_DEV_DELIVERY_2026-10-08.md). Native/provider/release open.
+- **Oct8 ten/main:**10closed per Adam/pushed; gates/SQL/replay PASS. [Proof](docs/MAIN_DEV_DELIVERY_2026-10-08.md). Native/provider/release open.
 
 - **Issues:** #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
 - **Dev=main (Oct17):**45f1ccfe9afabdcd2768573dcb8693ef2d57c164 (#278+#279+plate calculator on d175da95 incl. #276 bouldering, #216 imports) gatePASS(3108mobile/1186API+15skips), deploy:dev OK, migrations through20261016200000, health200 10:49Z. Merge review: no blockers; #285/#286 filed. Prior: [Oct15](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md); Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
-- **iPhone Dev (Oct17):** main45f1ccfe+Expo JSI fix installed/launched on iPhone 00008140-001114501A86801C 11:29Z (1.0.9/9); acceptance open. Xcode27.1/Swift6.4 fix: pnpm patch expo-modules-jsi@57.1.0 (backport expo#50569/#51234) + plugin `with-ios-source-built-expo-modules` (Podfile EXPO_USE_PRECOMPILED_MODULES=false); remove at SDK58. #287 flaky core test.
+- **iPhone Dev (Oct17):** main45f1ccfe+Expo JSI fix installed/launched on iPhone 00008140-001114501A86801C 11:29Z (1.0.9/9); acceptance open. Xcode27.1/Swift6.4 fix: patch expo-modules-jsi@57.1.0 (expo#50569/#51234) + plugin `with-ios-source-built-expo-modules` (EXPO_USE_PRECOMPILED_MODULES=false); drop at SDK58. #287 flaky core test.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
-- **AI:** Hetzner Dev/Prod; Pi encrypted recovery. Gemini-or-disabled; adult/consent/usage/kill switches; no email allowlist. Founder/partner shared-Gemini Dev exception; Qwen paused. `docs/BEFORE_TESTING.md`/live-provider gates retained.
+- **AI:** Gemini live. Claude Haiku5.5 (ADR0069) bcfb68a3 Dev gatePASS/2 reviews; off until Adam sets dev.env provider/ack/key. [Evidence](docs/ANTHROPIC_DEV_PROVIDER_EVIDENCE_2026-10-17.md). Adult/consent/usage/kill switches; partner Dev exception; Qwen paused; BEFORE_TESTING gates kept.
 
 ## Running and usability acceptance
 
