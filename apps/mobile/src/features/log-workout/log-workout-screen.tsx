@@ -72,6 +72,7 @@ import {
 } from "@/lib/weight-units";
 import { ExerciseLibraryModal } from "@/features/workouts/exercise-library-modal";
 import { ExerciseProgressionModal } from "@/features/workouts/exercise-progression-modal";
+import { PlateCalculatorModal } from "@/features/workouts/plate-calculator-modal";
 import { ReorderExercisesModal } from "@/features/workouts/reorder-exercises-modal";
 import { SetTypeModal } from "@/features/workouts/set-type-modal";
 import { startRoutineSession } from "@/features/workouts/workouts-hub-data";
@@ -249,6 +250,7 @@ export function LogWorkoutScreen() {
   const [selectedSetTypeEntry, setSelectedSetTypeEntry] =
     useState<ExerciseEntry | null>(null);
   const [reorderModalVisible, setReorderModalVisible] = useState(false);
+  const [plateCalculatorVisible, setPlateCalculatorVisible] = useState(false);
   const [orderedExerciseKeys, setOrderedExerciseKeys] = useState<
     ReadonlyArray<string>
   >([]);
@@ -1916,6 +1918,7 @@ export function LogWorkoutScreen() {
                 }}
                 onMoveExercise={handleMoveExercise}
                 onOpenReorderModal={() => setReorderModalVisible(true)}
+                onOpenPlateCalculator={() => setPlateCalculatorVisible(true)}
                 onAbandon={confirmAbandon}
                 onInteraction={() => measurement.current?.tap()}
               />
@@ -2123,6 +2126,20 @@ export function LogWorkoutScreen() {
           onClose={() => setReorderModalVisible(false)}
         />
       ) : null}
+
+      {isActiveSession && plateCalculatorVisible ? (
+        <PlateCalculatorModal
+          // Remount with fresh plates if the unit system changes while open.
+          key={unitSystem}
+          visible={plateCalculatorVisible}
+          unitSystem={unitSystem}
+          exercises={exerciseEntries}
+          onUseWeight={(exerciseId, load) =>
+            updatePendingInput(exerciseId, { load })
+          }
+          onClose={() => setPlateCalculatorVisible(false)}
+        />
+      ) : null}
     </ThemedView>
   );
 }
@@ -2217,6 +2234,7 @@ function ActiveWorkoutFeed(props: {
   readonly onOpenLibrary: () => void;
   readonly onMoveExercise: (fromIndex: number, toIndex: number) => void;
   readonly onOpenReorderModal: () => void;
+  readonly onOpenPlateCalculator: () => void;
   readonly onAbandon: () => void;
   readonly onInteraction: () => void;
 }) {
@@ -2364,6 +2382,17 @@ function ActiveWorkoutFeed(props: {
             style={styles.centeredAction}
           />
         ) : null}
+        <Button
+          label="Plate calculator"
+          variant="plain"
+          icon="dumbbell"
+          accessibilityHint="Work out the plates to load on each side of the bar."
+          onPress={() => {
+            props.onInteraction();
+            props.onOpenPlateCalculator();
+          }}
+          style={styles.centeredAction}
+        />
         <Button
           label="Discard session"
           variant="destructive"
