@@ -289,6 +289,7 @@ const plugins = [
     ? ["expo-apple-authentication"]
     : ["./plugins/without-ios-apple-auth"]),
   "./plugins/with-ios-scene-lifecycle",
+  "./plugins/with-ios-source-built-expo-modules",
   "./plugins/with-android-release-signing",
   "./plugins/with-android-release-optimization",
   "./plugins/with-android-window-support",
