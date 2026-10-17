@@ -7,6 +7,8 @@ export type LoggingDraftKind =
   | "weight"
   | "coach"
   | "run"
+  /** Retroactive "Log past workout" form and its resumable save. */
+  | "past-workout"
   /** Indoor bouldering pending ascent commands (ADR-0066). */
   | "bouldering"
   | `meal-edit-${string}`

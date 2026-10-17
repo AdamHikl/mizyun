@@ -139,6 +139,36 @@ describe("SupabaseWorkoutSetRepository.listForWorkout", () => {
   });
 });
 
+describe("SupabaseWorkoutSetRepository.recentForExercise", () => {
+  it("orders by completed_at desc (nulls last) then created_at desc", async () => {
+    const order = vi.fn().mockReturnThis();
+    const client = fakeClient({ selectList: { data: [setRow], error: null } });
+    const originalFrom = client.from.bind(client);
+    const spied: RepositorySupabaseClient = {
+      ...client,
+      from: ((t?: string) => {
+        const b = originalFrom(t as never) as unknown as Record<
+          string,
+          unknown
+        >;
+        b.order = order.mockReturnValue(b);
+        return b as never;
+      }) as RepositorySupabaseClient["from"],
+    };
+    const repo = new SupabaseWorkoutSetRepository({ clientFor: () => spied });
+    await repo.recentForExercise(
+      "00000000-0000-4000-8000-000000000001" as UserId,
+      setRow.exercise_id,
+      5,
+      { accessToken: "token" },
+    );
+    expect(order.mock.calls).toEqual([
+      ["completed_at", { ascending: false, nullsFirst: false }],
+      ["created_at", { ascending: false }],
+    ]);
+  });
+});
+
 describe("SupabaseWorkoutSetRepository.deleteAllForWorkout", () => {
   it("returns 0 because SQL cascades handle workout set cleanup", async () => {
     const repo = new SupabaseWorkoutSetRepository({

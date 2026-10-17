@@ -333,8 +333,11 @@ export interface WorkoutSetRepository {
   ): Promise<ReadonlyArray<StoredWorkoutSet>>;
   /**
    * List the most-recent sets for an exercise across all
-   * workouts, newest-first. Capped at `limit`. Used by the
-   * previous-performance view.
+   * workouts, most recently performed first: ordered by
+   * `completedAt` descending (null last), then `createdAt`
+   * descending. Backdated sets therefore rank by when they were
+   * performed, not when they were entered. Capped at `limit`.
+   * Used by the previous-performance view.
    */
   recentForExercise(
     userId: UserId,

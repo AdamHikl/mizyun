@@ -431,6 +431,10 @@ function TabLayoutContent() {
                 options={{ title: "Log activity", presentation: "modal" }}
               />
               <Stack.Screen
+                name="log-past-workout"
+                options={{ title: "Log past workout", presentation: "modal" }}
+              />
+              <Stack.Screen
                 name="import-runs"
                 options={{ title: "Import runs", presentation: "modal" }}
               />

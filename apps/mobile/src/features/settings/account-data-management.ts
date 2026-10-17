@@ -293,6 +293,7 @@ export const clearLocalUserData = async (
     "meal-completed",
     "workout",
     "run",
+    "past-workout",
     "bouldering",
     "weight",
     "coach",

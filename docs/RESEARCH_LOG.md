@@ -1,5 +1,9 @@
 # Research log
 
+## Log past strength workouts (WO-08/#279) — 2026-10-17
+
+Checked [Expo SDK57 SecureStore](https://docs.expo.dev/versions/v57.0.0/sdk/securestore/): Expo enforces no value size, but "large payloads can be rejected by the underlying platform" and some iOS releases historically refused values above roughly 2048 bytes; `setItemAsync` rejects when a value cannot be stored. The past-workout draft therefore keeps only the form plus `{operationId, workoutId}` and rebuilds the exact request bodies from the locked form; a failed draft write sends nothing and says so. No new native API, route, schema or migration: the existing idempotent `POST /v1/workouts` accepts past `startedAt`/`completedAt`, sets accept explicit `sequence`/`completedAt`. Remembered times are not observed samples, so past entries carry no Health export marker. Previous performance now orders by `completed_at` (nulls last) then `created_at`.
+
 ## Indoor bouldering sessions (BOULDER-001/#276) — 2026-10-16
 
 Checked [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security) and [Expo SDK57 ImagePicker](https://docs.expo.dev/versions/v57.0.0/sdk/imagepicker/). Policies use `(select auth.uid())` with `user_id`-leading indexes, per-operation `to authenticated` policies, and security-definer RPCs with an empty `search_path` and restricted `execute`. ImagePicker `exif: false` only controls returned metadata, so boulder photos keep the ImageManipulator JPEG re-encode as the metadata-removal step. No authority publishes the Font scale; the 3–8C+ list is a product choice ([ADR-0066](adr/0066-indoor-bouldering-sessions.md)).

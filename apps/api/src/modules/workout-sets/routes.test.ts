@@ -540,3 +540,92 @@ describe("GET /v1/exercises/:exerciseId/recent-sets", () => {
     expect(response.statusCode).toBe(422);
   });
 });
+
+describe("past workout entry (log a workout after the fact)", () => {
+  it("accepts a backdated completed session and keeps newer live performance as the last session", async () => {
+    const { app, workoutRepository, exerciseRepository, workoutSetRepository } =
+      build(tokenVerifierFor({ userId: userA }));
+    seedExercise(exerciseRepository);
+    // A live session from yesterday, entered when it happened.
+    seedWorkout(workoutRepository, {
+      startedAt: new Date("2026-10-16T08:00:00Z"),
+      completedAt: new Date("2026-10-16T09:00:00Z"),
+    });
+    seedSet(workoutSetRepository, {
+      loadKg: 100,
+      repetitions: 5,
+      completedAt: new Date("2026-10-16T08:30:00Z"),
+      createdAt: new Date("2026-10-16T08:30:00Z"),
+    });
+    const headers = {
+      authorization: "Bearer valid",
+      "content-type": "application/json",
+    };
+    const workoutBody = {
+      clientOperationId: "00000000-0000-4000-8000-00000000e001",
+      name: "Remembered push",
+      startedAt: "2026-10-10T17:00:00.000Z",
+      completedAt: "2026-10-10T18:00:00.000Z",
+      details: {
+        sessionMode: "one_time",
+        entryMode: "past",
+        sessionExercises: [{ name: "Back squat", restSeconds: 90 }],
+        workoutLifecycle: { kind: "session" },
+      },
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers,
+      payload: workoutBody,
+    });
+    expect(created.statusCode).toBe(200);
+    const workout = created.json().workout;
+    expect(workout.completedAt).toBe(workoutBody.completedAt);
+    // A replay after a lost response returns the same workout.
+    const replay = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers,
+      payload: workoutBody,
+    });
+    expect(replay.json().workout.id).toBe(workout.id);
+
+    const set = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${workout.id}/sets`,
+      headers,
+      payload: {
+        exerciseId: EXERCISE_ID,
+        sequence: 1,
+        repetitions: 8,
+        loadKg: 60,
+        completedAt: workoutBody.completedAt,
+      },
+    });
+    expect(set.statusCode).toBe(200);
+    expect(set.json().workoutSet.completedAt).toBe(workoutBody.completedAt);
+    const duplicate = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${workout.id}/sets`,
+      headers,
+      payload: {
+        exerciseId: EXERCISE_ID,
+        sequence: 1,
+        repetitions: 8,
+        completedAt: workoutBody.completedAt,
+      },
+    });
+    expect(duplicate.statusCode).toBe(409);
+
+    const recent = await app.inject({
+      method: "GET",
+      url: `/v1/exercises/${EXERCISE_ID}/recent-sets`,
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(recent.statusCode).toBe(200);
+    // The backdated set was inserted last but performed earlier.
+    expect(recent.json().sets[0].workoutId).toBe(WORKOUT_ID);
+    expect(recent.json().summary.lastSessionVolumeKg).toBe(500);
+  });
+});

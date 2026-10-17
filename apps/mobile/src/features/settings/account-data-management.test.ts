@@ -319,6 +319,10 @@ describe("account-data-management", () => {
       [`mizyun.logging-draft.${userId}.workout`, '{"name":"Chest Day"}'],
       [`mizyun.logging-draft.${userId}.run`, '{"pending":{"kind":"create"}}'],
       [
+        `mizyun.logging-draft.${userId}.past-workout`,
+        '{"version":1,"form":{"name":"Legs"},"pending":null}',
+      ],
+      [
         `mizyun.logging-draft.${userId}.bouldering`,
         '{"version":1,"commands":[],"finish":null}',
       ],

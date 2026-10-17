@@ -65,6 +65,7 @@
 - **WO-05:** Progress summaries can show personal records, volume, frequency, and consistency without comparing incompatible measurement types.
 - **WO-06:** Suggestions reflect stated goals, experience, equipment, limitations, and recent volume; unsafe volume/intensity is avoided.
 - **WO-07:** A user can start an empty one-time workout directly from Workouts, add exercises and log actual sets while exercising using the existing workout controls. Exercise selections are saved before their first set and recover with the active session. One-time workouts have no prescribed set/repetition targets, never modify a reusable routine, and finish into private workout history. Start retries reuse the same operation identity.
+- **WO-08:** A user can log a strength workout completed earlier without the phone from one form (date, start time, duration, exercises and sets) without running a live session. It saves once into private history as an already-completed workout, never becomes the active workout, is not exported to Health, and does not fill earlier Community challenge days. Saves are resumable without duplicate workouts or sets, and previous performance ranks sets by when they were performed rather than when they were entered.
 
 ### Body progress and media
 
