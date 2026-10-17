@@ -23,7 +23,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#288 Log activity (Oct17):** runs here (no hub Log run), typed activity, any date/time, on-device text drafts; 2 reviews/gatePASS efdeb957+diff. Uncommitted; Dev/device next. [Evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)
+- **#288 Log activity (Oct17):** runs here (no hub Log run), typed activity, any date/time, text drafts; reviews/gate PASS; Dev 47c814e5 health200 13:05Z. Next: app build/iPhone. [Evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)
 - **#278 timed workouts (Oct17):** load/reps·duration·duration+distance modes, Swimming/Outdoor Cycling/Hiking, Log activity; no migration (ADR0068). 2 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)
 - **#279 past workouts (WO-08, Oct17):** Log past workout form; resumable save; recent sets by completed_at. 3 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/PAST_WORKOUT_LOGGING_EVIDENCE_2026-10-17.md)
 - **#276 bouldering:** BLD-00–06 source 641549ed; gate/db:verify/3 reviews PASS; Dev 45f1ccfe. Next device. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). **Share sheet:** device check open.

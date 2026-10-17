@@ -1,6 +1,6 @@
 # Log activity: runs, free-text activity, any date, description drafts (#288)
 
-Date: 2026-10-17 (Claude Code). Baseline `efdeb957c5a62047fa543184027a703467f93635`; uncommitted at time of writing.
+Date: 2026-10-17 (Claude Code). Baseline `efdeb957c5a62047fa543184027a703467f93635`; committed as `47c814e5554d6e1dfc5480b79bdd150bbe9b1094` on main.
 
 ## Requested behaviour
 
@@ -21,5 +21,5 @@ Rule-based parser instead of a Gemini draft: the user's examples are covered wit
 
 ## Open
 
-- Not committed, not deployed to Dev, no iPhone acceptance.
+- Deployed to Hetzner Dev `47c814e5` (deploy:dev re-ran the gate; migrations up to date; public health 200 at 2026-10-17T13:05:22Z). The change is client-side: the installed iPhone Dev app needs a new build (`pnpm mobile:founder-dev:ios`) before acceptance. No device acceptance yet.
 - #289: durable pending run across app restart, DST nonexistent start time, optional AI drafting. Known parser limits: earliest-named activity wins ("walked the dog then ran 5k" → Walking); standalone "seventy"/"eighty".
