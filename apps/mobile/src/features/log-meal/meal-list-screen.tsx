@@ -3,6 +3,7 @@ import {
   mealPhotoRetentionEnabled,
 } from "./meal-photo-retention";
 import { MealVisual } from "./meal-visual";
+import { usePrefetchMealPhotos } from "./meal-photo-prefetch";
 import { useMealVisualCapability } from "./meal-visual-capability";
 import {
   ActivityIndicator,
@@ -267,6 +268,7 @@ export function MealListScreen() {
     },
     [ownerKey, initialHistory],
   );
+  usePrefetchMealPhotos(state.entries);
   const [dismissEveningBanner, setDismissEveningBanner] = useState(false);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
   const [storedSearchQuery, setSearchQuery] = useState("");

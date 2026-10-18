@@ -1,4 +1,5 @@
 import { forgetMealVisualMemory as forgetMemory } from "./meal-photo-memory";
+export { setMealPhotoPrincipal } from "./meal-photo-memory";
 export { createOperationId } from "./meal-form";
 export {
   fetchFoodEntry,

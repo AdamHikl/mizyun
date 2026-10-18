@@ -13,9 +13,12 @@ import {
   type StoredMealPhoto,
 } from "./meal-photo-retention";
 import {
+  inFlightPhotoRead,
   mealPhotoMemoryGeneration,
+  mealPhotoScope,
   rememberPhoto,
   rememberedPhoto,
+  sharedPhotoRead,
 } from "./meal-photo-memory";
 
 /** Signed URLs exist only in this account/request generation and never reach a disk cache. */
@@ -38,7 +41,11 @@ export function PrivateMealPhoto({
 }) {
   const { session } = useAuth();
   const owner = session?.user.id ?? null;
-  const scope = `${owner ?? ""}:${session?.accessToken ?? ""}:${entryId}`;
+  const scope = mealPhotoScope(
+    owner ?? "",
+    session?.accessToken ?? "",
+    entryId,
+  );
   const current = useRef(scope);
   current.current = scope;
   const currentDisplay = useRef(displayEnabled);
@@ -50,6 +57,9 @@ export function PrivateMealPhoto({
     pending: boolean;
     message: string | null;
     removed?: boolean;
+    // Text-only state captured while display was off must not hide a
+    // remembered photo once display returns (for example on tab refocus).
+    textOnly?: boolean;
   } | null>(null);
   const [previewScope, setPreviewScope] = useState<string | null>(null);
   const [busyScope, setBusyScope] = useState<string | null>(null);
@@ -68,6 +78,7 @@ export function PrivateMealPhoto({
         photo: null,
         pending: pending !== null,
         message: null,
+        textOnly: true,
       });
       return;
     }
@@ -86,7 +97,15 @@ export function PrivateMealPhoto({
       });
       return;
     }
-    const response = await fetchMealPhoto(entryId);
+    const read = () => fetchMealPhoto(entryId);
+    // Join a prefetch in flight, but read again rather than inherit its failure.
+    const joined = force
+      ? null
+      : inFlightPhotoRead<Awaited<ReturnType<typeof read>>>(scope);
+    let response = joined ? await joined : null;
+    if (!valid()) return;
+    if (!response?.ok)
+      response = await (force ? read() : sharedPhotoRead(scope, read));
     if (!valid()) return;
     if (response.ok)
       rememberPhoto(scope, response.value.photo, memoryGeneration);
@@ -106,16 +125,24 @@ export function PrivateMealPhoto({
   }, [scope, enabled, hasPhoto, photoAssetId, displayEnabled]);
   if (!owner) return displayEnabled ? fallback : null;
   if (displayEnabled && !enabled) return fallback;
+  const sameScope = state?.scope === scope ? state : null;
+  // Text-only state from while display was off knows nothing about the photo.
+  const staleTextOnly = displayEnabled && hasPhoto && sameScope?.textOnly;
+  const settled = staleTextOnly ? null : sameScope;
   const remembered =
-    displayEnabled && hasPhoto && state?.scope !== scope
+    displayEnabled && hasPhoto && !settled
       ? rememberedPhoto(scope, photoAssetId)
       : null;
-  const visible =
-    state?.scope === scope
-      ? state
-      : remembered
-        ? { scope, photo: remembered, pending: false, message: null }
-        : null;
+  const visible = settled
+    ? settled
+    : remembered
+      ? {
+          scope,
+          photo: remembered,
+          pending: sameScope?.pending ?? false,
+          message: null,
+        }
+      : null;
   if (!displayEnabled && !editable) return null;
   if (!hasPhoto && !visible?.photo && !visible?.pending)
     return displayEnabled ? fallback : null;
@@ -150,6 +177,7 @@ export function PrivateMealPhoto({
           pending: false,
           message: null,
           removed: action === "remove" || visible?.removed === true,
+          textOnly: true,
         });
       else if (ok) await load(true);
       else

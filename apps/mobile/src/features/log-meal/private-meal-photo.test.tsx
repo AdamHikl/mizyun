@@ -492,3 +492,93 @@ it("does not remember a signed URL whose read settles after memory was forgotten
   await flush();
   expect(mocks.read).toHaveBeenCalledTimes(2);
 });
+
+it("shows the remembered photo on the first render after display returns on tab refocus", async () => {
+  render();
+  await flush();
+  displayEnabled = false;
+  render();
+  await flush();
+  displayEnabled = true;
+  const tree = render();
+  expect(
+    find(tree, (node) => node.props?.accessibilityLabel === "Meal photo"),
+  ).toBeTruthy();
+  expect(
+    find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "Reload meal photo",
+    ),
+  ).toBeFalsy();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(1);
+});
+
+it("joins an in-flight read instead of signing the same photo twice", async () => {
+  let resolve!: (value: unknown) => void;
+  mocks.read.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  render();
+  await flush();
+  hooks.slots = [];
+  hooks.effects = [];
+  hooks.cleanup = [];
+  render();
+  await flush();
+  resolve({ ok: true, value: { photo } });
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(1);
+  expect(byLabel("Meal photo")).toBeTruthy();
+});
+
+it("reads again instead of inheriting a failed in-flight prefetch", async () => {
+  const { sharedPhotoRead, mealPhotoScope } =
+    await import("./meal-photo-memory");
+  let fail!: (value: unknown) => void;
+  void sharedPhotoRead(
+    mealPhotoScope("owner-a", "token-a", "meal-a"),
+    () =>
+      new Promise((done) => {
+        fail = done;
+      }),
+  );
+  render();
+  await flush();
+  fail({ ok: false, error: { kind: "http_error" } });
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(1);
+  expect(byLabel("Meal photo")).toBeTruthy();
+});
+
+it("keeps a pending retry visible when display returns with a remembered photo", async () => {
+  mocks.pending.mockResolvedValue({ uri: "owned-retry" });
+  render();
+  await flush();
+  displayEnabled = false;
+  render();
+  await flush();
+  displayEnabled = true;
+  const tree = render();
+  expect(
+    find(tree, (node) => node.props?.accessibilityLabel === "Meal photo"),
+  ).toBeTruthy();
+  expect(
+    find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "Retry meal photo upload",
+    ),
+  ).toBeTruthy();
+});
+
+it("bypasses a shared read when forced after removal", async () => {
+  render();
+  await flush();
+  mocks.read.mockResolvedValueOnce({ ok: true, value: { photo: null } });
+  byLabel("Remove saved meal photo").props.onPress();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(2);
+});

@@ -90,17 +90,17 @@ export function useMealVisualCapability(
         response?.ok === true &&
         response.value?.mealVisuals === true;
       if (enabled) {
-        confirmMealVisuals(scope, true);
+        confirmMealVisuals(scope, userId, true);
         grant();
       } else {
-        confirmMealVisuals(scope, false);
+        confirmMealVisuals(scope, userId, false);
         clearTimeout(leaseTimer.current);
         setAuthority(null);
       }
       return enabled;
     } catch {
       if (valid()) {
-        confirmMealVisuals(scope, false);
+        confirmMealVisuals(scope, userId, false);
         clearTimeout(leaseTimer.current);
         setAuthority(null);
       }

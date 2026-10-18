@@ -36,7 +36,10 @@ import { OnboardingScreen } from "@/features/onboarding/onboarding-screen";
 import { ResetPasswordScreen } from "./reset-password-screen";
 import { resolveSessionGateTarget } from "./session-gate-state";
 import { signOutCapturedSession } from "./session-bound-sign-out";
-import { forgetMealVisualMemory } from "@/features/log-meal/public-data";
+import {
+  forgetMealVisualMemory,
+  setMealPhotoPrincipal,
+} from "@/features/log-meal/public-data";
 import { hydrateAuthBootstrap } from "./auth-bootstrap";
 import {
   loadCachedProfile,
@@ -208,6 +211,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         previousPushSession.user.id !== nextSession?.user.id
       )
         forgetMealVisualMemory();
+      setMealPhotoPrincipal(
+        nextSession?.user.id ?? null,
+        nextSession?.accessToken ?? null,
+      );
       setSession(nextSession);
       if (nextSession === null) {
         setProfile(null);
