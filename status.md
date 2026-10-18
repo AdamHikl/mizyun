@@ -23,7 +23,8 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#292/#293 (Oct17):** "X of Y days" weekly goal, no streak; protein range/ideas (ADR0070). 734c7516 gatePASS(3177mobile/1189API+15skips); Dev health200 18:16Z. Next: iPhone Dev.
+- **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
+- **#295 (Oct18, uncommitted):** recipe photo upload fix (expo/fetch rejects RN `{uri}` parts; send expo File) + review UI; review/gatePASS(3196mobile/1189API). Mobile-only. Next: commit, iPhone Dev, real photo. #294 analytics 422.
 - **#290 (Oct17):** lock/resume keeps logged sets, no false sign-out; 2 reviews/gatePASS; pushed main. Next: Dev/iPhone lock test; #291.
 - **#288 Log activity (Oct17):** runs here (no hub Log run), typed activity, any date/time, text drafts; reviews/gatePASS; Dev 47c814e5 health200;iPhone install 13:08Z;Adam next. [Evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)
 - **#278 timed workouts (Oct17):** load/reps·duration·duration+distance modes, Swimming/Outdoor Cycling/Hiking, Log activity; no migration (ADR0068). 2 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)

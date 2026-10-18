@@ -2,7 +2,6 @@ import { randomUUID } from "expo-crypto";
 import { Directory, File, Paths } from "expo-file-system";
 import { ImageManipulator } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import { Platform } from "react-native";
 
 import { normalizeMealPhoto } from "@/features/log-meal/public-data";
 
@@ -173,15 +172,9 @@ const defaultPorts = (): IngredientPhotoAdapterPorts => ({
     if (file.exists) file.delete();
   },
   listFiles: nativeFiles,
-  blob: async (uri) =>
-    Platform.OS === "web"
-      ? new File(uri)
-      : ({
-          uri,
-          name: "ingredient-photo.jpg",
-          type: "image/jpeg",
-          size: new File(uri).size,
-        } as unknown as Blob),
+  // expo/fetch (the global fetch since SDK 57) encodes Blob/`bytes()` parts
+  // only; React Native `{ uri }` descriptors throw before any request is sent.
+  blob: async (uri) => new File(uri) as unknown as Blob,
 });
 
 /** Temporary photo ownership is in memory; recovery discards stale cache bytes. */

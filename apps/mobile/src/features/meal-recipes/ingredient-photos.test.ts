@@ -26,6 +26,12 @@ vi.mock("expo-file-system", () => ({
     get size() {
       return native.fileSize;
     }
+    get type() {
+      return "image/jpeg";
+    }
+    async bytes(): Promise<Uint8Array> {
+      return new Uint8Array(native.fileSize).fill(7);
+    }
     copy(destination: { uri: string }): Promise<void> {
       return native.copy(this.uri, destination.uri);
     }
@@ -45,6 +51,7 @@ vi.mock("@/features/log-meal/public-data", () => ({
   normalizeMealPhoto: vi.fn(),
 }));
 
+import { convertFormDataAsync } from "expo/src/winter/fetch/convertFormData";
 import {
   createIngredientPhotoAdapter,
   type IngredientPhoto,
@@ -454,8 +461,10 @@ describe.each(["ios", "android"])(
 );
 
 it.each(["ios", "android"])(
-  "native %s multipart descriptor has own URI, name, MIME and size",
+  "native %s upload is a file part that expo/fetch can encode",
   async (platform) => {
+    // Regression: a React Native `{ uri }` descriptor made expo/fetch throw
+    // "Unsupported FormDataPart implementation" before any request was sent.
     native.platform = platform;
     const f = fixture();
     const { blob: _blob, ...ports } = f.ports;
@@ -464,13 +473,22 @@ it.each(["ios", "android"])(
     expect(result.kind).toBe("selected");
     if (result.kind !== "selected") throw new Error("Expected selection.");
     const upload = await nativeAdapter.toUpload(result.photo);
-    expect({ ...upload.photo }).toEqual({
-      uri: result.photo.uri,
-      name: "ingredient-photo.jpg",
-      type: "image/jpeg",
-      size: 12,
-    });
+    expect(upload.photo.size).toBe(12);
+    expect(upload.photo.type).toBe("image/jpeg");
     expect(upload.mimeType).toBe("image/jpeg");
+    // Expo's patched React Native FormData stores parts as [name, value].
+    const parts = (value: unknown) =>
+      ({ entries: () => [["images", value]] }) as unknown as FormData;
+    await expect(
+      convertFormDataAsync(
+        parts({ uri: result.photo.uri, type: "image/jpeg" }),
+      ),
+    ).rejects.toThrow("Unsupported FormDataPart");
+    const { body, boundary } = await convertFormDataAsync(parts(upload.photo));
+    const text = new TextDecoder().decode(body);
+    expect(text).toContain(`--${boundary}`);
+    expect(text).toContain('name="images"');
+    expect(body.length).toBeGreaterThan(12);
   },
 );
 

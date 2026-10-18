@@ -101,6 +101,7 @@ export function IngredientReview({
     selected?: boolean,
     role: "button" | "checkbox" = "button",
     visibleLabel = label,
+    variant: "secondary" | "primary" | "chip" | "icon" | "text" = "secondary",
   ) => (
     <Pressable
       key={label}
@@ -115,19 +116,49 @@ export function IngredientReview({
             : {}),
       }}
       disabled={disabled}
+      hitSlop={variant === "icon" ? 4 : undefined}
       onPress={action}
       style={[
-        styles.button,
-        {
-          borderColor: theme.border,
-          backgroundColor: selected
-            ? theme.backgroundSelected
-            : theme.backgroundElement,
-          opacity: disabled ? 0.5 : 1,
-        },
+        variant === "primary"
+          ? styles.primaryButton
+          : variant === "chip"
+            ? styles.chip
+            : variant === "icon"
+              ? styles.iconButton
+              : variant === "text"
+                ? styles.textButton
+                : styles.button,
+        variant === "text"
+          ? { opacity: disabled ? 0.5 : 1 }
+          : {
+              borderColor:
+                variant === "primary"
+                  ? "transparent"
+                  : selected
+                    ? theme.primary
+                    : theme.border,
+              backgroundColor:
+                variant === "primary"
+                  ? theme.primary
+                  : selected
+                    ? theme.primaryLight
+                    : theme.backgroundElement,
+              opacity: disabled ? 0.5 : 1,
+            },
       ]}
     >
-      <ThemedText>{visibleLabel}</ThemedText>
+      <ThemedText
+        type={variant === "chip" ? "small" : "smallBold"}
+        themeColor={
+          variant === "primary"
+            ? "onPrimary"
+            : variant === "text"
+              ? "textSecondary"
+              : undefined
+        }
+      >
+        {visibleLabel}
+      </ThemedText>
     </Pressable>
   );
   const inputStyle = [
@@ -138,274 +169,423 @@ export function IngredientReview({
       backgroundColor: theme.background,
     },
   ];
+  const cardStyle = [
+    styles.card,
+    { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+  ];
+  const maximumImages = snapshot.capabilities?.maximumImages ?? 0;
+  const photoOff =
+    snapshot.aiRetired || snapshot.capabilities?.recognizeIngredients === false;
+  const enabledCount = snapshot.ingredients.filter((row) => row.enabled).length;
+  const notice = localMessage ?? snapshot.message;
+  const progress =
+    snapshot.phase === "initializing"
+      ? "Loading ingredient review…"
+      : snapshot.phase === "picking"
+        ? "Selecting a photo…"
+        : snapshot.phase === "analyzing"
+          ? "Analyzing photos… You can keep editing typed ingredients."
+          : null;
   return (
     <View style={styles.container}>
-      <ThemedText accessibilityRole="header" type="smallBold">
-        Review ingredients
-      </ThemedText>
-      <ThemedText>
-        Type what you have, or review suggestions from photos. Amounts are
-        unknown; check what is available before cooking.
-      </ThemedText>
-      <TextInput
-        accessibilityLabel="Ingredient to add"
-        placeholder="Add an ingredient"
-        placeholderTextColor={theme.textSecondary}
-        value={typed}
-        onChangeText={setTyped}
-        editable={editable}
-        maxLength={160}
-        autoCapitalize="sentences"
-        returnKeyType="done"
-        onSubmitEditing={() => {
-          void addTyped();
-        }}
-        style={inputStyle}
-      />
-      <View style={styles.actions}>
-        {button(
-          "Add ingredient",
-          () => {
-            void addTyped();
-          },
-          !editable || !typed.trim(),
-        )}
-      </View>
-      <ThemedText type="smallBold">Photo location</ThemedText>
-      <View style={styles.actions}>
-        {locations.map((item) =>
-          button(
-            item === "fridge"
-              ? "Fridge"
-              : item === "cabinet"
-                ? "Cabinet"
-                : "Other",
-            () => setLocation(item),
-            busy,
-            location === item,
-          ),
-        )}
-      </View>
-      <ThemedText>
-        {snapshot.capabilities
-          ? `This account can use up to ${snapshot.capabilities.maximumImages} photo${snapshot.capabilities.maximumImages === 1 ? "" : "s"}.`
-          : "Photo analysis access is unavailable until checked. You can type ingredients."}
-      </ThemedText>
-      {(snapshot.aiRetired ||
-        snapshot.capabilities?.recognizeIngredients === false) && (
-        <ThemedText>
-          Photo analysis is off. You can still edit and confirm typed
-          ingredients.
-        </ThemedText>
-      )}
-      <View style={styles.actions}>
-        {button(
-          "Camera",
-          () => {
-            void run(() => controller.addPhoto({ source: "camera", location }));
-          },
-          !canAddPhoto,
-        )}
-        {button(
-          "Photo library",
-          () => {
-            void run(() =>
-              controller.addPhoto({ source: "library", location }),
-            );
-          },
-          !canAddPhoto,
-        )}
-      </View>
-      {snapshot.photos.map((photo, index) => (
-        <View key={photo.id} style={styles.photo}>
-          <Image
-            source={{ uri: photo.uri }}
-            cachePolicy="none"
-            contentFit="contain"
-            accessibilityLabel={`${photo.location} photo ${index + 1}`}
-            style={styles.preview}
-          />
-          {button(
-            `Remove photo ${index + 1}`,
-            () => {
-              void run(() => controller.removePhoto(photo.id));
-            },
-            busy,
-          )}
-        </View>
-      ))}
-      <View style={styles.actions}>
-        {button(
-          "Analyze photos",
-          () => {
-            void run(() => controller.analyze());
-          },
-          !photoEnabled || snapshot.photos.length === 0,
-        )}
-      </View>
-      {snapshot.phase === "initializing" && (
-        <ThemedText accessibilityLiveRegion="polite">
-          Loading ingredient review…
-        </ThemedText>
-      )}
-      {snapshot.phase === "picking" && (
-        <ThemedText accessibilityLiveRegion="polite">
-          Selecting a photo…
-        </ThemedText>
-      )}
-      {snapshot.phase === "analyzing" && (
-        <ThemedText accessibilityLiveRegion="polite">
-          Analyzing photos… You can keep editing typed ingredients.
-        </ThemedText>
-      )}
-      {snapshot.recoveryRequiresReselect && (
-        <ThemedText>
-          Photos were not retained. Reselect photos to analyze again. Review the
-          recovered ingredients below.
-        </ThemedText>
-      )}
-      {(snapshot.message || localMessage) && (
-        <ThemedText accessibilityRole="alert" accessibilityLiveRegion="polite">
-          {localMessage ?? snapshot.message}
-        </ThemedText>
-      )}
-      {snapshot.warnings.map((warning, index) => (
-        <ThemedText key={`${index}-${warning}`}>{warning}</ThemedText>
-      ))}
-      {snapshot.cleanupPending > 0 && (
-        <View style={styles.actions}>
-          <ThemedText>
-            Temporary photo cleanup needs a retry before continuing.
+      <View style={cardStyle}>
+        <View style={styles.header}>
+          <ThemedText accessibilityRole="header" style={styles.title}>
+            Scan your kitchen
           </ThemedText>
+          {maximumImages > 0 && !photoOff && (
+            <ThemedText type="small" themeColor="textSecondary">
+              {`${snapshot.photos.length} of ${maximumImages} photo${maximumImages === 1 ? "" : "s"}`}
+            </ThemedText>
+          )}
+        </View>
+        <ThemedText type="small" themeColor="textSecondary">
+          {photoOff
+            ? "Photo analysis is off. You can still edit and confirm typed ingredients."
+            : snapshot.capabilities
+              ? "Snap your fridge or cupboard and we’ll suggest what’s inside."
+              : "Photo analysis access is unavailable until checked. You can type ingredients."}
+        </ThemedText>
+        <View style={styles.segment}>
+          {locations.map((item) =>
+            button(
+              item === "fridge"
+                ? "Fridge"
+                : item === "cabinet"
+                  ? "Cabinet"
+                  : "Other",
+              () => setLocation(item),
+              busy,
+              location === item,
+              "button",
+              undefined,
+              "chip",
+            ),
+          )}
+        </View>
+        {snapshot.photos.length > 0 && (
+          <View style={styles.thumbnails}>
+            {snapshot.photos.map((photo, index) => (
+              <View
+                key={photo.id}
+                style={[styles.thumbnail, { borderColor: theme.border }]}
+              >
+                <Image
+                  source={{ uri: photo.uri }}
+                  cachePolicy="none"
+                  contentFit="cover"
+                  accessibilityLabel={`${photo.location} photo ${index + 1}`}
+                  style={styles.preview}
+                />
+                <View style={styles.thumbnailRemove}>
+                  {button(
+                    `Remove photo ${index + 1}`,
+                    () => {
+                      void run(() => controller.removePhoto(photo.id));
+                    },
+                    busy,
+                    undefined,
+                    "button",
+                    "✕",
+                    "icon",
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={styles.split}>
           {button(
-            "Retry photo cleanup",
+            "Camera",
             () => {
-              void run(() => controller.retryCleanup());
+              void run(() =>
+                controller.addPhoto({ source: "camera", location }),
+              );
             },
-            submitting,
+            !canAddPhoto,
+          )}
+          {button(
+            "Photo library",
+            () => {
+              void run(() =>
+                controller.addPhoto({ source: "library", location }),
+              );
+            },
+            !canAddPhoto,
+            undefined,
+            "button",
+            "Library",
+          )}
+        </View>
+        {snapshot.photos.length > 0 &&
+          button(
+            "Analyze photos",
+            () => {
+              void run(() => controller.analyze());
+            },
+            !photoEnabled,
+            undefined,
+            "button",
+            snapshot.photos.length === 1
+              ? "Find ingredients in 1 photo"
+              : `Find ingredients in ${snapshot.photos.length} photos`,
+            "primary",
+          )}
+        {progress && (
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            accessibilityLiveRegion="polite"
+          >
+            {progress}
+          </ThemedText>
+        )}
+      </View>
+      {(notice ||
+        snapshot.recoveryRequiresReselect ||
+        snapshot.warnings.length > 0 ||
+        snapshot.cleanupPending > 0) && (
+        <View
+          style={[
+            styles.notice,
+            { backgroundColor: theme.warningLight, borderColor: theme.border },
+          ]}
+        >
+          {notice ? (
+            <ThemedText
+              type="small"
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+            >
+              {notice}
+            </ThemedText>
+          ) : null}
+          {!snapshot.message && snapshot.recoveryRequiresReselect && (
+            <ThemedText type="small">
+              Photos were not retained. Reselect photos to analyze again. Review
+              the recovered ingredients below.
+            </ThemedText>
+          )}
+          {snapshot.warnings.map((warning, index) => (
+            <ThemedText type="small" key={`${index}-${warning}`}>
+              {warning}
+            </ThemedText>
+          ))}
+          {snapshot.cleanupPending > 0 && (
+            <>
+              <ThemedText type="small">
+                Temporary photo cleanup needs a retry before continuing.
+              </ThemedText>
+              {button(
+                "Retry photo cleanup",
+                () => {
+                  void run(() => controller.retryCleanup());
+                },
+                submitting,
+              )}
+            </>
           )}
         </View>
       )}
-      {snapshot.ingredients.some((row) => row.source === "photo") && (
-        <ThemedText>
-          Possible ingredients from the combined photos. Correct or remove
-          anything uncertain.
-        </ThemedText>
-      )}
-      {snapshot.ingredients.length === 0 && (
-        <ThemedText>
-          No ingredients yet. Add an ingredient to continue.
-        </ThemedText>
-      )}
-      {snapshot.ingredients.map((row, index) => (
-        <View key={row.id} style={[styles.row, { borderColor: theme.border }]}>
+      <View style={cardStyle}>
+        <View style={styles.header}>
+          <ThemedText accessibilityRole="header" style={styles.title}>
+            Your ingredients
+          </ThemedText>
+          {snapshot.ingredients.length > 0 && (
+            <ThemedText type="small" themeColor="textSecondary">
+              {`${enabledCount} selected`}
+            </ThemedText>
+          )}
+        </View>
+        <View style={styles.addRow}>
           <TextInput
-            accessibilityLabel={`Ingredient ${index + 1} name`}
-            value={names[row.id] ?? row.name}
+            accessibilityLabel="Ingredient to add"
+            placeholder="e.g. eggs, spinach, rice"
+            placeholderTextColor={theme.textSecondary}
+            value={typed}
+            onChangeText={setTyped}
             editable={editable}
             maxLength={160}
-            onChangeText={(name) => setNames({ ...names, [row.id]: name })}
-            onEndEditing={({ nativeEvent: { text: name } }) => {
-              void run(() => controller.updateIngredient(row.id, { name }));
+            autoCapitalize="sentences"
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              void addTyped();
             }}
-            style={inputStyle}
+            style={[...inputStyle, styles.addInput]}
           />
-          <ThemedText type="small">
-            {row.source === "photo"
-              ? "Photo suggestion — check the name and state"
-              : "Typed ingredient"}
+          {button(
+            "Add ingredient",
+            () => {
+              void addTyped();
+            },
+            !editable || !typed.trim(),
+            undefined,
+            "button",
+            "Add",
+          )}
+        </View>
+        {snapshot.ingredients.some((row) => row.source === "photo") && (
+          <ThemedText type="small" themeColor="textSecondary">
+            Possible ingredients from the combined photos. Correct or remove
+            anything uncertain.
           </ThemedText>
-          <View style={styles.actions}>
-            {states.map(([state, label]) =>
-              button(
-                `${label}: ${row.name}`,
+        )}
+        {snapshot.ingredients.length > 0 && (
+          <ThemedText type="small" themeColor="textSecondary">
+            Amounts are unknown; check what is available before cooking.
+          </ThemedText>
+        )}
+        {snapshot.ingredients.length === 0 && (
+          <ThemedText type="small" themeColor="textSecondary">
+            Nothing here yet. Type an ingredient or scan a photo.
+          </ThemedText>
+        )}
+        {snapshot.ingredients.map((row, index) => (
+          <View
+            key={row.id}
+            style={[
+              styles.row,
+              {
+                borderColor: theme.border,
+                backgroundColor: theme.background,
+                opacity: row.enabled ? 1 : 0.6,
+              },
+            ]}
+          >
+            <View style={styles.rowHeader}>
+              {button(
+                `Include ${row.name}`,
                 () => {
                   void run(() =>
                     controller.updateIngredient(row.id, {
-                      preparationState: state,
+                      enabled: !row.enabled,
                     }),
                   );
                 },
                 !editable,
-                row.preparationState === state,
+                row.enabled,
+                "checkbox",
+                row.enabled ? "✓" : " ",
+                "icon",
+              )}
+              <TextInput
+                accessibilityLabel={`Ingredient ${index + 1} name`}
+                value={names[row.id] ?? row.name}
+                editable={editable}
+                maxLength={160}
+                onChangeText={(name) => setNames({ ...names, [row.id]: name })}
+                onEndEditing={({ nativeEvent: { text: name } }) => {
+                  void run(() => controller.updateIngredient(row.id, { name }));
+                }}
+                style={[styles.nameInput, { color: theme.text }]}
+              />
+              {button(
+                `Remove ${row.name}`,
+                () => {
+                  void run(() => controller.removeIngredient(row.id));
+                },
+                !editable,
+                undefined,
                 "button",
-                label,
-              ),
+                "✕",
+                "icon",
+              )}
+            </View>
+            <View style={styles.segment}>
+              {states.map(([state, label]) =>
+                button(
+                  `${label}: ${row.name}`,
+                  () => {
+                    void run(() =>
+                      controller.updateIngredient(row.id, {
+                        preparationState: state,
+                      }),
+                    );
+                  },
+                  !editable,
+                  row.preparationState === state,
+                  "button",
+                  label,
+                  "chip",
+                ),
+              )}
+            </View>
+            {row.source === "photo" && (
+              <ThemedText type="small" themeColor="textSecondary">
+                From your photo — check the name and state
+              </ThemedText>
             )}
           </View>
-          <View style={styles.actions}>
-            {button(
-              `Include ${row.name}`,
-              () => {
-                void run(() =>
-                  controller.updateIngredient(row.id, {
-                    enabled: !row.enabled,
-                  }),
-                );
-              },
-              !editable,
-              row.enabled,
-              "checkbox",
-            )}
-            {button(
-              `Remove ${row.name}`,
-              () => {
-                void run(() => controller.removeIngredient(row.id));
-              },
-              !editable,
-            )}
-          </View>
-        </View>
-      ))}
-      <View style={styles.actions}>
-        {button(
-          "Confirm ingredients",
-          () => {
-            void confirm();
-          },
-          busy ||
-            snapshot.cleanupPending > 0 ||
-            !snapshot.ingredients.some((row) => row.enabled),
-        )}
-        {button(
-          "Cancel ingredient review",
-          () => {
-            void run(async () => {
-              await controller.cancel();
-              onCancel?.();
-            });
-          },
-          submitting,
-        )}
+        ))}
       </View>
+      {button(
+        "Confirm ingredients",
+        () => {
+          void confirm();
+        },
+        busy ||
+          snapshot.cleanupPending > 0 ||
+          !snapshot.ingredients.some((row) => row.enabled),
+        undefined,
+        "button",
+        enabledCount > 0
+          ? `Use ${enabledCount} ingredient${enabledCount === 1 ? "" : "s"}`
+          : "Confirm ingredients",
+        "primary",
+      )}
+      {button(
+        "Cancel ingredient review",
+        () => {
+          void run(async () => {
+            await controller.cancel();
+            onCancel?.();
+          });
+        },
+        submitting,
+        undefined,
+        "button",
+        "Cancel",
+        "text",
+      )}
     </View>
   );
 }
 const styles = StyleSheet.create({
-  container: { gap: 12 },
-  actions: {
+  container: { gap: 16 },
+  card: { gap: 14, padding: 18, borderRadius: 20, borderWidth: 1 },
+  header: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
+  title: { fontSize: 18, lineHeight: 24, fontWeight: "600", flexShrink: 1 },
+  segment: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  split: { flexDirection: "row", gap: 10 },
+  addRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  addInput: { flex: 1 },
   button: {
-    minHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    minHeight: 48,
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
+    alignItems: "center",
     justifyContent: "center",
-    flexShrink: 1,
+  },
+  primaryButton: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chip: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: 22,
+    justifyContent: "center",
+  },
+  iconButton: {
+    minHeight: 44,
+    minWidth: 44,
+    borderWidth: 1,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textButton: {
+    minHeight: 44,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    justifyContent: "center",
   },
   input: {
-    minHeight: 44,
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
   },
-  row: { gap: 8, paddingVertical: 12, borderTopWidth: 1 },
-  photo: { gap: 8, alignItems: "flex-start" },
-  preview: { width: "100%", height: 140 },
+  nameInput: { flex: 1, minHeight: 44, fontSize: 17, fontWeight: "600" },
+  row: { gap: 10, padding: 12, borderWidth: 1, borderRadius: 16 },
+  rowHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  notice: { gap: 10, padding: 14, borderRadius: 16, borderWidth: 1 },
+  thumbnails: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  thumbnail: {
+    width: 96,
+    height: 96,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  preview: { width: "100%", height: "100%" },
+  thumbnailRemove: { position: "absolute", top: 4, right: 4 },
 });
