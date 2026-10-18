@@ -482,6 +482,7 @@ export * from "./bouldering-repository";
 
 export * from "./barbell-plates";
 export * from "./activity-description";
+export * from "./evening-stretch";
 
 export {
   WEEKLY_LOG_GOAL_DEFAULT,

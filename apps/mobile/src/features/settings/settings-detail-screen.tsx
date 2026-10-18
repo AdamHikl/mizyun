@@ -33,6 +33,7 @@ import { CoachRemindersCard } from "./coach-reminders-card";
 import { FirstMealRemindersCard } from "./first-meal-reminders-card";
 import { LoggingGoalCard } from "./logging-goal-card";
 import { EveningCatchUpRemindersCard } from "./evening-catch-up-reminders-card";
+import { EveningStretchReminderCard } from "./evening-stretch-reminder-card";
 import { WeeklyReviewReminderCard } from "./weekly-review-reminder-card";
 import { WeighInReminderCard } from "./weigh-in-reminder-card";
 import { AppearanceSettingsCard } from "./appearance-settings-card";
@@ -161,6 +162,7 @@ export function SettingsDetailScreen({
             <CoachRemindersCard userId={session.user.id} />
             <FirstMealRemindersCard userId={session.user.id} />
             <EveningCatchUpRemindersCard userId={session.user.id} />
+            <EveningStretchReminderCard userId={session.user.id} />
             <WeeklyReviewReminderCard userId={session.user.id} />
             <WeighInReminderCard userId={session.user.id} />
           </View>

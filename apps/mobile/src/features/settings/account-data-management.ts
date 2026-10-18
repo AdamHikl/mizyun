@@ -39,6 +39,10 @@ import {
   type EveningReminderScheduler,
 } from "../log-meal/evening-catch-up-reminders";
 import {
+  clearEveningStretch,
+  type EveningStretchScheduler,
+} from "../evening-stretch/public-cleanup";
+import {
   clearWeighInReminders,
   type WeighInReminderScheduler,
 } from "../log-weight/weigh-in-reminders";
@@ -265,6 +269,7 @@ export interface ClearLocalUserDataOptions {
   readonly firstMealReminderStore?: ReminderStore;
   readonly eveningReminderScheduler?: EveningReminderScheduler;
   readonly eveningReminderStore?: ReminderStore;
+  readonly eveningStretchScheduler?: EveningStretchScheduler;
   readonly weeklyReviewReminderScheduler?: WeeklyReviewReminderScheduler;
   readonly weighInReminderScheduler?: WeighInReminderScheduler;
   readonly dayCompletionStore?: DayCompletionStore;
@@ -284,7 +289,7 @@ export interface ClearLocalUserDataOptions {
  * Clears all locally persisted state for the given user, including
  * meal/workout/run/bouldering/weight/coach drafts, AI consent decisions, scheduled
  * coach reminder notifications, scheduled first-meal notifications,
- * scheduled evening catch-up notifications, confirmed day completions,
+ * scheduled evening catch-up and evening stretch notifications, confirmed day completions,
  * deletion challenges, workout preferences, offline profile/dashboard
  * caches, private meal-photo files/retries, and local exported JSON files.
  */
@@ -368,6 +373,11 @@ export const clearLocalUserData = async (
     clearEveningReminders(
       userId,
       options.eveningReminderScheduler,
+      options.eveningReminderStore ?? options.reminderStore,
+    ),
+    clearEveningStretch(
+      userId,
+      options.eveningStretchScheduler,
       options.eveningReminderStore ?? options.reminderStore,
     ),
     clearWeeklyReviewReminder(

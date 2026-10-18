@@ -213,6 +213,9 @@ vi.mock("@/features/log-meal/first-meal-reminders", () => ({
 vi.mock("@/features/log-meal/evening-catch-up-reminders", () => ({
   reconcileEveningReminders: mocks.eveningReminders,
 }));
+vi.mock("@/features/evening-stretch", () => ({
+  EveningStretchHomeCard: "EveningStretchHomeCard",
+}));
 vi.mock("../weekly-review/weekly-review-modal", () => ({
   WeeklyReviewPopup: "WeeklyReviewPopup",
 }));

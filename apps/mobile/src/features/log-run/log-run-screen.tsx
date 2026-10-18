@@ -1,4 +1,5 @@
 import { spokenRunPace } from "@/features/running/presentation";
+import { noteTrainingSaved } from "@/features/evening-stretch/public-data";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -249,6 +250,7 @@ export function LogRunScreen() {
   };
   const finish = (saved: boolean) => {
     invalidateSessionReads();
+    if (saved) noteTrainingSaved();
     bypassBack.current = true;
     router.replace({
       pathname: "/(tabs)/workouts",

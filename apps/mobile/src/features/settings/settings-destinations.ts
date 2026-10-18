@@ -64,6 +64,7 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
       "coach-reminders",
       "first-meal",
       "evening-catch-up",
+      "evening-stretch",
       "weekly-review",
       "weigh-in",
     ],

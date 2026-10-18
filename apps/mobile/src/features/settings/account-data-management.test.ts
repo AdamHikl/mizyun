@@ -500,6 +500,63 @@ describe("account-data-management", () => {
     ).toEqual([]);
   });
 
+  it("clearLocalUserData cancels tonight's stretch reminder and its settings", async () => {
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const other = "00000000-0000-4000-8000-000000000002";
+    const values = new Map<string, string>([
+      [
+        `mizyun.evening-stretch.${userId}`,
+        JSON.stringify({
+          enabled: true,
+          hour: 21,
+          minute: 0,
+          notificationId: "stretch-1",
+          scheduledDate: "2026-10-18",
+          scheduledTime: "21:00",
+          completedDate: null,
+          permissionRequested: true,
+        }),
+      ],
+      [`mizyun.evening-stretch.${other}`, "{}"],
+    ]);
+    const cancelled: string[] = [];
+    await clearLocalUserData(userId, {
+      clearHealthExports: async () => undefined,
+      reminderStore: {
+        getItemAsync: async (k: string) => values.get(k) ?? null,
+        setItemAsync: async (k: string, v: string) => {
+          values.set(k, v);
+        },
+        deleteItemAsync: async (k: string) => {
+          values.delete(k);
+        },
+      },
+      eveningStretchScheduler: {
+        ensureChannel: async () => undefined,
+        getPermission: async () => "granted" as const,
+        requestPermission: async () => "granted" as const,
+        scheduleAtDate: async () => "unused",
+        cancel: async (id: string) => {
+          cancelled.push(id);
+        },
+        listScheduled: async () => [
+          {
+            id: "stretch-orphan",
+            data: { source: "evening_stretch_reminder", userId },
+          },
+          {
+            id: "stretch-other",
+            data: { source: "evening_stretch_reminder", userId: other },
+          },
+        ],
+      },
+    });
+    expect(cancelled.sort()).toEqual(["stretch-1", "stretch-orphan"]);
+    expect([...values.keys()].filter((key) => key.includes("stretch"))).toEqual(
+      [`mizyun.evening-stretch.${other}`],
+    );
+  });
+
   it("clearLocalUserData erases the weekly logging preference", async () => {
     const userId = "00000000-0000-4000-8000-000000000001";
     const other = "00000000-0000-4000-8000-000000000002";

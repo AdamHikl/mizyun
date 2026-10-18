@@ -270,7 +270,8 @@
         "apps/mobile/src/features/log-run/index.ts",
         "apps/api/src/modules/bouldering/routes.ts",
         "apps/mobile/src/features/bouldering/index.ts",
-        "apps/mobile/src/features/log-activity/index.ts"
+        "apps/mobile/src/features/log-activity/index.ts",
+        "apps/mobile/src/features/evening-stretch/index.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -301,7 +302,9 @@
         "apps/mobile/src/app/bouldering",
         "packages/core/src/exercise-tracking.ts",
         "packages/core/src/exercise-catalog-supplement.ts",
-        "apps/mobile/src/features/log-activity"
+        "apps/mobile/src/features/log-activity",
+        "apps/mobile/src/features/evening-stretch",
+        "packages/core/src/evening-stretch.ts"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",

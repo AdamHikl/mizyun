@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { noteTrainingSaved } from "@/features/evening-stretch/public-data";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, useNavigation, type Href } from "expo-router";
 import * as Crypto from "expo-crypto";
@@ -373,6 +374,7 @@ export function LogPastWorkoutScreen() {
       if (!attemptCurrent()) return;
       if (result.ok) {
         invalidateSessionReads();
+        noteTrainingSaved();
         bypassBack.current = true;
         router.replace({
           pathname: "/(tabs)/workouts",

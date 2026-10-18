@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { noteTrainingSaved } from "@/features/evening-stretch/public-data";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -1540,6 +1541,7 @@ export function LogWorkoutScreen() {
             workout: result.workout,
           }));
           void dismissActiveWorkoutNotification();
+          noteTrainingSaved();
           attempt?.complete();
           if (userId !== null) await clearLoggingDraft(userId, "workout");
           if (community.isEnrolled && !watchCommand) {

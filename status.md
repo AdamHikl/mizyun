@@ -24,6 +24,7 @@
 ## Local follow-ups awaiting acceptance
 
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
+- **#298 evening stretch (Oct18):** 9 PM local reminder on training days (switch/time, default on) → 4–6 stretches from today's muscles (core, no AI); Home row; device-only, erasure wired (ADR0072, no migration). 2 reviews resolved; gatePASS(3259mobile/1195API+15skips), uncommitted on b45d6fa9. Next: commit, iPhone Dev build, device acceptance.
 - **#295/#297 (Oct18):** matching UI → photo+chat assistant (ADR0071, no migration); 2 reviews; 57815004 gatePASS(3186mobile/1195API+15skips), Dev 16:52Z health200, iPhone installed; Free 10k blocks photo turns. Next: Adam device test. #296;#294.
 - **#290 (Oct17):** lock/resume keeps logged sets, no false sign-out; 2 reviews/gatePASS; pushed main. Next: Dev/iPhone lock test; #291.
 - **#288 Log activity (Oct17):** runs here (no hub Log run), typed activity, any date/time, text drafts; reviews/gatePASS; Dev 47c814e5 health200;iPhone install 13:08Z;Adam next. [Evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)
@@ -45,8 +46,7 @@
 - **#139/#168/#169 closed; native/device exits open:** [archived detail](docs/archive/status/STATUS_CLOSED_RETAINED_EXITS_2026-10-17.md).
 - **#226:** d5c2e06 Dev; review/gatePASS. Next: history/rest/AX acceptance. [Evidence](docs/COMPLETED_WORKOUT_REVIEW_EVIDENCE_2026-10-07.md).
 - **#223:**3984c35 Home one-time guards Dev; gatePASS. Next: device start/add/finish/resume. [Evidence](docs/HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md).
-- **#218/#225 photos:** local7d5c9d0; async copy/iOS owner/raw-error fixes;244focused/review/gatePASS (1765mobile/892API+15skips). Installed above. Next: selection/Process/Save/reopen/retry; native/offline/account/multi-photo/AX/Android/provider open; Prod disabled. [Evidence](docs/MEAL_PHOTO_COPY_FIX_EVIDENCE_2026-10-07.md).
-- **#217 Pro multi-photo:**3984c35 on Dev; Meals/Coach up to3, separate drafts. Focused477/review/gatePASS; native/live-provider acceptance open. [Evidence](docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md).
+- **#218/#225/#217 meal photos:** Dev; native/provider/AX exits open; Prod disabled. [Moved entries](docs/archive/status/STATUS_MEAL_PHOTO_PACKAGES_2026-10-18.md)
 - **Usability #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136:** implementation/native/provider/release and combined acceptance exits open: [prior status](docs/archive/status/STATUS_PRE_MEAL_PHOTO_DELIVERY_2026-10-06.md).
 
 ## Earlier implemented packages with open exits

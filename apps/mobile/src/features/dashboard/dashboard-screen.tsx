@@ -88,6 +88,7 @@ import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminder
 import { DailyNutrients } from "./daily-nutrients";
 import { proteinIdeasFor } from "./protein-ideas";
 import { LoggingConsistencyCard } from "./logging-consistency-card";
+import { EveningStretchHomeCard } from "@/features/evening-stretch";
 import { WeeklyReviewPopup } from "../weekly-review/weekly-review-modal";
 import { reconcileWeeklyReviewReminder } from "../weekly-review/weekly-review-notification";
 import { energyPlanNotes, hasEnergyPlanNotes } from "./energy-plan-notes";
@@ -1124,6 +1125,8 @@ export function DashboardScreen() {
               />
             ))}
           </ListGroup>
+
+          {userId !== null ? <EveningStretchHomeCard userId={userId} /> : null}
 
           {userId !== null ? (
             <LoggingConsistencyCard

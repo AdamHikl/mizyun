@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { noteTrainingSaved } from "@/features/evening-stretch/public-data";
 import {
   AppState,
   Platform,
@@ -125,6 +126,11 @@ function RunImportContent({ userId }: { userId: string }) {
   const existing = [...state.outcomes.values()].filter(
     (o) => o === "existing",
   ).length;
+  // Once per finished import (also when leaving by the back gesture), not per run.
+  const settledAdded = state.phase === "saving" ? 0 : added;
+  useEffect(() => {
+    if (settledAdded > 0) noteTrainingSaved();
+  }, [settledAdded]);
   const selectable = state.candidates.filter(
     (c) => !c.alreadyImported && state.outcomes.get(c.key) !== "added",
   );

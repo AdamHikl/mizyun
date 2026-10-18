@@ -32,6 +32,8 @@ import { MealNotificationRouter } from "@/features/log-meal/meal-notification-ro
 import { WEEKLY_REVIEW_ROUTE } from "@/features/weekly-review/weekly-review-notification";
 import { FirstMealReminderSessionBridge } from "@/composition/first-meal-reminder-session-bridge";
 import { WeighInReminderSessionBridge } from "@/composition/weigh-in-reminder-session-bridge";
+import { EveningStretchSessionBridge } from "@/composition/evening-stretch-session-bridge";
+import { EVENING_STRETCH_ROUTE } from "@/features/evening-stretch";
 import { WeighInNotificationRouter } from "@/features/log-weight/weigh-in-notification-router";
 import {
   AuthProvider,
@@ -221,7 +223,8 @@ function WorkoutNotificationBridge() {
   return null;
 }
 
-function WeeklyReviewNotificationBridge() {
+/** Opens `route` from a tapped notification once the owning account is signed in. */
+function OwnedRouteNotificationBridge({ route }: { readonly route: string }) {
   const { session } = useAuth();
   const navigation = useRootNavigationState();
   const pending = useRef<{ id: string; owner: string | null } | null>(null);
@@ -230,7 +233,7 @@ function WeeklyReviewNotificationBridge() {
   useEffect(() => {
     const receive = (notification: Notifications.Notification) => {
       const data = notification.request.content.data ?? {};
-      if (data.url !== WEEKLY_REVIEW_ROUTE) return;
+      if (data.url !== route) return;
       const id = notification.request.identifier;
       if (handled.current.has(id)) return;
       pending.current = {
@@ -245,7 +248,7 @@ function WeeklyReviewNotificationBridge() {
       (response) => receive(response.notification),
     );
     return () => subscription.remove();
-  }, []);
+  }, [route]);
   useEffect(() => {
     const next = pending.current;
     if (!next || !navigation?.key || !session) return;
@@ -258,8 +261,8 @@ function WeeklyReviewNotificationBridge() {
     pending.current = null;
     handled.current.add(next.id);
     Notifications.clearLastNotificationResponse();
-    router.push(WEEKLY_REVIEW_ROUTE as Href);
-  }, [session?.user.id, navigation?.key, revision]);
+    router.push(route as Href);
+  }, [session?.user.id, navigation?.key, revision, route]);
   return null;
 }
 
@@ -391,6 +394,7 @@ function TabLayoutContent() {
         <DeepLinkBridge />
         <FirstMealReminderSessionBridge />
         <WeighInReminderSessionBridge />
+        <EveningStretchSessionBridge />
         <SessionGate>
           <StartupDataBridge />
           <RecipeSessionPruneBridge />
@@ -401,7 +405,8 @@ function TabLayoutContent() {
           <WorkoutNotificationBridge />
           <MealNotificationBridge />
           <WeighInNotificationBridge />
-          <WeeklyReviewNotificationBridge />
+          <OwnedRouteNotificationBridge route={WEEKLY_REVIEW_ROUTE} />
+          <OwnedRouteNotificationBridge route={EVENING_STRETCH_ROUTE} />
           <ActiveWorkoutProvider>
             <AnalyticsConsentReminderBridge />
             <Stack
@@ -477,6 +482,10 @@ function TabLayoutContent() {
               <Stack.Screen
                 name="weekly-review"
                 options={{ title: "Weekly check-in" }}
+              />
+              <Stack.Screen
+                name="evening-stretch"
+                options={{ title: "Evening stretch" }}
               />
               <Stack.Screen
                 name="progress-photos"

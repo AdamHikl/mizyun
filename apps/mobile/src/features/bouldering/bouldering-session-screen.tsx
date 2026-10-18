@@ -1,4 +1,5 @@
 import * as Crypto from "expo-crypto";
+import { noteTrainingSaved } from "@/features/evening-stretch/public-data";
 import { Image } from "expo-image";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -424,6 +425,7 @@ export function BoulderingSessionScreen({
         await boulderPendingStore.setFinish(ownerRef.current, null, isCurrent);
         setPendingFinish(null);
         rememberFinish(ownerRef.current, result.value);
+        noteTrainingSaved();
         workoutContext?.setActiveBouldering(null);
         router.replace({
           pathname: "/bouldering/summary/[id]",

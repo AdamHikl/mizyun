@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { noteTrainingSaved } from "@/features/evening-stretch/public-data";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, type Href } from "expo-router";
 import * as Crypto from "expo-crypto";
@@ -296,6 +297,7 @@ export function LogActivityScreen() {
       if (!isCurrent()) return;
       if (result.ok) {
         invalidateSessionReads();
+        noteTrainingSaved();
         router.back();
         return;
       }
