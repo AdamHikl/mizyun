@@ -1,6 +1,6 @@
 # Mizyun status
 
-> Updated 2026-10-17 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-18 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
@@ -10,10 +10,10 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev=main (Oct17):**45f1ccfe9afabdcd2768573dcb8693ef2d57c164 (#278+#279+plate calculator on d175da95 incl. #276 bouldering, #216 imports) gatePASS(3108mobile/1186API+15skips), deploy:dev OK, migrations through20261016200000, health200 10:49Z. Merge review: no blockers; #285/#286 filed. Prior: [Oct15](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md); Recipes ON [proof](docs/DEV_RECIPES_ENABLED_2026-10-14.md).
-- **iPhone Dev (Oct17):** main45f1ccfe+Expo JSI fix installed/launched on iPhone 00008140-001114501A86801C 11:29Z (1.0.9/9); acceptance open. Xcode27.1/Swift6.4 fix: patch expo-modules-jsi@57.1.0 (expo#50569/#51234) + plugin `with-ios-source-built-expo-modules` (EXPO_USE_PRECOMPILED_MODULES=false); drop at SDK58. #287 flaky core test.
+- **Dev=main (Oct18):**84306d648b4f04cef23a0f37eaa3994973752d09 (#292/#293 + chip wrap + Meals photo memory cache + additive protein macro focus) gatePASS(3184mobile/1189API+15skips), deploy:dev OK, migrations unchanged, health200 09:38Z; Prod PID1795239 unchanged.
+- **iPhone Dev (Oct18):** 84306d64 Release installed on 00008140-001114501A86801C; launch blocked (device locked) — Adam unlock/open; acceptance open. Xcode27.1 fix: patched expo-modules-jsi@57.1.0 + `with-ios-source-built-expo-modules`; drop at SDK58. #287 flaky core test.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
-- **AI:** Gemini live. Claude Haiku5.5 (ADR0069) bcfb68a3 Dev gatePASS/2 reviews; ACTIVE Dev 16:42Z (key OK); device test next. [Evidence](docs/ANTHROPIC_DEV_PROVIDER_EVIDENCE_2026-10-17.md). Adult/consent/usage/kill switches; partner Dev exception; Qwen paused; BEFORE_TESTING gates kept.
+- **AI:** Gemini3.8 Flash live on Dev again (Oct18 08:56Z, Adam): `AGENT_PROVIDER=gemini` in dev.env (backup dev.env.bak-20261018-gemini); Haiku5.5 code/ADR0069 kept, inactive. [Haiku evidence](docs/ANTHROPIC_DEV_PROVIDER_EVIDENCE_2026-10-17.md). Adult/consent/usage/kill switches; partner Dev exception; Qwen paused; BEFORE_TESTING gates kept.
 
 ## Running and usability acceptance
 
