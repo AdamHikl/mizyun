@@ -134,10 +134,10 @@ const mapMacros = (
 const gapKcal = (gaps: MealRecipeMacroGrams, field: (typeof fields)[number]) =>
   weights[field] * (gaps[field] ?? 0);
 /**
- * Protein is in focus whenever at least 20% of its target is still open, even
- * when fat's 9 kcal/g makes it the larger energy gap. Alongside it, the
- * largest carbohydrate or fat energy gap is in focus when it is at least 20%
- * of the remaining macro energy. Ordered by energy gap, largest first.
+ * A macro is in focus when its energy gap is at least 20% of the remaining
+ * macro energy. Protein is also in focus whenever at least 20% of its target
+ * is still open, even when fat's 9 kcal/g gives it a larger share of the
+ * remaining energy. Ordered by energy gap, largest first.
  */
 const focusFields = (
   targets: MealRecipeMacroGrams,
@@ -146,17 +146,18 @@ const focusFields = (
   const proteinTarget = targets.proteinG ?? 0;
   const proteinOpen =
     proteinTarget > 0 && (gaps.proteinG ?? 0) / proteinTarget >= 0.2;
-  const other: (typeof fields)[number] =
-    gapKcal(gaps, "fatG") > gapKcal(gaps, "carbohydrateG")
-      ? "fatG"
-      : "carbohydrateG";
-  const otherOpen = gapKcal(gaps, other) / energy(gaps) >= 0.2;
-  const selected: (typeof fields)[number][] = [
-    ...(proteinOpen ? (["proteinG"] as const) : []),
-    ...(otherOpen ? [other] : []),
-  ];
-  return selected
-    .sort((a, b) => gapKcal(gaps, b) - gapKcal(gaps, a))
+  const gapEnergy = energy(gaps);
+  return fields
+    .filter(
+      (field) =>
+        gapKcal(gaps, field) / gapEnergy >= 0.2 ||
+        (field === "proteinG" && proteinOpen),
+    )
+    .sort(
+      (a, b) =>
+        gapKcal(gaps, b) - gapKcal(gaps, a) ||
+        fields.indexOf(a) - fields.indexOf(b),
+    )
     .map((field) => labels[field]);
 };
 

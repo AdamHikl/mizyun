@@ -148,7 +148,10 @@ describe("recipe macro-balance-v1", () => {
       carbohydrateG: 260,
       fatG: 30,
     };
-    expect(buildMealRecipeMacroContext(source).focus).toEqual(["fat"]);
+    expect(buildMealRecipeMacroContext(source).focus).toEqual([
+      "fat",
+      "carbohydrate",
+    ]);
   });
 
   it("keeps protein in focus on an unlogged day even though fat is the larger energy gap", () => {
@@ -169,6 +172,7 @@ describe("recipe macro-balance-v1", () => {
     };
     expect(buildMealRecipeMacroContext(source).focus).toEqual([
       "carbohydrate",
+      "fat",
       "protein",
     ]);
   });
@@ -181,7 +185,10 @@ describe("recipe macro-balance-v1", () => {
       carbohydrateG: 150,
       fatG: 30,
     };
-    expect(buildMealRecipeMacroContext(source).focus).toEqual(["carbohydrate"]);
+    expect(buildMealRecipeMacroContext(source).focus).toEqual([
+      "carbohydrate",
+      "fat",
+    ]);
   });
 
   it("keeps signed overshoot and provides food despite being over target", () => {
