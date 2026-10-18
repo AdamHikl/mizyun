@@ -2,6 +2,10 @@ import { useCallback, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { apiClient } from "@/composition/api-client";
+import {
+  confirmMealVisuals,
+  mealVisualsRecentlyConfirmed,
+} from "./meal-photo-memory";
 
 const AUTHORITY_LEASE_MS = 30_000;
 const REFRESH_INTERVAL_MS = 20_000;
@@ -32,6 +36,19 @@ export function useMealVisualCapability(
     clearTimeout(leaseTimer.current);
     setAuthority(null);
   }, []);
+
+  const grant = useCallback(() => {
+    clearTimeout(leaseTimer.current);
+    const expiresAt = Date.now() + AUTHORITY_LEASE_MS;
+    setAuthority({ scope, expiresAt });
+    leaseTimer.current = setTimeout(() => {
+      setAuthority((previous) =>
+        previous?.scope === scope && previous.expiresAt === expiresAt
+          ? null
+          : previous,
+      );
+    }, AUTHORITY_LEASE_MS);
+  }, [scope]);
 
   const refresh = useCallback(async (): Promise<boolean> => {
     // Old callbacks cannot retire or refresh the new account's authority.
@@ -72,21 +89,18 @@ export function useMealVisualCapability(
         !request.signal.aborted &&
         response?.ok === true &&
         response.value?.mealVisuals === true;
-      clearTimeout(leaseTimer.current);
       if (enabled) {
-        const expiresAt = Date.now() + AUTHORITY_LEASE_MS;
-        setAuthority({ scope, expiresAt });
-        leaseTimer.current = setTimeout(() => {
-          setAuthority((previous) =>
-            previous?.scope === scope && previous.expiresAt === expiresAt
-              ? null
-              : previous,
-          );
-        }, AUTHORITY_LEASE_MS);
-      } else setAuthority(null);
+        confirmMealVisuals(scope, true);
+        grant();
+      } else {
+        confirmMealVisuals(scope, false);
+        clearTimeout(leaseTimer.current);
+        setAuthority(null);
+      }
       return enabled;
     } catch {
       if (valid()) {
+        confirmMealVisuals(scope, false);
         clearTimeout(leaseTimer.current);
         setAuthority(null);
       }
@@ -97,7 +111,7 @@ export function useMealVisualCapability(
         request.signal.removeEventListener("abort", abortListener);
       if (controller.current === request) controller.current = null;
     }
-  }, [scope, userId, retire]);
+  }, [scope, userId, retire, grant]);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,6 +120,7 @@ export function useMealVisualCapability(
       const start = () => {
         clearInterval(interval);
         if (AppState.currentState !== "active") return;
+        if (userId && mealVisualsRecentlyConfirmed(scope)) grant();
         void refresh();
         interval = setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
       };
@@ -123,7 +138,7 @@ export function useMealVisualCapability(
         subscription.remove();
         retire();
       };
-    }, [refresh, retire]),
+    }, [refresh, retire, grant, scope, userId]),
   );
 
   return {

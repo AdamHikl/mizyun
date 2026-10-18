@@ -1939,6 +1939,7 @@ function MealEntryRow(props: {
         name={entry.name}
         enabled={mealVisualsEnabled}
         hasPhoto={Boolean(entry.photoAssetId)}
+        photoAssetId={entry.photoAssetId}
         editable
       />
 

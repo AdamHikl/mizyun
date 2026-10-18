@@ -8,12 +8,14 @@ export function MealVisual({
   entryId,
   name,
   hasPhoto,
+  photoAssetId,
   editable = false,
 }: {
   readonly enabled: boolean;
   readonly entryId: string;
   readonly name: string;
   readonly hasPhoto: boolean;
+  readonly photoAssetId?: string | null;
   readonly editable?: boolean;
 }) {
   const scope = `${entryId}:${hasPhoto}`;
@@ -23,6 +25,7 @@ export function MealVisual({
       <PrivateMealPhoto
         entryId={entryId}
         hasPhoto={hasPhoto}
+        photoAssetId={photoAssetId}
         editable
         displayEnabled={false}
         onPhotoRemoved={() => setRemovedScope(scope)}
@@ -32,6 +35,7 @@ export function MealVisual({
     <PrivateMealPhoto
       entryId={entryId}
       hasPhoto={hasPhoto}
+      photoAssetId={photoAssetId}
       editable={editable}
       onPhotoRemoved={() => setRemovedScope(scope)}
       fallback={

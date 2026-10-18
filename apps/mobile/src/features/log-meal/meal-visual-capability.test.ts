@@ -64,6 +64,7 @@ vi.mock("@/composition/api-client", () => ({
   apiClient: { request: state.request },
 }));
 import { useMealVisualCapability } from "./meal-visual-capability";
+import { forgetMealVisualMemory } from "./meal-photo-memory";
 
 const allowed = { ok: true, value: { mealVisuals: true } };
 const denied = { ok: true, value: { mealVisuals: false } };
@@ -103,6 +104,7 @@ beforeEach(() => {
   state.focused = true;
   state.appState = "active";
   state.request.mockResolvedValue(allowed);
+  forgetMealVisualMemory();
 });
 afterEach(() => {
   state.cleanup?.();
@@ -237,4 +239,39 @@ it("retires authority and intervals on blur and checks a downgrade when refocuse
   await flush();
   expect(render().enabled).toBe(false);
   expect(state.request).toHaveBeenCalledTimes(2);
+});
+it("reuses a recent same-session confirmation on refocus and still revalidates", async () => {
+  render();
+  await flush();
+  blur();
+  expect(render().enabled).toBe(false);
+  const pending = deferred();
+  state.request.mockReturnValueOnce(pending.promise);
+  focus();
+  expect(render().enabled).toBe(true);
+  expect(state.request).toHaveBeenCalledTimes(2);
+  pending.resolve(denied);
+  await flush();
+  expect(render().enabled).toBe(false);
+  blur();
+  focus();
+  expect(render().enabled).toBe(false);
+});
+it("does not reuse a confirmation for another token, after expiry or after it is forgotten", async () => {
+  render();
+  await flush();
+  blur();
+  state.request.mockReturnValue(new Promise(() => {}));
+  focus();
+  expect(render("owner-a", "token-b").enabled).toBe(false);
+  blur();
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  focus();
+  expect(render().enabled).toBe(false);
+  state.request.mockResolvedValue(allowed);
+  await vi.advanceTimersByTimeAsync(30_000);
+  blur();
+  forgetMealVisualMemory();
+  focus();
+  expect(render().enabled).toBe(false);
 });

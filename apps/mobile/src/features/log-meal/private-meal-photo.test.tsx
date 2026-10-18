@@ -66,6 +66,7 @@ vi.mock("./meal-photo-retention", () => ({
   removeMealPhotoRetry: mocks.discard,
 }));
 import { PrivateMealPhoto } from "./private-meal-photo";
+import { forgetMealVisualMemory } from "./meal-photo-memory";
 const photo = {
   assetId: "asset-a",
   width: 640,
@@ -77,11 +78,13 @@ let hasPhoto = true;
 let fallback: any = null;
 let displayEnabled = true;
 let editable = true;
+let photoAssetId: string | undefined;
 function render(): any {
   hooks.index = 0;
   const tree = PrivateMealPhoto({
     entryId: "meal-a",
     hasPhoto,
+    photoAssetId,
     editable,
     fallback,
     displayEnabled,
@@ -106,6 +109,8 @@ beforeEach(async () => {
   hooks.effects = [];
   hooks.cleanup = [];
   vi.clearAllMocks();
+  forgetMealVisualMemory();
+  photoAssetId = undefined;
   mocks.owner = "owner-a";
   mocks.token = "token-a";
   mocks.enabled = true;
@@ -119,16 +124,16 @@ beforeEach(async () => {
   mocks.remove.mockResolvedValue({ ok: true });
   mocks.discard.mockResolvedValue(true);
 });
-it("uses a 60pt private tile and opens a larger preview with caching disabled", async () => {
+it("uses a 60pt private tile and opens a larger preview with memory-only caching", async () => {
   render();
   await flush();
   const tile = byLabel("View meal photo");
   expect(tile.props.style).toEqual({ width: 60, height: 60 });
   const image = byLabel("Meal photo");
-  expect(image.props.cachePolicy).toBe("none");
+  expect(image.props.cachePolicy).toBe("memory");
   tile.props.onPress();
   const preview = byLabel("Meal photo preview");
-  expect(preview.props.cachePolicy).toBe("none");
+  expect(preview.props.cachePolicy).toBe("memory");
   expect(preview.props.source.uri).toBe(photo.signedUrl);
   byLabel("Close meal photo preview").props.onPress();
   expect(byLabel("Meal photo preview")).toBeFalsy();
@@ -373,4 +378,117 @@ it("rejects a previous account's late pending-photo read in text-only mode", asy
   expect(render()).toBeNull();
   expect(byLabel("Discard pending meal photo")).toBeFalsy();
   expect(mocks.read).not.toHaveBeenCalled();
+});
+
+it("holds the tile while resolving instead of flashing the illustration or a reload control", async () => {
+  fallback = { type: "Illustration", props: { name: "Oatmeal" } };
+  let resolve!: (value: unknown) => void;
+  mocks.read.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const tree = render();
+  expect(find(tree, (node) => node === fallback)).toBeFalsy();
+  expect(byLabel("Loading meal photo")).toBeTruthy();
+  await flush();
+  expect(byLabel("Reload meal photo")).toBeFalsy();
+  resolve({ ok: true, value: { photo } });
+  await flush();
+  expect(byLabel("Meal photo")).toBeTruthy();
+  expect(byLabel("Loading meal photo")).toBeFalsy();
+});
+
+it("offers reload only after a failed read settles", async () => {
+  mocks.read.mockResolvedValueOnce({ ok: false, error: { kind: "network" } });
+  render();
+  await flush();
+  expect(byLabel("Reload meal photo")).toBeTruthy();
+  expect(byLabel("Loading meal photo")).toBeFalsy();
+});
+
+it("shows a remembered signed URL on the first render of a revisited screen without refetching", async () => {
+  render();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(1);
+  hooks.slots = [];
+  hooks.effects = [];
+  hooks.cleanup = [];
+  const tree = render();
+  expect(
+    find(tree, (node) => node.props?.accessibilityLabel === "Meal photo")?.props
+      .source.uri,
+  ).toBe(photo.signedUrl);
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(1);
+  expect(byLabel("Meal photo")).toBeTruthy();
+});
+
+it("does not reuse a remembered URL across tokens, replaced assets, removal or near expiry", async () => {
+  photoAssetId = photo.assetId;
+  render();
+  await flush();
+  const remount = () => {
+    hooks.slots = [];
+    hooks.effects = [];
+    hooks.cleanup = [];
+    return render();
+  };
+  mocks.token = "token-b";
+  expect(
+    find(remount(), (node) => node.props?.accessibilityLabel === "Meal photo"),
+  ).toBeFalsy();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(2);
+  photoAssetId = "asset-b";
+  expect(
+    find(remount(), (node) => node.props?.accessibilityLabel === "Meal photo"),
+  ).toBeFalsy();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(3);
+  photoAssetId = undefined;
+  mocks.read.mockResolvedValueOnce({ ok: true, value: { photo: null } });
+  byLabel("Remove saved meal photo").props.onPress();
+  await flush();
+  remount();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(5);
+  forgetMealVisualMemory();
+  mocks.read.mockResolvedValue({
+    ok: true,
+    value: {
+      photo: {
+        ...photo,
+        expiresAt: new Date(Date.now() + 10_000).toISOString(),
+      },
+    },
+  });
+  remount();
+  await flush();
+  const reads = mocks.read.mock.calls.length;
+  remount();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(reads + 1);
+});
+
+it("does not remember a signed URL whose read settles after memory was forgotten", async () => {
+  let resolve!: (value: unknown) => void;
+  mocks.read.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  render();
+  await flush();
+  forgetMealVisualMemory();
+  resolve({ ok: true, value: { photo } });
+  await flush();
+  hooks.slots = [];
+  hooks.effects = [];
+  hooks.cleanup = [];
+  render();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(2);
 });

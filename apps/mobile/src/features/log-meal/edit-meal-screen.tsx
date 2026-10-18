@@ -666,6 +666,7 @@ export function EditMealScreen() {
                 name={entry.name}
                 enabled={mealVisualCapability.enabled}
                 hasPhoto={Boolean(entry.photoAssetId)}
+                photoAssetId={entry.photoAssetId}
                 editable
               />
               <Card>

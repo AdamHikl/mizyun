@@ -12,11 +12,17 @@ import {
   uploadMealPhotoRetry,
   type StoredMealPhoto,
 } from "./meal-photo-retention";
+import {
+  mealPhotoMemoryGeneration,
+  rememberPhoto,
+  rememberedPhoto,
+} from "./meal-photo-memory";
 
-/** Signed URLs exist only in this account/request generation and never enter image caches. */
+/** Signed URLs exist only in this account/request generation and never reach a disk cache. */
 export function PrivateMealPhoto({
   entryId,
   hasPhoto,
+  photoAssetId,
   editable = false,
   fallback = null,
   onPhotoRemoved,
@@ -24,6 +30,7 @@ export function PrivateMealPhoto({
 }: {
   readonly entryId: string;
   readonly hasPhoto: boolean;
+  readonly photoAssetId?: string | null;
   readonly editable?: boolean;
   readonly fallback?: ReactNode;
   readonly onPhotoRemoved?: () => void;
@@ -52,6 +59,7 @@ export function PrivateMealPhoto({
     const valid = () =>
       current.current === scope && generation.current === requestGeneration;
     if (!owner || (displayEnabled && !enabled)) return;
+    const memoryGeneration = mealPhotoMemoryGeneration();
     const pending = await loadMealPhotoRetry(owner, entryId);
     if (!valid()) return;
     if (!currentDisplay.current) {
@@ -63,12 +71,25 @@ export function PrivateMealPhoto({
       });
       return;
     }
+    if (!hasPhoto) rememberPhoto(scope, null);
     if (!hasPhoto && !pending && !force) {
       setState({ scope, photo: null, pending: false, message: null });
       return;
     }
+    const remembered = force ? null : rememberedPhoto(scope, photoAssetId);
+    if (remembered) {
+      setState({
+        scope,
+        photo: remembered,
+        pending: pending !== null,
+        message: null,
+      });
+      return;
+    }
     const response = await fetchMealPhoto(entryId);
     if (!valid()) return;
+    if (response.ok)
+      rememberPhoto(scope, response.value.photo, memoryGeneration);
     setState({
       scope,
       photo: response.ok ? response.value.photo : null,
@@ -82,10 +103,19 @@ export function PrivateMealPhoto({
     return () => {
       generation.current++;
     };
-  }, [scope, enabled, hasPhoto, displayEnabled]);
+  }, [scope, enabled, hasPhoto, photoAssetId, displayEnabled]);
   if (!owner) return displayEnabled ? fallback : null;
   if (displayEnabled && !enabled) return fallback;
-  const visible = state?.scope === scope ? state : null;
+  const remembered =
+    displayEnabled && hasPhoto && state?.scope !== scope
+      ? rememberedPhoto(scope, photoAssetId)
+      : null;
+  const visible =
+    state?.scope === scope
+      ? state
+      : remembered
+        ? { scope, photo: remembered, pending: false, message: null }
+        : null;
   if (!displayEnabled && !editable) return null;
   if (!hasPhoto && !visible?.photo && !visible?.pending)
     return displayEnabled ? fallback : null;
@@ -108,6 +138,7 @@ export function PrivateMealPhoto({
       else {
         const result = await deleteMealPhoto(entryId);
         ok = result.ok;
+        if (ok) rememberPhoto(scope, null);
         if (ok && valid()) onPhotoRemoved?.();
         if (ok && valid()) ok = await removeMealPhotoRetry(owner, entryId);
       }
@@ -170,6 +201,9 @@ export function PrivateMealPhoto({
     );
   }
   const photo = visible?.photo;
+  // Until the first read settles, hold the tile's space instead of flashing
+  // the illustration and a reload control for a meal that has a photo.
+  const resolving = hasPhoto && !visible;
   return (
     <View
       style={{
@@ -186,6 +220,7 @@ export function PrivateMealPhoto({
           onPress={() => {
             if (!currentDisplay.current) return;
             if (Date.parse(photo.expiresAt) <= Date.now()) {
+              rememberPhoto(scope, null);
               void load();
               return;
             }
@@ -200,12 +235,23 @@ export function PrivateMealPhoto({
               uri: photo.signedUrl,
               headers: { "Cache-Control": "no-store" },
             }}
-            cachePolicy="none"
+            cachePolicy="memory"
             contentFit="cover"
             style={{ width: 60, height: 60, borderRadius: 8 }}
             accessibilityLabel="Meal photo"
           />
         </Pressable>
+      ) : resolving ? (
+        <View
+          accessible
+          accessibilityLabel="Loading meal photo"
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 8,
+            backgroundColor: "rgba(127,127,127,0.15)",
+          }}
+        />
       ) : (
         fallback
       )}
@@ -241,7 +287,7 @@ export function PrivateMealPhoto({
           </Pressable>
         </>
       ) : null}
-      {hasPhoto && !photo && !visible?.pending ? (
+      {hasPhoto && visible && !photo && !visible.pending ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Reload meal photo"
@@ -284,7 +330,7 @@ export function PrivateMealPhoto({
                 uri: photo.signedUrl,
                 headers: { "Cache-Control": "no-store" },
               }}
-              cachePolicy="none"
+              cachePolicy="memory"
               contentFit="contain"
               style={{ width: "100%", height: "70%" }}
               accessibilityLabel="Meal photo preview"

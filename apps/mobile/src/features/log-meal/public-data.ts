@@ -1,3 +1,4 @@
+import { forgetMealVisualMemory as forgetMemory } from "./meal-photo-memory";
 export { createOperationId } from "./meal-form";
 export {
   fetchFoodEntry,
@@ -6,6 +7,15 @@ export {
 } from "./meal-lifecycle-data";
 
 export { clearAllMealPhotoRetries } from "./meal-photo-retention";
+
+/** Forget remembered meal photo URLs, visuals confirmation and decoded images. */
+export const forgetMealVisualMemory = (): void => {
+  forgetMemory();
+  // Keep native image SDKs out of data-only importers until needed.
+  void import("expo-image")
+    .then(({ Image }) => Image.clearMemoryCache())
+    .catch(() => false);
+};
 
 export type {
   MealPhotoNormalizationOptions,

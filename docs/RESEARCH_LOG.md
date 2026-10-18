@@ -3488,3 +3488,7 @@ Checked [Claude models overview](https://platform.claude.com/docs/en/about-claud
 ## 2026-10-17 — Logging consistency and protein framing (#292/#293, ADR-0070)
 
 Collected 38 sources on habit formation, self-monitoring decay, gamification, streaks, rewards, eating-disorder risk and plant protein in [the engagement research note](research/TRACKING_ENGAGEMENT_PSYCHOLOGY_2026-10-17.md); its unverified items are listed there. Checked [Expo SecureStore v57](https://docs.expo.dev/versions/v57.0.0/sdk/securestore/) (fetched 2026-10-17): keys allow alphanumerics, `.`, `-` and `_`; some iOS versions rejected values above about 2048 bytes; Android data is removed on uninstall while iOS may keep it. Consequences: a forgiving weekly "X of Y days" goal replaces a reset streak, the small per-user preference uses SecureStore like existing reminders, and protein is framed as a range without changing the target. Decision in [ADR-0070](adr/0070-forgiving-weekly-logging-goal-and-protein-range.md).
+
+## 2026-10-17 — Instant Meals tab photos
+
+Checked [Expo SDK57 Image](https://docs.expo.dev/versions/v57.0.0/sdk/image/): `cachePolicy: "memory"` keeps images in RAM only (may be purged quickly), `"none"` caches nothing, and `Image.clearMemoryCache()` resolves `Promise<boolean>` on iOS/Android. Consequence: retained meal thumbnails/previews use memory-only caching with in-process signed-URL reuse per account/token/meal (ADR-0049 amendment); sign-out clears both. No disk cache is introduced.
