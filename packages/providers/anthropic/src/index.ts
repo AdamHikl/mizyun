@@ -406,6 +406,7 @@ export {
 
 export {
   AnthropicIngredientRecognitionProvider,
+  AnthropicRecipeAssistantProvider,
   AnthropicRecipeGenerationProvider,
   type AnthropicRecipeProviderOptions,
 } from "./meal-recipe.js";

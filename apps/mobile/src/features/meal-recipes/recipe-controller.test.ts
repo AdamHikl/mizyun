@@ -43,6 +43,7 @@ const fixture = () => {
       }),
     ),
     recognizeIngredients: vi.fn(),
+    assist: vi.fn(),
   };
   const sessionApi = {
     context: vi.fn(async () => ok(metadata)),

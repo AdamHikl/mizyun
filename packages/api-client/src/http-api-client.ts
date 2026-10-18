@@ -76,6 +76,7 @@ export class HttpApiClient implements ApiClient {
   readonly getMealRecipeCapabilities: MealRecipeApi["capabilities"];
   readonly suggestMealRecipes: MealRecipeApi["suggest"];
   readonly recognizeMealRecipeIngredients: MealRecipeApi["recognizeIngredients"];
+  readonly assistMealRecipe: MealRecipeApi["assist"];
 
   constructor(dependencies: HttpApiClientDependencies) {
     this.#baseUrl = trimTrailingSlash(dependencies.baseUrl);
@@ -94,6 +95,7 @@ export class HttpApiClient implements ApiClient {
     this.getMealRecipeCapabilities = recipes.capabilities;
     this.suggestMealRecipes = recipes.suggest;
     this.recognizeMealRecipeIngredients = recipes.recognizeIngredients;
+    this.assistMealRecipe = recipes.assist;
   }
 
   status(): ApiConfigurationStatus {

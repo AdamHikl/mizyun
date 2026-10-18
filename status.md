@@ -24,7 +24,7 @@
 ## Local follow-ups awaiting acceptance
 
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
-- **#295 (Oct18):** recipe photos: client sends expo File (b1e81832, iPhone 12:11Z) + Gemini LOW thinking, MINIMAL=400 (5c5da49c, Dev 12:35Z health200); 2 reviews/gatePASS. Next: Adam photo test; suggest live. #294 analytics422.
+- **#295/#297 (Oct18):** upload fix on Dev (5c5da49c); matching UI → photo+chat assistant (ADR0071, `/assistant`, no migration); 2 reviews; gatePASS(3186mobile/1195API+15skips); Free 10k blocks photo turns. Next: commit, Dev, iPhone. #296;#294.
 - **#290 (Oct17):** lock/resume keeps logged sets, no false sign-out; 2 reviews/gatePASS; pushed main. Next: Dev/iPhone lock test; #291.
 - **#288 Log activity (Oct17):** runs here (no hub Log run), typed activity, any date/time, text drafts; reviews/gatePASS; Dev 47c814e5 health200;iPhone install 13:08Z;Adam next. [Evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)
 - **#278 timed workouts (Oct17):** load/reps·duration·duration+distance modes, Swimming/Outdoor Cycling/Hiking, Log activity; no migration (ADR0068). 2 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)

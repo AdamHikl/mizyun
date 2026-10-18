@@ -33,6 +33,8 @@ export class DisabledApiClient implements ApiClient {
     err({ kind: "not_configured", reason: REASON });
   readonly recognizeMealRecipeIngredients: MealRecipeApi["recognizeIngredients"] =
     async () => err({ kind: "not_configured", reason: REASON });
+  readonly assistMealRecipe: MealRecipeApi["assist"] = async () =>
+    err({ kind: "not_configured", reason: REASON });
 
   status(): ApiConfigurationStatus {
     return { configured: false, reason: REASON };

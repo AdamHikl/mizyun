@@ -76,6 +76,7 @@ export class SessionReadCache implements ApiClient {
   readonly getMealRecipeCapabilities?: ApiClient["getMealRecipeCapabilities"];
   readonly suggestMealRecipes?: ApiClient["suggestMealRecipes"];
   readonly recognizeMealRecipeIngredients?: ApiClient["recognizeMealRecipeIngredients"];
+  readonly assistMealRecipe?: ApiClient["assistMealRecipe"];
   readonly draftFoodEntry?: ApiClient["draftFoodEntry"];
   readonly draftCoachMealPhoto?: ApiClient["draftCoachMealPhoto"];
   private entries = new Map<string, Entry>();
@@ -112,6 +113,7 @@ export class SessionReadCache implements ApiClient {
     this.suggestMealRecipes = raw.suggestMealRecipes?.bind(raw);
     this.recognizeMealRecipeIngredients =
       raw.recognizeMealRecipeIngredients?.bind(raw);
+    this.assistMealRecipe = raw.assistMealRecipe?.bind(raw);
     this.draftFoodEntry = raw.draftFoodEntry?.bind(raw);
     const draftCoachMealPhoto = raw.draftCoachMealPhoto?.bind(raw);
     if (draftCoachMealPhoto)

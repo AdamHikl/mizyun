@@ -208,6 +208,45 @@ describe("recipe API boundary", () => {
     );
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it("posts one assistant turn as a JSON field plus optional photos", async () => {
+    const turn = {
+      version: "meal-recipe-assistant-v1" as const,
+      requestId,
+      ingredients: ["eggs"],
+      ideas: [],
+      messages: [{ role: "user" as const, text: "Something quick" }],
+    };
+    const reply = {
+      version: "meal-recipe-assistant-v1",
+      requestId,
+      reply: "Try an omelette.",
+      ingredients: ["eggs"],
+      ideas: [],
+    };
+    const { api, fetcher } = make(reply);
+    expect(await api.assist({ turn, images: [image()] }, options)).toEqual({
+      ok: true,
+      value: reply,
+    });
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe("https://api.example/v1/meal-recipes/assistant");
+    expect(init?.headers).toEqual({ authorization: "Bearer token" });
+    const form = init?.body as FormData;
+    expect([...form.keys()]).toEqual(["turn", "images"]);
+    expect(JSON.parse(form.get("turn") as string)).toEqual(turn);
+    // Strict turn and image bounds are checked before any request.
+    for (const bad of [
+      { turn: { ...turn, ownerId: "other" }, images: [] },
+      {
+        turn: { ...turn, messages: [{ role: "system", text: "x" }] },
+        images: [],
+      },
+      { turn, images: [image("image/gif")] },
+      { turn, images: [image(), image(), image(), image()] },
+    ])
+      expect((await api.assist(bad as never, options)).ok).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it("never retries an ambiguous lost response", async () => {
     const { api, fetcher } = make();
     fetcher.mockRejectedValue(new Error("lost response"));

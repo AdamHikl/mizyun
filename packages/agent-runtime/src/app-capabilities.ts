@@ -34,7 +34,7 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
     featureIds: ["meal-recipes"],
     routes: ["meal-recipes.tsx"],
     guidance:
-      "In builds containing What can I cook?, Meals owns the recipe flow and Coach opens the same screen. Confirm fridge/cabinet ingredients and exact preparation references before suggestions. Remaining P/C/F is based on what has been logged; unknown context shows Macro fit unavailable. Recipe estimates and serving changes never log food. I ate this opens an editable meal form; only Save records intake. Current server validation is required before cooking or creating a recipe draft. AI suggestions depend on consent, eligibility, provider availability and the environment switch; do not promise availability from this catalog.",
+      "In builds containing What can I cook?, Meals owns the screen and Coach opens it. Users take or choose a fridge/cupboard photo (or type what they have) and get up to three meal ideas, then chat on that screen to refine them (for example no eggs, more protein, 15 minutes). Ideas use what is left of the day's logged protein/carbs/fat when known. Nutrition in ideas is an AI estimate per serving; I ate this opens an editable meal form and only Save records intake. AI ideas depend on consent, eligibility, provider availability, daily AI allowance and the environment switch; do not promise availability from this catalog.",
   },
   {
     id: "recurring-meals",

@@ -890,5 +890,6 @@ export {
 
 export * from "./meal-recipe-generation";
 export * from "./meal-recipe-session";
+export * from "./meal-recipe-assistant";
 
 export * from "./recurring-meal-suggestion";

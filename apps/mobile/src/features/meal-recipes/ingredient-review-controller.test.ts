@@ -73,6 +73,9 @@ const setup = async () => {
   );
   const api: MealRecipeApi = {
     capabilities: vi.fn(async () => ok(capability)),
+    assist: vi.fn(async () =>
+      err({ kind: "not_configured" as const, reason: "Unused" }),
+    ),
     suggest: vi.fn(async () =>
       err({ kind: "not_configured" as const, reason: "Unused" }),
     ),

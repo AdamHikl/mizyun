@@ -13,6 +13,7 @@ export {
   type MealRecipeRequestOptions,
   type MealRecipeImage,
   type IngredientRecognitionRequest,
+  type RecipeAssistantRequest,
 } from "./meal-recipe-api";
 
 export {

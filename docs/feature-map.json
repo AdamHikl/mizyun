@@ -2365,7 +2365,7 @@
     {
       "id": "meal-recipes",
       "title": "Ingredient Meal Recipes and Macro Balance",
-      "summary": "REC-01–05 macro ranking, catalog/templates, guarded generation, photo review and shared Meals/Coach recipe flow with durable consumed-serving handoff; live recipes enabled on Dev for founder/partner trials, Production default disabled.",
+      "summary": "REC-01–05 macro ranking, catalog/templates, guarded generation and consumed-serving handoff; since ADR0071 the screen is a photo-first conversational cooking assistant (AI-estimated ideas, editable meal handoff). Live recipes enabled on Dev for founder/partner trials, Production default disabled.",
       "aliases": [
         "recipe",
         "recipes",
@@ -2381,6 +2381,8 @@
         "apps/api/src/modules/meal-recipes/index.ts",
         "apps/mobile/src/app/meal-recipes.tsx",
         "apps/mobile/src/features/meal-recipes/screen.tsx",
+        "apps/mobile/src/features/meal-recipes/cooking-assistant.ts",
+        "packages/contracts/src/meal-recipe-assistant.ts",
         "apps/api/src/modules/meal-recipes/session-service.ts",
         "scripts/run-meal-recipe-evaluation.mjs"
       ],
@@ -2522,7 +2524,8 @@
         "docs/AI_MEAL_RECIPES_REC05_EVIDENCE_2026-10-13.md",
         "docs/AI_MEAL_RECIPES_REC06_EVALUATION_2026-10-13.md",
         "docs/AI_MEAL_RECIPES_REC06_EVIDENCE_2026-10-13.md",
-        "docs/adr/0063-frozen-offline-recipe-evaluation.md"
+        "docs/adr/0063-frozen-offline-recipe-evaluation.md",
+        "docs/adr/0071-conversational-cooking-assistant.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/core test src/meal-recipe.test.ts",

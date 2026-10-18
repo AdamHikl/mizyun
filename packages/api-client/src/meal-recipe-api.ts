@@ -5,6 +5,10 @@ import {
   mealRecipeSuggestionResponseSchema,
   ingredientRecognitionResponseSchema,
   recipeRequestIdSchema,
+  recipeAssistantTurnSchema,
+  recipeAssistantReplySchema,
+  type RecipeAssistantTurn,
+  type RecipeAssistantReply,
   type MealRecipeCapabilities,
   type MealRecipeSuggestionRequest,
   type MealRecipeSuggestionResponse,
@@ -43,6 +47,15 @@ export interface MealRecipeApi {
     input: IngredientRecognitionRequest,
     options: MealRecipeRequestOptions,
   ): Promise<Result<IngredientRecognitionResponse, ApiError>>;
+  /** One cooking-assistant turn (ADR0071); photos are optional. */
+  assist(
+    input: RecipeAssistantRequest,
+    options: MealRecipeRequestOptions,
+  ): Promise<Result<RecipeAssistantReply, ApiError>>;
+}
+export interface RecipeAssistantRequest {
+  readonly turn: RecipeAssistantTurn;
+  readonly images: readonly MealRecipeImage[];
 }
 
 /** Named public recipe boundary; no request identities or automatic retries are created here. */
@@ -62,7 +75,25 @@ export const createMealRecipeApi = (client: ApiClient): MealRecipeApi => ({
     Promise.resolve(
       err({ kind: "not_configured", reason: "Recipe transport unavailable." }),
     ),
+  assist: (input, options) =>
+    client.assistMealRecipe?.(input, options) ??
+    Promise.resolve(
+      err({ kind: "not_configured", reason: "Recipe transport unavailable." }),
+    ),
 });
+const validImages = (images: readonly MealRecipeImage[]) =>
+  Array.isArray(images) &&
+  images.length <= 3 &&
+  !images.some(
+    (image) =>
+      !["image/jpeg", "image/png", "image/webp"].includes(image.mimeType) ||
+      !Number.isFinite(image.photo.size) ||
+      image.photo.size <= 0 ||
+      (image.photo.type !== "" && image.photo.type !== image.mimeType),
+  ) &&
+  images.reduce((sum, image) => sum + image.photo.size, 0) <= 4_194_304;
+const imageName = (image: MealRecipeImage, index: number) =>
+  `ingredient-${index + 1}.${image.mimeType === "image/jpeg" ? "jpg" : image.mimeType === "image/png" ? "png" : "webp"}`;
 
 const invalid = (): ApiError => ({
   kind: "validation_error",
@@ -214,6 +245,26 @@ export const createMealRecipeTransport = (
           options,
           form,
           input.requestId,
+        );
+      } catch {
+        return err(invalid());
+      }
+    },
+    assist: async (input, options) => {
+      try {
+        const turn = recipeAssistantTurnSchema.safeParse(input?.turn);
+        if (!turn.success || !validImages(input.images)) return err(invalid());
+        const form = new FormData();
+        form.append("turn", JSON.stringify(turn.data));
+        input.images.forEach((image, index) =>
+          form.append("images", image.photo, imageName(image, index)),
+        );
+        return await request(
+          "assistant",
+          recipeAssistantReplySchema,
+          options,
+          form,
+          turn.data.requestId,
         );
       } catch {
         return err(invalid());

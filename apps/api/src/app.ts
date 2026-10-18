@@ -2,12 +2,15 @@ import { mealRecipeRoutes } from "./modules/meal-recipes/routes.js";
 import {
   DisabledRecipeGenerationProvider,
   DisabledIngredientRecognitionProvider,
+  DisabledRecipeAssistantProvider,
   type RecipeGenerationProvider,
   type IngredientRecognitionProvider,
+  type RecipeAssistantProvider,
 } from "@mizyun/agent-runtime";
 import {
   GeminiRecipeGenerationProvider,
   GeminiIngredientRecognitionProvider,
+  GeminiRecipeAssistantProvider,
 } from "@mizyun/provider-gemini";
 import { SupabaseRecipeRequestLedger } from "@mizyun/adapter-supabase-server";
 import type { RecipeRequestLedger } from "@mizyun/core";
@@ -22,6 +25,7 @@ import {
   AnthropicAgentProvider,
   AnthropicContentModerator,
   AnthropicIngredientRecognitionProvider,
+  AnthropicRecipeAssistantProvider,
   AnthropicRecipeGenerationProvider,
   AnthropicVisionProvider,
 } from "@mizyun/provider-anthropic";
@@ -325,6 +329,7 @@ export interface AppDependencies {
     readonly ledger?: RecipeRequestLedger | null;
     readonly generationProvider?: RecipeGenerationProvider;
     readonly recognitionProvider?: IngredientRecognitionProvider;
+    readonly assistantProvider?: RecipeAssistantProvider;
     readonly now?: () => Date;
     readonly timeoutMs?: number;
   };
@@ -1417,6 +1422,13 @@ export const buildApp = (
         : recipeProviderOptions
           ? new GeminiIngredientRecognitionProvider(recipeProviderOptions)
           : new DisabledIngredientRecognitionProvider()),
+    assistantProvider:
+      recipeControls?.assistantProvider ??
+      (anthropicRecipeOptions
+        ? new AnthropicRecipeAssistantProvider(anthropicRecipeOptions)
+        : recipeProviderOptions
+          ? new GeminiRecipeAssistantProvider(recipeProviderOptions)
+          : new DisabledRecipeAssistantProvider()),
     ...(recipeControls?.now ? { now: recipeControls.now } : {}),
     ...(recipeControls?.timeoutMs !== undefined
       ? { timeoutMs: recipeControls.timeoutMs }

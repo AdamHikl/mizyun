@@ -4,6 +4,8 @@ import {
   recipeRequestIdSchema,
   mealRecipeCapabilitiesSchema,
   mealRecipeRevalidationRequestSchema,
+  recipeAssistantTurnSchema,
+  RECIPE_ASSISTANT_MAX_TURN_BYTES,
 } from "@mizyun/contracts";
 import type { UserId } from "@mizyun/core";
 import {
@@ -207,6 +209,99 @@ export const mealRecipeRoutes: FastifyPluginAsync<Options> = async (
             "FST_REQ_FILE_TOO_LARGE",
             "FST_FILES_LIMIT",
             "FST_FIELDS_LIMIT",
+            "FST_PARTS_LIMIT",
+          ].includes(String(code))
+        )
+          return failure(
+            reply,
+            request,
+            new RecipeServiceError(413, "RECIPE_IMAGE_LIMIT"),
+          );
+        return failure(reply, request, error);
+      }
+    },
+  );
+  app.post(
+    "/assistant",
+    {
+      preHandler: app.authenticate,
+      bodyLimit: 4_194_304 + RECIPE_ASSISTANT_MAX_TURN_BYTES + 65_536,
+    },
+    async (request, reply) => {
+      const principal = request.principal!;
+      try {
+        if (!request.isMultipart())
+          throw new RecipeServiceError(400, "INVALID_RECIPE_REQUEST");
+        const profile = await service.requireReady(
+          principal.userId as UserId,
+          principal.accessToken,
+          "suggest",
+          service.assistant,
+        );
+        const maximumImages = await service.maximumImages(
+          principal.userId as UserId,
+          principal.accessToken,
+          profile,
+        );
+        const images: Awaited<ReturnType<typeof normalizeIngredientImage>>[] =
+          [];
+        let turn: unknown,
+          bytesRead = 0;
+        for await (const part of request.parts({
+          limits: {
+            files: maximumImages,
+            fields: 1,
+            parts: maximumImages + 1,
+            fileSize: 4_194_304,
+            fieldSize: RECIPE_ASSISTANT_MAX_TURN_BYTES,
+          },
+        })) {
+          if (part.type === "field") {
+            if (
+              part.fieldname !== "turn" ||
+              turn !== undefined ||
+              typeof part.value !== "string"
+            )
+              throw new RecipeServiceError(400, "INVALID_RECIPE_REQUEST");
+            try {
+              turn = JSON.parse(part.value);
+            } catch {
+              throw new RecipeServiceError(400, "INVALID_RECIPE_REQUEST");
+            }
+          } else {
+            if (part.fieldname !== "images")
+              throw new RecipeServiceError(400, "INVALID_RECIPE_IMAGE_REQUEST");
+            const bytes = await part.toBuffer();
+            bytesRead += bytes.byteLength;
+            if (bytesRead > 4_194_304 || part.file.truncated)
+              throw new RecipeServiceError(413, "RECIPE_IMAGE_LIMIT");
+            images.push(await normalizeIngredientImage(bytes, part.mimetype));
+          }
+        }
+        const parsed = recipeAssistantTurnSchema.safeParse(turn);
+        if (!parsed.success)
+          throw new RecipeServiceError(400, "INVALID_RECIPE_REQUEST");
+        return await service.assist(
+          principal.userId as UserId,
+          principal.accessToken,
+          parsed.data,
+          images,
+        );
+      } catch (error) {
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? error.code
+            : null;
+        if (String(code) === "FST_FIELDS_LIMIT")
+          return failure(
+            reply,
+            request,
+            new RecipeServiceError(400, "INVALID_RECIPE_REQUEST"),
+          );
+        if (
+          [
+            "FST_REQ_FILE_TOO_LARGE",
+            "FST_FILES_LIMIT",
             "FST_PARTS_LIMIT",
           ].includes(String(code))
         )

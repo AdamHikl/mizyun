@@ -4,6 +4,11 @@ import {
   INGREDIENT_RECOGNITION_MAX_OUTPUT_TOKENS,
   INGREDIENT_RECOGNITION_MAX_RESULTS,
   INGREDIENT_RECOGNITION_ESTIMATED_IMAGE_TOKENS,
+  RECIPE_ASSISTANT_MAX_IDEAS,
+  RECIPE_ASSISTANT_MAX_INGREDIENTS,
+  RECIPE_ASSISTANT_MAX_OUTPUT_BYTES,
+  RECIPE_ASSISTANT_MAX_OUTPUT_TOKENS,
+  RECIPE_ASSISTANT_POLICY,
   RECIPE_GENERATION_MAX_OUTPUT_TOKENS,
   RECIPE_GENERATION_MAX_RESULTS,
   RECIPE_PROVIDER_MAX_INPUT_TEXT_BYTES,
@@ -13,6 +18,10 @@ import {
   type IngredientRecognitionProvider,
   type IngredientRecognitionRequest,
   type IngredientRecognitionResult,
+  type RecipeAssistantIdea,
+  type RecipeAssistantProvider,
+  type RecipeAssistantRequest,
+  type RecipeAssistantResult,
   type RecipeGenerationProvider,
   type RecipeGenerationRequest,
   type RecipeGenerationResult,
@@ -189,10 +198,10 @@ const withAbort = async <T>(
 const readBoundedResponse = async (
   response: Response,
   signal: AbortSignal,
+  maxBytes: number,
 ): Promise<unknown> => {
   if (
-    Number(response.headers.get("content-length")) >
-      RECIPE_PROVIDER_MAX_OUTPUT_BYTES ||
+    Number(response.headers.get("content-length")) > maxBytes ||
     response.body === null
   ) {
     void response.body?.cancel().catch(() => undefined);
@@ -206,7 +215,7 @@ const readBoundedResponse = async (
       const next = await withAbort(signal, () => reader.read());
       if (next.done) break;
       length += next.value.byteLength;
-      if (length > RECIPE_PROVIDER_MAX_OUTPUT_BYTES) return malformed();
+      if (length > maxBytes) return malformed();
       chunks.push(next.value);
     }
     try {
@@ -317,6 +326,9 @@ class GeminiRecipeTransport {
     parts: readonly unknown[],
     responseJsonSchema: Readonly<Record<string, unknown>>,
     maxOutputTokens: number,
+    limits: { readonly responseBytes: number; readonly textBytes?: number } = {
+      responseBytes: RECIPE_PROVIDER_MAX_OUTPUT_BYTES,
+    },
   ): Promise<{ output: unknown; tokensUsed?: number }> {
     if (!(await this.status()).ready)
       throw new RecipeProviderError("unavailable");
@@ -345,7 +357,11 @@ class GeminiRecipeTransport {
           void response.body?.cancel().catch(() => undefined);
           throw new RecipeProviderError("unavailable");
         }
-        const raw = await readBoundedResponse(response, signal);
+        const raw = await readBoundedResponse(
+          response,
+          signal,
+          limits.responseBytes,
+        );
         // A refusal may omit content and all candidates.
         if (
           typeof raw === "object" &&
@@ -394,9 +410,15 @@ class GeminiRecipeTransport {
           return malformed();
         let output: unknown;
         try {
-          output = JSON.parse(
-            candidate.content.parts.map((part) => part.text).join(""),
-          ) as unknown;
+          const joined = candidate.content.parts
+            .map((part) => part.text)
+            .join("");
+          if (
+            limits.textBytes !== undefined &&
+            Buffer.byteLength(joined, "utf8") > limits.textBytes
+          )
+            return malformed();
+          output = JSON.parse(joined) as unknown;
         } catch {
           return malformed();
         }
@@ -586,6 +608,430 @@ export class GeminiIngredientRecognitionProvider implements IngredientRecognitio
     });
     return {
       ingredients,
+      ...(result.tokensUsed === undefined
+        ? {}
+        : { tokensUsed: result.tokensUsed }),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Conversational cooking assistant (ADR0071). Local schemas mirror the public
+// wire contract (`recipeAssistantIdeaSchema`); this package does not depend on
+// @mizyun/contracts and the API re-validates the result.
+// ---------------------------------------------------------------------------
+
+const assistantText = (max: number) => z.string().trim().min(1).max(max);
+const assistantEstimate = z
+  .number()
+  .finite()
+  .nonnegative()
+  .max(10_000)
+  .nullable();
+const assistantIdeaSchema = (strict: boolean) => {
+  const object = <T extends z.ZodRawShape>(shape: T) => {
+    const base = z.object(shape);
+    return strict ? base.strict() : base;
+  };
+  return object({
+    ideaId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/),
+    name: assistantText(80),
+    summary: assistantText(240),
+    prepMinutes: z.number().int().min(1).max(240),
+    servings: z.number().int().min(1).max(8),
+    ingredients: z
+      .array(
+        object({
+          name: assistantText(80),
+          amount: z.string().trim().max(40),
+          fromPhoto: z.boolean(),
+        }),
+      )
+      .min(1)
+      .max(15),
+    steps: z.array(assistantText(300)).min(1).max(10),
+    estimatePerServing: object({
+      caloriesKcal: assistantEstimate,
+      proteinG: assistantEstimate,
+      carbohydrateG: assistantEstimate,
+      fatG: assistantEstimate,
+    }),
+    warnings: z.array(assistantText(200)).max(3),
+  });
+};
+const assistantMacro = z
+  .number()
+  .finite()
+  .nonnegative()
+  .max(100_000)
+  .nullable();
+/** Projection of the request; unknown caller fields are stripped. */
+const assistantInputSchema = z.object({
+  ingredients: z.array(assistantText(80)).max(RECIPE_ASSISTANT_MAX_INGREDIENTS),
+  ideas: z.array(assistantIdeaSchema(false)).max(RECIPE_ASSISTANT_MAX_IDEAS),
+  context: z.object({
+    remaining: z
+      .object({
+        proteinG: assistantMacro,
+        carbohydrateG: assistantMacro,
+        fatG: assistantMacro,
+      })
+      .nullable(),
+    focus: z.array(z.enum(["protein", "carbohydrate", "fat"])).max(3),
+    dietaryPreferences: z.array(assistantText(200)).max(30),
+  }),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        text: assistantText(1_000),
+      }),
+    )
+    .max(12),
+});
+/** Contract bound on `reply`; replies are resent as chat history. */
+const RECIPE_ASSISTANT_MAX_REPLY_CHARS = 1_000;
+
+/**
+ * Model output is parsed leniently on length, count and range (the vendor
+ * schema may not enforce them), bounded to a few times the contract, and then
+ * clamped to the public contract by `clampAssistantOutput`. Only structural
+ * failures (wrong types, extra fields, missing reply) are malformed output.
+ */
+const lenientString = (bound: number) => z.string().max(bound * 4);
+const lenientIdeaSchema = z
+  .object({
+    ideaId: lenientString(40),
+    name: lenientString(80),
+    summary: lenientString(240),
+    prepMinutes: z.number().finite(),
+    servings: z.number().finite(),
+    ingredients: z
+      .array(
+        z
+          .object({
+            name: lenientString(80),
+            amount: lenientString(40),
+            fromPhoto: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(45),
+    steps: z.array(lenientString(300)).max(30),
+    estimatePerServing: z
+      .object({
+        caloriesKcal: z.number().finite().nullable(),
+        proteinG: z.number().finite().nullable(),
+        carbohydrateG: z.number().finite().nullable(),
+        fatG: z.number().finite().nullable(),
+      })
+      .strict(),
+    warnings: z.array(lenientString(200)).max(9),
+  })
+  .strict();
+const assistantOutputSchema = z
+  .object({
+    reply: lenientString(RECIPE_ASSISTANT_MAX_REPLY_CHARS),
+    ingredients: z
+      .array(lenientString(80))
+      .max(RECIPE_ASSISTANT_MAX_INGREDIENTS * 3),
+    ideas: z.array(lenientIdeaSchema).max(RECIPE_ASSISTANT_MAX_IDEAS * 3),
+  })
+  .strict();
+
+/** Trim and cut at a word boundary, adding an ellipsis only when it fits. */
+const truncateAssistantText = (value: string, max: number): string => {
+  const text = value.trim();
+  if (text.length <= max) return text;
+  if (max <= 1) return text.slice(0, max);
+  let head = text.slice(0, max - 1);
+  // Never split a surrogate pair.
+  if (/[\ud800-\udbff]$/.test(head)) head = head.slice(0, -1);
+  const space = head.search(/\s\S*$/);
+  if (space > max / 2) head = head.slice(0, space);
+  return `${head.trimEnd()}…`;
+};
+const clampInteger = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, Math.round(value)));
+const clampEstimate = (value: number | null): number | null =>
+  value === null || !Number.isFinite(value) || value < 0
+    ? null
+    : Math.min(10_000, value);
+const assistantIdeaId = (raw: string, position: number): string => {
+  const id = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, "");
+  return id.length === 0 ? `idea-${position + 1}` : id;
+};
+const nonEmpty = (values: readonly string[], max: number, count: number) =>
+  values
+    .map((value) => truncateAssistantText(value, max))
+    .filter((value) => value.length > 0)
+    .slice(0, count);
+
+const clampAssistantOutput = (
+  data: z.infer<typeof assistantOutputSchema>,
+): {
+  reply: string;
+  ingredients: string[];
+  ideas: RecipeAssistantIdea[];
+} => {
+  const seenIngredients = new Set<string>();
+  const ingredients = nonEmpty(data.ingredients, 80, data.ingredients.length)
+    .filter((name) => {
+      const key = name.toLowerCase();
+      if (seenIngredients.has(key)) return false;
+      seenIngredients.add(key);
+      return true;
+    })
+    .slice(0, RECIPE_ASSISTANT_MAX_INGREDIENTS);
+  const seenIdeas = new Set<string>();
+  const ideas: RecipeAssistantIdea[] = [];
+  data.ideas.forEach((idea, position) => {
+    const name = truncateAssistantText(idea.name, 80);
+    const ideaIngredients = idea.ingredients
+      .map((ingredient) => ({
+        name: truncateAssistantText(ingredient.name, 80),
+        amount: truncateAssistantText(ingredient.amount, 40),
+        fromPhoto: ingredient.fromPhoto,
+      }))
+      .filter((ingredient) => ingredient.name.length > 0)
+      .slice(0, 15);
+    const steps = nonEmpty(idea.steps, 300, 10);
+    // An idea without a name, ingredients or steps is not usable.
+    if (name.length === 0 || ideaIngredients.length === 0 || steps.length === 0)
+      return;
+    const ideaId = assistantIdeaId(idea.ideaId, position);
+    if (seenIdeas.has(ideaId)) return;
+    seenIdeas.add(ideaId);
+    ideas.push({
+      ideaId,
+      name,
+      summary: truncateAssistantText(idea.summary, 240) || name,
+      prepMinutes: clampInteger(idea.prepMinutes, 1, 240),
+      servings: clampInteger(idea.servings, 1, 8),
+      ingredients: ideaIngredients,
+      steps,
+      estimatePerServing: {
+        caloriesKcal: clampEstimate(idea.estimatePerServing.caloriesKcal),
+        proteinG: clampEstimate(idea.estimatePerServing.proteinG),
+        carbohydrateG: clampEstimate(idea.estimatePerServing.carbohydrateG),
+        fatG: clampEstimate(idea.estimatePerServing.fatG),
+      },
+      warnings: nonEmpty(idea.warnings, 200, 3),
+    });
+  });
+  return {
+    reply: truncateAssistantText(data.reply, RECIPE_ASSISTANT_MAX_REPLY_CHARS),
+    ingredients,
+    ideas: ideas.slice(0, RECIPE_ASSISTANT_MAX_IDEAS),
+  };
+};
+
+const assistantMacroJson = { type: ["number", "null"] };
+const assistantJsonSchema = {
+  type: "object",
+  properties: {
+    reply: { type: "string", maxLength: 1_000 },
+    ingredients: {
+      type: "array",
+      maxItems: RECIPE_ASSISTANT_MAX_INGREDIENTS,
+      items: { type: "string", maxLength: 80 },
+    },
+    ideas: {
+      type: "array",
+      maxItems: RECIPE_ASSISTANT_MAX_IDEAS,
+      items: {
+        type: "object",
+        properties: {
+          ideaId: {
+            type: "string",
+            maxLength: 40,
+            description:
+              "Short kebab-case identifier of lowercase letters, digits and hyphens.",
+          },
+          name: { type: "string", maxLength: 80 },
+          summary: { type: "string", maxLength: 240 },
+          prepMinutes: { type: "integer" },
+          servings: { type: "integer" },
+          ingredients: {
+            type: "array",
+            minItems: 1,
+            maxItems: 15,
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", maxLength: 80 },
+                amount: { type: "string", maxLength: 40 },
+                fromPhoto: { type: "boolean" },
+              },
+              required: ["name", "amount", "fromPhoto"],
+              additionalProperties: false,
+            },
+          },
+          steps: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: { type: "string", maxLength: 300 },
+          },
+          estimatePerServing: {
+            type: "object",
+            properties: {
+              caloriesKcal: assistantMacroJson,
+              proteinG: assistantMacroJson,
+              carbohydrateG: assistantMacroJson,
+              fatG: assistantMacroJson,
+            },
+            required: ["caloriesKcal", "proteinG", "carbohydrateG", "fatG"],
+            additionalProperties: false,
+          },
+          warnings: {
+            type: "array",
+            maxItems: 3,
+            items: { type: "string", maxLength: 200 },
+          },
+        },
+        required: [
+          "ideaId",
+          "name",
+          "summary",
+          "prepMinutes",
+          "servings",
+          "ingredients",
+          "steps",
+          "estimatePerServing",
+          "warnings",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["reply", "ingredients", "ideas"],
+  additionalProperties: false,
+};
+
+const cleanAssistantText = (value: string, keepNewlines: boolean): string =>
+  (keepNewlines
+    ? value
+        .replace(/\r\n?/g, "\n")
+        .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+        .replace(/[^\S\n]+/g, " ")
+        .replace(/ ?\n ?/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+    : value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ")
+  ).trim();
+const cleanAssistantOutput = (
+  value: unknown,
+  keepNewlines = false,
+): unknown => {
+  if (typeof value === "string") return cleanAssistantText(value, keepNewlines);
+  if (Array.isArray(value))
+    return value.map((entry) => cleanAssistantOutput(entry));
+  if (typeof value === "object" && value !== null)
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        cleanAssistantOutput(entry, key === "reply"),
+      ]),
+    );
+  return value;
+};
+
+export class GeminiRecipeAssistantProvider implements RecipeAssistantProvider {
+  readonly #transport: GeminiRecipeTransport;
+  constructor(options: GeminiRecipeProviderOptions) {
+    this.#transport = new GeminiRecipeTransport(options);
+  }
+  status(): Promise<AgentProviderStatus> {
+    return this.#transport.status();
+  }
+  #input(
+    request: RecipeAssistantRequest,
+  ): z.infer<typeof assistantInputSchema> {
+    const parsed = assistantInputSchema.safeParse({
+      ingredients: request.ingredients,
+      ideas: request.ideas,
+      context: request.context,
+      messages: request.messages,
+    });
+    if (
+      !parsed.success ||
+      request.images.length > INGREDIENT_RECOGNITION_MAX_IMAGES ||
+      request.images.some(
+        (image) =>
+          !["image/jpeg", "image/png", "image/webp"].includes(image.mimeType) ||
+          !(image.bytes instanceof Uint8Array) ||
+          image.bytes.byteLength === 0,
+      ) ||
+      request.images.reduce((sum, image) => sum + image.bytes.byteLength, 0) >
+        INGREDIENT_RECOGNITION_MAX_IMAGE_BYTES
+    )
+      throw new RecipeProviderError("unavailable");
+    return parsed.data;
+  }
+  #parts(
+    input: z.infer<typeof assistantInputSchema>,
+    images: RecipeAssistantRequest["images"],
+    includeBytes: boolean,
+  ): unknown[] {
+    // The whole conversation is one JSON data block, not vendor turns, so no
+    // user or assistant text can be read as a role or system instruction.
+    return [
+      { text: boundedInput(input) },
+      ...images.map((image) => ({
+        inlineData: {
+          mimeType: image.mimeType,
+          data: includeBytes ? Buffer.from(image.bytes).toString("base64") : "",
+        },
+      })),
+    ];
+  }
+  estimateTokens(request: RecipeAssistantRequest): number {
+    const input = this.#input(request);
+    return (
+      this.#transport.prepare(
+        RECIPE_ASSISTANT_POLICY,
+        this.#parts(input, request.images, false),
+        assistantJsonSchema,
+        RECIPE_ASSISTANT_MAX_OUTPUT_TOKENS,
+      ).textBytes +
+      RECIPE_ASSISTANT_MAX_OUTPUT_TOKENS +
+      request.images.length * this.#transport.imageTokenBound()
+    );
+  }
+  async assist(
+    request: RecipeAssistantRequest,
+  ): Promise<RecipeAssistantResult> {
+    const input = this.#input(request);
+    const result = await this.#transport.request(
+      request.signal,
+      RECIPE_ASSISTANT_POLICY,
+      this.#parts(input, request.images, true),
+      assistantJsonSchema,
+      RECIPE_ASSISTANT_MAX_OUTPUT_TOKENS,
+      {
+        // JSON escaping in the vendor envelope can at most double the text.
+        responseBytes: RECIPE_ASSISTANT_MAX_OUTPUT_BYTES * 2 + 2_048,
+        textBytes: RECIPE_ASSISTANT_MAX_OUTPUT_BYTES,
+      },
+    );
+    const output = assistantOutputSchema.safeParse(
+      cleanAssistantOutput(result.output),
+    );
+    if (!output.success) return malformed();
+    const clamped = clampAssistantOutput(output.data);
+    if (clamped.reply.length === 0) return malformed();
+    // Defence in depth: the clamped ideas must satisfy the strict contract.
+    if (!z.array(assistantIdeaSchema(true)).safeParse(clamped.ideas).success)
+      return malformed();
+    return {
+      reply: clamped.reply,
+      ingredients: clamped.ingredients,
+      ideas: clamped.ideas,
       ...(result.tokensUsed === undefined
         ? {}
         : { tokensUsed: result.tokensUsed }),

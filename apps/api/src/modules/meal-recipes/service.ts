@@ -6,7 +6,10 @@ import {
   recognizedIngredientProposalSchema,
   ingredientRecognitionResponseSchema,
   mealRecipeSuggestionResponseSchema,
+  recipeAssistantReplySchema,
+  RECIPE_ASSISTANT_VERSION,
   type MealRecipeSuggestionRequest,
+  type RecipeAssistantTurn,
 } from "@mizyun/contracts";
 import {
   rankMealRecipeCandidates,
@@ -24,6 +27,8 @@ import {
   type IngredientRecognitionProvider,
   type RecipeGenerationResult,
   type IngredientRecognitionRequest,
+  type RecipeAssistantProvider,
+  DisabledRecipeAssistantProvider,
 } from "@mizyun/agent-runtime";
 import { authorizeAiAccess } from "../../ai-eligibility.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
@@ -52,14 +57,19 @@ export interface RecipeServiceOptions {
   readonly ledger: RecipeRequestLedger | null;
   readonly generationProvider: RecipeGenerationProvider;
   readonly recognitionProvider: IngredientRecognitionProvider;
+  /** Conversational cooking assistant (ADR0071); disabled when omitted. */
+  readonly assistantProvider?: RecipeAssistantProvider;
   readonly enabled: () => boolean;
   readonly now?: () => Date;
   readonly timeoutMs?: number;
 }
 export class MealRecipeService {
   readonly now: () => Date;
+  readonly assistant: RecipeAssistantProvider;
   constructor(readonly options: RecipeServiceOptions) {
     this.now = options.now ?? (() => new Date());
+    this.assistant =
+      options.assistantProvider ?? new DisabledRecipeAssistantProvider();
   }
   async authorize(userId: UserId, accessToken: string): Promise<StoredProfile> {
     // Fail closed: the deterministic suggestion path has no ledger SQL fence
@@ -141,6 +151,7 @@ export class MealRecipeService {
     userId: UserId,
     accessToken: string,
     operation: RecipeRequestOperation,
+    provider?: { status(): ReturnType<RecipeAssistantProvider["status"]> },
   ) {
     const profile = await this.authorize(userId, accessToken);
     if (!this.options.enabled())
@@ -148,9 +159,10 @@ export class MealRecipeService {
     if (!this.options.ledger || !(await this.options.ledger.isAvailable()))
       throw new RecipeServiceError(503, "RECIPE_BUDGET_UNAVAILABLE");
     const status = await (
-      operation === "suggest"
+      provider ??
+      (operation === "suggest"
         ? this.options.generationProvider
-        : this.options.recognitionProvider
+        : this.options.recognitionProvider)
     ).status();
     if (!status.ready)
       throw new RecipeServiceError(503, "RECIPE_PROVIDER_UNAVAILABLE");
@@ -165,6 +177,7 @@ export class MealRecipeService {
     fingerprint: string,
     tokensEstimated: number,
     invoke: (signal: AbortSignal) => Promise<{ value: T; tokensUsed?: number }>,
+    provider?: { status(): ReturnType<RecipeAssistantProvider["status"]> },
   ): Promise<T> {
     const caps = capsForTier(profile.planTier);
     if (
@@ -217,7 +230,7 @@ export class MealRecipeService {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let terminal = false;
     try {
-      await this.requireReady(userId, accessToken, operation);
+      await this.requireReady(userId, accessToken, operation, provider);
       const timeoutMs = Math.min(
         30_000,
         Math.max(1, this.options.timeoutMs ?? 30_000),
@@ -229,7 +242,7 @@ export class MealRecipeService {
         }, timeoutMs);
       });
       const result = await Promise.race([invoke(controller.signal), deadline]);
-      await this.requireReady(userId, accessToken, operation);
+      await this.requireReady(userId, accessToken, operation, provider);
       if (
         result.tokensUsed !== undefined &&
         (!Number.isSafeInteger(result.tokensUsed) ||
@@ -488,6 +501,94 @@ export class MealRecipeService {
             : {}),
         };
       },
+    );
+  }
+  /**
+   * One conversational assistant turn (ADR0071). The client holds the
+   * conversation; the server adds owner macro context and profile diets,
+   * charges the existing recipe ledger (photo turns as `recognize`, text
+   * turns as `suggest`) and re-validates the provider output.
+   */
+  async assist(
+    userId: UserId,
+    accessToken: string,
+    turn: RecipeAssistantTurn,
+    images: IngredientRecognitionRequest["images"],
+  ) {
+    const operation: RecipeRequestOperation = images.length
+      ? "recognize"
+      : "suggest";
+    const profile = await this.requireReady(
+      userId,
+      accessToken,
+      operation,
+      this.assistant,
+    );
+    if (
+      images.length > (await this.maximumImages(userId, accessToken, profile))
+    )
+      throw new RecipeServiceError(403, "RECIPE_IMAGE_LIMIT");
+    if (!images.length && turn.messages.at(-1)?.role !== "user")
+      throw new RecipeServiceError(400, "INVALID_RECIPE_REQUEST");
+    const macro = await loadOwnedRecipeContext(
+      this.options.repositories,
+      userId,
+      accessToken,
+      profile,
+      this.now(),
+    );
+    const projected = {
+      images,
+      ingredients: turn.ingredients,
+      ideas: turn.ideas,
+      messages: turn.messages,
+      context: {
+        remaining:
+          macro.state === "ready"
+            ? {
+                proteinG: macro.positiveGaps.proteinG,
+                carbohydrateG: macro.positiveGaps.carbohydrateG,
+                fatG: macro.positiveGaps.fatG,
+              }
+            : null,
+        focus: macro.state === "ready" ? macro.focus : [],
+        dietaryPreferences: profile.coachingPreferences.dietaryPreferences,
+      },
+      signal: new AbortController().signal,
+    };
+    const fingerprint = recipeDigest({
+      turn,
+      images: images.map((image) => ({
+        mimeType: image.mimeType,
+        digest: createHash("sha256").update(image.bytes).digest("hex"),
+      })),
+    });
+    return this.attempt(
+      userId,
+      accessToken,
+      profile,
+      turn.requestId,
+      operation,
+      fingerprint,
+      this.assistant.estimateTokens(projected),
+      async (signal) => {
+        const output = await this.assistant.assist({ ...projected, signal });
+        const parsed = recipeAssistantReplySchema.safeParse({
+          version: RECIPE_ASSISTANT_VERSION,
+          requestId: turn.requestId,
+          reply: output.reply,
+          ingredients: output.ingredients,
+          ideas: output.ideas,
+        });
+        if (!parsed.success) throw new RecipeProviderError("malformed_output");
+        return {
+          value: parsed.data,
+          ...(output.tokensUsed !== undefined
+            ? { tokensUsed: output.tokensUsed }
+            : {}),
+        };
+      },
+      this.assistant,
     );
   }
 }

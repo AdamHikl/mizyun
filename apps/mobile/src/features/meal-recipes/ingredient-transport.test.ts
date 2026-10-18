@@ -13,6 +13,9 @@ it("forwards each explicit recipe request through both read wrappers without cac
   const suggest = vi
     .fn()
     .mockResolvedValue({ ok: false, error: { kind: "unauthorized" } });
+  const assist = vi
+    .fn()
+    .mockResolvedValue({ ok: false, error: { kind: "unauthorized" } });
   const request = vi.fn();
   const raw = {
     request,
@@ -20,6 +23,7 @@ it("forwards each explicit recipe request through both read wrappers without cac
     getMealRecipeCapabilities: capabilities,
     recognizeMealRecipeIngredients: recognize,
     suggestMealRecipes: suggest,
+    assistMealRecipe: assist,
   } as unknown as ApiClient;
   const api = createMealRecipeApi(
     new CommunityReadCache(
@@ -36,9 +40,12 @@ it("forwards each explicit recipe request through both read wrappers without cac
   };
   await api.recognizeIngredients(input, options);
   await api.suggest({} as any, options);
+  const turn = { turn: {} as any, images: [] };
+  await api.assist(turn, options);
   expect(capabilities).toHaveBeenCalledTimes(2);
   expect(capabilities).toHaveBeenLastCalledWith(options);
   expect(recognize).toHaveBeenCalledExactlyOnceWith(input, options);
   expect(suggest).toHaveBeenCalledOnce();
+  expect(assist).toHaveBeenCalledExactlyOnceWith(turn, options);
   expect(request).not.toHaveBeenCalled();
 });

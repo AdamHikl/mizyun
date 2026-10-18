@@ -35,6 +35,7 @@ export interface ApiClient {
   getMealRecipeCapabilities?: MealRecipeApi["capabilities"];
   suggestMealRecipes?: MealRecipeApi["suggest"];
   recognizeMealRecipeIngredients?: MealRecipeApi["recognizeIngredients"];
+  assistMealRecipe?: MealRecipeApi["assist"];
 
   ensureMealIllustration?(
     entryId: string,
