@@ -52,7 +52,11 @@ export const presentLoggingConsistency = (
       accessibilityLabel: `${name}, ${status}`,
     };
   });
-  const progress = `Logged ${state.daysLoggedThisWeek} of ${state.weeklyGoal} ${dayWord(state.weeklyGoal)} this week`;
+  // Past the goal, "7 of 5" reads oddly, so show the plain count instead.
+  const progress =
+    state.daysLoggedThisWeek > state.weeklyGoal
+      ? `Logged ${state.daysLoggedThisWeek} ${dayWord(state.daysLoggedThisWeek)} this week`
+      : `Logged ${state.daysLoggedThisWeek} of ${state.weeklyGoal} ${dayWord(state.weeklyGoal)} this week`;
 
   if (state.showWelcomeBack) {
     return {

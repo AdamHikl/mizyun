@@ -28,6 +28,23 @@ describe("presentLoggingConsistency", () => {
     expect(view.accessibilityLabel).toContain("Goal reached");
   });
 
+  it("shows the goal fraction when exactly meeting the goal", () => {
+    const view = present(["2026-10-12", "2026-10-13", "2026-10-16"], 3);
+    expect(view.title).toBe("Logged 3 of 3 days this week");
+  });
+
+  it("shows only the day count once the goal is passed", () => {
+    const view = present(
+      ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"],
+      3,
+    );
+    expect(view.kind).toBe("goal-met");
+    expect(view.title).toBe("Logged 5 days this week");
+    expect(view.accessibilityLabel).toBe(
+      "Logged 5 days this week. Goal reached.",
+    );
+  });
+
   it("welcomes the user back without guilt wording", () => {
     const view = present(["2026-10-10"]);
     expect(view.kind).toBe("welcome-back");
