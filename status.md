@@ -10,7 +10,7 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev=main (Oct18):**5c5da49c (#295) over f388c722 (#292/#293, chip wrap, Meals photo memory, recipe focus = protein + larger carb/fat gap with 5 eval fixtures refrozen, Home protein shows single target per Adam) gatePASS(3196mobile/1189API+15skips), deploy:dev OK, migrations unchanged, health200 11:09Z; Prod PID1795239 unchanged.
+- **Dev=main (Oct18):**35e226f4 (#298) over 5c5da49c (#295) over f388c722 (#292/#293, chip wrap, Meals photo memory, recipe focus = protein + larger carb/fat gap with 5 eval fixtures refrozen, Home protein shows single target per Adam) gatePASS(3196mobile/1189API+15skips), deploy:dev OK, migrations unchanged, health200 11:09Z; Prod PID1795239 unchanged.
 - **iPhone Dev (Oct18):** f388c722 Release installed/launched 11:10Z on 00008140-001114501A86801C; acceptance open. Xcode27.1 fix: patched expo-modules-jsi@57.1.0 + `with-ios-source-built-expo-modules`; drop at SDK58. #287 flaky core test.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **AI:** Gemini3.8 Flash live on Dev again (Oct18 08:56Z, Adam): `AGENT_PROVIDER=gemini` in dev.env (backup dev.env.bak-20261018-gemini); Haiku5.5 code/ADR0069 kept, inactive. [Haiku evidence](docs/ANTHROPIC_DEV_PROVIDER_EVIDENCE_2026-10-17.md). Adult/consent/usage/kill switches; partner Dev exception; Qwen paused; BEFORE_TESTING gates kept.
@@ -24,7 +24,7 @@
 ## Local follow-ups awaiting acceptance
 
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
-- **#298 evening stretch (Oct18):** 9 PM local reminder on training days (switch/time, default on) → 4–6 stretches from today's muscles (core, no AI); Home row; device-only, erasure wired (ADR0072, no migration). 2 reviews resolved; gatePASS(3259mobile/1195API+15skips), uncommitted on b45d6fa9. Next: commit, iPhone Dev build, device acceptance.
+- **#298 evening stretch (Oct18):** 9 PM local reminder on training days (switch/time, default on) → 4–6 stretches from today's muscles; Home row; device-only (ADR0072, no migration). 2 reviews; gatePASS(3259mobile/1195API+15skips). 35e226f4 Dev 17:59Z health200; iPhone installed/launched 17:59Z. Next: Adam device test.
 - **#295/#297 (Oct18):** matching UI → photo+chat assistant (ADR0071, no migration); 2 reviews; 57815004 gatePASS(3186mobile/1195API+15skips), Dev 16:52Z health200, iPhone installed; Free 10k blocks photo turns. Next: Adam device test. #296;#294.
 - **#290 (Oct17):** lock/resume keeps logged sets, no false sign-out; 2 reviews/gatePASS; pushed main. Next: Dev/iPhone lock test; #291.
 - **#288 Log activity (Oct17):** runs here (no hub Log run), typed activity, any date/time, text drafts; reviews/gatePASS; Dev 47c814e5 health200;iPhone install 13:08Z;Adam next. [Evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)
