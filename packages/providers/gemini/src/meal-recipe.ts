@@ -288,9 +288,11 @@ class GeminiRecipeTransport {
         maxOutputTokens,
         responseMimeType: "application/json",
         responseJsonSchema,
+        // gemini-3.8-flash rejects MINIMAL with HTTP 400 (live Dev probe,
+        // 2026-10-18); LOW is its lowest accepted level.
         thinkingConfig:
           this.options.model === "gemini-3.8-flash"
-            ? { thinkingLevel: "MINIMAL", includeThoughts: false }
+            ? { thinkingLevel: "LOW", includeThoughts: false }
             : { thinkingBudget: 0, includeThoughts: false },
         mediaResolution: "MEDIA_RESOLUTION_LOW",
       },

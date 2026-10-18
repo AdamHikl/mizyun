@@ -103,7 +103,8 @@ describe("Gemini recipe selection", () => {
       maxOutputTokens: RECIPE_GENERATION_MAX_OUTPUT_TOKENS,
       responseMimeType: "application/json",
       responseJsonSchema: { additionalProperties: false },
-      thinkingConfig: { thinkingLevel: "MINIMAL", includeThoughts: false },
+      // MINIMAL is rejected by gemini-3.8-flash (HTTP 400).
+      thinkingConfig: { thinkingLevel: "LOW", includeThoughts: false },
       mediaResolution: "MEDIA_RESOLUTION_LOW",
     });
     expect(estimate).toBe(
