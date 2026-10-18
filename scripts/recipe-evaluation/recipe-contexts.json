@@ -1228,7 +1228,7 @@
       "expected": {
         "state": "ready",
         "reason": "logged_so_far",
-        "focus": ["fat", "carbohydrate"],
+        "focus": ["fat"],
         "rankedRecipeIds": [
           "tofu-rice-tomato",
           "chicken-rice-tomato",
@@ -1251,7 +1251,7 @@
       "expected": {
         "state": "ready",
         "reason": "logged_so_far",
-        "focus": ["protein", "carbohydrate", "fat"],
+        "focus": ["protein", "carbohydrate"],
         "rankedRecipeIds": [
           "chicken-rice-tomato",
           "tofu-rice-tomato",
@@ -1343,7 +1343,7 @@
       "expected": {
         "state": "ready",
         "reason": "logged_so_far",
-        "focus": ["carbohydrate", "fat"],
+        "focus": ["carbohydrate"],
         "rankedRecipeIds": [
           "chickpea-rice-tomato",
           "lentil-rice-tomato",
@@ -1412,7 +1412,7 @@
       "expected": {
         "state": "ready",
         "reason": "logged_so_far",
-        "focus": ["carbohydrate", "fat"],
+        "focus": ["carbohydrate"],
         "rankedRecipeIds": [
           "chickpea-rice-tomato",
           "lentil-rice-tomato",
@@ -1435,7 +1435,7 @@
       "expected": {
         "state": "ready",
         "reason": "logged_so_far",
-        "focus": ["carbohydrate", "protein", "fat"],
+        "focus": ["carbohydrate"],
         "rankedRecipeIds": [
           "lentil-rice-tomato",
           "chicken-rice-tomato",

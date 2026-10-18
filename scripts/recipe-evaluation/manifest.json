@@ -18,7 +18,7 @@
     },
     {
       "path": "scripts/recipe-evaluation/recipe-contexts.json",
-      "sha256": "c1632cd52b92db3698de6a2fb422c0bb56555d9d898b18231039bfdf5abc2d71"
+      "sha256": "2e40cc1cf706f6b4ff4a3ef1dfcb9fc38aa66b7e7b11fa1ada7a3c1774f75959"
     },
     {
       "path": "scripts/recipe-evaluation/scenes/ambiguous-white-block-1.svg",
