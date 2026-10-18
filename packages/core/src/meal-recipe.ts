@@ -131,6 +131,35 @@ const mapMacros = (
     fields.map((field) => [field, f(field)]),
   ) as unknown as MealRecipeMacroGrams;
 
+const gapKcal = (gaps: MealRecipeMacroGrams, field: (typeof fields)[number]) =>
+  weights[field] * (gaps[field] ?? 0);
+/**
+ * Protein is in focus whenever at least 20% of its target is still open, even
+ * when fat's 9 kcal/g makes it the larger energy gap. Alongside it, the
+ * largest carbohydrate or fat energy gap is in focus when it is at least 20%
+ * of the remaining macro energy. Ordered by energy gap, largest first.
+ */
+const focusFields = (
+  targets: MealRecipeMacroGrams,
+  gaps: MealRecipeMacroGrams,
+): MealRecipeMacroContext["focus"] => {
+  const proteinTarget = targets.proteinG ?? 0;
+  const proteinOpen =
+    proteinTarget > 0 && (gaps.proteinG ?? 0) / proteinTarget >= 0.2;
+  const other: (typeof fields)[number] =
+    gapKcal(gaps, "fatG") > gapKcal(gaps, "carbohydrateG")
+      ? "fatG"
+      : "carbohydrateG";
+  const otherOpen = gapKcal(gaps, other) / energy(gaps) >= 0.2;
+  const selected: (typeof fields)[number][] = [
+    ...(proteinOpen ? (["proteinG"] as const) : []),
+    ...(otherOpen ? [other] : []),
+  ];
+  return selected
+    .sort((a, b) => gapKcal(gaps, b) - gapKcal(gaps, a))
+    .map((field) => labels[field]);
+};
+
 const localDate = (now: Date, timeZone: string): string | null => {
   try {
     const parts = new Intl.DateTimeFormat("en", {
@@ -236,21 +265,7 @@ export const buildMealRecipeMacroContext = (
         : reason === "logged_so_far" || reason === "confirmed_so_far"
           ? "ready"
           : "unknown";
-  const gapEnergy = energy(positiveGaps);
-  const focus =
-    state === "ready"
-      ? fields
-          .filter(
-            (field) =>
-              (weights[field] * (positiveGaps[field] ?? 0)) / gapEnergy >= 0.2,
-          )
-          .sort((a, b) => {
-            const diff =
-              weights[b] * positiveGaps[b]! - weights[a] * positiveGaps[a]!;
-            return diff || fields.indexOf(a) - fields.indexOf(b);
-          })
-          .map((field) => labels[field])
-      : [];
+  const focus = state === "ready" ? focusFields(targets, positiveGaps) : [];
   return {
     version: MEAL_RECIPE_VERSION,
     rankingVersion: MEAL_RECIPE_RANKING_VERSION,

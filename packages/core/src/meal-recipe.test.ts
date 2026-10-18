@@ -148,10 +148,40 @@ describe("recipe macro-balance-v1", () => {
       carbohydrateG: 260,
       fatG: 30,
     };
+    expect(buildMealRecipeMacroContext(source).focus).toEqual(["fat"]);
+  });
+
+  it("keeps protein in focus on an unlogged day even though fat is the larger energy gap", () => {
+    // Regression: 126 g protein (504 kcal) fell under fat's 702 kcal share.
+    const source = input();
+    source.energy = {
+      ...source.energy,
+      targetProteinG: 126,
+      targetCarbohydrateG: 397,
+      targetFatG: 78,
+    };
+    source.summary = {
+      ...source.summary!,
+      entryCount: 0,
+      proteinG: 0,
+      carbohydrateG: 0,
+      fatG: 0,
+    };
     expect(buildMealRecipeMacroContext(source).focus).toEqual([
-      "fat",
       "carbohydrate",
+      "protein",
     ]);
+  });
+
+  it("drops protein from focus once less than 20% of its target is open", () => {
+    const source = input();
+    source.summary = {
+      ...source.summary!,
+      proteinG: 121,
+      carbohydrateG: 150,
+      fatG: 30,
+    };
+    expect(buildMealRecipeMacroContext(source).focus).toEqual(["carbohydrate"]);
   });
 
   it("keeps signed overshoot and provides food despite being over target", () => {
