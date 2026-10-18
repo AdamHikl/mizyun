@@ -1787,9 +1787,6 @@ function DailyNutritionCard(props: {
               target={display.targetProteinG}
               color={theme.protein}
               percent={display.proteinPercent}
-              rangeLow={display.proteinRangeLowG}
-              rangeMarkerPercent={display.proteinRangeMarkerPercent}
-              inRange={display.proteinStatus === "in_range"}
             />
             <MacroBar
               label="Carbs"
@@ -1840,30 +1837,11 @@ function MacroBar(props: {
   readonly target: number | null;
   readonly color: string;
   readonly percent: number;
-  /** Lower end of a good range; shown as "low–target" with a bar marker. */
-  readonly rangeLow?: number | null;
-  readonly rangeMarkerPercent?: number | null;
-  readonly inRange?: boolean;
 }) {
-  const {
-    label,
-    current,
-    target,
-    color,
-    percent,
-    rangeLow = null,
-    rangeMarkerPercent = null,
-    inRange = false,
-  } = props;
+  const { label, current, target, color, percent } = props;
   const theme = useTheme();
   const roundedCurrent = current !== null ? Math.round(current) : null;
   const roundedTarget = target !== null ? Math.round(target) : null;
-  const goalText =
-    roundedTarget === null
-      ? null
-      : rangeLow !== null
-        ? `${rangeLow}–${roundedTarget}g`
-        : `${roundedTarget}g`;
 
   return (
     <View
@@ -1872,31 +1850,21 @@ function MacroBar(props: {
       accessibilityLabel={[
         label,
         roundedCurrent !== null ? `${roundedCurrent} grams` : "unknown",
-        goalText !== null
-          ? rangeLow !== null
-            ? `good range ${rangeLow} to ${roundedTarget} grams`
-            : `target ${roundedTarget} grams`
-          : null,
-        inRange ? "in range" : null,
+        roundedTarget !== null ? `target ${roundedTarget} grams` : null,
       ]
         .filter(Boolean)
         .join(", ")}
     >
       <ThemedText type="footnote" themeColor="textSecondary">
         {label}
-        {inRange ? (
-          <ThemedText type="footnote" themeColor="primary">
-            {" · In range"}
-          </ThemedText>
-        ) : null}
       </ThemedText>
       <ThemedText type="small">
         <ThemedText type="smallBold">
           {roundedCurrent !== null ? `${roundedCurrent}g` : "—"}
         </ThemedText>
-        {goalText !== null ? (
+        {roundedTarget !== null ? (
           <ThemedText type="small" themeColor="textSecondary">
-            {` / ${goalText}`}
+            {` / ${roundedTarget}g`}
           </ThemedText>
         ) : null}
       </ThemedText>
@@ -1915,17 +1883,6 @@ function MacroBar(props: {
             },
           ]}
         />
-        {rangeMarkerPercent !== null ? (
-          <View
-            style={[
-              styles.macroRangeMarker,
-              {
-                left: `${rangeMarkerPercent}%`,
-                backgroundColor: theme.textSecondary,
-              },
-            ]}
-          />
-        ) : null}
       </View>
     </View>
   );
@@ -2278,13 +2235,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.half,
   },
   macroFill: { height: "100%", borderRadius: Radius.pill },
-  macroRangeMarker: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 2,
-    marginLeft: -1,
-  },
   proteinIdeas: { gap: Spacing.half },
   planNotes: { gap: Spacing.one },
   cardHeading: {

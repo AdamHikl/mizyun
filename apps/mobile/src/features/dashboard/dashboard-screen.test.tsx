@@ -667,7 +667,7 @@ describe("dashboard cached display and refresh status", () => {
     expect(card.props.summary).toBeNull();
   });
 
-  it("frames protein as a range and offers diet-aware ideas only while building (#293)", async () => {
+  it("shows the single protein target and offers diet-aware ideas only while building (#293)", async () => {
     render();
     focus();
     await settle();
@@ -689,12 +689,12 @@ describe("dashboard cached display and refresh status", () => {
       );
 
     const vegan = renderCard({ dietaryPreferences: ["vegan"] });
-    expect(proteinBar(vegan).props.rangeLow).toBe(112);
-    expect(proteinBar(vegan).props.inRange).toBe(false);
+    expect(proteinBar(vegan).props).not.toHaveProperty("rangeLow");
     const bar = proteinBar(vegan).type(proteinBar(vegan).props);
-    expect(text(bar)).toContain("112–140g");
+    expect(text(bar)).toContain("/ 140g");
+    expect(text(bar)).not.toContain("112");
     expect(bar.props.accessibilityLabel).toBe(
-      "Protein, 40 grams, good range 112 to 140 grams",
+      "Protein, 40 grams, target 140 grams",
     );
     expect(text(vegan)).toContain("Protein ideas for later today");
     expect(text(vegan)).toContain("Tofu or tempeh");
@@ -707,10 +707,9 @@ describe("dashboard cached display and refresh status", () => {
       dietaryPreferences: ["vegan"],
       summary: { ...summary, proteinG: 120 },
     });
-    expect(proteinBar(reached).props.inRange).toBe(true);
-    expect(text(proteinBar(reached).type(proteinBar(reached).props))).toContain(
-      "In range",
-    );
+    expect(
+      text(proteinBar(reached).type(proteinBar(reached).props)),
+    ).not.toContain("In range");
     expect(text(reached)).not.toContain("Protein ideas");
     expect(
       text(

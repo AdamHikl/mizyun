@@ -1416,7 +1416,7 @@ describe("computeDailyNutritionDisplay protein range (#293)", () => {
     fatG: 30,
   });
 
-  it("shows the lower end of the range and its bar position", () => {
+  it("is building below the lower end of the range", () => {
     const result = computeDailyNutritionDisplay({
       summary: summary(60),
       energy: energy as any,
@@ -1424,9 +1424,8 @@ describe("computeDailyNutritionDisplay protein range (#293)", () => {
       loading: false,
       hasError: false,
     });
-    expect(result.proteinRangeLowG).toBe(112);
-    expect(result.proteinRangeMarkerPercent).toBe(80);
     expect(result.proteinStatus).toBe("building");
+    expect(result).not.toHaveProperty("proteinRangeLowG");
   });
 
   it("is in range from the lower end, before the full target", () => {
@@ -1452,7 +1451,7 @@ describe("computeDailyNutritionDisplay protein range (#293)", () => {
     expect(result.proteinStatus).toBe("unknown");
   });
 
-  it("omits the range without a confirmed weight", () => {
+  it("treats protein below target as building without a confirmed weight", () => {
     const result = computeDailyNutritionDisplay({
       summary: summary(60),
       energy: { ...energy, inputs: { weightKg: null, goalKind: "cut" } } as any,
@@ -1460,8 +1459,6 @@ describe("computeDailyNutritionDisplay protein range (#293)", () => {
       loading: false,
       hasError: false,
     });
-    expect(result.proteinRangeLowG).toBeNull();
-    expect(result.proteinRangeMarkerPercent).toBeNull();
     expect(result.proteinStatus).toBe("building");
   });
 

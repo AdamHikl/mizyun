@@ -409,10 +409,7 @@ interface BaseDailyNutritionDisplay {
 }
 
 export interface DailyNutritionDisplay extends BaseDailyNutritionDisplay {
-  /** Lower end of the good protein range, when body weight is known. */
-  readonly proteinRangeLowG: number | null;
-  /** Position of the range's lower end on the protein bar (0–100). */
-  readonly proteinRangeMarkerPercent: number | null;
+  /** Protein against its good range; only steers protein ideas. */
   readonly proteinStatus: ProteinProgressStatus;
 }
 
@@ -433,15 +430,8 @@ export const computeDailyNutritionDisplay = (
     weightKg: params.energy?.inputs?.weightKg ?? null,
     goalKind: params.energy?.inputs?.goalKind ?? null,
   });
-  const lowG = range?.lowG ?? null;
   return {
     ...base,
-    proteinRangeLowG:
-      lowG !== null && lowG < (range?.targetG ?? 0) ? lowG : null,
-    proteinRangeMarkerPercent:
-      range !== null && lowG !== null && lowG < range.targetG
-        ? Math.round((lowG / range.targetG) * 100)
-        : null,
     proteinStatus: proteinProgressStatus(base.proteinG, range),
   };
 };
