@@ -42,5 +42,5 @@ These 4 calls went straight to the provider. They did not pass through the route
 ## Open
 
 - No synthetic account was created, so the signed-in route path (consent → provider → budget commit) has been verified only by tests, not live.
-- A new Dev app build containing `631b3c54` is not installed on the iPhone. Next: install it, then Adam's device check. In Workouts → Log activity, type "did yardwork for 2 hours this morning" and tap **Fill in from description**. Expected: Activity "Yardwork", 120 minutes, today; the status line says "Filled in activity, duration, date…"; and the note under the button says the description is sent to the AI provider.
+- Release Dev build of `0e76d0cf` (contains `631b3c54`) installed and launched on iPhone `00008140-001114501A86801C` (`com.mizyun.development`, team LQJNDVBL43) at 2026-10-19T09:09:54Z via `pnpm mobile:install:ios:dev`. Install and launch only. Next: Adam's device check. In Workouts → Log activity, type "did yardwork for 2 hours this morning" and tap **Fill in from description**. Expected: Activity "Yardwork", 120 minutes, today; the status line says "Filled in activity, duration, date…"; and the note under the button says the description is sent to the AI provider.
 - #300 consent and Settings copy (Adam's decision). #301 meal route limiter.
