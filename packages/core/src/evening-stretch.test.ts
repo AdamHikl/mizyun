@@ -6,6 +6,7 @@ import {
   buildEveningStretchSession,
   formatStretchFocus,
   type StretchSessionInput,
+  resolveStretchSourceExercise,
 } from "./evening-stretch";
 
 const ex = (name: string, setCount: number, catalogId?: string) => ({
@@ -355,5 +356,59 @@ describe("formatStretchFocus", () => {
     expect(formatStretchFocus({ ...base, focusMuscles: ["calves"] })).toBe(
       "Calves",
     );
+  });
+});
+
+describe("saved exercise names (#298 device report)", () => {
+  // Adam's Push 1 on 2026-10-19: five of seven names come from the earlier
+  // catalog, which previously resolved to nothing and produced hamstring and
+  // hip stretches after an upper-body day.
+  const push1 = [
+    { name: "Standing Barbell Press Behind Neck", setCount: 4 },
+    { name: "Dips - Chest Version", setCount: 2 },
+    { name: "Incline Dumbbell Bench With Palms Facing In", setCount: 3 },
+    { name: "Side Lateral Raise", setCount: 4 },
+    { name: "Cable Triceps Pushdown", setCount: 3 },
+    { name: "Incline Cable Flye", setCount: 3 },
+    { name: "Cable Crunch", setCount: 3 },
+  ];
+
+  it("resolves earlier catalog names and everyday aliases", () => {
+    for (const { name } of push1) {
+      expect(resolveStretchSourceExercise({ name })).not.toBeNull();
+    }
+    expect(resolveStretchSourceExercise({ name: "lat raise" })?.id).toBe(
+      "exercise-lateral-raise",
+    );
+    expect(resolveStretchSourceExercise({ name: "My custom move" })).toBe(null);
+  });
+
+  it("stretches the chest and shoulders after a push day, never the legs", () => {
+    const plan = buildEveningStretchSession({
+      exercises: push1,
+      activities: [],
+    });
+    expect(plan.basis).toBe("today");
+    expect(plan.focusMuscles[0]).toBe("chest");
+    expect(plan.focusMuscles).toEqual(
+      expect.arrayContaining(["triceps", "front shoulders"]),
+    );
+    const covered = targets(plan);
+    expect(covered.has("chest")).toBe(true);
+    expect(covered.has("triceps")).toBe(true);
+    for (const leg of ["hamstrings", "hip flexors", "quadriceps", "calves"]) {
+      expect(covered.has(leg)).toBe(false);
+    }
+  });
+
+  it("pads a short plan only with stretches for trained muscles", () => {
+    const plan = buildEveningStretchSession({
+      exercises: [{ name: "Cable Triceps Pushdown", setCount: 3 }],
+      activities: [],
+    });
+    expect(plan.steps.length).toBeGreaterThanOrEqual(1);
+    for (const step of plan.steps) {
+      expect(step.targetMuscles).toContain("triceps");
+    }
   });
 });

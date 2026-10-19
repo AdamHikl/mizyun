@@ -287,6 +287,14 @@ const COMMON_EXERCISE_ALIASES: Readonly<Record<string, string>> = {
   "cable rows": "seated-cable-row",
 };
 
+/** The active entry for an everyday alias such as "lat raise" (exact, no search). */
+export const findCatalogExerciseByAlias = (
+  name: string,
+): CatalogExercise | null => {
+  const id = COMMON_EXERCISE_ALIASES[normalizeSearch(name)];
+  return id === undefined ? null : (activeAlias(id) ?? null);
+};
+
 /**
  * Fresh name searches select only active entries. Saved IDs use getExerciseFromCatalog.
  */

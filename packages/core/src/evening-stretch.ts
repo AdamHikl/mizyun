@@ -1,8 +1,10 @@
 import {
   EXERCISE_CATALOG,
+  findCatalogExerciseByAlias,
   getExerciseFromCatalog,
   type CatalogExercise,
 } from "./exercise-catalog";
+import { LEGACY_EXERCISE_CATALOG } from "./exercise-catalog-legacy";
 import { findCatalogExerciseByExactName } from "./exercise-tracking";
 import type { EquipmentOption } from "./profile";
 
@@ -60,7 +62,7 @@ const DEFAULT_MAX_STEPS = 6;
 const MIN_STEPS = 3;
 const MAX_STEPS = 8;
 const MAX_FOCUS_MUSCLES = 4;
-/** Short plans are padded from the general set so a session lasts a few minutes. */
+/** Short plans get extra stretches for the most-worked muscles. */
 const MIN_SESSION_STEPS = 4;
 
 /**
@@ -96,8 +98,18 @@ const ACTIVITY_LOADS: Readonly<
   },
 };
 
-/** Muscles without a direct stretch, redirected to ones that have one. */
+/**
+ * Muscles without a direct stretch, redirected to ones that have one. The
+ * earlier catalog's broader labels (still on many saved exercises) are
+ * translated to the current vocabulary first.
+ */
 const MUSCLE_REMAP: Readonly<Record<string, readonly string[]>> = {
+  shoulders: ["front shoulders", "side shoulders"],
+  "middle back": ["rear shoulders", "traps"],
+  "upper chest": ["chest"],
+  hips: ["hip flexors"],
+  "thoracic spine": ["lower back"],
+  neck: ["traps"],
   biceps: ["chest", "front shoulders"],
   brachialis: ["forearms"],
   rhomboids: ["rear shoulders", "traps"],
@@ -118,18 +130,37 @@ const STRETCHABLE_MUSCLES: ReadonlySet<string> = new Set(
   STRETCH_CATALOG.flatMap((exercise) => exercise.primaryMuscles),
 );
 
-const resolveExercise = (
-  input: StretchSessionExerciseInput,
+const normalizeExerciseName = (name: string): string =>
+  name.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Earlier catalog names that saved exercises still carry. */
+const LEGACY_BY_NAME: ReadonlyMap<string, CatalogExercise> = new Map(
+  [...LEGACY_EXERCISE_CATALOG]
+    .reverse()
+    .map((exercise) => [normalizeExerciseName(exercise.name), exercise]),
+);
+
+/**
+ * Saved exercise → catalog entry: id, then the exact current or previous
+ * name, then an earlier catalog name, then an everyday alias. No fuzzy
+ * search, so a near-miss never borrows another exercise's muscles.
+ */
+export const resolveStretchSourceExercise = (
+  input: Pick<StretchSessionExerciseInput, "name" | "catalogId">,
 ): CatalogExercise | null => {
   if (typeof input.catalogId === "string" && input.catalogId !== "") {
     const byId = getExerciseFromCatalog(input.catalogId);
     if (byId) return byId;
   }
-  if (typeof input.name === "string") {
-    return findCatalogExerciseByExactName(input.name);
-  }
-  return null;
+  if (typeof input.name !== "string" || input.name.trim() === "") return null;
+  return (
+    findCatalogExerciseByExactName(input.name) ??
+    LEGACY_BY_NAME.get(normalizeExerciseName(input.name)) ??
+    findCatalogExerciseByAlias(input.name)
+  );
 };
+
+const resolveExercise = resolveStretchSourceExercise;
 
 /**
  * Non-finite or negative set counts are treated as 0; every resolved
@@ -151,14 +182,16 @@ const addMappedLoad = (
   loads: Map<string, number>,
   muscle: string,
   amount: number,
+  depth = 0,
 ): void => {
   const targets = MUSCLE_REMAP[muscle];
-  if (!targets) {
+  // Two hops at most: an earlier label, then a muscle without a stretch.
+  if (!targets || depth >= 2) {
     addLoad(loads, muscle, amount);
     return;
   }
   for (const target of targets) {
-    addLoad(loads, target, amount / targets.length);
+    addMappedLoad(loads, target, amount / targets.length, depth + 1);
   }
 };
 
@@ -227,21 +260,23 @@ const totalSecondsOf = (steps: readonly StretchStep[]): number =>
     0,
   );
 
+const generalPlan = (maxSteps: number): StretchSessionPlan => {
+  const steps = generalSteps().slice(0, maxSteps);
+  return {
+    focusMuscles: [],
+    basis: "general",
+    steps,
+    totalSeconds: totalSecondsOf(steps),
+  };
+};
+
 export const buildEveningStretchSession = (
   input: StretchSessionInput,
 ): StretchSessionPlan => {
   const maxSteps = clampMaxSteps(input?.maxSteps);
   const ranked = computeMuscleLoads(input ?? { exercises: [], activities: [] });
 
-  if (ranked.length === 0) {
-    const steps = generalSteps().slice(0, maxSteps);
-    return {
-      focusMuscles: [],
-      basis: "general",
-      steps,
-      totalSeconds: totalSecondsOf(steps),
-    };
-  }
+  if (ranked.length === 0) return generalPlan(maxSteps);
 
   const allowed = new Set<EquipmentOption>(
     input.availableEquipment ?? ["bodyweight"],
@@ -260,10 +295,7 @@ export const buildEveningStretchSession = (
 
   const chosen: CatalogExercise[] = [];
   const chosenIds = new Set<string>();
-  const covered = new Set<string>();
-  for (const muscle of rankedMuscles) {
-    if (chosen.length >= maxSteps) break;
-    if (covered.has(muscle)) continue;
+  const bestFor = (muscle: string): CatalogExercise | null => {
     let best: CatalogExercise | null = null;
     let bestKey: readonly [number, number] | null = null;
     for (const exercise of candidates) {
@@ -279,22 +311,42 @@ export const buildEveningStretchSession = (
         bestKey = key;
       }
     }
+    return best;
+  };
+  const choose = (exercise: CatalogExercise) => {
+    chosen.push(exercise);
+    chosenIds.add(exercise.id);
+  };
+
+  // One stretch per worked muscle, most-worked first.
+  const covered = new Set<string>();
+  for (const muscle of rankedMuscles) {
+    if (chosen.length >= maxSteps) break;
+    if (covered.has(muscle)) continue;
+    const best = bestFor(muscle);
     if (!best) continue;
-    chosen.push(best);
-    chosenIds.add(best.id);
+    choose(best);
     for (const primary of best.primaryMuscles) covered.add(primary);
   }
 
-  const steps = chosen.map(toStep);
+  // A short plan gets a second stretch for the most-worked muscles, never
+  // stretches for muscles that were not trained today.
   const minSteps = Math.min(maxSteps, MIN_SESSION_STEPS);
-  if (steps.length < minSteps) {
-    for (const step of generalSteps()) {
-      if (steps.length >= minSteps) break;
-      if (!steps.some((existing) => existing.exerciseId === step.exerciseId)) {
-        steps.push(step);
-      }
+  const focus = rankedMuscles.slice(0, MAX_FOCUS_MUSCLES);
+  let added = true;
+  while (chosen.length < minSteps && added) {
+    added = false;
+    for (const muscle of focus) {
+      if (chosen.length >= minSteps) break;
+      const extra = bestFor(muscle);
+      if (!extra) continue;
+      choose(extra);
+      added = true;
     }
   }
+
+  const steps = chosen.map(toStep);
+  if (steps.length === 0) return generalPlan(maxSteps);
 
   return {
     focusMuscles: rankedMuscles.slice(0, MAX_FOCUS_MUSCLES),
