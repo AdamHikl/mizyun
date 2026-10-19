@@ -33,7 +33,8 @@ export interface AiConsentModalProps {
  * Explicit disclosure and consent dialog for third-party AI processing.
  * Addresses Finding R5 (REL-AUD-005):
  * - Discloses Google LLC (Google Gemini API) as the processing provider.
- * - Details what data is sent (meal photos, meal descriptions, coaching context).
+ * - Lists each AI feature and the data it sends (Coach, meal drafts and
+ *   illustrations, recipes, Log activity descriptions).
  * - Clarifies data handling (transient processing, not used for public model training).
  * - Enforces adult eligibility requirement (18+).
  * - Apple App Store Guideline compliance (explicit consent before third-party sharing).
@@ -110,9 +111,10 @@ export function AiConsentModal({
             <Card>
               <ThemedText type="headline">1. Third-Party Provider</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                AI features in Mizyun (Coach conversation and photo-based meal
-                drafting) are powered by Google LLC (&ldquo;Google Gemini
-                API&rdquo;).
+                AI features in Mizyun are powered by Google LLC (&ldquo;Google
+                Gemini API&rdquo;): Coach, meal drafts from photos or
+                descriptions, meal illustrations, recipe ideas and the cooking
+                assistant, and filling in Log activity from a description.
               </ThemedText>
             </Card>
 
@@ -121,11 +123,30 @@ export function AiConsentModal({
                 2. Data Shared with Google
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                When you choose to chat with Coach or submit meal photos for
-                nutrition estimation, the text of your questions, confirmed
-                fitness context (workout totals, weight trends, confirmed meals,
-                and active goals), and photo bytes are transmitted to Google
-                Gemini for inference.
+                Data is sent to Google Gemini only for these features:
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Coach: your messages and photos, your recent
+                conversation, saved Coach memories, and confirmed context from
+                your profile and logs (workouts and runs, weight and
+                measurements, meals, goals, and calorie and protein targets).
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Meals: the photos and descriptions you submit for
+                nutrition estimates, your country setting, and the current draft
+                when you ask for changes. Descriptions that name a brand or
+                restaurant may also be looked up with Google Search. A
+                meal&rsquo;s name is sent automatically to create an
+                illustration for meals you save without a photo.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Recipes: ingredient photos, your messages and the
+                ingredients and ideas on screen, your saved diet preferences,
+                and the protein, carbs and fat left for today.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Log activity: the description you type and your
+                phone&rsquo;s current date and time.
               </ThemedText>
             </Card>
 

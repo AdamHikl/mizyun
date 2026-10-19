@@ -892,7 +892,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     destinationId: "account-data",
     label: "AI data consent",
     description:
-      "Manage or revoke third-party AI processing consent for nutrition and coaching",
+      "Manage or revoke third-party AI processing consent for Coach, meals, recipes and Log activity",
     categoryId: "ai-coach",
     categoryLabel: "AI coach",
     breadcrumb: "Account → AI coach",

@@ -21,7 +21,7 @@ Log activity's **Fill in from description** used only the deterministic on-devic
 - Activity names now depend on the model. Similar descriptions may yield different custom names ("Yard work" vs "Yardwork"), which become separate custom activities. The user can edit the name before saving.
 - Each fill by a consenting user uses one of the shared daily AI drafts. When the limit is reached, the parser fills what it can.
 - Users who never gave AI consent keep the parser and are not told that AI could help. A consent prompt here can be added later.
-- The AI consent modal and Settings text still describe AI features as Coach and photo meal drafting; that copy already omitted meal text drafts and recipes. Updating it, and whether that needs a new consent version, is Adam's decision (#300).
+- The AI consent modal and Settings text now list Log activity descriptions with the other AI features (#300, ADR-0024 amendment). Per Adam, the consent version is unchanged, so existing consents stay valid.
 - Gemini keeps its full output-token cap for this call because `gemini-3.8-flash` may spend thinking tokens even at budget 0; the answer itself is small.
 - An inherited limiter mismatch in the meal draft route is tracked in #301; the activity route releases the in-memory slot on a durable denial.
 - Mocked provider tests do not prove that a live provider accepts the request or answers sensibly. Live Dev requests and iPhone acceptance remain open gates.
