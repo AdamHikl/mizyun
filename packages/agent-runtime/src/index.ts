@@ -1,6 +1,10 @@
 import type { Clock, ConversationId, UserId } from "@mizyun/core";
 import { systemClock } from "@mizyun/core";
 import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
+import type {
+  ActivityDraftCandidate,
+  ActivityDraftRequest,
+} from "./activity-draft.js";
 import {
   COACH_APP_GUIDE,
   COACH_APP_KNOWLEDGE_VERSION,
@@ -1097,6 +1101,14 @@ export interface VisionDraftProvider {
    * `VisionProviderError` on any failure.
    */
   refineDraft?(request: RefineFoodDraftRequest): Promise<VisionDraftCandidate>;
+  /**
+   * Draft a Log activity form from a description. Optional; the
+   * route returns 503 when not implemented. The provider MUST throw
+   * `VisionProviderError` on any failure.
+   */
+  generateActivityDraft?(
+    request: ActivityDraftRequest,
+  ): Promise<ActivityDraftCandidate>;
 }
 
 export type VisionProviderFailureKind =
@@ -1147,6 +1159,13 @@ export class DisabledVisionProvider implements VisionDraftProvider {
   }
   async refineDraft(): Promise<VisionDraftCandidate> {
     return this.generateDraft();
+  }
+  async generateActivityDraft(): Promise<ActivityDraftCandidate> {
+    throw new VisionProviderError(
+      "not_configured",
+      "AI activity drafts are not configured on this server.",
+      false,
+    );
   }
 }
 
@@ -1356,3 +1375,4 @@ export * from "./evaluation-corpus.js";
 export type { MealIllustrationProvider } from "./meal-illustration.js";
 
 export * from "./meal-recipe";
+export * from "./activity-draft";

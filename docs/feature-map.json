@@ -243,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278).",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278); its Fill in from description asks AI first for users with AI consent, with the on-device parser as fallback (ADR-0073).",
       "aliases": [
         "workout",
         "exercise",
@@ -271,7 +271,8 @@
         "apps/api/src/modules/bouldering/routes.ts",
         "apps/mobile/src/features/bouldering/index.ts",
         "apps/mobile/src/features/log-activity/index.ts",
-        "apps/mobile/src/features/evening-stretch/index.ts"
+        "apps/mobile/src/features/evening-stretch/index.ts",
+        "apps/api/src/modules/activity-drafts/route.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -293,6 +294,9 @@
         "packages/core/src/running.ts",
         "packages/core/src/run-repository.ts",
         "apps/api/src/modules/bouldering",
+        "apps/api/src/modules/activity-drafts",
+        "packages/agent-runtime/src/activity-draft.ts",
+        "packages/contracts/src/activity-draft.ts",
         "apps/api/src/bouldering-repository.ts",
         "packages/core/src/bouldering.ts",
         "packages/core/src/bouldering-grades.ts",
@@ -446,7 +450,8 @@
         "docs/adr/0065-selected-health-run-imports.md",
         "docs/adr/0066-indoor-bouldering-sessions.md",
         "docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md",
-        "docs/adr/0068-timed-exercise-tracking-and-log-activity.md"
+        "docs/adr/0068-timed-exercise-tracking-and-log-activity.md",
+        "docs/adr/0073-ai-activity-description-drafts.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",

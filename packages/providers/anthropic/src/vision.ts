@@ -10,8 +10,16 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import {
+  ACTIVITY_DRAFT_JSON_SCHEMA,
+  ACTIVITY_DRAFT_MAX_OUTPUT_TOKENS,
+  ACTIVITY_DRAFT_PROMPT_VERSION,
   VisionProviderError,
+  activityDraftSystemPolicy,
+  activityDraftUserPrompt,
+  normalizeActivityDraftOutput,
   screenCoachPhotoAdvice,
+  type ActivityDraftCandidate,
+  type ActivityDraftRequest,
   type VisionDraftCandidate,
   type VisionDraftProvider,
   type VisionDraftRequest,
@@ -950,6 +958,95 @@ export class AnthropicVisionProvider implements VisionDraftProvider {
       "text",
       { systemPolicy: textNutritionSystemPolicy, includeAdvancedNutrition },
     );
+  }
+
+  async generateActivityDraft(
+    request: ActivityDraftRequest,
+  ): Promise<ActivityDraftCandidate> {
+    if (!this.#externalAccess) {
+      throw new VisionProviderError(
+        "external_access_disabled",
+        "External AI activity drafting access is disabled.",
+        false,
+      );
+    }
+    const controls = requestControls({
+      effort: this.#effort,
+      thinking: this.#thinking,
+    });
+    // Only the description and the device's local date/time are sent: the
+    // user and request identifiers stay on the server.
+    const message = await this.#callWithRetry({
+      model: this.#model,
+      // Thinking tokens count against max_tokens, so keep the provider cap.
+      max_tokens: this.#thinking
+        ? this.#maxOutputTokens
+        : Math.min(ACTIVITY_DRAFT_MAX_OUTPUT_TOKENS, this.#maxOutputTokens),
+      system: activityDraftSystemPolicy(),
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: activityDraftUserPrompt(request) }],
+        },
+      ],
+      ...controls,
+      output_config: {
+        ...controls.output_config,
+        format: {
+          type: "json_schema",
+          schema: toAnthropicJsonSchema(ACTIVITY_DRAFT_JSON_SCHEMA),
+        },
+      },
+    });
+
+    if (message.stop_reason === "refusal") {
+      throw new VisionProviderError(
+        "refused",
+        "The activity provider declined this request.",
+        false,
+      );
+    }
+    if (
+      message.stop_reason === "max_tokens" ||
+      message.stop_reason === "model_context_window_exceeded"
+    ) {
+      throw new VisionProviderError(
+        "malformed_response",
+        "The activity provider returned a truncated response.",
+        false,
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(
+        textOf(message)
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```$/, "")
+          .trim(),
+      );
+    } catch {
+      parsed = null;
+    }
+    const output = normalizeActivityDraftOutput(parsed, request);
+    if (output === null) {
+      throw new VisionProviderError(
+        "malformed_response",
+        "The activity provider returned an invalid response.",
+        false,
+      );
+    }
+    return {
+      ...output,
+      provenance: {
+        provider: "anthropic",
+        model:
+          typeof message.model === "string" && message.model.length > 0
+            ? message.model.slice(0, 120)
+            : this.#model,
+        promptVersion: ACTIVITY_DRAFT_PROMPT_VERSION,
+      },
+      tokensUsed: usageOf(message).totalTokens,
+    };
   }
 
   async refineDraft(

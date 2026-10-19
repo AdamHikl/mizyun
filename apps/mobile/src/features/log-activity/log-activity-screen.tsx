@@ -8,6 +8,7 @@ import {
   listTimedActivities,
   resolveActivityName,
   resolvedActivityLabel,
+  type ActivityDescriptionDraft,
   type LocalDate,
 } from "@mizyun/core";
 import type { ApiClient } from "@mizyun/api-client";
@@ -27,7 +28,12 @@ import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { hasRunDraftContent, runDraftStore } from "@/features/log-run";
+import { useAiConsentController } from "@/features/coach/ai-consent-controller";
 import { ActivityDatePicker } from "./activity-date-picker";
+import {
+  draftActivityWithAi,
+  type ActivityAiDraftFailure,
+} from "./activity-ai-draft";
 import {
   saveLoggedActivityWith,
   saveLoggedRunWith,
@@ -58,6 +64,27 @@ type PendingSave =
   | { readonly kind: "run"; readonly plan: LogRunPlan };
 
 type Environment = "outdoor" | "treadmill" | "unspecified";
+
+/** True when a draft would fill at least one field. */
+const hasDraftContent = (draft: ActivityDescriptionDraft): boolean =>
+  draft.activity !== null ||
+  draft.durationSeconds !== null ||
+  draft.distance !== null ||
+  draft.date !== null ||
+  draft.startTime !== null ||
+  draft.endedNow ||
+  draft.environment !== null ||
+  draft.note !== null;
+
+/** Why the on-device parser filled the form instead of AI. */
+const ON_DEVICE_NOTICE: Readonly<Record<ActivityAiDraftFailure, string>> = {
+  limit:
+    "You've reached today's AI drafts limit, so this was filled in on your device.",
+  unavailable:
+    "AI drafting isn't available right now, so this was filled in on your device.",
+  rejected:
+    "AI drafting couldn't use that description, so it was filled in on your device.",
+};
 
 const FIELD_NAMES = {
   activity: "activity",
@@ -96,6 +123,14 @@ export function LogActivityScreen() {
   const [locked, setLocked] = useState(false);
   const [retryable, setRetryable] = useState(true);
   const [unfinishedRun, setUnfinishedRun] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  // AI drafts only for accounts that already gave AI consent; others keep
+  // the on-device parser and are not prompted here.
+  const { consentGranted, confirmedAdult } = useAiConsentController({
+    userId,
+    apiClient,
+  });
+  const aiDrafting = consentGranted && confirmedAdult;
 
   useEffect(() => {
     // A run left unfinished in the run editor stays reachable from here.
@@ -125,8 +160,50 @@ export function LogActivityScreen() {
     (name) => typed.length === 0 || name.toLowerCase().includes(typed),
   );
 
-  const fillFromDescription = () => {
-    const draft = draftActivityFromDescription(description, new Date());
+  const fillFromDescription = async () => {
+    if (busyRef.current) return;
+    let draft: ActivityDescriptionDraft | null = null;
+    let notice: string | null = null;
+    if (aiDrafting && userId) {
+      const fillOwner = userId;
+      const isCurrent = () => owner.current === fillOwner;
+      const scoped: ApiClient = {
+        status: () => apiClient.status(),
+        request: (options) =>
+          apiClient.request({ ...options, expectedUserId: userId, isCurrent }),
+      };
+      busyRef.current = true;
+      setBusy(true);
+      setDrafting(true);
+      setError(null);
+      try {
+        const result = await draftActivityWithAi(
+          scoped,
+          description,
+          new Date(),
+        );
+        if (!isCurrent()) return;
+        if (result.ok && hasDraftContent(result.draft)) draft = result.draft;
+        else if (!result.ok) notice = ON_DEVICE_NOTICE[result.failure];
+      } catch {
+        if (!isCurrent()) return;
+        notice = ON_DEVICE_NOTICE.unavailable;
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+        setDrafting(false);
+      }
+    }
+    applyDraft(
+      draft ?? draftActivityFromDescription(description, new Date()),
+      notice,
+    );
+  };
+
+  const applyDraft = (
+    draft: ActivityDescriptionDraft,
+    notice: string | null,
+  ) => {
     const filled: string[] = [];
     let nextActivity = activity;
     if (draft.activity) {
@@ -186,11 +263,11 @@ export function LogActivityScreen() {
       filled.push(FIELD_NAMES.note);
     }
     setError(null);
-    setDrafted(
+    const result =
       filled.length > 0
         ? `Filled in ${filled.join(", ")}. Check the details, then save.`
-        : "Couldn't find activity details in that description. Fill in the fields below.",
-    );
+        : "Couldn't find activity details in that description. Fill in the fields below.";
+    setDrafted(notice ? `${notice} ${result}` : result);
   };
 
   const buildSave = (): PendingSave | string => {
@@ -362,12 +439,18 @@ export function LogActivityScreen() {
           />
         </FormField>
         <Button
-          label="Fill in from description"
+          label={drafting ? "Filling in…" : "Fill in from description"}
           accessibilityLabel="Fill in from description"
           variant="secondary"
           disabled={disabled || description.trim().length === 0}
-          onPress={fillFromDescription}
+          onPress={() => void fillFromDescription()}
         />
+        {aiDrafting ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Your description is sent to our AI provider to fill in the fields.
+            Nothing is saved until you tap Save.
+          </ThemedText>
+        ) : null}
         {drafted ? <FormStatus tone="neutral">{drafted}</FormStatus> : null}
         <FormField label="Activity">
           <FormTextInput

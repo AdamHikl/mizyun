@@ -7,8 +7,15 @@
  */
 
 import {
+  ACTIVITY_DRAFT_JSON_SCHEMA,
+  ACTIVITY_DRAFT_PROMPT_VERSION,
+  activityDraftSystemPolicy,
+  activityDraftUserPrompt,
+  normalizeActivityDraftOutput,
   VisionProviderError,
   screenCoachPhotoAdvice,
+  type ActivityDraftCandidate,
+  type ActivityDraftRequest,
   type VisionDraftCandidate,
   type VisionDraftProvider,
   type VisionDraftRequest,
@@ -532,6 +539,46 @@ const extractGeminiCandidateText = (raw: unknown): string | null => {
   return texts.length > 0 ? texts.join("\n\n") : null;
 };
 
+const isThinkingCapableModel = (model: string, thinkingBudget: number) =>
+  model.includes("3.8") ||
+  model.includes("3.7") ||
+  model.includes("thinking") ||
+  thinkingBudget > 0;
+
+const GEMINI_REFUSAL_FINISH_REASONS: ReadonlySet<string> = new Set([
+  "SAFETY",
+  "RECITATION",
+  "BLOCKLIST",
+  "PROHIBITED_CONTENT",
+  "SPII",
+]);
+
+const geminiFinishReason = (raw: unknown): string | null => {
+  if (typeof raw !== "object" || raw === null) return null;
+  const candidates = (raw as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates)) return null;
+  const reason = (candidates[0] as { finishReason?: unknown } | undefined)
+    ?.finishReason;
+  return typeof reason === "string" ? reason : null;
+};
+
+/** A blocked prompt or a safety stop; either may omit all content. */
+const isGeminiRefusal = (raw: unknown): boolean => {
+  if (typeof raw !== "object" || raw === null) return false;
+  const feedback = (raw as { promptFeedback?: unknown }).promptFeedback;
+  const blockReason =
+    typeof feedback === "object" && feedback !== null
+      ? (feedback as { blockReason?: unknown }).blockReason
+      : undefined;
+  if (
+    typeof blockReason === "string" &&
+    blockReason !== "BLOCK_REASON_UNSPECIFIED"
+  )
+    return true;
+  const reason = geminiFinishReason(raw);
+  return reason !== null && GEMINI_REFUSAL_FINISH_REASONS.has(reason);
+};
+
 const visionUserPrompt = (hint: string | undefined): string =>
   hint && hint.trim().length > 0
     ? `User's description or question about the photos: "${hint.trim()}".`
@@ -622,6 +669,7 @@ export interface GeminiVisionClient {
         readonly maxOutputTokens?: number;
         readonly responseMimeType?: string;
         readonly responseSchema?: Readonly<Record<string, unknown>>;
+        readonly responseJsonSchema?: Readonly<Record<string, unknown>>;
         readonly thinkingConfig?: {
           readonly thinkingBudget?: number;
         };
@@ -1102,6 +1150,119 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         promptVersion: NUTRITION_DRAFT_REFINE_PROMPT_VERSION,
       },
     );
+  }
+
+  async generateActivityDraft(
+    request: ActivityDraftRequest,
+  ): Promise<ActivityDraftCandidate> {
+    if (!this.#externalAccess) {
+      throw new VisionProviderError(
+        "external_access_disabled",
+        "External AI activity drafting access is disabled.",
+        false,
+      );
+    }
+    const call = (targetModel: string) =>
+      this.#client.generateContent(
+        {
+          model: targetModel,
+          systemInstruction: { parts: [{ text: activityDraftSystemPolicy() }] },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: activityDraftUserPrompt(request) }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0,
+            // Thinking tokens count against maxOutputTokens and 3.8 may
+            // think even at budget 0, so keep the provider's full cap.
+            maxOutputTokens: this.#maxOutputTokens,
+            responseMimeType: "application/json",
+            responseJsonSchema: ACTIVITY_DRAFT_JSON_SCHEMA,
+            ...(isThinkingCapableModel(targetModel, this.#thinkingBudget)
+              ? { thinkingConfig: { thinkingBudget: this.#thinkingBudget } }
+              : {}),
+          },
+        },
+        { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
+      );
+    const callWithRetry = async (targetModel: string): Promise<unknown> => {
+      try {
+        return await call(targetModel);
+      } catch (firstError) {
+        if (!normalizeError(firstError).retryable) throw firstError;
+        await this.#sleep(retryDelayMilliseconds(firstError, this.#random));
+        return call(targetModel);
+      }
+    };
+
+    let raw: unknown;
+    let usedModel = this.#model;
+    try {
+      raw = await callWithRetry(this.#model);
+    } catch (primaryError) {
+      const normalized = normalizeError(primaryError);
+      if (!this.#fallbackModel || !isHighDemandError(primaryError, normalized))
+        throw normalized;
+      try {
+        raw = await callWithRetry(this.#fallbackModel);
+        usedModel = this.#fallbackModel;
+      } catch (fallbackError) {
+        throw normalizeError(fallbackError);
+      }
+    }
+
+    if (isGeminiRefusal(raw)) {
+      throw new VisionProviderError(
+        "refused",
+        "The AI provider declined to draft this activity.",
+        false,
+      );
+    }
+    const malformed = () =>
+      new VisionProviderError(
+        "malformed_response",
+        "The AI provider returned an invalid activity draft.",
+        false,
+      );
+    if (geminiFinishReason(raw) !== "STOP") throw malformed();
+    const text = extractGeminiCandidateText(raw);
+    if (text === null) throw malformed();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(
+        text
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```$/, "")
+          .trim(),
+      );
+    } catch {
+      throw malformed();
+    }
+    const output = normalizeActivityDraftOutput(parsed, request);
+    if (output === null) throw malformed();
+    const record = raw as Record<string, unknown>;
+    const usage = record.usageMetadata as Record<string, unknown> | undefined;
+    const tokensUsed =
+      typeof usage?.totalTokenCount === "number" &&
+      Number.isFinite(usage.totalTokenCount) &&
+      usage.totalTokenCount >= 0
+        ? Math.round(usage.totalTokenCount)
+        : undefined;
+    return {
+      ...output,
+      provenance: {
+        provider: "gemini",
+        model:
+          typeof record.modelVersion === "string" &&
+          record.modelVersion.length > 0
+            ? record.modelVersion.slice(0, 120)
+            : usedModel,
+        promptVersion: ACTIVITY_DRAFT_PROMPT_VERSION,
+      },
+      ...(tokensUsed === undefined ? {} : { tokensUsed }),
+    };
   }
 
   async #generate(

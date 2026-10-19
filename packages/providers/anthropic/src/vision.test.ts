@@ -1,10 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
-import type {
-  RefineFoodDraftRequest,
-  VisionDraftRequest,
+import {
+  ACTIVITY_DRAFT_JSON_SCHEMA,
+  ACTIVITY_DRAFT_MAX_OUTPUT_TOKENS,
+  ACTIVITY_DRAFT_PROMPT_VERSION,
+  activityDraftSystemPolicy,
+  activityDraftUserPrompt,
+  type ActivityDraftRequest,
+  type RefineFoodDraftRequest,
+  type VisionDraftRequest,
 } from "@mizyun/agent-runtime";
-import type { AnthropicMessagesClient } from "./client.js";
+import {
+  toAnthropicJsonSchema,
+  type AnthropicMessagesClient,
+} from "./client.js";
 import {
   AnthropicVisionProvider,
   anthropicVisionOutputJsonSchema,
@@ -380,6 +389,14 @@ describe("Anthropic structured-output schema limits", () => {
       expect(counts.unions).toBeLessThanOrEqual(16);
     },
   );
+  it("keeps the activity draft schema within the limits", () => {
+    const counts = complexity(
+      toAnthropicJsonSchema(ACTIVITY_DRAFT_JSON_SCHEMA),
+    );
+    expect(counts.forbidden).toEqual([]);
+    expect(counts.optional).toBeLessThanOrEqual(24);
+    expect(counts.unions).toBeLessThanOrEqual(16);
+  });
   it("records the worst-case counts", () => {
     expect(
       complexity(
@@ -776,5 +793,152 @@ describe("Anthropic draft refinement", () => {
       }),
     ).rejects.toMatchObject({ kind: "invalid_request" });
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("Anthropic activity drafts", () => {
+  const activityRequest: ActivityDraftRequest = {
+    userId: request.userId,
+    description: "did yardwork for 2 hours this morning",
+    localDate: "2026-10-17",
+    localTime: "11:30",
+    requestId: "activity-request-id",
+  };
+  const activityOutput = {
+    activityName: "Yardwork",
+    durationSeconds: 7200,
+    distance: null,
+    date: "2026-10-17",
+    startTime: null,
+    endedNow: false,
+    environment: "outdoor",
+    note: null,
+  };
+
+  it("sends the shared policy, prompt and schema and returns the candidate", async () => {
+    const { provider, create, params } = makeProvider([
+      jsonMessage(activityOutput),
+    ]);
+    const result = await provider.generateActivityDraft(activityRequest);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0]![1]).toEqual({ timeoutMs: 5_000 });
+    const sent = params(0);
+    expect(sent.model).toBe("claude-haiku-5-5");
+    expect(sent.max_tokens).toBe(ACTIVITY_DRAFT_MAX_OUTPUT_TOKENS);
+    for (const key of ["temperature", "top_p", "top_k", "tools", "fallbacks"])
+      expect(sent).not.toHaveProperty(key);
+    expect(sent.system).toBe(activityDraftSystemPolicy());
+    expect(sent.thinking).toEqual({ type: "disabled" });
+    expect(sent.output_config).toMatchObject({
+      effort: "low",
+      format: {
+        type: "json_schema",
+        schema: toAnthropicJsonSchema(ACTIVITY_DRAFT_JSON_SCHEMA),
+      },
+    });
+    expect(sent.messages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: activityDraftUserPrompt(activityRequest) },
+        ],
+      },
+    ]);
+    // Identifiers stay server-side.
+    expect(JSON.stringify(sent)).not.toContain(request.userId);
+    expect(JSON.stringify(sent)).not.toContain("activity-request-id");
+    expect(result).toEqual({
+      ...activityOutput,
+      provenance: {
+        provider: "anthropic",
+        model: "claude-haiku-5-5",
+        promptVersion: ACTIVITY_DRAFT_PROMPT_VERSION,
+      },
+      tokensUsed: 77,
+    });
+  });
+
+  it("caps output tokens at the provider cap when that is smaller", async () => {
+    const { provider, params } = makeProvider([jsonMessage(activityOutput)], {
+      maxOutputTokens: 150,
+    });
+    await provider.generateActivityDraft(activityRequest);
+    expect(params(0).max_tokens).toBe(150);
+  });
+
+  it("stays disabled when external access is false", async () => {
+    const { provider, create } = makeProvider([], { externalAccess: false });
+    await expect(
+      provider.generateActivityDraft(activityRequest),
+    ).rejects.toMatchObject({
+      kind: "external_access_disabled",
+      retryable: false,
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["non-JSON", message([{ type: "text", text: "Yardwork, 2 hours" }])],
+    ["a JSON array", jsonMessage([activityOutput])],
+    ["empty", message([])],
+    ["truncated", jsonMessage(activityOutput, { stop_reason: "max_tokens" })],
+  ])("rejects %s output as malformed without retry", async (_label, reply) => {
+    const { provider, create } = makeProvider([reply]);
+    await expect(
+      provider.generateActivityDraft(activityRequest),
+    ).rejects.toMatchObject({ kind: "malformed_response", retryable: false });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a refusal stop reason to a refused error", async () => {
+    const { provider, create } = makeProvider([
+      message([], { stop_reason: "refusal" }),
+    ]);
+    await expect(
+      provider.generateActivityDraft(activityRequest),
+    ).rejects.toMatchObject({ kind: "refused", retryable: false });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("normalizes provider errors and retries a 429 once", async () => {
+    const { provider, create, sleep } = makeProvider([
+      statusError(429),
+      jsonMessage(activityOutput),
+    ]);
+    await expect(
+      provider.generateActivityDraft(activityRequest),
+    ).resolves.toMatchObject({ activityName: "Yardwork" });
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+
+    const failing = makeProvider([statusError(401)]);
+    await expect(
+      failing.provider.generateActivityDraft(activityRequest),
+    ).rejects.toMatchObject({ kind: "authentication" });
+  });
+
+  it("turns out-of-bounds fields into null instead of failing", async () => {
+    const { provider } = makeProvider([
+      jsonMessage({
+        ...activityOutput,
+        durationSeconds: 99_999_999,
+        date: "2026-10-18",
+        startTime: "25:99",
+        distance: { value: 5, unit: "furlong" },
+        environment: "pool",
+        note: "x".repeat(300),
+      }),
+    ]);
+    const result = await provider.generateActivityDraft(activityRequest);
+    expect(result).toMatchObject({
+      activityName: "Yardwork",
+      durationSeconds: null,
+      date: null,
+      startTime: null,
+      distance: null,
+      environment: null,
+      note: null,
+      endedNow: false,
+    });
   });
 });

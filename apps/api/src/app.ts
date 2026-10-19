@@ -186,6 +186,7 @@ import { exercisesRoutes } from "./modules/exercises/routes.js";
 import { feedbackRoutes } from "./modules/feedback/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
 import { foodDraftRoutes } from "./modules/food-entries/draft-route.js";
+import { activityDraftRoutes } from "./modules/activity-drafts/route.js";
 import { FoodDraftRateLimiter } from "./modules/food-entries/draft-rate-limit.js";
 import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
@@ -1445,6 +1446,16 @@ export const buildApp = (
     limits: coachLimits,
     resolvePlanTier,
     allowedEmails: aiAllowedEmails,
+  });
+  void app.register(activityDraftRoutes, {
+    prefix: "/v1/activity-drafts",
+    visionProvider,
+    resolveVisionProvider,
+    profileRepository,
+    aiConsentRepository,
+    rateLimiter: draftRateLimiter,
+    limits: coachLimits,
+    resolvePlanTier,
   });
   void app.register(exercisesRoutes, {
     prefix: "/v1/exercises",

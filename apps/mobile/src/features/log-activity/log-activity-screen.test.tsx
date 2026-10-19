@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   userId: "u",
   effects: [] as Array<() => void>,
   runDraft: null as unknown,
+  aiConsent: false,
+  aiDraft: vi.fn(),
 }));
 const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 vi.mock("react", async (original) => ({
@@ -74,6 +76,15 @@ vi.mock("@/features/log-run", () => ({
 vi.mock("./activity-date-picker", () => ({
   ActivityDatePicker: "ActivityDatePicker",
 }));
+vi.mock("@/features/coach/ai-consent-controller", () => ({
+  useAiConsentController: () => ({
+    consentGranted: mocks.aiConsent,
+    confirmedAdult: mocks.aiConsent,
+  }),
+}));
+vi.mock("./activity-ai-draft", () => ({
+  draftActivityWithAi: mocks.aiDraft,
+}));
 vi.mock("./log-activity-data", () => ({
   saveLoggedActivityWith: mocks.save,
   saveLoggedRunWith: mocks.saveRun,
@@ -106,6 +117,7 @@ beforeEach(() => {
   mocks.userId = "u";
   mocks.effects = [];
   mocks.runDraft = null;
+  mocks.aiConsent = false;
   vi.clearAllMocks();
   mocks.save.mockResolvedValue({
     ok: false,
@@ -303,6 +315,184 @@ describe("log activity screen", () => {
     expect(
       String(find(tree, (n) => n.type === "FormStatus")?.props.children),
     ).toContain("Filled in");
+  });
+
+  describe("with AI consent", () => {
+    beforeEach(() => {
+      mocks.aiConsent = true;
+    });
+
+    it("fills any activity from the AI draft", async () => {
+      mocks.aiDraft.mockResolvedValue({
+        ok: true,
+        draft: {
+          activity: { kind: "custom", name: "Yardwork" },
+          durationSeconds: 7200,
+          distance: null,
+          date: { year: 2026, month: 10, day: 18 },
+          startTime: { hour: 9, minute: 0 },
+          endedNow: false,
+          environment: null,
+          note: "Raking leaves",
+        },
+      });
+      let tree = render();
+      byLabel(tree, "Describe it (optional)").props.onChangeText(
+        "did yardwork for 2 hours yesterday from 9am, raking leaves",
+      );
+      tree = render();
+      byLabel(tree, "Fill in from description").props.onPress();
+      tree = render();
+      expect(byLabel(tree, "Fill in from description").props.label).toBe(
+        "Filling in…",
+      );
+      expect(byLabel(tree, "Describe it (optional)").props.editable).toBe(
+        false,
+      );
+      await flush();
+      tree = render();
+      expect(mocks.aiDraft.mock.calls[0]?.[1]).toBe(
+        "did yardwork for 2 hours yesterday from 9am, raking leaves",
+      );
+      expect(byLabel(tree, "Activity").props.value).toBe("Yardwork");
+      expect(byLabel(tree, "Minutes").props.value).toBe("120");
+      expect(byLabel(tree, "Start time (optional)").props.value).toBe("09:00");
+      expect(byLabel(tree, "Notes (optional)").props.value).toBe(
+        "Raking leaves",
+      );
+      expect(byLabel(tree, "Fill in from description").props.label).toBe(
+        "Fill in from description",
+      );
+      const status = String(
+        find(tree, (n) => n.type === "FormStatus")?.props.children,
+      );
+      expect(status).toContain("Filled in activity");
+      expect(status).not.toContain("on your device");
+    });
+
+    it("falls back to the on-device parser and says why", async () => {
+      mocks.aiDraft.mockResolvedValue({ ok: false, failure: "limit" });
+      let tree = render();
+      byLabel(tree, "Describe it (optional)").props.onChangeText(
+        "I swam for 30 minutes",
+      );
+      tree = render();
+      byLabel(tree, "Fill in from description").props.onPress();
+      await flush();
+      tree = render();
+      expect(byLabel(tree, "Activity").props.value).toBe("Swimming");
+      expect(byLabel(tree, "Minutes").props.value).toBe("30");
+      expect(
+        String(find(tree, (n) => n.type === "FormStatus")?.props.children),
+      ).toContain("today's AI drafts limit");
+    });
+  });
+
+  describe("AI draft fallbacks", () => {
+    beforeEach(() => {
+      mocks.aiConsent = true;
+    });
+
+    const fill = async (text: string) => {
+      let tree = render();
+      byLabel(tree, "Describe it (optional)").props.onChangeText(text);
+      tree = render();
+      byLabel(tree, "Fill in from description").props.onPress();
+      await flush();
+      return render();
+    };
+
+    it("tells consenting users their description goes to AI", () => {
+      const tree = render();
+      expect(
+        find(
+          tree,
+          (n) =>
+            n.type === "ThemedText" &&
+            String(n.props.children).includes("sent to our AI provider"),
+        ),
+      ).not.toBeNull();
+    });
+
+    it("uses the on-device parser when the request throws", async () => {
+      mocks.aiDraft.mockRejectedValue(new Error("transport"));
+      const tree = await fill("I swam for 30 minutes");
+      expect(byLabel(tree, "Activity").props.value).toBe("Swimming");
+      expect(
+        String(find(tree, (n) => n.type === "FormStatus")?.props.children),
+      ).toContain("AI drafting isn't available right now");
+      expect(byLabel(tree, "Fill in from description").props.disabled).toBe(
+        false,
+      );
+    });
+
+    it("uses the on-device parser when the AI draft is empty", async () => {
+      mocks.aiDraft.mockResolvedValue({
+        ok: true,
+        draft: {
+          activity: null,
+          durationSeconds: null,
+          distance: null,
+          date: null,
+          startTime: null,
+          endedNow: false,
+          environment: null,
+          note: null,
+        },
+      });
+      const tree = await fill("I swam for 30 minutes");
+      expect(byLabel(tree, "Activity").props.value).toBe("Swimming");
+      expect(byLabel(tree, "Minutes").props.value).toBe("30");
+    });
+
+    it("drops a draft that returns after the account changed", async () => {
+      let resolve: (value: unknown) => void = () => undefined;
+      mocks.aiDraft.mockReturnValue(
+        new Promise((done) => {
+          resolve = done;
+        }),
+      );
+      let tree = render();
+      byLabel(tree, "Describe it (optional)").props.onChangeText(
+        "did yardwork for 2 hours",
+      );
+      tree = render();
+      byLabel(tree, "Fill in from description").props.onPress();
+      mocks.userId = "other";
+      render();
+      resolve({
+        ok: true,
+        draft: {
+          activity: { kind: "custom", name: "Yardwork" },
+          durationSeconds: 7200,
+          distance: null,
+          date: null,
+          startTime: null,
+          endedNow: false,
+          environment: null,
+          note: null,
+        },
+      });
+      await flush();
+      tree = render();
+      expect(byLabel(tree, "Activity").props.value).toBe("");
+      expect(find(tree, (n) => n.type === "FormStatus")).toBeNull();
+      expect(byLabel(tree, "Fill in from description").props.disabled).toBe(
+        false,
+      );
+    });
+  });
+
+  it("uses only the on-device parser without AI consent", () => {
+    let tree = render();
+    byLabel(tree, "Describe it (optional)").props.onChangeText(
+      "I swam for 30 minutes",
+    );
+    tree = render();
+    byLabel(tree, "Fill in from description").props.onPress();
+    tree = render();
+    expect(mocks.aiDraft).not.toHaveBeenCalled();
+    expect(byLabel(tree, "Activity").props.value).toBe("Swimming");
   });
 
   it("says so when a description has nothing usable", () => {
