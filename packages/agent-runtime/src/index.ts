@@ -6,6 +6,11 @@ import type {
   ActivityDraftRequest,
 } from "./activity-draft.js";
 import {
+  STRETCH_REFINE_PROMPT_VERSION,
+  type StretchRefinementCandidate,
+  type StretchRefinementRequest,
+} from "./stretch-refinement.js";
+import {
   COACH_APP_GUIDE,
   COACH_APP_KNOWLEDGE_VERSION,
   isRecurringMealHelp,
@@ -1109,6 +1114,14 @@ export interface VisionDraftProvider {
   generateActivityDraft?(
     request: ActivityDraftRequest,
   ): Promise<ActivityDraftCandidate>;
+  /**
+   * Choose catalog stretches for the evening stretch session (ADR-0076).
+   * Optional; the route returns 503 when not implemented. The provider
+   * MUST throw `VisionProviderError` on any failure.
+   */
+  refineStretchPlan?(
+    request: StretchRefinementRequest,
+  ): Promise<StretchRefinementCandidate>;
 }
 
 export type VisionProviderFailureKind =
@@ -1164,6 +1177,13 @@ export class DisabledVisionProvider implements VisionDraftProvider {
     throw new VisionProviderError(
       "not_configured",
       "AI activity drafts are not configured on this server.",
+      false,
+    );
+  }
+  async refineStretchPlan(): Promise<StretchRefinementCandidate> {
+    throw new VisionProviderError(
+      "not_configured",
+      "AI stretch refinement is not configured on this server.",
       false,
     );
   }
@@ -1368,6 +1388,24 @@ export class StubVisionProvider implements VisionDraftProvider {
       },
     };
   }
+  /** Echoes the deterministic plan; the model is never called. */
+  async refineStretchPlan(
+    request: StretchRefinementRequest,
+  ): Promise<StretchRefinementCandidate> {
+    return {
+      muscleTags: {},
+      focusMuscles: [...request.deterministic.focusMuscles],
+      picks: request.deterministic.stepIds.map((id) => ({
+        id,
+        holdSeconds: 30,
+      })),
+      provenance: {
+        provider: "vision-dev-stub",
+        model: "deterministic-stub",
+        promptVersion: STRETCH_REFINE_PROMPT_VERSION,
+      },
+    };
+  }
 }
 
 export * from "./evaluation-corpus.js";
@@ -1376,3 +1414,4 @@ export type { MealIllustrationProvider } from "./meal-illustration.js";
 
 export * from "./meal-recipe";
 export * from "./activity-draft";
+export * from "./stretch-refinement";

@@ -6,9 +6,11 @@ import { ListGroup, ListRow } from "@/components/ui";
 import {
   EVENING_STRETCH_ROUTE,
   isEveningStretchDoneToday,
+  isoLocalDate,
   loadEveningStretch,
 } from "./evening-stretch-reminder";
 import { eveningStretchRuntime } from "./evening-stretch-runtime";
+import { peekTailoredStretchPlan } from "./stretch-ai-refine";
 import { formatMinutes } from "./stretch-progress";
 import { fetchTodayTraining } from "./today-training-data";
 
@@ -44,7 +46,14 @@ export function EveningStretchHomeCard({
           setSubtitle(null);
           return;
         }
-        const plan = buildEveningStretchSession(training.input);
+        // Today's tailored plan when one is cached; never a network call here.
+        const tailored = await peekTailoredStretchPlan(
+          userId,
+          training.input,
+          isoLocalDate(new Date()),
+        ).catch(() => null);
+        if (!active) return;
+        const plan = tailored ?? buildEveningStretchSession(training.input);
         setSubtitle(
           `${formatStretchFocus(plan)} · about ${formatMinutes(plan.totalSeconds)}`,
         );

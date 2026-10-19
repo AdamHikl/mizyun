@@ -41,6 +41,7 @@ import { InMemoryBoulderingRepository } from "./bouldering-repository.js";
 import { boulderingRoutes } from "./modules/bouldering/routes.js";
 import {
   boulderingEnabled,
+  stretchAiEnabled,
   loadMealPhotosEnabled,
   runHealthImportsEnabled,
 } from "@mizyun/config";
@@ -187,6 +188,7 @@ import { feedbackRoutes } from "./modules/feedback/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
 import { foodDraftRoutes } from "./modules/food-entries/draft-route.js";
 import { activityDraftRoutes } from "./modules/activity-drafts/route.js";
+import { stretchPlanRoutes } from "./modules/stretch-plans/route.js";
 import { FoodDraftRateLimiter } from "./modules/food-entries/draft-rate-limit.js";
 import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
@@ -390,6 +392,8 @@ export interface AppDependencies {
   readonly boulderingRepository?: BoulderingRepository;
   /** Overrides `MIZYUN_BOULDERING_ENABLED` (tests). */
   readonly boulderingEnabled?: boolean;
+  /** Overrides `stretchAiEnabled(process.env)` (tests). */
+  readonly stretchAiEnabled?: boolean;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -1457,6 +1461,20 @@ export const buildApp = (
     limits: coachLimits,
     resolvePlanTier,
   });
+  // Dev-only AI evening stretch refinement (ADR-0076): absent (404) when off.
+  if (dependencies.stretchAiEnabled ?? stretchAiEnabled(process.env)) {
+    void app.register(stretchPlanRoutes, {
+      prefix: "/v1/stretch-plans",
+      visionProvider,
+      resolveVisionProvider,
+      profileRepository,
+      aiConsentRepository,
+      accountRepository,
+      rateLimiter: draftRateLimiter,
+      limits: coachLimits,
+      resolvePlanTier,
+    });
+  }
   void app.register(exercisesRoutes, {
     prefix: "/v1/exercises",
     exerciseRepository,

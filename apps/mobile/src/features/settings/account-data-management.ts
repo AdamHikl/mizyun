@@ -42,6 +42,7 @@ import {
   clearEveningStretch,
   type EveningStretchScheduler,
 } from "../evening-stretch/public-cleanup";
+import { clearTailoredStretchPlan } from "../evening-stretch/public-ai-cleanup";
 import {
   clearWeighInReminders,
   type WeighInReminderScheduler,
@@ -378,6 +379,11 @@ export const clearLocalUserData = async (
     clearEveningStretch(
       userId,
       options.eveningStretchScheduler,
+      options.eveningReminderStore ?? options.reminderStore,
+    ),
+    // Separate entry: a failing reminder cleanup must not keep AI output.
+    clearTailoredStretchPlan(
+      userId,
       options.eveningReminderStore ?? options.reminderStore,
     ),
     clearWeeklyReviewReminder(

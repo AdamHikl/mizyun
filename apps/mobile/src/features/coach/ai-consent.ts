@@ -3,6 +3,7 @@ import {
   notifyRecipeConsentGrant,
   retireIngredientReviews,
 } from "@/features/meal-recipes/public-data";
+import { clearTailoredStretchPlan } from "@/features/evening-stretch/public-ai-cleanup";
 import * as SecureStore from "expo-secure-store";
 import type { ApiClient } from "@mizyun/api-client";
 import {
@@ -278,6 +279,8 @@ export const revokeAiConsent = async (
     await serializeLocalConsent(userId, () =>
       store.deleteItemAsync(consentKey(userId)),
     );
+    // Revoked: forget today's AI-tailored stretch so Home shows Mizyun's picks.
+    await clearTailoredStretchPlan(userId, store);
     return await recipeCleanup;
   } catch {
     return false;

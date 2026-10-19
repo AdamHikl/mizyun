@@ -4,7 +4,7 @@ import {
   type StretchSessionPlan,
 } from "@mizyun/core";
 import { Stack, router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,8 +17,20 @@ import {
   PageGutter,
   Spacing,
 } from "@/constants/theme";
+import { apiClient } from "@/composition/api-client";
+import { isStretchAiEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
-import { markEveningStretchDone } from "./evening-stretch-reminder";
+import { useAiConsentController } from "@/features/coach/ai-consent-controller";
+import {
+  isoLocalDate,
+  markEveningStretchDone,
+} from "./evening-stretch-reminder";
+import { loadTailoredStretchPlan } from "./stretch-ai-refine";
+import {
+  applyTailoredPlan,
+  shouldTailorStretch,
+  type LoadedStretch,
+} from "./stretch-tailoring";
 import {
   advanceProgress,
   formatMinutes,
@@ -29,16 +41,9 @@ import {
   togglePause,
   type StretchProgress,
 } from "./stretch-progress";
-import { fetchTodayTraining } from "./today-training-data";
+import { fetchTodayTraining, type TodayTraining } from "./today-training-data";
 
-type Loaded =
-  | { readonly status: "loading" }
-  | {
-      readonly status: "ready";
-      readonly plan: StretchSessionPlan;
-      /** True when today's training could not be read. */
-      readonly fallback: boolean;
-    };
+type Loaded = LoadedStretch;
 
 const capitalize = (text: string): string =>
   text.length === 0 ? text : text[0]!.toUpperCase() + text.slice(1);
@@ -51,25 +56,68 @@ export function EveningStretchScreen() {
   const [progress, setProgress] = useState<StretchProgress>({
     phase: "overview",
   });
+  const [training, setTraining] = useState<TodayTraining | null>(null);
+  const [tailoring, setTailoring] = useState(false);
+  // A tailored plan may replace the list only before the session starts.
+  const phaseRef = useRef(progress.phase);
+  phaseRef.current = progress.phase;
+  // Only accounts that already gave AI consent are tailored; nobody is prompted.
+  const { consentGranted, confirmedAdult } = useAiConsentController({
+    userId,
+    apiClient,
+  });
+  const tailor = shouldTailorStretch({
+    variantEnabled: isStretchAiEnabled(),
+    consentGranted,
+    confirmedAdult,
+    userId,
+    trained: training?.trained ?? null,
+  });
 
   useEffect(() => {
     let active = true;
     void fetchTodayTraining()
       .catch(() => null)
-      .then((training) => {
+      .then((read) => {
         if (!active) return;
+        setTraining(read);
         setLoaded({
           status: "ready",
           plan: buildEveningStretchSession(
-            training?.input ?? { exercises: [], activities: [] },
+            read?.input ?? { exercises: [], activities: [] },
           ),
-          fallback: training === null,
+          fallback: read === null,
+          tailored: false,
         });
       });
     return () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!tailor || userId === null || training === null) return;
+    let active = true;
+    setTailoring(true);
+    void loadTailoredStretchPlan(
+      userId,
+      training.input,
+      isoLocalDate(new Date()),
+      apiClient,
+    )
+      .catch(() => null)
+      .then((plan) => {
+        if (!active) return;
+        setTailoring(false);
+        setLoaded((current) =>
+          applyTailoredPlan(phaseRef.current, current, plan),
+        );
+      });
+    return () => {
+      active = false;
+      setTailoring(false);
+    };
+  }, [tailor, userId, training]);
 
   const steps = useMemo(
     () => (loaded.status === "ready" ? loaded.plan.steps : []),
@@ -107,6 +155,8 @@ export function EveningStretchScreen() {
               <Overview
                 plan={loaded.plan}
                 fallback={loaded.fallback}
+                tailored={loaded.tailored}
+                tailoring={tailoring}
                 onStart={() => setProgress(startProgress(steps, Date.now()))}
               />
             ) : progress.phase === "holding" ? (
@@ -146,24 +196,44 @@ export function EveningStretchScreen() {
 function Overview({
   plan,
   fallback,
+  tailored,
+  tailoring,
   onStart,
 }: {
   readonly plan: StretchSessionPlan;
   readonly fallback: boolean;
+  readonly tailored: boolean;
+  readonly tailoring: boolean;
   readonly onStart: () => void;
 }) {
   return (
     <>
       <View style={styles.header}>
         <ThemedText type="title3">
-          {plan.basis === "today"
-            ? "Built from today's training"
-            : "Full-body stretch"}
+          {plan.basis === "general"
+            ? "Full-body stretch"
+            : tailored
+              ? "Tailored to today's training"
+              : "Built from today's training"}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {formatStretchFocus(plan)} · {plan.steps.length} stretches · about{" "}
           {formatMinutes(plan.totalSeconds)}
         </ThemedText>
+        {tailored ? (
+          <ThemedText type="footnote" themeColor="textSecondary">
+            AI picked these from Mizyun's stretch library for the exercises you
+            did today.
+          </ThemedText>
+        ) : tailoring ? (
+          <ThemedText
+            type="footnote"
+            themeColor="textSecondary"
+            accessibilityLiveRegion="polite"
+          >
+            Tailoring with AI…
+          </ThemedText>
+        ) : null}
       </View>
       {fallback ? (
         <Notice message="Today's training couldn't be loaded, so this is a general full-body stretch." />

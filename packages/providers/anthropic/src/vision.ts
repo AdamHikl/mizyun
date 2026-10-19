@@ -17,9 +17,17 @@ import {
   activityDraftSystemPolicy,
   activityDraftUserPrompt,
   normalizeActivityDraftOutput,
+  normalizeStretchRefinementOutput,
   screenCoachPhotoAdvice,
+  STRETCH_REFINE_MAX_OUTPUT_TOKENS,
+  STRETCH_REFINE_PROMPT_VERSION,
+  STRETCH_REFINEMENT_JSON_SCHEMA,
+  stretchRefinementSystemPolicy,
+  stretchRefinementUserPrompt,
   type ActivityDraftCandidate,
   type ActivityDraftRequest,
+  type StretchRefinementCandidate,
+  type StretchRefinementRequest,
   type VisionDraftCandidate,
   type VisionDraftProvider,
   type VisionDraftRequest,
@@ -1044,6 +1052,106 @@ export class AnthropicVisionProvider implements VisionDraftProvider {
             ? message.model.slice(0, 120)
             : this.#model,
         promptVersion: ACTIVITY_DRAFT_PROMPT_VERSION,
+      },
+      tokensUsed: usageOf(message).totalTokens,
+    };
+  }
+
+  /**
+   * Choose catalog stretches for the evening stretch session (ADR-0076).
+   * Only exercise names, set counts, activities and the static catalog
+   * options are sent; names are JSON-encoded data. Inputs and outputs are
+   * never logged.
+   */
+  async refineStretchPlan(
+    request: StretchRefinementRequest,
+  ): Promise<StretchRefinementCandidate> {
+    if (!this.#externalAccess) {
+      throw new VisionProviderError(
+        "external_access_disabled",
+        "External AI stretch refinement access is disabled.",
+        false,
+      );
+    }
+    const controls = requestControls({
+      effort: this.#effort,
+      thinking: this.#thinking,
+    });
+    const message = await this.#callWithRetry({
+      model: this.#model,
+      // Thinking tokens count against max_tokens, so keep the provider cap.
+      max_tokens: this.#thinking
+        ? this.#maxOutputTokens
+        : Math.min(
+            // Each echoed custom name needs room for its muscle tags.
+            STRETCH_REFINE_MAX_OUTPUT_TOKENS +
+              40 * request.unresolvedNames.length,
+            this.#maxOutputTokens,
+          ),
+      system: stretchRefinementSystemPolicy(),
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: stretchRefinementUserPrompt(request) },
+          ],
+        },
+      ],
+      ...controls,
+      output_config: {
+        ...controls.output_config,
+        format: {
+          type: "json_schema",
+          schema: toAnthropicJsonSchema(STRETCH_REFINEMENT_JSON_SCHEMA),
+        },
+      },
+    });
+
+    if (message.stop_reason === "refusal") {
+      throw new VisionProviderError(
+        "refused",
+        "The stretch provider declined this request.",
+        false,
+      );
+    }
+    if (
+      message.stop_reason === "max_tokens" ||
+      message.stop_reason === "model_context_window_exceeded"
+    ) {
+      throw new VisionProviderError(
+        "malformed_response",
+        "The stretch provider returned a truncated response.",
+        false,
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(
+        textOf(message)
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```$/, "")
+          .trim(),
+      );
+    } catch {
+      parsed = null;
+    }
+    const output = normalizeStretchRefinementOutput(parsed, request);
+    if (output === null) {
+      throw new VisionProviderError(
+        "malformed_response",
+        "The stretch provider returned an invalid response.",
+        false,
+      );
+    }
+    return {
+      ...output,
+      provenance: {
+        provider: "anthropic",
+        model:
+          typeof message.model === "string" && message.model.length > 0
+            ? message.model.slice(0, 120)
+            : this.#model,
+        promptVersion: STRETCH_REFINE_PROMPT_VERSION,
       },
       tokensUsed: usageOf(message).totalTokens,
     };

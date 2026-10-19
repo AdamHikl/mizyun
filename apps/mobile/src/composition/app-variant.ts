@@ -82,6 +82,14 @@ export function isProgressPhotosEnabled(
 }
 
 /**
+ * Returns true if the AI-tailored evening stretch (ADR-0076) is enabled in
+ * this build. Dev builds only; Production does not register the endpoint.
+ */
+export function isStretchAiEnabled(overrides?: AppVariantOverrides): boolean {
+  return resolveAppVariant(overrides) === "dev";
+}
+
+/**
  * Returns true if indoor bouldering (ADR-0066) is enabled in this build.
  * Dev builds have it on; Production stays off unless the build sets
  * `extra.enableBouldering === true`. An explicit boolean wins either way.

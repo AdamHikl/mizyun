@@ -308,14 +308,18 @@
         "packages/core/src/exercise-catalog-supplement.ts",
         "apps/mobile/src/features/log-activity",
         "apps/mobile/src/features/evening-stretch",
-        "packages/core/src/evening-stretch.ts"
+        "packages/core/src/evening-stretch.ts",
+        "apps/api/src/modules/stretch-plans",
+        "packages/agent-runtime/src/stretch-refinement.ts",
+        "packages/config/src/stretch-ai.ts"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
         "packages/contracts/src/workout-set.ts",
         "packages/contracts/src/exercise.ts",
         "packages/contracts/src/run.ts",
-        "packages/contracts/src/bouldering.ts"
+        "packages/contracts/src/bouldering.ts",
+        "packages/contracts/src/stretch-refinement.ts"
       ],
       "domainPort": [
         "packages/core/src/workout.ts",
@@ -451,7 +455,9 @@
         "docs/adr/0066-indoor-bouldering-sessions.md",
         "docs/BOULDERING_IMPLEMENTATION_PLAN_2026-10-16.md",
         "docs/adr/0068-timed-exercise-tracking-and-log-activity.md",
-        "docs/adr/0073-ai-activity-description-drafts.md"
+        "docs/adr/0073-ai-activity-description-drafts.md",
+        "docs/adr/0072-evening-stretch-reminder.md",
+        "docs/adr/0076-ai-tailored-evening-stretch.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",

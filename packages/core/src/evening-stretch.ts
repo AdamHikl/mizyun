@@ -33,6 +33,12 @@ export interface StretchSessionInput {
   readonly availableEquipment?: readonly EquipmentOption[];
   /** Defaults to 6, clamped to [3, 8]. */
   readonly maxSteps?: number;
+  /**
+   * Muscles for saved names the catalog cannot resolve (custom
+   * exercises), keyed by name as entered. Counted as primary muscles;
+   * names the catalog resolves ignore their tag.
+   */
+  readonly muscleTags?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface StretchStep {
@@ -57,6 +63,12 @@ export interface StretchSessionPlan {
 }
 
 export const STRETCH_HOLD_SECONDS = 30;
+/** Bounds for a refined (AI-chosen) hold, per side. */
+export const STRETCH_MIN_HOLD_SECONDS = 20;
+export const STRETCH_MAX_HOLD_SECONDS = 45;
+/** Bounds for the number of stretches in a refined plan. */
+export const STRETCH_MIN_REFINED_STEPS = 3;
+export const STRETCH_MAX_REFINED_STEPS = 6;
 
 const DEFAULT_MAX_STEPS = 6;
 const MIN_STEPS = 3;
@@ -195,6 +207,57 @@ const addMappedLoad = (
   }
 };
 
+/** Current catalog muscle names; tags outside this list are ignored. */
+export const STRETCH_MUSCLE_VOCABULARY: readonly string[] = [
+  ...new Set(
+    EXERCISE_CATALOG.flatMap((exercise) => [
+      ...exercise.primaryMuscles,
+      ...exercise.secondaryMuscles,
+    ]),
+  ),
+].sort();
+const MUSCLE_VOCABULARY_SET: ReadonlySet<string> = new Set(
+  STRETCH_MUSCLE_VOCABULARY,
+);
+
+const tagsFor = (
+  input: StretchSessionInput,
+  name: string,
+): readonly string[] => {
+  const tags = input.muscleTags;
+  if (!tags || typeof name !== "string") return [];
+  const wanted = normalizeExerciseName(name);
+  for (const [key, muscles] of Object.entries(tags)) {
+    if (normalizeExerciseName(key) !== wanted || !Array.isArray(muscles)) {
+      continue;
+    }
+    return [...new Set(muscles)].filter(
+      (muscle): muscle is string =>
+        typeof muscle === "string" && MUSCLE_VOCABULARY_SET.has(muscle),
+    );
+  }
+  return [];
+};
+
+/** Saved names the catalog cannot resolve, as entered, without duplicates. */
+export const unresolvedStretchExerciseNames = (
+  input: StretchSessionInput,
+): readonly string[] => {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const item of input.exercises ?? []) {
+    if (!item || typeof item.name !== "string" || item.name.trim() === "") {
+      continue;
+    }
+    if (resolveExercise(item)) continue;
+    const key = normalizeExerciseName(item.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(item.name.trim());
+  }
+  return names;
+};
+
 const computeMuscleLoads = (
   input: StretchSessionInput,
 ): readonly (readonly [string, number])[] => {
@@ -202,7 +265,15 @@ const computeMuscleLoads = (
   for (const item of input.exercises ?? []) {
     if (!item) continue;
     const exercise = resolveExercise(item);
-    if (!exercise || isStretch(exercise)) continue;
+    if (!exercise) {
+      // A custom exercise counts only through its muscle tags.
+      const sets = effectiveSets(item.setCount);
+      for (const muscle of tagsFor(input, item.name)) {
+        addMappedLoad(loads, muscle, sets);
+      }
+      continue;
+    }
+    if (isStretch(exercise)) continue;
     const sets = effectiveSets(item.setCount);
     for (const muscle of exercise.primaryMuscles) {
       addMappedLoad(loads, muscle, sets);
@@ -270,6 +341,108 @@ const generalPlan = (maxSteps: number): StretchSessionPlan => {
   };
 };
 
+const allowedStretches = (
+  equipment: readonly EquipmentOption[] | undefined,
+): readonly CatalogExercise[] => {
+  const allowed = new Set<EquipmentOption>(equipment ?? ["bodyweight"]);
+  return STRETCH_CATALOG.filter((exercise) =>
+    exercise.equipment.every((option) => allowed.has(option)),
+  );
+};
+
+export interface StretchOption {
+  readonly id: string;
+  readonly name: string;
+  readonly primaryMuscles: readonly string[];
+  readonly secondaryMuscles: readonly string[];
+  readonly bothSides: boolean;
+  readonly level: CatalogExercise["level"];
+}
+
+/** Every stretch a plan may use with this equipment (bodyweight by default). */
+export const listStretchOptions = (
+  equipment?: readonly EquipmentOption[],
+): readonly StretchOption[] =>
+  allowedStretches(equipment).map((exercise) => ({
+    id: exercise.id,
+    name: exercise.name,
+    primaryMuscles: [...exercise.primaryMuscles],
+    secondaryMuscles: [...exercise.secondaryMuscles],
+    bothSides: toStep(exercise).bothSides,
+    level: exercise.level,
+  }));
+
+export interface StretchChoice {
+  readonly picks: readonly {
+    readonly id: string;
+    readonly holdSeconds: number;
+  }[];
+  readonly focusMuscles?: readonly string[];
+}
+
+/**
+ * Turn a chosen list of stretches (from a model, or echoed back by the
+ * server) into a plan, or null when it breaks any rule: 3–6 distinct
+ * allowed catalog stretches. Holds are rounded and clamped to 20–45 s;
+ * focus muscles outside the stretchable vocabulary are dropped and, when
+ * none remain, the deterministic ranking is used. Instructions always come
+ * from the catalog.
+ */
+export const stretchPlanFromChoice = (
+  input: StretchSessionInput,
+  choice: StretchChoice,
+): StretchSessionPlan | null => {
+  if (!choice || !Array.isArray(choice.picks)) return null;
+  const picks = choice.picks;
+  if (
+    picks.length < STRETCH_MIN_REFINED_STEPS ||
+    picks.length > STRETCH_MAX_REFINED_STEPS
+  ) {
+    return null;
+  }
+  const allowed = new Map(
+    allowedStretches(input?.availableEquipment).map((exercise) => [
+      exercise.id,
+      exercise,
+    ]),
+  );
+  const seen = new Set<string>();
+  const steps: StretchStep[] = [];
+  for (const pick of picks) {
+    if (!pick || typeof pick.id !== "string") return null;
+    const exercise = allowed.get(pick.id);
+    if (!exercise || seen.has(pick.id)) return null;
+    seen.add(pick.id);
+    const hold =
+      typeof pick.holdSeconds === "number" && Number.isFinite(pick.holdSeconds)
+        ? Math.round(pick.holdSeconds)
+        : STRETCH_HOLD_SECONDS;
+    steps.push({
+      ...toStep(exercise),
+      holdSeconds: Math.min(
+        STRETCH_MAX_HOLD_SECONDS,
+        Math.max(STRETCH_MIN_HOLD_SECONDS, hold),
+      ),
+    });
+  }
+  const chosenFocus = [
+    ...new Set(
+      (Array.isArray(choice.focusMuscles) ? choice.focusMuscles : []).filter(
+        (muscle): muscle is string =>
+          typeof muscle === "string" && STRETCHABLE_MUSCLES.has(muscle),
+      ),
+    ),
+  ].slice(0, MAX_FOCUS_MUSCLES);
+  const deterministic = buildEveningStretchSession(input);
+  return {
+    focusMuscles:
+      chosenFocus.length > 0 ? chosenFocus : deterministic.focusMuscles,
+    basis: "today",
+    steps,
+    totalSeconds: totalSecondsOf(steps),
+  };
+};
+
 export const buildEveningStretchSession = (
   input: StretchSessionInput,
 ): StretchSessionPlan => {
@@ -278,12 +451,7 @@ export const buildEveningStretchSession = (
 
   if (ranked.length === 0) return generalPlan(maxSteps);
 
-  const allowed = new Set<EquipmentOption>(
-    input.availableEquipment ?? ["bodyweight"],
-  );
-  const candidates = STRETCH_CATALOG.filter((exercise) =>
-    exercise.equipment.every((option) => allowed.has(option)),
-  );
+  const candidates = allowedStretches(input.availableEquipment);
   const rankedMuscles = ranked.map(([muscle]) => muscle);
   const rankedSet = new Set(rankedMuscles);
   const coverage = (exercise: CatalogExercise): number =>

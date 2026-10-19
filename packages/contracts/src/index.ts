@@ -861,6 +861,7 @@ export * from "./health-export";
 
 export * from "./run";
 export * from "./activity-draft";
+export * from "./stretch-refinement";
 export * from "./bouldering";
 
 export * from "./meal-illustration";

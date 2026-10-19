@@ -52,6 +52,20 @@ describe("ai-consent", () => {
     expect(result.consentedAt).toBeNull();
   });
 
+  it("forgets today's AI-tailored stretch when consent is revoked", async () => {
+    const store = new MemorySecureStore();
+    await saveAiConsent("user-1", true, true, store);
+    await store.setItemAsync("mizyun.evening-stretch-ai.user-1", "{}");
+    await store.setItemAsync("mizyun.evening-stretch-ai.user-2", "{}");
+    expect(await revokeAiConsent("user-1", store)).toBe(true);
+    expect(
+      await store.getItemAsync("mizyun.evening-stretch-ai.user-1"),
+    ).toBeNull();
+    expect(await store.getItemAsync("mizyun.evening-stretch-ai.user-2")).toBe(
+      "{}",
+    );
+  });
+
   it("revokes stored consent", async () => {
     const store = new MemorySecureStore();
     await saveAiConsent("user-1", true, true, store);

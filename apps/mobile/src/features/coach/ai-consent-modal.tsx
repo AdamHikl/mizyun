@@ -18,6 +18,7 @@ import {
   Radius,
   Spacing,
 } from "@/constants/theme";
+import { isStretchAiEnabled } from "@/composition/app-variant";
 import { useTheme } from "@/hooks/use-theme";
 
 export interface AiConsentModalProps {
@@ -48,6 +49,7 @@ export function AiConsentModal({
   onDecline,
 }: AiConsentModalProps) {
   const theme = useTheme();
+  const stretchAi = isStretchAiEnabled();
   const [birthYearInput, setBirthYearInput] = useState("");
 
   const currentYear = new Date().getFullYear();
@@ -114,7 +116,10 @@ export function AiConsentModal({
                 AI features in Mizyun are powered by Google LLC (&ldquo;Google
                 Gemini API&rdquo;): Coach, meal drafts from photos or
                 descriptions, meal illustrations, recipe ideas and the cooking
-                assistant, and filling in Log activity from a description.
+                assistant,{" "}
+                {stretchAi
+                  ? "filling in Log activity from a description, and tailoring the evening stretch to your workout."
+                  : "and filling in Log activity from a description."}
               </ThemedText>
             </Card>
 
@@ -148,6 +153,14 @@ export function AiConsentModal({
                 &bull; Log activity: the description you type and your
                 phone&rsquo;s current date and time.
               </ThemedText>
+              {stretchAi ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  &bull; Evening stretch: the names and set counts of the
+                  exercises you finished today and whether you ran or climbed,
+                  sent automatically when you open the stretch on a training day
+                  (at most twice a day).
+                </ThemedText>
+              ) : null}
             </Card>
 
             <Card>

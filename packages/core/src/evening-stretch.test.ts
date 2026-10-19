@@ -7,6 +7,12 @@ import {
   formatStretchFocus,
   type StretchSessionInput,
   resolveStretchSourceExercise,
+  STRETCH_MAX_HOLD_SECONDS,
+  STRETCH_MIN_HOLD_SECONDS,
+  STRETCH_MUSCLE_VOCABULARY,
+  listStretchOptions,
+  stretchPlanFromChoice,
+  unresolvedStretchExerciseNames,
 } from "./evening-stretch";
 
 const ex = (name: string, setCount: number, catalogId?: string) => ({
@@ -410,5 +416,120 @@ describe("saved exercise names (#298 device report)", () => {
     for (const step of plan.steps) {
       expect(step.targetMuscles).toContain("triceps");
     }
+  });
+});
+
+describe("AI refinement inputs and validation", () => {
+  const options = listStretchOptions();
+  const ids = options.map((option) => option.id);
+
+  it("lists only bodyweight catalog stretches by default", () => {
+    expect(options.length).toBeGreaterThan(20);
+    for (const option of options) {
+      const entry = getExerciseFromCatalog(option.id);
+      expect(entry?.category).toBe("stretching");
+      expect(entry?.equipment).toEqual(["bodyweight"]);
+    }
+  });
+
+  it("names only the exercises the catalog cannot resolve", () => {
+    expect(
+      unresolvedStretchExerciseNames({
+        exercises: [
+          { name: "Chest Dips", setCount: 3 },
+          { name: "Landmine twist  ", setCount: 2 },
+          { name: "landmine TWIST", setCount: 1 },
+        ],
+        activities: [],
+      }),
+    ).toEqual(["Landmine twist"]);
+  });
+
+  it("counts muscle tags for custom exercises only", () => {
+    const custom = buildEveningStretchSession({
+      exercises: [{ name: "Backyard log carry", setCount: 4 }],
+      activities: [],
+      muscleTags: {
+        "backyard LOG carry": ["quadriceps", "glutes", "not-a-muscle"],
+      },
+    });
+    expect(custom.basis).toBe("today");
+    expect(custom.focusMuscles).toEqual(["glutes", "quadriceps"]);
+    // A resolvable name ignores its tag.
+    const resolved = buildEveningStretchSession({
+      exercises: [{ name: "Cable Triceps Pushdown", setCount: 3 }],
+      activities: [],
+      muscleTags: { "Cable Triceps Pushdown": ["calves"] },
+    });
+    expect(resolved.focusMuscles).not.toContain("calves");
+    expect(STRETCH_MUSCLE_VOCABULARY).toContain("quadriceps");
+  });
+
+  const input: StretchSessionInput = {
+    exercises: [{ name: "Chest Dips", setCount: 3 }],
+    activities: [],
+  };
+
+  it("builds a plan from a valid choice with clamped holds", () => {
+    const plan = stretchPlanFromChoice(input, {
+      picks: [
+        { id: ids[0]!, holdSeconds: 5 },
+        { id: ids[1]!, holdSeconds: 90 },
+        { id: ids[2]!, holdSeconds: 33.4 },
+      ],
+      focusMuscles: ["chest", "bogus", "chest", "triceps"],
+    });
+    expect(plan?.steps.map((step) => step.holdSeconds)).toEqual([
+      STRETCH_MIN_HOLD_SECONDS,
+      STRETCH_MAX_HOLD_SECONDS,
+      33,
+    ]);
+    expect(plan?.focusMuscles).toEqual(["chest", "triceps"]);
+    expect(plan?.steps[0]?.instructions).toEqual(
+      getExerciseFromCatalog(ids[0]!)?.instructions,
+    );
+    expect(plan?.totalSeconds).toBe(
+      plan!.steps.reduce(
+        (sum, step) => sum + step.holdSeconds * (step.bothSides ? 2 : 1),
+        0,
+      ),
+    );
+  });
+
+  it("falls back to the deterministic focus when none is valid", () => {
+    const plan = stretchPlanFromChoice(input, {
+      picks: ids.slice(0, 3).map((id) => ({ id, holdSeconds: 30 })),
+      focusMuscles: ["bogus"],
+    });
+    expect(plan?.focusMuscles).toEqual(
+      buildEveningStretchSession(input).focusMuscles,
+    );
+  });
+
+  it.each([
+    ["too few", ids.slice(0, 2)],
+    ["too many", ids.slice(0, 7)],
+    ["duplicates", [ids[0]!, ids[0]!, ids[1]!]],
+    ["unknown id", [ids[0]!, ids[1]!, "made-up-stretch"]],
+    ["not a stretch", [ids[0]!, ids[1]!, "barbell-squat"]],
+    [
+      "equipment not allowed",
+      [ids[0]!, ids[1]!, "exercise-bench-couch-stretch"],
+    ],
+  ])("rejects a choice with %s", (_label, picked) => {
+    expect(
+      stretchPlanFromChoice(input, {
+        picks: picked.map((id) => ({ id, holdSeconds: 30 })),
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects malformed choices", () => {
+    expect(stretchPlanFromChoice(input, { picks: null as never })).toBeNull();
+    expect(
+      stretchPlanFromChoice(input, {
+        picks: [null, null, null] as never,
+      }),
+    ).toBeNull();
   });
 });

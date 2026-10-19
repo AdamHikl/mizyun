@@ -518,6 +518,8 @@ describe("account-data-management", () => {
         }),
       ],
       [`mizyun.evening-stretch.${other}`, "{}"],
+      // Today's AI-tailored plan (ADR-0076) is erased with the account.
+      [`mizyun.evening-stretch-ai.${userId}`, "{}"],
     ]);
     const cancelled: string[] = [];
     await clearLocalUserData(userId, {

@@ -29,6 +29,10 @@ vi.mock("@/constants/theme", () => ({
   Spacing: { one: 4, two: 8, three: 12, four: 16 },
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+const variant = vi.hoisted(() => ({ stretchAi: true }));
+vi.mock("@/composition/app-variant", () => ({
+  isStretchAiEnabled: () => variant.stretchAi,
+}));
 
 import { AiConsentModal } from "./ai-consent-modal";
 
@@ -58,8 +62,28 @@ describe("AI consent disclosure", () => {
       "A meal’s name is sent automatically to create an illustration",
       "your saved diet preferences, and the protein, carbs and fat left for today",
       "Log activity: the description you type and your phone’s current date and time",
+      "Evening stretch: the names and set counts of the exercises you finished today and whether you ran or climbed",
+      "at most twice a day",
     ]) {
       expect(text).toContain(disclosure);
     }
+  });
+
+  it("leaves the evening stretch out where the build does not tailor it", () => {
+    variant.stretchAi = false;
+    const text = textOf(
+      AiConsentModal({
+        visible: true,
+        currentBirthYear: 1990,
+        onConsent: () => undefined,
+        onDecline: () => undefined,
+      }),
+    ).replace(/\s+/g, " ");
+    variant.stretchAi = true;
+    expect(text).not.toContain("Evening stretch");
+    expect(text).not.toContain("evening stretch");
+    expect(text).toContain(
+      "cooking assistant, and filling in Log activity from a description.",
+    );
   });
 });

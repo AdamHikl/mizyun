@@ -12,10 +12,17 @@ import {
   activityDraftSystemPolicy,
   activityDraftUserPrompt,
   normalizeActivityDraftOutput,
+  normalizeStretchRefinementOutput,
+  STRETCH_REFINE_PROMPT_VERSION,
+  STRETCH_REFINEMENT_JSON_SCHEMA,
+  stretchRefinementSystemPolicy,
+  stretchRefinementUserPrompt,
   VisionProviderError,
   screenCoachPhotoAdvice,
   type ActivityDraftCandidate,
   type ActivityDraftRequest,
+  type StretchRefinementCandidate,
+  type StretchRefinementRequest,
   type VisionDraftCandidate,
   type VisionDraftProvider,
   type VisionDraftRequest,
@@ -1162,15 +1169,103 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         false,
       );
     }
-    const call = (targetModel: string) =>
+    const malformed = () =>
+      new VisionProviderError(
+        "malformed_response",
+        "The AI provider returned an invalid activity draft.",
+        false,
+      );
+    const result = await this.#structuredJson({
+      systemText: activityDraftSystemPolicy(),
+      userText: activityDraftUserPrompt(request),
+      schema: ACTIVITY_DRAFT_JSON_SCHEMA,
+      refusedMessage: "The AI provider declined to draft this activity.",
+      malformed,
+    });
+    const output = normalizeActivityDraftOutput(result.parsed, request);
+    if (output === null) throw malformed();
+    return {
+      ...output,
+      provenance: {
+        provider: "gemini",
+        model: result.model,
+        promptVersion: ACTIVITY_DRAFT_PROMPT_VERSION,
+      },
+      ...(result.tokensUsed === undefined
+        ? {}
+        : { tokensUsed: result.tokensUsed }),
+    };
+  }
+
+  /**
+   * Choose catalog stretches for the evening stretch session (ADR-0076).
+   * Only exercise names, set counts, activities and the static catalog
+   * options are sent; names are JSON-encoded data. Inputs and outputs are
+   * never logged.
+   */
+  async refineStretchPlan(
+    request: StretchRefinementRequest,
+  ): Promise<StretchRefinementCandidate> {
+    if (!this.#externalAccess) {
+      throw new VisionProviderError(
+        "external_access_disabled",
+        "External AI stretch refinement access is disabled.",
+        false,
+      );
+    }
+    const malformed = () =>
+      new VisionProviderError(
+        "malformed_response",
+        "The AI provider returned an invalid stretch plan.",
+        false,
+      );
+    const result = await this.#structuredJson({
+      systemText: stretchRefinementSystemPolicy(),
+      userText: stretchRefinementUserPrompt(request),
+      schema: STRETCH_REFINEMENT_JSON_SCHEMA,
+      refusedMessage: "The AI provider declined to choose stretches.",
+      malformed,
+    });
+    const output = normalizeStretchRefinementOutput(result.parsed, request);
+    if (output === null) throw malformed();
+    return {
+      ...output,
+      provenance: {
+        provider: "gemini",
+        model: result.model,
+        promptVersion: STRETCH_REFINE_PROMPT_VERSION,
+      },
+      ...(result.tokensUsed === undefined
+        ? {}
+        : { tokensUsed: result.tokensUsed }),
+    };
+  }
+
+  /**
+   * One text-only structured-output call with a retry for retryable
+   * errors and the fallback model for high demand. Returns the parsed
+   * JSON, the model that answered and the reported token usage.
+   */
+  async #structuredJson(call: {
+    readonly systemText: string;
+    readonly userText: string;
+    readonly schema: Readonly<Record<string, unknown>>;
+    readonly refusedMessage: string;
+    readonly malformed: () => VisionProviderError;
+  }): Promise<{
+    readonly parsed: unknown;
+    readonly model: string;
+    readonly tokensUsed: number | undefined;
+  }> {
+    const send = (targetModel: string) =>
       this.#client.generateContent(
         {
           model: targetModel,
-          systemInstruction: { parts: [{ text: activityDraftSystemPolicy() }] },
+          systemInstruction: { parts: [{ text: call.systemText }] },
           contents: [
             {
               role: "user",
-              parts: [{ text: activityDraftUserPrompt(request) }],
+              parts: [{ text: call.userText }],
             },
           ],
           generationConfig: {
@@ -1179,7 +1274,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
             // think even at budget 0, so keep the provider's full cap.
             maxOutputTokens: this.#maxOutputTokens,
             responseMimeType: "application/json",
-            responseJsonSchema: ACTIVITY_DRAFT_JSON_SCHEMA,
+            responseJsonSchema: call.schema,
             ...(isThinkingCapableModel(targetModel, this.#thinkingBudget)
               ? { thinkingConfig: { thinkingBudget: this.#thinkingBudget } }
               : {}),
@@ -1187,26 +1282,26 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         },
         { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
       );
-    const callWithRetry = async (targetModel: string): Promise<unknown> => {
+    const sendWithRetry = async (targetModel: string): Promise<unknown> => {
       try {
-        return await call(targetModel);
+        return await send(targetModel);
       } catch (firstError) {
         if (!normalizeError(firstError).retryable) throw firstError;
         await this.#sleep(retryDelayMilliseconds(firstError, this.#random));
-        return call(targetModel);
+        return send(targetModel);
       }
     };
 
     let raw: unknown;
     let usedModel = this.#model;
     try {
-      raw = await callWithRetry(this.#model);
+      raw = await sendWithRetry(this.#model);
     } catch (primaryError) {
       const normalized = normalizeError(primaryError);
       if (!this.#fallbackModel || !isHighDemandError(primaryError, normalized))
         throw normalized;
       try {
-        raw = await callWithRetry(this.#fallbackModel);
+        raw = await sendWithRetry(this.#fallbackModel);
         usedModel = this.#fallbackModel;
       } catch (fallbackError) {
         throw normalizeError(fallbackError);
@@ -1214,21 +1309,11 @@ export class GeminiVisionProvider implements VisionDraftProvider {
     }
 
     if (isGeminiRefusal(raw)) {
-      throw new VisionProviderError(
-        "refused",
-        "The AI provider declined to draft this activity.",
-        false,
-      );
+      throw new VisionProviderError("refused", call.refusedMessage, false);
     }
-    const malformed = () =>
-      new VisionProviderError(
-        "malformed_response",
-        "The AI provider returned an invalid activity draft.",
-        false,
-      );
-    if (geminiFinishReason(raw) !== "STOP") throw malformed();
+    if (geminiFinishReason(raw) !== "STOP") throw call.malformed();
     const text = extractGeminiCandidateText(raw);
-    if (text === null) throw malformed();
+    if (text === null) throw call.malformed();
     let parsed: unknown;
     try {
       parsed = JSON.parse(
@@ -1238,10 +1323,8 @@ export class GeminiVisionProvider implements VisionDraftProvider {
           .trim(),
       );
     } catch {
-      throw malformed();
+      throw call.malformed();
     }
-    const output = normalizeActivityDraftOutput(parsed, request);
-    if (output === null) throw malformed();
     const record = raw as Record<string, unknown>;
     const usage = record.usageMetadata as Record<string, unknown> | undefined;
     const tokensUsed =
@@ -1251,17 +1334,13 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         ? Math.round(usage.totalTokenCount)
         : undefined;
     return {
-      ...output,
-      provenance: {
-        provider: "gemini",
-        model:
-          typeof record.modelVersion === "string" &&
-          record.modelVersion.length > 0
-            ? record.modelVersion.slice(0, 120)
-            : usedModel,
-        promptVersion: ACTIVITY_DRAFT_PROMPT_VERSION,
-      },
-      ...(tokensUsed === undefined ? {} : { tokensUsed }),
+      parsed,
+      model:
+        typeof record.modelVersion === "string" &&
+        record.modelVersion.length > 0
+          ? record.modelVersion.slice(0, 120)
+          : usedModel,
+      tokensUsed,
     };
   }
 

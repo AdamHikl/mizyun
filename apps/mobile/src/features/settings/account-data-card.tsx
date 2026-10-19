@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { isStretchAiEnabled } from "@/composition/app-variant";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { Alert, Platform, Share, StyleSheet, View } from "react-native";
 
@@ -153,7 +154,7 @@ export function AccountDataCard({
   const handleRevokeConsent = () => {
     Alert.alert(
       "Revoke AI Consent",
-      "Revoking consent turns off Coach, AI meal drafts and illustrations, and recipe ideas until you consent again. Log activity goes back to filling in descriptions on your device. Your existing logs and workouts will remain untouched.",
+      `Revoking consent turns off Coach, AI meal drafts and illustrations, and recipe ideas until you consent again. Log activity goes back to filling in descriptions on your device${isStretchAiEnabled() ? ", and the evening stretch uses Mizyun's own picks" : ""}. Your existing logs and workouts will remain untouched.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -429,7 +430,7 @@ export function AccountDataCard({
       <Card>
         <ThemedText type="small" themeColor="textSecondary">
           {aiConsentGranted
-            ? "Third-party AI processing (Google Gemini API) is currently enabled for Coach, meal drafts and illustrations, recipe ideas and the cooking assistant, and filling in Log activity from a description. You confirmed adult eligibility (18+)."
+            ? `Third-party AI processing (Google Gemini API) is currently enabled for Coach, meal drafts and illustrations, recipe ideas and the cooking assistant, ${isStretchAiEnabled() ? "filling in Log activity from a description, and tailoring the evening stretch" : "and filling in Log activity from a description"}. You confirmed adult eligibility (18+).`
             : "Third-party AI processing is currently not enabled. You'll be asked for consent the first time you use Coach or AI meal drafts."}
         </ThemedText>
         {aiConsentGranted ? (
