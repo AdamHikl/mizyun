@@ -35,6 +35,11 @@ import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { apiClient } from "@/composition/api-client";
 import { stageRecipeMealDraft } from "@/features/log-meal/public-data";
+import {
+  useAiConsentController,
+  type PendingAiAction,
+} from "@/features/coach/ai-consent-controller";
+import { AiConsentModal } from "@/features/coach/ai-consent-modal";
 import { getDefaultIngredientPhotoAdapter } from "./ingredient-review-composition";
 import { registerIngredientReviewRetirement } from "./ingredient-review-lifecycle";
 import { subscribeRecipeConsentGrant } from "./public-data";
@@ -42,7 +47,7 @@ import { CookingAssistant } from "./cooking-assistant";
 
 /** "What can I cook?": one photo, a few ideas, then a chat to refine them. */
 export function MealRecipesScreen() {
-  const { session } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const owner = session?.user.id ?? null;
   const live = useRef(session);
   live.current = session;
@@ -87,6 +92,19 @@ export function MealRecipesScreen() {
       void assistant?.init();
     }, [assistant]),
   );
+  // Saving consent also bumps `epoch` through the grant subscription; the
+  // resumed action re-checks access when consent was already saved.
+  const executeAiAction = useCallback(
+    async (action: PendingAiAction) => {
+      if (action.kind === "recipe_ideas") await assistant?.init();
+    },
+    [assistant],
+  );
+  const consent = useAiConsentController({
+    userId: owner,
+    apiClient,
+    onExecuteAction: executeAiAction,
+  });
   if (!assistant || !owner)
     return (
       <ThemedView style={styles.fill}>
@@ -94,35 +112,64 @@ export function MealRecipesScreen() {
       </ThemedView>
     );
   return (
-    <CookingAssistantView
-      assistant={assistant}
-      onCook={async (idea, replace) => {
-        const value = (n: number | null) =>
-          n === null ? null : Math.round(n * 10) / 10;
-        const staged = await stageRecipeMealDraft(
-          owner,
-          {
-            name: idea.name.slice(0, 80),
-            caloriesKcal: value(idea.estimatePerServing.caloriesKcal),
-            proteinG: value(idea.estimatePerServing.proteinG),
-            carbohydrateG: value(idea.estimatePerServing.carbohydrateG),
-            fatG: value(idea.estimatePerServing.fatG),
-            assumptions: [
-              "AI estimate for one serving of a recipe idea. Check the amounts before saving.",
-            ],
-          },
-          {
-            replace,
-            isCurrent: () => live.current?.user.id === owner,
-          },
-        );
-        if (staged.status === "ready" || staged.status === "resolved") {
-          router.push("/log-meal" as Href);
-          return "done";
-        }
-        return staged.status === "collision" ? "collision" : "failed";
-      }}
-    />
+    <>
+      <CookingAssistantView
+        assistant={assistant}
+        onReviewConsent={async () => {
+          if (!consent.consentGranted || !consent.confirmedAdult) {
+            await consent.requestAction({ kind: "recipe_ideas" });
+            return;
+          }
+          // Consent is already saved, so the server refused for another
+          // reason (age, birth date, account state); say so instead of
+          // silently re-checking.
+          await assistant.init();
+          if (assistant.getSnapshot().availability === "access_required") {
+            Alert.alert(
+              "Meal ideas aren't available",
+              "AI features need adult eligibility (18+). Check your birth date in Account → Profile & goals → Personal & physical details, then try again.",
+            );
+          }
+        }}
+        onCook={async (idea, replace) => {
+          const value = (n: number | null) =>
+            n === null ? null : Math.round(n * 10) / 10;
+          const staged = await stageRecipeMealDraft(
+            owner,
+            {
+              name: idea.name.slice(0, 80),
+              caloriesKcal: value(idea.estimatePerServing.caloriesKcal),
+              proteinG: value(idea.estimatePerServing.proteinG),
+              carbohydrateG: value(idea.estimatePerServing.carbohydrateG),
+              fatG: value(idea.estimatePerServing.fatG),
+              assumptions: [
+                "AI estimate for one serving of a recipe idea. Check the amounts before saving.",
+              ],
+            },
+            {
+              replace,
+              isCurrent: () => live.current?.user.id === owner,
+            },
+          );
+          if (staged.status === "ready" || staged.status === "resolved") {
+            router.push("/log-meal" as Href);
+            return "done";
+          }
+          return staged.status === "collision" ? "collision" : "failed";
+        }}
+      />
+      <AiConsentModal
+        visible={consent.isModalVisible}
+        isSaving={consent.isSaving}
+        error={consent.error}
+        currentBirthYear={profile?.birthYear ?? null}
+        onConsent={async (birthYear) => {
+          await consent.confirmConsent(birthYear);
+          if (birthYear !== undefined) void refreshProfile();
+        }}
+        onDecline={consent.declineConsent}
+      />
+    </>
   );
 }
 
@@ -131,9 +178,12 @@ export type CookResult = "done" | "collision" | "failed";
 export function CookingAssistantView({
   assistant,
   onCook,
+  onReviewConsent,
 }: {
   assistant: CookingAssistant;
   onCook: (idea: RecipeAssistantIdea, replace: boolean) => Promise<CookResult>;
+  /** Opens the AI consent and age prompt. */
+  onReviewConsent: () => void;
 }) {
   const snapshot = useSyncExternalStore(
     assistant.subscribe,
@@ -273,9 +323,7 @@ export function CookingAssistantView({
                     label="Review AI sharing consent"
                     variant="secondary"
                     size="small"
-                    onPress={() =>
-                      router.push("/account-settings/ai-data-consent" as Href)
-                    }
+                    onPress={onReviewConsent}
                   />
                 </View>
               ) : snapshot.availability !== null &&

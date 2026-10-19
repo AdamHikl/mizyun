@@ -5,7 +5,11 @@ import type {
   CookingAssistantSnapshot,
 } from "./cooking-assistant";
 const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
-const mocks = vi.hoisted(() => ({ push: vi.fn(), alert: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  alert: vi.fn(),
+  reviewConsent: vi.fn(),
+}));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useState: (initial: any) => {
@@ -68,6 +72,12 @@ vi.mock("./ingredient-review-composition", () => ({
   getDefaultIngredientPhotoAdapter: vi.fn(),
 }));
 vi.mock("./public-data", () => ({ subscribeRecipeConsentGrant: vi.fn() }));
+vi.mock("@/features/coach/ai-consent-controller", () => ({
+  useAiConsentController: vi.fn(),
+}));
+vi.mock("@/features/coach/ai-consent-modal", () => ({
+  AiConsentModal: "AiConsentModal",
+}));
 import { CookingAssistantView, type CookResult } from "./screen";
 
 const idea: RecipeAssistantIdea = {
@@ -113,6 +123,7 @@ const render = () => {
   return CookingAssistantView({
     assistant: assistant as unknown as CookingAssistant,
     onCook,
+    onReviewConsent: mocks.reviewConsent,
   });
 };
 const byLabel = (tree: any, label: string) =>
@@ -129,6 +140,8 @@ const text = (tree: any) =>
     .join("");
 beforeEach(() => {
   hooks.slots = [];
+  mocks.reviewConsent.mockClear();
+  mocks.push.mockClear();
   snapshot = base;
   onCook = vi.fn(async () => "done" as CookResult);
   assistant = {
@@ -221,5 +234,7 @@ it("explains missing consent instead of offering AI actions", () => {
   const tree = render();
   expect(byLabel(tree, "Take photo").props.disabled).toBe(true);
   byLabel(tree, "Review AI sharing consent").props.onPress();
-  expect(mocks.push).toHaveBeenCalledWith("/account-settings/ai-data-consent");
+  // The consent prompt opens here; Settings can only revoke (#302).
+  expect(mocks.reviewConsent).toHaveBeenCalledOnce();
+  expect(mocks.push).not.toHaveBeenCalled();
 });

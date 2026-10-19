@@ -26,7 +26,9 @@ export type PendingAiAction =
     }
   | { readonly kind: "meal_text_draft"; readonly text: string }
   | { readonly kind: "meal_photo_draft"; readonly photoUri: string }
-  | { readonly kind: "meal_refine_draft"; readonly instruction: string };
+  | { readonly kind: "meal_refine_draft"; readonly instruction: string }
+  /** Recipe ideas: consent saved, so check access again. */
+  | { readonly kind: "recipe_ideas" };
 
 export interface AiConsentControllerOptions {
   readonly userId: string | null;
