@@ -141,6 +141,7 @@ describe("Evening catch-up reminders", () => {
         requestPermission: vi.fn().mockResolvedValue("denied"),
         scheduleAtDate: vi.fn(),
         cancel: vi.fn(),
+        listScheduled: vi.fn().mockResolvedValue([]),
       };
 
       const result = await applyEveningReminders(
@@ -175,6 +176,7 @@ describe("Evening catch-up reminders", () => {
           cancelledIds.push(id);
           return Promise.resolve();
         }),
+        listScheduled: vi.fn().mockResolvedValue([]),
       };
 
       const now = new Date(2026, 8, 23, 17, 0, 0);
@@ -217,6 +219,7 @@ describe("Evening catch-up reminders", () => {
           .fn()
           .mockImplementation(() => Promise.resolve(`notif-${nextId++}`)),
         cancel: vi.fn().mockResolvedValue(undefined),
+        listScheduled: vi.fn().mockResolvedValue([]),
       };
 
       const now = new Date(2026, 8, 23, 17, 0, 0);
@@ -260,6 +263,7 @@ describe("Evening catch-up reminders", () => {
           cancelledIds.push(id);
           return Promise.resolve();
         }),
+        listScheduled: vi.fn().mockResolvedValue([]),
       };
 
       await applyEveningReminders(
@@ -297,6 +301,7 @@ describe("Evening catch-up reminders", () => {
           cancelledIds.push(id);
           return Promise.resolve();
         }),
+        listScheduled: vi.fn().mockResolvedValue([]),
       };
 
       await applyEveningReminders(
@@ -312,6 +317,147 @@ describe("Evening catch-up reminders", () => {
       expect(loaded.enabled).toBe(false);
       expect(loaded.notificationIds).toHaveLength(0);
       expect(cancelledIds.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("OS schedule integrity", () => {
+    // Models the OS pending-notification queue so leaked requests stay visible.
+    const osScheduler = () => {
+      const pending = new Map<string, Record<string, unknown>>();
+      let nextId = 1;
+      const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+      const scheduler: EveningReminderScheduler = {
+        ensureChannel: async () => undefined,
+        getPermission: async () => "granted",
+        requestPermission: async () => "granted",
+        scheduleAtDate: async (_date, payload) => {
+          await tick();
+          const id = `os-${nextId++}`;
+          pending.set(id, payload.data);
+          return id;
+        },
+        cancel: async (id) => {
+          await tick();
+          pending.delete(id);
+        },
+        listScheduled: async () => {
+          await tick();
+          return [...pending].map(([id, data]) => ({ id, data }));
+        },
+      };
+      const catchUpFor = (owner: string | undefined) =>
+        [...pending.values()].filter(
+          (data) =>
+            data.source === "evening_catch_up_reminder" &&
+            data.userId === owner,
+        );
+      return { pending, scheduler, catchUpFor };
+    };
+    const now = new Date(2026, 8, 23, 17, 0, 0);
+
+    it("keeps one reminder per day when screens reconcile concurrently", async () => {
+      const store = memoryStore();
+      const os = osScheduler();
+      await applyEveningReminders(
+        userId,
+        { enabled: true, hour: 20, minute: 30 },
+        { now },
+        os.scheduler,
+        store,
+      );
+
+      // Dashboard refresh, meal list load and meal save can all land together.
+      await Promise.all([
+        reconcileEveningReminders(userId, { now }, os.scheduler, store),
+        reconcileEveningReminders(userId, { now }, os.scheduler, store),
+        reconcileEveningReminders(userId, { now }, os.scheduler, store),
+      ]);
+
+      const stored = await loadEveningReminders(userId, store);
+      expect(os.pending.size).toBe(7);
+      expect([...os.pending.keys()].sort()).toEqual(
+        [...stored.notificationIds].sort(),
+      );
+    });
+
+    it("sweeps leaked and untracked reminders but keeps other accounts and sources", async () => {
+      const store = memoryStore();
+      const os = osScheduler();
+      const otherUser = "00000000-0000-4000-8000-000000000002";
+      os.pending.set("legacy-1", { source: "evening_catch_up_reminder" });
+      os.pending.set("legacy-2", { source: "evening_catch_up_reminder" });
+      os.pending.set("leaked-own", {
+        source: "evening_catch_up_reminder",
+        userId,
+      });
+      os.pending.set("other-account", {
+        source: "evening_catch_up_reminder",
+        userId: otherUser,
+      });
+      os.pending.set("stretch", { source: "evening_stretch_reminder" });
+      await store.setItemAsync(
+        `mizyun.evening-catchup-reminders.${userId}`,
+        JSON.stringify({
+          enabled: true,
+          hour: 20,
+          minute: 30,
+          notificationIds: [],
+        }),
+      );
+
+      await reconcileEveningReminders(userId, { now }, os.scheduler, store);
+
+      expect(os.catchUpFor(userId)).toHaveLength(7);
+      expect(os.catchUpFor(undefined)).toHaveLength(0);
+      expect(os.pending.has("leaked-own")).toBe(false);
+      expect(os.pending.has("other-account")).toBe(true);
+      expect(os.pending.has("stretch")).toBe(true);
+    });
+
+    it("still schedules when the OS queue cannot be listed", async () => {
+      const store = memoryStore();
+      const os = osScheduler();
+      const scheduler: EveningReminderScheduler = {
+        ...os.scheduler,
+        listScheduled: () => Promise.reject(new Error("unavailable")),
+      };
+
+      const result = await applyEveningReminders(
+        userId,
+        { enabled: true, hour: 20, minute: 30 },
+        { now },
+        scheduler,
+        store,
+      );
+
+      expect(result.ok).toBe(true);
+      expect(os.catchUpFor(userId)).toHaveLength(7);
+    });
+
+    it("sweeps leaked reminders when disabled and on account clear", async () => {
+      const store = memoryStore();
+      const os = osScheduler();
+      os.pending.set("leaked-own", {
+        source: "evening_catch_up_reminder",
+        userId,
+      });
+
+      await reconcileEveningReminders(userId, { now }, os.scheduler, store);
+      expect(os.catchUpFor(userId)).toHaveLength(0);
+
+      await applyEveningReminders(
+        userId,
+        { enabled: true, hour: 20, minute: 30 },
+        { now },
+        os.scheduler,
+        store,
+      );
+      os.pending.set("leaked-again", {
+        source: "evening_catch_up_reminder",
+        userId,
+      });
+      await clearEveningReminders(userId, os.scheduler, store);
+      expect(os.catchUpFor(userId)).toHaveLength(0);
     });
   });
 });

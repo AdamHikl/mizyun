@@ -37,10 +37,54 @@ export interface EveningReminderScheduler {
     },
   ): Promise<string>;
   cancel(id: string): Promise<void>;
+  listScheduled(): Promise<
+    readonly { readonly id: string; readonly data: Record<string, unknown> }[]
+  >;
 }
 
 const keyFor = (userId: string): string =>
   `mizyun.evening-catchup-reminders.${userId}`;
+
+export const EVENING_CATCH_UP_SOURCE = "evening_catch_up_reminder";
+
+// Screens reconcile concurrently; each run reads, schedules and replaces the
+// stored IDs, so overlapping runs would orphan whole rolling schedules.
+const queues = new Map<string, Promise<unknown>>();
+const enqueue = <T>(userId: string, work: () => Promise<T>): Promise<T> => {
+  const next = (queues.get(userId) ?? Promise.resolve())
+    .catch(() => {})
+    .then(work);
+  queues.set(userId, next);
+  void next
+    .finally(() => {
+      if (queues.get(userId) === next) queues.delete(userId);
+    })
+    .catch(() => {});
+  return next;
+};
+
+/**
+ * Cancels this account's pending catch-up requests except `keep`, including
+ * requests leaked by earlier releases and ownerless ones scheduled before
+ * requests carried a `userId`.
+ */
+const sweepUntracked = async (
+  userId: string,
+  keep: readonly string[],
+  scheduler: EveningReminderScheduler,
+): Promise<void> => {
+  const pending = await scheduler.listScheduled().catch(() => []);
+  await Promise.allSettled(
+    pending
+      .filter(
+        (entry) =>
+          !keep.includes(entry.id) &&
+          entry.data.source === EVENING_CATCH_UP_SOURCE &&
+          (entry.data.userId === undefined || entry.data.userId === userId),
+      )
+      .map((entry) => scheduler.cancel(entry.id)),
+  );
+};
 
 export const isEveningReminderSettings = (
   value: unknown,
@@ -137,7 +181,14 @@ const isoLocalDate = (d: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-export const applyEveningReminders = async (
+type ApplyResult =
+  | { readonly ok: true; readonly settings: EveningCatchUpReminderSettings }
+  | {
+      readonly ok: false;
+      readonly reason: "permission_denied" | "unavailable";
+    };
+
+export const applyEveningReminders = (
   userId: string,
   requested: {
     readonly enabled: boolean;
@@ -147,10 +198,22 @@ export const applyEveningReminders = async (
   options: EveningReminderScheduleOptions = {},
   scheduler: EveningReminderScheduler = expoEveningReminderScheduler,
   store: EveningReminderStore = SecureStore,
-): Promise<
-  | { readonly ok: true; readonly settings: EveningCatchUpReminderSettings }
-  | { readonly ok: false; readonly reason: "permission_denied" | "unavailable" }
-> => {
+): Promise<ApplyResult> =>
+  enqueue(userId, () =>
+    applyLocked(userId, requested, options, scheduler, store),
+  );
+
+const applyLocked = async (
+  userId: string,
+  requested: {
+    readonly enabled: boolean;
+    readonly hour: number;
+    readonly minute: number;
+  },
+  options: EveningReminderScheduleOptions,
+  scheduler: EveningReminderScheduler,
+  store: EveningReminderStore,
+): Promise<ApplyResult> => {
   const previous = await loadEveningReminders(userId, store);
   const nextIds: string[] = [];
   const now =
@@ -181,7 +244,8 @@ export const applyEveningReminders = async (
           body: "Anything else to add from today? Add missed meals or review your day.",
           data: {
             url: "/meals",
-            source: "evening_catch_up_reminder",
+            source: EVENING_CATCH_UP_SOURCE,
+            userId,
           },
         });
         nextIds.push(id);
@@ -192,6 +256,7 @@ export const applyEveningReminders = async (
     await Promise.all(
       previous.notificationIds.map((id) => scheduler.cancel(id)),
     );
+    await sweepUntracked(userId, nextIds, scheduler);
 
     const settings: EveningCatchUpReminderSettings = {
       enabled: requested.enabled,
@@ -209,14 +274,23 @@ export const applyEveningReminders = async (
   }
 };
 
-export const reconcileEveningReminders = async (
+export const reconcileEveningReminders = (
   userId: string,
   options: EveningReminderScheduleOptions = {},
   scheduler: EveningReminderScheduler = expoEveningReminderScheduler,
   store: EveningReminderStore = SecureStore,
+): Promise<EveningCatchUpReminderSettings> =>
+  enqueue(userId, () => reconcileLocked(userId, options, scheduler, store));
+
+const reconcileLocked = async (
+  userId: string,
+  options: EveningReminderScheduleOptions,
+  scheduler: EveningReminderScheduler,
+  store: EveningReminderStore,
 ): Promise<EveningCatchUpReminderSettings> => {
   const current = await loadEveningReminders(userId, store);
   if (!current.enabled) {
+    await sweepUntracked(userId, [], scheduler);
     if (current.notificationIds.length > 0) {
       await Promise.allSettled(
         current.notificationIds.map((id) => scheduler.cancel(id)),
@@ -231,7 +305,7 @@ export const reconcileEveningReminders = async (
     return current;
   }
 
-  const result = await applyEveningReminders(
+  const result = await applyLocked(
     userId,
     {
       enabled: true,
@@ -246,16 +320,24 @@ export const reconcileEveningReminders = async (
   return result.ok ? result.settings : current;
 };
 
-export const clearEveningReminders = async (
+export const clearEveningReminders = (
   userId: string,
   scheduler: EveningReminderScheduler = expoEveningReminderScheduler,
   store: EveningReminderStore = SecureStore,
+): Promise<void> =>
+  enqueue(userId, () => clearLocked(userId, scheduler, store));
+
+const clearLocked = async (
+  userId: string,
+  scheduler: EveningReminderScheduler,
+  store: EveningReminderStore,
 ): Promise<void> => {
   try {
     const previous = await loadEveningReminders(userId, store);
     await Promise.allSettled(
       previous.notificationIds.map((id) => scheduler.cancel(id)),
     );
+    await sweepUntracked(userId, [], scheduler);
     if (typeof store.deleteItemAsync === "function") {
       await store.deleteItemAsync(keyFor(userId));
     } else {
@@ -294,4 +376,11 @@ export const expoEveningReminderScheduler: EveningReminderScheduler = {
       },
     }),
   cancel: (id) => Notifications.cancelScheduledNotificationAsync(id),
+  listScheduled: async () =>
+    (await Notifications.getAllScheduledNotificationsAsync()).map(
+      (request) => ({
+        id: request.identifier,
+        data: (request.content.data ?? {}) as Record<string, unknown>,
+      }),
+    ),
 };

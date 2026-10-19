@@ -433,6 +433,7 @@ describe("account-data-management", () => {
       cancel: async (id: string) => {
         eveningCancelled.push(id);
       },
+      listScheduled: async () => [],
     };
 
     await clearLocalUserData(userId, {
