@@ -156,6 +156,98 @@ describe("buildCoachGrounding — remaining calories and macro targets", () => {
     expect(energyData.dailyTargetKcal).toBe(targetKcal);
   });
 
+  // #310: UTC times made Haiku read a 12:30 local lunch as 10:30.
+  it("gives logged meal times in the user's time zone with the offset", async () => {
+    const deps = buildDeps();
+    const stored = await deps.profileRepository.getOrCreate(USER_ID, {
+      now: NOW,
+      accessToken: "token",
+    });
+    await deps.profileRepository.update(
+      USER_ID,
+      { ...stored, timezone: "Europe/Bratislava" },
+      { accessToken: "token" },
+    );
+    await deps.foodEntryRepository.create(
+      USER_ID,
+      {
+        id: "fe-lunch",
+        userId: USER_ID,
+        name: "Chicken burrito bowl",
+        caloriesKcal: 720,
+        proteinG: 48,
+        carbohydrateG: 78,
+        fatG: 22,
+        details: {},
+        source: "manual",
+        confidence: null,
+        confirmedByUser: true,
+        consumedAt: new Date("2026-09-10T10:30:00.000Z"),
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+      { accessToken: "token" },
+    );
+
+    const items = await buildCoachGrounding(deps, USER_ID, "token", NOW);
+    const nutrition = items.find((i) => i.kind === "nutrition")?.data as
+      Record<string, unknown> | undefined;
+    expect(nutrition?.loggedMealsToday).toEqual([
+      expect.objectContaining({
+        name: "Chicken burrito bowl",
+        consumedAt: "2026-09-10T12:30:00+02:00",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["UTC", "2026-12-10T10:30:00.000Z", "2026-12-10T10:30:00+00:00"],
+    // Winter time: Bratislava is UTC+1 after the October change.
+    [
+      "Europe/Bratislava",
+      "2026-12-10T10:30:00.000Z",
+      "2026-12-10T11:30:00+01:00",
+    ],
+  ])("formats meal times in %s", async (timezone, consumedAt, expected) => {
+    const now = new Date("2026-12-10T12:00:00.000Z");
+    const deps = buildDeps();
+    const stored = await deps.profileRepository.getOrCreate(USER_ID, {
+      now,
+      accessToken: "token",
+    });
+    await deps.profileRepository.update(
+      USER_ID,
+      { ...stored, timezone },
+      { accessToken: "token" },
+    );
+    await deps.foodEntryRepository.create(
+      USER_ID,
+      {
+        id: `fe-${timezone}`,
+        userId: USER_ID,
+        name: "Porridge",
+        caloriesKcal: 300,
+        proteinG: 10,
+        carbohydrateG: 50,
+        fatG: 5,
+        details: {},
+        source: "manual",
+        confidence: null,
+        confirmedByUser: true,
+        consumedAt: new Date(consumedAt),
+        createdAt: now,
+        updatedAt: now,
+      },
+      { accessToken: "token" },
+    );
+    const items = await buildCoachGrounding(deps, USER_ID, "token", now);
+    const nutrition = items.find((i) => i.kind === "nutrition")?.data as
+      Record<string, unknown> | undefined;
+    expect(nutrition?.loggedMealsToday).toEqual([
+      expect.objectContaining({ consumedAt: expected }),
+    ]);
+  });
+
   it("handles day with 0 logged food: remaining equals full target", async () => {
     const deps = buildDeps();
 

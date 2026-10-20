@@ -38,6 +38,28 @@ export interface CoachGroundingDependencies {
 
 const dayIso = (date: Date): string => date.toISOString().slice(0, 10);
 
+/**
+ * #310: the model reads times literally, so meal times go out as local wall
+ * time with the UTC offset (2026-09-10T12:30:00+02:00), not as UTC.
+ */
+const localIsoWithOffset = (date: Date, timeZone: string): string => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZoneName: "longOffset",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  const offset = value("timeZoneName").replace(/^GMT/, "") || "+00:00";
+  return `${value("year")}-${value("month")}-${value("day")}T${value("hour")}:${value("minute")}:${value("second")}${offset}`;
+};
+
 export const buildCoachGrounding = async (
   dependencies: CoachGroundingDependencies,
   userId: UserId,
@@ -258,7 +280,7 @@ export const buildCoachGrounding = async (
     proteinG: entry.proteinG,
     carbohydrateG: entry.carbohydrateG,
     fatG: entry.fatG,
-    consumedAt: entry.consumedAt.toISOString(),
+    consumedAt: localIsoWithOffset(entry.consumedAt, profile.timezone),
   }));
 
   const items: AgentGroundingItem[] = [
