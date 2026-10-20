@@ -9,8 +9,11 @@ import {
   ListRow,
   SectionHeader,
 } from "@/components/ui";
-import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
-import { getWeekdayLabel } from "@/components/ui/ios-time-picker-utils";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
+import {
+  formatTime12,
+  getWeekdayLabel,
+} from "@/components/ui/ios-time-picker-utils";
 import { MinTouchTarget, Spacing } from "@/constants/theme";
 import {
   isWeightLoggedToday,
@@ -150,7 +153,7 @@ export function WeighInReminderCard({ userId }: { readonly userId: string }) {
             <>
               <ListGroup>
                 <View style={styles.pickerRow}>
-                  <IosTimePicker
+                  <NativeTimePicker
                     label="Reminder time"
                     hour={settings.hour}
                     minute={settings.minute}

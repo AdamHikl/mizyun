@@ -26,6 +26,10 @@ const hooks = vi.hoisted(() => ({
   // after this file's environment is torn down.
   focusCleanups: [] as (() => void)[],
 }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
+}));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useRef: (current: unknown) => (hooks.slots[hooks.index++] ??= { current }),

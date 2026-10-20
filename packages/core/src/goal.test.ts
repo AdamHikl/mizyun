@@ -42,6 +42,29 @@ describe("ALLOWED_STATUS_TRANSITIONS", () => {
 });
 
 describe("validateGoalCreate", () => {
+  it("accepts a goal with no target date (null or omitted)", () => {
+    const create = {
+      kind: "cut" as const,
+      pace: "steady" as const,
+      target: { weightKg: 80 },
+      startsOn: "2026-01-01",
+    };
+    expect(validateGoalCreate({ ...create, targetDate: null })).toBeNull();
+    expect(validateGoalCreate(create)).toBeNull();
+  });
+
+  it("still rejects a non-null target date before the start date", () => {
+    expect(
+      validateGoalCreate({
+        kind: "cut",
+        pace: "steady",
+        target: { weightKg: 80 },
+        startsOn: "2026-01-01",
+        targetDate: "2025-12-31",
+      }),
+    ).toEqual({ kind: "target_date_before_start" });
+  });
+
   it("accepts a minimal cut goal", () => {
     expect(
       validateGoalCreate({
@@ -210,6 +233,10 @@ describe("validateGoalPatch", () => {
     );
   });
 
+  it("accepts clearing the target date via null as a non-empty patch", () => {
+    expect(validateGoalPatch(baseGoal(), { targetDate: null })).toBeNull();
+  });
+
   it("accepts clearing the review date via null", () => {
     expect(
       validateGoalPatch(baseGoal({ reviewDate: "2026-06-01" }), {
@@ -239,6 +266,33 @@ describe("applyGoalPatch", () => {
     expect(next.startsOn).toBe(stored.startsOn);
     expect(next.createdAt).toEqual(stored.createdAt);
     expect(next.updatedAt).toEqual(new Date("2026-06-01T00:00:00Z"));
+  });
+
+  it("clears the target date when the patch sets it to null", () => {
+    const next = applyGoalPatch(
+      baseGoal({ targetDate: "2026-04-01" }),
+      { targetDate: null },
+      new Date("2026-06-01T00:00:00Z"),
+    );
+    expect(next.targetDate).toBeNull();
+  });
+
+  it("keeps the target date when the patch omits it", () => {
+    const next = applyGoalPatch(
+      baseGoal({ targetDate: "2026-04-01" }),
+      { pace: "aggressive" },
+      new Date("2026-06-01T00:00:00Z"),
+    );
+    expect(next.targetDate).toBe("2026-04-01");
+  });
+
+  it("sets a target date on a goal that had none", () => {
+    const next = applyGoalPatch(
+      baseGoal({ targetDate: null }),
+      { targetDate: "2026-09-01" },
+      new Date("2026-06-01T00:00:00Z"),
+    );
+    expect(next.targetDate).toBe("2026-09-01");
   });
 
   it("clears the review date when the patch sets it to null", () => {

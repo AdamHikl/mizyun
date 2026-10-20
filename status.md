@@ -1,6 +1,6 @@
 # Mizyun status
 
-> Updated 2026-10-19 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-20 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
@@ -24,25 +24,23 @@
 ## Local follow-ups awaiting acceptance
 
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
-- **#307 evening catch-up dupes (Oct19):** per-user queue + pending sweep; reviewed; pushed in f02fbf94, on Dev. Next: iPhone one-per-evening.
-- **#298 evening stretch (Oct18):** 9 PM local reminder on training days (switch/time, default on) → 4–6 stretches from today's muscles; Home row; device-only (ADR0072, no migration). 2 reviews; gatePASS(3259mobile/1195API+15skips). 35e226f4 Dev 17:59Z health200; iPhone installed/launched 17:59Z. Next: Adam device test.
-- **#295/#297 (Oct18):** matching UI → photo+chat assistant (ADR0071, no migration); 2 reviews; 57815004 gatePASS(3186mobile/1195API+15skips), Dev 16:52Z health200, iPhone installed; Free 10k blocks photo turns. Next: Adam device test. #296;#294.
-- **#290 (Oct17):** lock/resume keeps logged sets, no false sign-out; 2 reviews/gatePASS; pushed main. Next: Dev/iPhone lock test; #291.
-- **#288/#299 Log activity:** #288 gatePASS, Dev 47c814e5, iPhone install; Adam next ([evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)). #299 ADR0073: consented AI drafts, parser fallback, shared limit, 2 reviews; gatePASS; Dev, Gemini 4/4 ([evidence](docs/LOG_ACTIVITY_AI_DRAFTS_EVIDENCE_2026-10-19.md)); iPhone 10:23Z; Adam next. #300/#302 fixed, #301. #304 ADR0074 on-device in f02fbf94/Dev; iPhone latency open.
-- **#278 timed workouts (Oct17):** load/reps·duration·duration+distance modes, Swimming/Outdoor Cycling/Hiking, Log activity; no migration (ADR0068). 2 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)
-- **#279 past workouts (WO-08, Oct17):** Log past workout form; resumable save; recent sets by completed_at. 3 reviews resolved; on main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/PAST_WORKOUT_LOGGING_EVIDENCE_2026-10-17.md)
+- **#298 evening stretch (Oct18):** 9 PM training-day reminder → 4–6 stretches; Home row; device-only (ADR0072). 2 reviews; gatePASS(3259mobile/1195API+15skips); Dev 35e226f4 health200; iPhone installed 17:59Z. Next: Adam device test.
+- **#307 evening catch-up dupes (Oct19):** per-user queue + pending sweep; reviewed; pushed f02fbf94, on Dev. Next: iPhone one-per-evening.
+- **#313 Claude multi-photo (Oct20):** flattened `{meals}` schema; reviewed; live 2-photo 7/7; pushed f02fbf94, on Dev.
+- **#314 goal target date (Oct20):** optional/editable in Goal settings; no invented 90-day date; Home warning links there. Contract nullable, no migration; 2 reviews. Old builds reject null. Shared gatePASS(3452mobile/1226API+15skips); committed in the Oct20 merge with #303/#308, Dev. Next: iPhone.
+- **#303 native pickers (Oct19):** shared Native{Date,Time}Picker (SwiftUI/Material3) replaces every custom/typed date-time input (#303); JS-only. Reviewed; gatePASS(3296mobile); committed Oct20 merge, Dev; Android24h+device open.
+- **#308 custom exercises (Oct19):** library create/edit/delete, tracking type, My exercises, rename via previousNames; API PUT/DELETE 409 when sets exist (ADR0075). 2 reviews resolved; shared-tree gatePASS(3439mobile/1221API+15skips); committed Oct20 merge, Dev. Next: iPhone. #311/#312.
+- **#295/#297 (Oct18):** photo+chat assistant (ADR0071); 2 reviews; 57815004 gatePASS(3186mobile/1195API+15skips), Dev health200, iPhone installed; Free 10k blocks photo turns. Next: Adam device test. #296;#294.
+- **#290 (Oct17):** lock/resume keeps sets, no false sign-out; 2 reviews/gatePASS; on main. Next: Dev/iPhone lock test; #291.
+- **#288/#299/#304 Log activity:** #288 gatePASS, Dev 47c814e5 ([evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)). #299 ADR0073 Gemini drafts; gatePASS; Dev 4/4 ([evidence](docs/LOG_ACTIVITY_AI_DRAFTS_EVIDENCE_2026-10-19.md)); iPhone 10:23Z. #300/#302 fixed, #301. #304 ADR0074 on-device, 2 reviews, pushed 8810c07f/Dev. Next: Adam iPhone; #304 latency+gate; #305/#306.
+- **#278 timed workouts (Oct17):** load/reps·duration·distance modes, Log activity (ADR0068). 2 reviews resolved; main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)
+- **#279 past workouts (WO-08, Oct17):** form; resumable save; sets by completed_at. 3 reviews resolved; main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/PAST_WORKOUT_LOGGING_EVIDENCE_2026-10-17.md)
 - **#276 bouldering:** BLD-00–06 source 641549ed; gate/db:verify/3 reviews PASS; Dev 45f1ccfe. Next device. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). **Share sheet:** device check open.
 - **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok; gatePASS. Dev deployed; iPhone Dev check next. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
 - **Community audit (Oct15):** 8b9fc0d5; review/gatePASS; Dev/device open. #265 needs Adam. [Evidence](docs/COMMUNITY_AUDIT_FIXES_2026-10-15.md)
 - **#253–#257:** e2ee8b3a habit automation; reviews/gatePASS; Dev1642d9dd; ship app before Prod (old builds hide weekly). [Evidence](docs/HABIT_AUTOMATION_EVIDENCE_2026-10-15.md)
-- **#244 UI:** 075a7647; Adam OK iPhone. Open: VoiceOver/Android/populated-edge.
-- **#239:** gatePASS; Dev installed; native next. [Proof](docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md).
 - **#238 meals:** review/gatePASS; Dev delivered; iOS sim deferred by Adam; native/Prod open. [Evidence](docs/COMMUNITY_MEAL_SHARING_EVIDENCE_2026-10-12.md).
-- **#237:** gatePASS; native deferred. [Proof](docs/MEAL_COPY_RETAINED_PHOTO_EVIDENCE_2026-10-12.md)
-- **#234/#235:** Dev; build/gate/API36 rotation PASS; RN/older/device/Play open. [Evidence](docs/ANDROID_WINDOW_DEV_EVIDENCE_2026-10-11.md).
-- **#182 (Oct14):** Coach history on token rotation;0ee20191 gatePASS; device next. [Evidence](docs/FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md#oct14).
-- **#232/INT-07:** Watch/Wear gatePASS; physical deferred; Health/privacy/Prod open. [Evidence](docs/WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md).
-- **#230/#233 visuals:**4fa20a8 Dev; Pro display/save locked; gate/120SQL+6races/reviewPASS. iPhone update pending; native/provider/release open. [Evidence](docs/PRO_MEAL_VISUALS_EVIDENCE_2026-10-09.md).
+- **#244/#239/#237/#234/#235/#182/#232/#230/#233 (Oct9–14):** native/device/provider/release exits open. [Moved entries](docs/archive/status/STATUS_OCT9_14_FOLLOWUPS_2026-10-19.md)
 - **#208 (Oct9):** iOS selection;110tests/gatePASS; [evidence/gate](docs/COACH_TEXT_SELECTION_HANDLES_EVIDENCE_2026-10-09.md). Next: installed partial-copy/scroll/keyboard/themes/large-text/VoiceOver; per-block scope, native exits open.
 - **#139/#168/#169 closed; native/device exits open:** [archived detail](docs/archive/status/STATUS_CLOSED_RETAINED_EXITS_2026-10-17.md).
 - **#218/#225/#217 meal photos:** Dev; native/provider/AX exits open; Prod disabled. [Moved entries](docs/archive/status/STATUS_MEAL_PHOTO_PACKAGES_2026-10-18.md)
@@ -58,7 +56,6 @@
 - **#178/#179:** #178 closed per Adam (Oct8); device/#29 live checks unrun; #179 skip defect/scans retained. [AI](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md). **#227 Home closed per Adam (Oct8):** refs/cards/bars gatePASS; native checks unrun. [Home](docs/HOME_NUTRIENT_LABEL_REFERENCES_2026-10-08.md).
 - **#170/#171–176:** [plans](docs/PROACTIVE_COACH_PLAN_2026-10-02.md); PC-01 first, no rollout. **#241:** Dev recipesON; UI fix in main283bf05; rebuild/native next. [UI/REC06](docs/RECIPE_UI_EVIDENCE_2026-10-14.md); live/qualified open. Oct15 [fixes](docs/MEAL_PLANNING_RECIPES_AUDIT_EVIDENCE_2026-10-15.md) 3513d0d8 gatePASS; Dev/device open.
 - **#198/#215/#219 Health** — Dev preview/selected exports; isolated full gatePASS. [Evidence](docs/HEALTH_EXPORT_EVIDENCE_2026-10-06.md). Native/device/privacy gates open; Production disabled. Next: both-phone write/read-back; INT-03 separate.
-- **#195/#199 CI** — Community lint repair delivered; Linux43 fixtures/quality/navigation CI PASS at9b0c41a; #199 closed. Hosted DB workflow #23 separate. [Delivery][handoffs]
 
 ## Community and release gates retained
 

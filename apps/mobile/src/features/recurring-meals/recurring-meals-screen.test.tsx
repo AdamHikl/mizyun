@@ -90,6 +90,10 @@ vi.mock("expo-router", () => ({
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
+}));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/constants/theme", () => ({ MaxContentWidth: 600, Spacing: {} }));
@@ -138,6 +142,13 @@ function find(node: any, label: string): any {
   return node.props?.accessibilityLabel === label
     ? node
     : find(node.props?.children, label);
+}
+function timePicker(node: any): any {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) return node.map(timePicker).find(Boolean) ?? null;
+  return node.type === "NativeTimePicker"
+    ? node
+    : timePicker(node.props?.children);
 }
 async function settle() {
   for (let i = 0; i < 8; i++) await Promise.resolve();
@@ -203,9 +214,9 @@ describe("recurring meals screen boundaries", () => {
     find(tree, "Save schedule").props.onPress();
     await settle();
     tree = render();
-    expect(find(tree, "Scheduled time").props.editable).toBe(false);
+    expect(timePicker(tree).props.disabled).toBe(true);
     expect(find(tree, "Sunday").props.disabled).toBe(true);
-    find(tree, "Scheduled time").props.onChangeText("12:00");
+    timePicker(tree).props.onChange(12, 0);
     tree = render();
     find(tree, "Retry save").props.onPress();
     await settle();
@@ -269,7 +280,7 @@ describe("recurring meals screen boundaries", () => {
     tree = render();
     find(tree, "Edit Oats").props.onPress();
     tree = render();
-    find(tree, "Scheduled time").props.onChangeText("11:00");
+    timePicker(tree).props.onChange(11, 0);
     tree = render();
     find(tree, "Save schedule").props.onPress();
     await settle();
@@ -327,7 +338,11 @@ it("restores an unresolved schedule after screen restart with frozen original se
   hooks.focus!();
   await settle();
   const tree = render();
-  expect(find(tree, "Scheduled time").props.value).toBe("10:00");
+  expect(timePicker(tree).props).toMatchObject({
+    label: "Time",
+    hour: 10,
+    minute: 0,
+  });
   expect(find(tree, "Schedule time zone").props.value).toBe("America/New_York");
   expect(find(tree, "Monday").props.disabled).toBe(true);
   find(tree, "Retry save").props.onPress();
@@ -382,9 +397,9 @@ it.each([422, 409])(
     find(render(), "Save schedule").props.onPress();
     await settle();
     let tree = render();
-    expect(find(tree, "Scheduled time").props.editable).toBe(true);
+    expect(timePicker(tree).props.disabled).toBe(false);
     expect(mocks.reset).toHaveBeenCalledTimes(1);
-    find(tree, "Scheduled time").props.onChangeText("11:00");
+    timePicker(tree).props.onChange(11, 0);
     tree = render();
     find(tree, "Save schedule").props.onPress();
     await settle();
@@ -468,7 +483,7 @@ it("does not close a new source editor when an older source save resolves for th
   await settle();
   resolve({ ok: true });
   await settle();
-  expect(find(render(), "Scheduled time").props.value).toBe("19:00");
+  expect(timePicker(render()).props).toMatchObject({ hour: 19, minute: 0 });
   expect(mocks.clear).not.toHaveBeenCalled();
 });
 

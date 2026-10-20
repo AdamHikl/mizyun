@@ -433,7 +433,7 @@ export const buildGetActiveGoalTool = (
 ): AgentTool<Record<string, never>> => ({
   name: "get_active_goal",
   description:
-    "Return the user's current active goal as aggregate fields (kind, pace, target, target_date). Returns null fields when no goal is active.",
+    "Return the user's current active goal as aggregate fields (kind, pace, target, target_date). target_date is null when the user chose no target date. Returns null fields when no goal is active.",
   parameters: {
     type: "object",
     additionalProperties: false,

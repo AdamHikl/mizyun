@@ -15,8 +15,6 @@ import { ThemedText } from "@/components/themed-text";
 import {
   Button,
   Card,
-  FormField,
-  FormTextInput,
   Icon,
   IconButton,
   ListGroup,
@@ -24,6 +22,12 @@ import {
   Notice,
   SectionHeader,
 } from "@/components/ui";
+import { NativeDatePicker } from "@/components/ui/native-date-time-picker";
+import {
+  fromDateInputValue,
+  toDateInputValue,
+  todayLocalDate,
+} from "@/components/ui/native-date-time-values";
 import { PageGutter, Spacing } from "@/constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SharedMealDetails } from "./shared-meal-details";
@@ -549,22 +553,23 @@ export function ShareMealModal({
                   </ThemedText>
                 </Card>
 
-                <FormField label="Selected calendar day">
-                  <FormTextInput
-                    value={preview?.sharedDay ?? ""}
-                    accessibilityLabel="Shared calendar day YYYY-MM-DD"
-                    placeholder="YYYY-MM-DD"
-                    editable={!submitting}
-                    onChangeText={(sharedDay) => {
-                      if (!selectionIsCurrent() || inFlight.current || !preview)
-                        return;
-                      publicationOperation.current = null;
-                      setPreview((current) =>
-                        current ? { ...current, sharedDay } : current,
-                      );
-                    }}
-                  />
-                </FormField>
+                <NativeDatePicker
+                  label="Selected calendar day"
+                  value={
+                    fromDateInputValue(preview?.sharedDay ?? "") ??
+                    todayLocalDate()
+                  }
+                  disabled={submitting}
+                  onChange={(day) => {
+                    if (!selectionIsCurrent() || inFlight.current || !preview)
+                      return;
+                    const sharedDay = toDateInputValue(day);
+                    publicationOperation.current = null;
+                    setPreview((current) =>
+                      current ? { ...current, sharedDay } : current,
+                    );
+                  }}
+                />
 
                 <ListGroup>
                   <ListRow

@@ -396,8 +396,11 @@ export type GoalTarget = z.infer<typeof goalTargetSchema>;
 /**
  * Full stored goal. `startsOn` and `targetDate` are dates in the user's
  * local timezone semantically, but stored as ISO `YYYY-MM-DD` UTC
- * dates; the energy engine derives a calendar from them. `reviewDate`
- * is optional and triggers a UI prompt at the start of that day.
+ * dates; the energy engine derives a calendar from them. `targetDate`
+ * is `null` when the user has not chosen one: the projection then
+ * reports no realism verdict, and the date never sizes the calorie
+ * deficit. `reviewDate` is optional and triggers a UI prompt at the
+ * start of that day.
  */
 export const goalSchema = z
   .object({
@@ -408,17 +411,20 @@ export const goalSchema = z
     pace: goalPaceSchema,
     target: goalTargetSchema,
     startsOn: isoDateSchema,
-    targetDate: isoDateSchema,
+    targetDate: isoDateSchema.nullable(),
     reviewDate: isoDateSchema.optional(),
     /** Accepted weekly calorie-review calibration, kcal/day (ENG-08). */
     calorieCalibrationKcal: z.number().int().gte(-1000).lte(1000).optional(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
   })
-  .refine((goal) => goal.targetDate >= goal.startsOn, {
-    message: "targetDate must be on or after startsOn",
-    path: ["targetDate"],
-  })
+  .refine(
+    (goal) => goal.targetDate === null || goal.targetDate >= goal.startsOn,
+    {
+      message: "targetDate must be on or after startsOn",
+      path: ["targetDate"],
+    },
+  )
   .refine(
     (goal) => goal.reviewDate === undefined || goal.reviewDate >= goal.startsOn,
     {
@@ -451,14 +457,21 @@ export const goalCreateSchema = z
     pace: goalPaceSchema,
     target: goalTargetSchema,
     startsOn: isoDateSchema,
-    targetDate: isoDateSchema,
+    /** Omitted or `null` means the user chose no target date. */
+    targetDate: isoDateSchema.nullable().optional(),
     reviewDate: isoDateSchema.optional(),
   })
   .strict()
-  .refine((create) => create.targetDate >= create.startsOn, {
-    message: "targetDate must be on or after startsOn",
-    path: ["targetDate"],
-  })
+  .refine(
+    (create) =>
+      create.targetDate === undefined ||
+      create.targetDate === null ||
+      create.targetDate >= create.startsOn,
+    {
+      message: "targetDate must be on or after startsOn",
+      path: ["targetDate"],
+    },
+  )
   .refine(
     (create) =>
       create.reviewDate === undefined || create.reviewDate >= create.startsOn,
@@ -477,13 +490,15 @@ export type GoalCreate = z.infer<typeof goalCreateSchema>;
  *   - draft → active (the user accepts the goal)
  *   - draft → archived
  * Any other transition is rejected at the route layer.
+ * `targetDate` and `reviewDate` accept `null` to clear the stored date;
+ * an omitted field leaves the stored value alone.
  */
 export const goalPatchSchema = z
   .object({
     status: goalStatusSchema.optional(),
     pace: goalPaceSchema.optional(),
     target: goalTargetSchema.optional(),
-    targetDate: isoDateSchema.optional(),
+    targetDate: isoDateSchema.nullable().optional(),
     reviewDate: isoDateSchema.nullable().optional(),
   })
   .strict()

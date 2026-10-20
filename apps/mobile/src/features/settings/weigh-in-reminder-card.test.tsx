@@ -52,8 +52,13 @@ vi.mock("@/components/ui", () => ({
   ListRow: "ListRow",
   SectionHeader: "SectionHeader",
 }));
-vi.mock("@/components/ui/ios-time-picker", () => ({
-  IosTimePicker: "IosTimePicker",
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeTimePicker: "NativeTimePicker",
+}));
+vi.mock("@/components/ui/ios-time-picker-utils", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/components/ui/ios-time-picker-utils")
+  >()),
   formatTime12: (h: number, m: number) => `${h}:${String(m).padStart(2, "0")}`,
 }));
 vi.mock("@/constants/theme", () => ({ MinTouchTarget: 44, Spacing: {} }));
@@ -126,7 +131,7 @@ describe("weigh-in reminder card", () => {
   it("is off by default and shows no time or days until enabled", async () => {
     const tree = await open();
     expect(byLabel(tree, "Weigh-in reminder").props.value).toBe(false);
-    expect(findAll(tree, (n) => n.type === "IosTimePicker")).toHaveLength(0);
+    expect(findAll(tree, (n) => n.type === "NativeTimePicker")).toHaveLength(0);
     expect(findAll(tree, (n) => n.type === "Chip")).toHaveLength(0);
     expect(mocks.apply).not.toHaveBeenCalled();
   });

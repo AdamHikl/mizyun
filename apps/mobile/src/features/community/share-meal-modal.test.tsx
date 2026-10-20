@@ -95,6 +95,10 @@ vi.mock("@/components/ui", () => ({
   Notice: "Notice",
   SectionHeader: "SectionHeader",
 }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
+}));
 vi.mock("@/constants/theme", () => ({
   PageGutter: 20,
   Spacing: { one: 4, two: 8, three: 16, four: 24, five: 32 },
@@ -201,6 +205,9 @@ function button(tree: any, label: string): any {
       text(node).trim() === label,
   );
 }
+function datePicker(node: any): any {
+  return find(node, (child) => child.type === "NativeDatePicker");
+}
 function checkbox(tree: any): any {
   return find(
     tree,
@@ -250,6 +257,28 @@ describe("meal sharing modal lifecycle", () => {
     resolve({ ok: true, value: { id: "activity-a" } });
     await pending;
     expect(mocks.dismiss).not.toHaveBeenCalled();
+  });
+
+  it("publishes the day chosen in the date picker", async () => {
+    let tree = await load();
+    expect(datePicker(tree).props).toMatchObject({
+      label: "Selected calendar day",
+      value: { year: 2026, month: 10, day: 12 },
+    });
+    datePicker(tree).props.onChange({ year: 2026, month: 9, day: 30 });
+    tree = render();
+    expect(datePicker(tree).props.value).toEqual({
+      year: 2026,
+      month: 9,
+      day: 30,
+    });
+    await button(tree, "Publish meal").props.onPress();
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        preview: expect.objectContaining({ sharedDay: "2026-09-30" }),
+      }),
+    );
   });
 
   it("ends loading with a closeable signed-out message", async () => {

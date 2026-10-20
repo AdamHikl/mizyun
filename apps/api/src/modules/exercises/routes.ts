@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
+  ExerciseInUseError,
   applyExercisePatch,
+  resolveExerciseTrackingMode,
   searchExerciseCatalog,
   validateExerciseCreate,
   validateExercisePatch,
@@ -8,6 +10,7 @@ import {
   type ExerciseRepository,
   type ExerciseValidationError,
   type StoredExercise,
+  type WorkoutSetRepository,
 } from "@mizyun/core";
 import {
   exerciseCatalogQuerySchema,
@@ -26,6 +29,7 @@ import { sendApiError } from "../../errors.js";
 
 interface ExercisesRoutesOptions {
   readonly exerciseRepository: ExerciseRepository;
+  readonly workoutSetRepository: WorkoutSetRepository;
 }
 
 const GENERIC_UUID =
@@ -383,6 +387,32 @@ export const exercisesRoutes: FastifyPluginAsync<
         return;
       }
       const next = applyExercisePatch(stored, patch, new Date());
+      // Existing sets are read under the exercise's tracking mode, so the
+      // mode is frozen once any set references the exercise. Only query
+      // sets when the resolved mode actually changes; a lookup failure
+      // propagates (500) rather than letting the change through.
+      if (
+        resolveExerciseTrackingMode(stored) !==
+        resolveExerciseTrackingMode(next)
+      ) {
+        const existingSets =
+          await options.workoutSetRepository.recentForExercise(
+            principal.userId,
+            id,
+            1,
+            { accessToken: principal.accessToken },
+          );
+        if (existingSets.length > 0) {
+          await sendApiError(
+            reply,
+            request,
+            409,
+            "CONFLICT",
+            "This exercise has logged sets, so its tracking type can't change.",
+          );
+          return;
+        }
+      }
       const saved = await options.exerciseRepository.update(next, {
         accessToken: principal.accessToken,
       });
@@ -425,9 +455,23 @@ export const exercisesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      await options.exerciseRepository.delete(id, {
-        accessToken: principal.accessToken,
-      });
+      try {
+        await options.exerciseRepository.delete(id, {
+          accessToken: principal.accessToken,
+        });
+      } catch (error) {
+        if (error instanceof ExerciseInUseError) {
+          await sendApiError(
+            reply,
+            request,
+            409,
+            "CONFLICT",
+            "This exercise has logged sets and cannot be deleted.",
+          );
+          return;
+        }
+        throw error;
+      }
       void reply.status(204).send();
     },
   );

@@ -1,9 +1,3 @@
-export interface Time12 {
-  readonly hour12: number; // 1..12
-  readonly minute: number; // 0..59
-  readonly period: "AM" | "PM";
-}
-
 /**
  * Converts 24-hour hour (0..23) to 12-hour hour (1..12) and AM/PM period.
  */
@@ -15,17 +9,6 @@ export function to12Hour(hour24: number): {
   const period: "AM" | "PM" = normalized < 12 ? "AM" : "PM";
   const hour12 = normalized % 12 === 0 ? 12 : normalized % 12;
   return { hour12, period };
-}
-
-/**
- * Converts 12-hour hour (1..12) and AM/PM period to 24-hour hour (0..23).
- */
-export function to24Hour(hour12: number, period: "AM" | "PM"): number {
-  const safeHour = Math.max(1, Math.min(12, Math.floor(hour12)));
-  if (period === "AM") {
-    return safeHour === 12 ? 0 : safeHour;
-  }
-  return safeHour === 12 ? 12 : safeHour + 12;
 }
 
 /**

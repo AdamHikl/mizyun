@@ -9,7 +9,8 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
-import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
+import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { MinTouchTarget, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -138,7 +139,7 @@ export function FirstMealRemindersCard({
           {settings.enabled ? (
             <ListGroup>
               <View style={styles.pickerRow}>
-                <IosTimePicker
+                <NativeTimePicker
                   label="Reminder time"
                   hour={settings.hour}
                   minute={settings.minute}

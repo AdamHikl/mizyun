@@ -8,11 +8,9 @@ import {
   activityDistanceUnit,
   activityTimes,
   activityTracksDistance,
-  calendarMonth,
+  defaultStartTime,
   distanceFieldText,
-  localDateLabel,
   parseActivityForm,
-  parseTimeInput,
   resolvedDistance,
   runCreateBody,
   toLocalDate,
@@ -146,44 +144,15 @@ describe("log activity form", () => {
         23 * 3600 * 1000,
       );
   });
-  it("parses start times", () => {
-    expect(parseTimeInput("19:00")).toEqual({ hour: 19, minute: 0 });
-    expect(parseTimeInput("19.15")).toEqual({ hour: 19, minute: 15 });
-    expect(parseTimeInput("7pm")).toEqual({ hour: 19, minute: 0 });
-    expect(parseTimeInput("7:30 am")).toEqual({ hour: 7, minute: 30 });
-    expect(parseTimeInput("12am")).toEqual({ hour: 0, minute: 0 });
-    expect(parseTimeInput("7")).toBe("invalid");
-    expect(parseTimeInput("25:00")).toBe("invalid");
-    expect(parseTimeInput("")).toBeNull();
-    expect(parseTimeInput("   ")).toBeNull();
-  });
-  it("builds a Monday-first calendar month", () => {
-    const month = calendarMonth(2026, 10);
-    expect(month.title).toContain("2026");
-    for (const week of month.weeks) expect(week).toHaveLength(7);
-    const first = month.weeks[0]!;
-    // 1 October 2026 is a Thursday.
-    expect(first.slice(0, 3)).toEqual([null, null, null]);
-    expect(first[3]).toEqual({ year: 2026, month: 10, day: 1 });
-    const days = month.weeks.flat().filter(Boolean);
-    expect(days).toHaveLength(31);
-  });
-  it("labels today and yesterday", () => {
-    const today = { year: 2026, month: 10, day: 17 };
-    expect(localDateLabel(today, today)).toBe("Today");
-    expect(localDateLabel({ year: 2026, month: 10, day: 16 }, today)).toBe(
-      "Yesterday",
-    );
-    expect(
-      localDateLabel({ year: 2026, month: 10, day: 1 }, today),
-    ).not.toMatch(/^(Today|Yesterday)$/);
-    // Month boundary.
-    expect(
-      localDateLabel(
-        { year: 2026, month: 9, day: 30 },
-        { year: 2026, month: 10, day: 1 },
-      ),
-    ).toBe("Yesterday");
+  it("offers an hour before the current hour as the start time", () => {
+    expect(defaultStartTime(new Date(2026, 9, 19, 19, 42))).toEqual({
+      hour: 18,
+      minute: 0,
+    });
+    expect(defaultStartTime(new Date(2026, 9, 19, 0, 20))).toEqual({
+      hour: 0,
+      minute: 0,
+    });
   });
   it("writes drafted distance in the field unit", () => {
     expect(distanceFieldText({ value: 10, unit: "km" }, "km")).toBe("10");

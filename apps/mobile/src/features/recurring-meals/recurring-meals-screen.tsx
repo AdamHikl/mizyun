@@ -16,6 +16,11 @@ import {
 } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
+import {
+  fromTimeInputValue,
+  toTimeInputValue,
+} from "@/components/ui/native-date-time-values";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { fetchFoodEntry } from "@/features/log-meal/public-data";
@@ -48,6 +53,9 @@ import {
   prepareSchedule,
   resetRejectedSchedule,
 } from "./recurring-meal-retry";
+
+/** Shown only if a stored time cannot be read; schedules always carry one. */
+const FALLBACK_TIME = { hour: 10, minute: 0 } as const;
 
 interface Editor extends MealScheduleForm {
   id: string;
@@ -377,19 +385,18 @@ export function RecurringMealsScreen() {
                   editor.attempted,
                 )}
               </View>
-              <ThemedText type="smallBold">Time (24-hour HH:mm)</ThemedText>
-              <TextInput
-                accessibilityLabel="Scheduled time"
-                value={editor.localTime}
-                onChangeText={(localTime) => patchEditor({ localTime })}
-                editable={!busy && !editor.attempted}
-                placeholder="10:00"
-                maxLength={5}
-                autoCorrect={false}
-                style={[
-                  styles.input,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
+              <NativeTimePicker
+                label="Time"
+                hour={
+                  (fromTimeInputValue(editor.localTime) ?? FALLBACK_TIME).hour
+                }
+                minute={
+                  (fromTimeInputValue(editor.localTime) ?? FALLBACK_TIME).minute
+                }
+                disabled={busy || editor.attempted}
+                onChange={(hour, minute) =>
+                  patchEditor({ localTime: toTimeInputValue(hour, minute) })
+                }
               />
               <ThemedText type="smallBold">Time zone</ThemedText>
               <TextInput

@@ -4,12 +4,18 @@ import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
-import type { StoredExercise, UserId } from "@mizyun/core";
+import {
+  ExerciseInUseError,
+  type StoredExercise,
+  type StoredWorkoutSet,
+  type UserId,
+} from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
 import { buildApp } from "../../app.js";
 import { InMemoryExerciseRepository } from "../../exercise-repository.js";
+import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
 
 const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
 const userB: UserId = "00000000-0000-4000-8000-000000000002" as UserId;
@@ -35,6 +41,7 @@ const tokenVerifierFor = (
 
 const build = (verifier: AccessTokenVerifier) => {
   const exerciseRepository = new InMemoryExerciseRepository();
+  const workoutSetRepository = new InMemoryWorkoutSetRepository();
   const app = buildApp({
     tokenVerifier: verifier,
     agent: new AgentOrchestrator({
@@ -42,9 +49,10 @@ const build = (verifier: AccessTokenVerifier) => {
       memories: new InMemoryMemoryStore(),
     }),
     exerciseRepository,
+    workoutSetRepository,
   });
   apps.push(app);
-  return { app, exerciseRepository };
+  return { app, exerciseRepository, workoutSetRepository };
 };
 
 const seedExercise = (
@@ -63,6 +71,28 @@ const seedExercise = (
   };
   repo.__seedForTest(exercise);
   return exercise;
+};
+
+const seedWorkoutSet = async (
+  repo: InMemoryWorkoutSetRepository,
+  exerciseId: string,
+): Promise<void> => {
+  const set: StoredWorkoutSet = {
+    id: "00000000-0000-4000-8000-00000000d001",
+    userId: userA,
+    workoutId: "00000000-0000-4000-8000-00000000b001",
+    exerciseId,
+    sequence: 1,
+    setType: "normal",
+    repetitions: 8,
+    loadKg: 60,
+    durationSeconds: null,
+    distanceMeters: null,
+    perceivedExertion: null,
+    completedAt: new Date("2026-10-17T09:00:00Z"),
+    createdAt: new Date("2026-10-17T09:00:00Z"),
+  };
+  await repo.create(userA, set, { accessToken: "test-token" });
 };
 
 describe("GET /v1/exercises", () => {
@@ -417,6 +447,103 @@ describe("PUT /v1/exercises/:id", () => {
     });
     expect(response.statusCode).toBe(422);
   });
+
+  describe("tracking mode changes", () => {
+    const exerciseId = "00000000-0000-4000-8000-00000000a001";
+    const put = (
+      app: ReturnType<typeof build>["app"],
+      payload: Record<string, unknown>,
+    ) =>
+      app.inject({
+        method: "PUT",
+        url: `/v1/exercises/${exerciseId}`,
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload,
+      });
+    const seedCustom = (repo: InMemoryExerciseRepository) =>
+      seedExercise(repo, {
+        id: exerciseId,
+        name: "Zed custom hold",
+        metadata: { trackingMode: "load_reps", equipment: "none" },
+      });
+
+    it("returns 409 CONFLICT and keeps the record when the mode changes and sets exist", async () => {
+      const { app, exerciseRepository, workoutSetRepository } = build(
+        tokenVerifierFor({ userId: userA }),
+      );
+      const original = seedCustom(exerciseRepository);
+      await seedWorkoutSet(workoutSetRepository, exerciseId);
+      const response = await put(app, {
+        metadata: { trackingMode: "duration" },
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "CONFLICT",
+          message:
+            "This exercise has logged sets, so its tracking type can't change.",
+        },
+      });
+      const stored = await exerciseRepository.getById(exerciseId, {
+        accessToken: "test-token",
+      });
+      expect(stored).toEqual(original);
+    });
+
+    it("saves a mode change when no sets reference the exercise", async () => {
+      const { app, exerciseRepository } = build(
+        tokenVerifierFor({ userId: userA }),
+      );
+      seedCustom(exerciseRepository);
+      const response = await put(app, {
+        metadata: { trackingMode: "duration_distance" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().exercise.metadata).toEqual({
+        trackingMode: "duration_distance",
+      });
+      const stored = await exerciseRepository.getById(exerciseId, {
+        accessToken: "test-token",
+      });
+      expect(stored?.metadata).toEqual({ trackingMode: "duration_distance" });
+    });
+
+    it("allows name and notes edits that keep the mode while sets exist", async () => {
+      const { app, exerciseRepository, workoutSetRepository } = build(
+        tokenVerifierFor({ userId: userA }),
+      );
+      seedCustom(exerciseRepository);
+      await seedWorkoutSet(workoutSetRepository, exerciseId);
+      const response = await put(app, {
+        name: "Zed renamed hold",
+        instructions: "Squeeze hard.",
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().exercise).toMatchObject({
+        name: "Zed renamed hold",
+        instructions: "Squeeze hard.",
+      });
+    });
+
+    it("allows a metadata patch that keeps the same trackingMode while sets exist", async () => {
+      const { app, exerciseRepository, workoutSetRepository } = build(
+        tokenVerifierFor({ userId: userA }),
+      );
+      seedCustom(exerciseRepository);
+      await seedWorkoutSet(workoutSetRepository, exerciseId);
+      const response = await put(app, {
+        metadata: { trackingMode: "load_reps", equipment: "barbell" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().exercise.metadata).toEqual({
+        trackingMode: "load_reps",
+        equipment: "barbell",
+      });
+    });
+  });
 });
 
 describe("DELETE /v1/exercises/:id", () => {
@@ -454,6 +581,23 @@ describe("DELETE /v1/exercises/:id", () => {
       headers: { authorization: "Bearer valid" },
     });
     expect(response.statusCode).toBe(404);
+  });
+
+  it("returns 409 CONFLICT when logged sets still reference the exercise", async () => {
+    const { app, exerciseRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedExercise(exerciseRepository);
+    exerciseRepository.delete = async () => {
+      throw new ExerciseInUseError();
+    };
+    const response = await app.inject({
+      method: "DELETE",
+      url: "/v1/exercises/00000000-0000-4000-8000-00000000a001",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ error: { code: "CONFLICT" } });
   });
 
   it("returns 404 for a non-UUID id", async () => {

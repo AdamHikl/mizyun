@@ -73,8 +73,9 @@ vi.mock("@/features/log-run", () => ({
   runDraftStore: { load: () => Promise.resolve(mocks.runDraft) },
   hasRunDraftContent: (draft: { content?: boolean }) => !!draft.content,
 }));
-vi.mock("./activity-date-picker", () => ({
-  ActivityDatePicker: "ActivityDatePicker",
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
 }));
 vi.mock("@/features/coach/ai-consent-controller", () => ({
   useAiConsentController: () => ({
@@ -104,6 +105,16 @@ function find(node: any, p: (n: any) => boolean): any {
 }
 const byLabel = (tree: any, label: string) =>
   find(tree, (n) => n.props?.accessibilityLabel === label);
+const byType = (tree: any, type: string) => find(tree, (n) => n.type === type);
+const button = (tree: any, label: string) =>
+  find(tree, (n) => n.type === "Button" && n.props.label === label);
+/** The start time picker's value as HH:MM, or null when none is set. */
+const startTime = (tree: any): string | null => {
+  const picker = byType(tree, "NativeTimePicker");
+  if (!picker) return null;
+  const { hour, minute } = picker.props;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
 const chip = (tree: any, label: string) =>
   find(tree, (n) => n.type === "ChoiceChip" && n.props.label === label);
 const flush = async () => {
@@ -285,6 +296,50 @@ describe("log activity screen", () => {
     expect(mocks.back).toHaveBeenCalled();
   });
 
+  it("picks the date and an optional start time with the native pickers", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 17, 15, 10, 30));
+    try {
+      mocks.saveRun.mockResolvedValue({ ok: true });
+      let tree = render();
+      const datePicker = byType(tree, "NativeDatePicker");
+      expect(datePicker.props.value).toEqual({
+        year: 2026,
+        month: 10,
+        day: 17,
+      });
+      expect(datePicker.props.maximumDate).toEqual({
+        year: 2026,
+        month: 10,
+        day: 17,
+      });
+      expect(startTime(tree)).toBeNull();
+      datePicker.props.onChange({ year: 2026, month: 10, day: 16 });
+      button(tree, "Add start time (optional)").props.onPress();
+      tree = render();
+      expect(startTime(tree)).toBe("14:00");
+      byType(tree, "NativeTimePicker").props.onChange(19, 30);
+      byLabel(tree, "Activity").props.onChangeText("Running");
+      byLabel(tree, "Minutes").props.onChangeText("30");
+      tree = render();
+      expect(startTime(tree)).toBe("19:30");
+      expect(button(tree, "Add start time (optional)")).toBeNull();
+      byLabel(tree, "Save").props.onPress();
+      await flush();
+      const body = mocks.saveRun.mock.calls[0]?.[1].body;
+      expect(new Date(body.startedAt).getTime()).toBe(
+        new Date(2026, 9, 16, 19, 30).getTime(),
+      );
+
+      tree = render();
+      button(tree, "Remove start time").props.onPress();
+      tree = render();
+      expect(startTime(tree)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("saves an unknown name as a custom activity", async () => {
     mocks.save.mockResolvedValue({ ok: true, workout: {} });
     let tree = render();
@@ -311,7 +366,7 @@ describe("log activity screen", () => {
     expect(byLabel(tree, "Activity").props.value).toBe("Running");
     expect(byLabel(tree, "Minutes").props.value).toBe("45");
     expect(byLabel(tree, "Distance (km, optional)").props.value).toBe("10");
-    expect(byLabel(tree, "Start time (optional)").props.value).toBe("19:00");
+    expect(startTime(tree)).toBe("19:00");
     expect(
       String(find(tree, (n) => n.type === "FormStatus")?.props.children),
     ).toContain("Filled in");
@@ -356,7 +411,7 @@ describe("log activity screen", () => {
       );
       expect(byLabel(tree, "Activity").props.value).toBe("Yardwork");
       expect(byLabel(tree, "Minutes").props.value).toBe("120");
-      expect(byLabel(tree, "Start time (optional)").props.value).toBe("09:00");
+      expect(startTime(tree)).toBe("09:00");
       expect(byLabel(tree, "Notes (optional)").props.value).toBe(
         "Raking leaves",
       );
@@ -537,7 +592,7 @@ describe("log activity screen", () => {
       tree = render();
       expect(byLabel(tree, "Activity").props.value).toBe("Swimming");
       expect(byLabel(tree, "Minutes").props.value).toBe("30");
-      expect(byLabel(tree, "Start time (optional)").props.value).toBe("14:40");
+      expect(startTime(tree)).toBe("14:40");
       expect(byLabel(tree, "Notes (optional)").props.value).toBe(
         "In the ocean",
       );

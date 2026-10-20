@@ -1,7 +1,7 @@
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { readWorkoutLifecycle, type CatalogExercise } from "@mizyun/core";
+import { readWorkoutLifecycle } from "@mizyun/core";
 import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -30,6 +30,10 @@ import {
   loadWorkoutPreferences,
 } from "./workout-preferences";
 import { ExerciseLibraryModal } from "./exercise-library-modal";
+import {
+  isSavedLibraryExercise,
+  type LibraryExercise,
+} from "./library-exercise";
 import {
   SET_TYPE_OPTIONS,
   SetTypeModal,
@@ -114,15 +118,27 @@ export function WorkoutEditorModal({
   }, [visible, workoutToEdit]);
 
   const handleAddCatalogExercise = useCallback(
-    (exercises: readonly CatalogExercise[]) => {
-      const newItems: PlannedExerciseItem[] = exercises.map((exercise) => ({
-        name: exercise.name,
-        catalogId: exercise.id,
-        movementPattern: exercise.movementPattern,
-        targetSets: 3,
-        targetReps: "8-12",
-        restSeconds: defaultRestSeconds,
-      }));
+    (exercises: readonly LibraryExercise[]) => {
+      // Custom exercises are planned by name, like the "Custom name" field;
+      // the live session matches the saved record by that name.
+      const newItems: PlannedExerciseItem[] = exercises.map((exercise) =>
+        isSavedLibraryExercise(exercise)
+          ? {
+              name: exercise.name,
+              movementPattern: "custom",
+              targetSets: 3,
+              targetReps: "8-12",
+              restSeconds: defaultRestSeconds,
+            }
+          : {
+              name: exercise.name,
+              catalogId: exercise.id,
+              movementPattern: exercise.movementPattern,
+              targetSets: 3,
+              targetReps: "8-12",
+              restSeconds: defaultRestSeconds,
+            },
+      );
       setPlannedExercises((current) => [...current, ...newItems]);
       return true;
     },

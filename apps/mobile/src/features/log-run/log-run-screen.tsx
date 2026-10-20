@@ -35,6 +35,11 @@ import type { RunRecord } from "@mizyun/contracts";
 import type { ApiClient } from "@mizyun/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { NativeDatePicker } from "@/components/ui/native-date-time-picker";
+import {
+  fromDateInputValue,
+  toDateInputValue,
+} from "@/components/ui/native-date-time-values";
 import { useAuth } from "@/features/auth/auth-context";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useTheme } from "@/hooks/use-theme";
@@ -397,8 +402,7 @@ export function LogRunScreen() {
   );
   const field = (
     label: string,
-    key:
-      "activityDate" | "minutes" | "seconds" | "distance" | "effort" | "notes",
+    key: "minutes" | "seconds" | "distance" | "effort" | "notes",
     keyboardType: "number-pad" | "decimal-pad" | "default" = "default",
   ) => (
     <View style={styles.field}>
@@ -409,10 +413,9 @@ export function LogRunScreen() {
         editable={
           !draft?.pending &&
           !busy &&
-          !(key === "activityDate" && draft?.form.startedAt) &&
           !(
             draft?.form.metricsLocked &&
-            ["activityDate", "minutes", "seconds", "distance"].includes(key)
+            ["minutes", "seconds", "distance"].includes(key)
           )
         }
         onChangeText={(text) =>
@@ -434,6 +437,10 @@ export function LogRunScreen() {
       />
     </View>
   );
+  // Today in the run's recording time zone, the latest date a run can have.
+  const runToday = fromDateInputValue(
+    runningDate(new Date(), draft?.form.recordingTimezone ?? "UTC"),
+  )!;
   const duration =
     Number(draft?.form.minutes || 0) * 60 + Number(draft?.form.seconds || 0);
   const distance = draft?.form.distance
@@ -506,13 +513,20 @@ export function LogRunScreen() {
                   busy,
                 )
               : null}
-            {field(
-              draft.form.activityDate ===
-                runningDate(new Date(), draft.form.recordingTimezone)
-                ? "Date · Today (YYYY-MM-DD)"
-                : "Date (YYYY-MM-DD)",
-              "activityDate",
-            )}
+            <NativeDatePicker
+              label="Date"
+              value={fromDateInputValue(draft.form.activityDate) ?? runToday}
+              maximumDate={runToday}
+              disabled={
+                Boolean(draft.pending) ||
+                busy ||
+                Boolean(draft.form.startedAt) ||
+                Boolean(draft.form.metricsLocked)
+              }
+              onChange={(date) =>
+                change({ activityDate: toDateInputValue(date) })
+              }
+            />
             <ThemedText type="small" themeColor="textSecondary">
               {draft.form.startedAt
                 ? `Recorded start · ${new Date(draft.form.startedAt).toLocaleString()} · Start date kept`

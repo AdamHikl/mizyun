@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import type {
   RecurringMealSuggestionProposal,
   RecurringMealSuggestionAcceptResponse,
 } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
+import {
+  fromTimeInputValue,
+  toTimeInputValue,
+} from "@/components/ui/native-date-time-values";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/features/auth/auth-context";
 import {
@@ -37,6 +42,8 @@ export interface RecurringMealSuggestionPresentation {
   undo(): Promise<void>;
 }
 
+/** Shown only if a candidate time cannot be read; proposals always carry one. */
+const FALLBACK_TIME = { hour: 10, minute: 0 } as const;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SPOKEN_DAYS = [
   "Sunday",
@@ -352,17 +359,14 @@ export function RecurringMealSuggestionCardView(props: {
                     : null}
                 </View>
               ) : null}
-              <ThemedText type="smallBold">Time (24-hour HH:MM)</ThemedText>
-              <TextInput
-                accessibilityLabel="Automatic meal time, 24-hour HH:MM"
-                value={localTime}
-                onChangeText={setLocalTime}
-                editable={actionable}
-                autoCapitalize="none"
-                style={[
-                  styles.input,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
+              <NativeTimePicker
+                label="Automatic meal time"
+                hour={(fromTimeInputValue(localTime) ?? FALLBACK_TIME).hour}
+                minute={(fromTimeInputValue(localTime) ?? FALLBACK_TIME).minute}
+                disabled={!actionable}
+                onChange={(hour, minute) =>
+                  setLocalTime(toTimeInputValue(hour, minute))
+                }
               />
               <View style={styles.actions}>
                 {DAYS.map((day, index) =>
@@ -383,7 +387,7 @@ export function RecurringMealSuggestionCardView(props: {
               <ThemedText type="small">
                 {valid
                   ? `Starts ${start}, ${cadence} at ${localTime}.`
-                  : "Choose at least one day and enter a time as HH:MM."}
+                  : "Choose at least one day."}
               </ThemedText>
               {action(
                 "Save custom schedule",
@@ -433,11 +437,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   detail: { gap: 10 },
-  input: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
-    fontSize: 16,
-  },
 });

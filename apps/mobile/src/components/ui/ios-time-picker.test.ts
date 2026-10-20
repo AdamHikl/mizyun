@@ -4,7 +4,6 @@ import {
   formatTime12,
   getWeekdayLabel,
   to12Hour,
-  to24Hour,
   WEEKDAYS,
 } from "./ios-time-picker-utils";
 
@@ -18,17 +17,6 @@ describe("ios-time-picker-utils helpers", () => {
     expect(to12Hour(13)).toEqual({ hour12: 1, period: "PM" });
     expect(to12Hour(19)).toEqual({ hour12: 7, period: "PM" });
     expect(to12Hour(23)).toEqual({ hour12: 11, period: "PM" });
-  });
-
-  it("converts 12-hour hour and AM/PM period into 24-hour hour", () => {
-    expect(to24Hour(12, "AM")).toBe(0);
-    expect(to24Hour(1, "AM")).toBe(1);
-    expect(to24Hour(8, "AM")).toBe(8);
-    expect(to24Hour(11, "AM")).toBe(11);
-    expect(to24Hour(12, "PM")).toBe(12);
-    expect(to24Hour(1, "PM")).toBe(13);
-    expect(to24Hour(7, "PM")).toBe(19);
-    expect(to24Hour(11, "PM")).toBe(23);
   });
 
   it("formats 24-hour time into 12-hour display string", () => {

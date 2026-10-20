@@ -3,7 +3,8 @@ import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
-import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
+import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { IosWeekdayPicker } from "@/components/ui/ios-weekday-picker";
 import { Spacing } from "@/constants/theme";
 import {
@@ -105,7 +106,7 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
           {isScheduleVisible ? (
             <ListGroup>
               <View style={styles.pickerRow}>
-                <IosTimePicker
+                <NativeTimePicker
                   label="Reminder time"
                   hour={settings.hour}
                   minute={settings.minute ?? 0}

@@ -408,3 +408,109 @@ describe("GET /v1/goals/history", () => {
     expect(response.json()).toEqual({ goals: [] });
   });
 });
+
+describe("optional goal target date", () => {
+  const headers = {
+    authorization: "Bearer valid",
+    "content-type": "application/json",
+  };
+  const createBody = {
+    kind: "cut",
+    pace: "steady",
+    target: { weightKg: 78 },
+    startsOn: "2026-01-01",
+  };
+
+  it("creates a goal without a target date and returns targetDate null", async () => {
+    const { app, goalRepository } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers,
+      payload: createBody,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().goal).toHaveProperty("targetDate", null);
+    const stored = await goalRepository.getActive(userA, {
+      accessToken: "test-token",
+    });
+    expect(stored?.targetDate).toBeNull();
+    const active = await app.inject({
+      method: "GET",
+      url: "/v1/goals/active",
+      headers,
+    });
+    expect(active.statusCode).toBe(200);
+    expect(active.json().goal).toHaveProperty("targetDate", null);
+  });
+
+  it("accepts an explicit null target date on create", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers,
+      payload: { ...createBody, targetDate: null },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().goal.targetDate).toBeNull();
+  });
+
+  it("clears a target date with PUT {targetDate: null} and sets it again", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers,
+      payload: { ...createBody, targetDate: "2026-04-01" },
+    });
+    const id = created.json().goal.id as string;
+    const cleared = await app.inject({
+      method: "PUT",
+      url: `/v1/goals/${id}`,
+      headers,
+      payload: { targetDate: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().goal.targetDate).toBeNull();
+
+    const untouched = await app.inject({
+      method: "PUT",
+      url: `/v1/goals/${id}`,
+      headers,
+      payload: { pace: "gradual" },
+    });
+    expect(untouched.json().goal.targetDate).toBeNull();
+
+    const set = await app.inject({
+      method: "PUT",
+      url: `/v1/goals/${id}`,
+      headers,
+      payload: { targetDate: "2026-09-01" },
+    });
+    expect(set.statusCode).toBe(200);
+    expect(set.json().goal.targetDate).toBe("2026-09-01");
+  });
+
+  it("still rejects a PUT target date before startsOn", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers,
+      payload: createBody,
+    });
+    const id = created.json().goal.id as string;
+    const response = await app.inject({
+      method: "PUT",
+      url: `/v1/goals/${id}`,
+      headers,
+      payload: { targetDate: "2025-12-01" },
+    });
+    expect(response.statusCode).toBeGreaterThanOrEqual(400);
+    expect(response.statusCode).toBeLessThan(500);
+    expect(response.json()).toMatchObject({
+      error: { code: "VALIDATION_ERROR" },
+    });
+  });
+});

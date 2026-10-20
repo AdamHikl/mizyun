@@ -243,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278); its Fill in from description asks AI first for users with AI consent, with the on-device parser as fallback (ADR-0073).",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278); its Fill in from description asks AI first for users with AI consent, with the on-device parser as fallback (ADR-0073). The Exercise library creates, edits and deletes custom exercises with a tracking type; logged sets fix the type and block deletion (ADR-0075, #308).",
       "aliases": [
         "workout",
         "exercise",
@@ -457,7 +457,8 @@
         "docs/adr/0068-timed-exercise-tracking-and-log-activity.md",
         "docs/adr/0073-ai-activity-description-drafts.md",
         "docs/adr/0072-evening-stretch-reminder.md",
-        "docs/adr/0076-ai-tailored-evening-stretch.md"
+        "docs/adr/0076-ai-tailored-evening-stretch.md",
+        "docs/adr/0075-custom-exercises-in-the-exercise-library.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
@@ -466,7 +467,8 @@
         "pnpm --filter @mizyun/core test src/bouldering",
         "pnpm --filter @mizyun/mobile test src/features/bouldering",
         "pnpm --filter @mizyun/mobile test src/features/log-activity",
-        "pnpm --filter @mizyun/core test src/exercise-tracking"
+        "pnpm --filter @mizyun/core test src/exercise-tracking",
+        "pnpm --filter @mizyun/core test src/custom-exercise"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",

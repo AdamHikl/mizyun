@@ -1,4 +1,9 @@
-import type { ExerciseRepository, StoredExercise, UserId } from "@mizyun/core";
+import {
+  ExerciseInUseError,
+  type ExerciseRepository,
+  type StoredExercise,
+  type UserId,
+} from "@mizyun/core";
 
 import type { RepositorySupabaseClient } from "./index.js";
 import { RepositoryError } from "./repository-error.js";
@@ -139,6 +144,10 @@ export class SupabaseExerciseRepository implements ExerciseRepository {
       .eq("id", id)
       .select("id");
     if (error) {
+      // 23503 = foreign_key_violation: workout_sets still reference it.
+      if (error.code === "23503") {
+        throw new ExerciseInUseError();
+      }
       throw new RepositoryError(error.message);
     }
     return Array.isArray(data) && data.length > 0;

@@ -28,12 +28,13 @@ import {
 } from "@mizyun/contracts";
 import {
   computeWorkoutProgressions,
+  findSavedExerciseByName,
   getCatalogExerciseNames,
+  getExerciseFromCatalog,
   isRoutineDetails,
   readWorkoutLifecycle,
   formatTrackedDuration,
   getCatalogTrackingMode,
-  type CatalogExercise,
   type ExerciseTrackingMode,
   type TrackedDistanceUnit,
 } from "@mizyun/core";
@@ -72,6 +73,10 @@ import {
   weightUnitLabel,
 } from "@/lib/weight-units";
 import { ExerciseLibraryModal } from "@/features/workouts/exercise-library-modal";
+import {
+  isSavedLibraryExercise,
+  type LibraryExercise,
+} from "@/features/workouts/library-exercise";
 import { ExerciseProgressionModal } from "@/features/workouts/exercise-progression-modal";
 import { PlateCalculatorModal } from "@/features/workouts/plate-calculator-modal";
 import { ReorderExercisesModal } from "@/features/workouts/reorder-exercises-modal";
@@ -558,9 +563,12 @@ export function LogWorkoutScreen() {
 
     // 1. Add planned exercises
     plannedExercises.forEach((p) => {
-      const matched = workspace.exercises.find(
-        (e) => e.name.trim().toLowerCase() === p.name.trim().toLowerCase(),
-      );
+      // Earlier names only link custom rows, never a catalog-planned one.
+      const matched = findSavedExerciseByName(workspace.exercises, p.name, {
+        includePreviousNames: !(
+          p.catalogId && getExerciseFromCatalog(p.catalogId)
+        ),
+      });
       const id = matched?.id ?? `planned-${p.catalogId || p.name}`;
       const targetLoad = isOneTimeWorkout
         ? undefined
@@ -585,7 +593,11 @@ export function LogWorkoutScreen() {
       const matched = workspace.exercises.find((e) => e.id === set.exerciseId);
       if (matched) {
         const key = matched.name.trim().toLowerCase();
-        if (!map.has(key)) {
+        // A planned row may already hold this record under an earlier name.
+        const listed = Array.from(map.values()).some(
+          (entry) => entry.id === matched.id,
+        );
+        if (!map.has(key) && !listed) {
           map.set(key, {
             id: matched.id,
             name: matched.name,
@@ -898,7 +910,7 @@ export function LogWorkoutScreen() {
 
   // Save selections before the first set so reopening the session keeps them.
   const handleSelectCatalogExercise = useCallback(
-    async (catalogExercises: readonly CatalogExercise[]) => {
+    async (catalogExercises: readonly LibraryExercise[]) => {
       if (
         busy ||
         exerciseMutationInFlight.current ||
@@ -922,6 +934,46 @@ export function LogWorkoutScreen() {
         const entries = [...exerciseEntries];
         const savedExercises = [...workspace.exercises];
         for (const catalogEx of catalogExercises) {
+          // A saved custom exercise already has its record: add it as is.
+          if (isSavedLibraryExercise(catalogEx)) {
+            // Record it first, so a same-named planned row resolves to this
+            // record instead of creating another when its first set is logged.
+            const index = savedExercises.findIndex(
+              (exercise) => exercise.id === catalogEx.id,
+            );
+            if (index === -1) savedExercises.push(catalogEx);
+            else savedExercises[index] = catalogEx;
+            setWorkspace((current) => ({
+              ...current,
+              exercises: [
+                ...current.exercises.filter(
+                  (exercise) => exercise.id !== catalogEx.id,
+                ),
+                catalogEx,
+              ].sort((a, b) => a.name.localeCompare(b.name)),
+            }));
+            const key = catalogEx.name.trim().toLowerCase();
+            if (
+              entries.some(
+                (entry) =>
+                  entry.id === catalogEx.id ||
+                  entry.name.trim().toLowerCase() === key,
+              )
+            )
+              continue;
+            entries.push({
+              id: catalogEx.id,
+              name: catalogEx.name,
+              catalogId: "",
+              targetSets: 3,
+              repsMin: isOneTimeWorkout ? null : 8,
+              repsMax: isOneTimeWorkout ? null : 12,
+              durationMinutes: null,
+              restSeconds: globalRestSeconds,
+              isPlanned: false,
+            });
+            continue;
+          }
           const knownNames = new Set(
             getCatalogExerciseNames(catalogEx).map((name) =>
               name.trim().toLowerCase(),
@@ -1095,9 +1147,9 @@ export function LogWorkoutScreen() {
         // Ensure the exercise exists in the database
         let resolvedExerciseId = entry.id;
         if (entry.id.startsWith("planned-")) {
-          const existing = workspace.exercises.find(
-            (e) =>
-              e.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
+          const existing = findSavedExerciseByName(
+            workspace.exercises,
+            entry.name,
           );
           if (existing) {
             resolvedExerciseId = existing.id;
@@ -2081,6 +2133,8 @@ export function LogWorkoutScreen() {
           onClose={() => setLibraryVisible(false)}
           onSelectExercises={handleSelectCatalogExercise}
           errorMessage={exerciseSelectionMessage}
+          addOnTap
+          inUseExerciseIds={exerciseEntries.map((entry) => entry.id)}
         />
       ) : null}
 

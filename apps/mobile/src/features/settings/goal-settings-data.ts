@@ -16,10 +16,14 @@ import {
   type WeightUnitSystem,
 } from "@/lib/weight-units";
 
+import { goalKindHasPace } from "./goal-mode-presentation";
+
 export interface GoalSettingsForm {
   readonly kind: GoalKind;
   readonly targetWeight: string;
   readonly pace: GoalPace;
+  /** Optional deadline as a local `YYYY-MM-DD`; null means no target date. */
+  readonly targetDate: string | null;
 }
 
 export type GoalSettingsValidation =
@@ -35,6 +39,7 @@ export const goalSettingsFormFromGoal = (
       kind: "cut",
       targetWeight: "",
       pace: "steady",
+      targetDate: null,
     };
   }
   return {
@@ -43,12 +48,37 @@ export const goalSettingsFormFromGoal = (
       kilogramsToDisplayWeight(goal.target.weightKg, unitSystem),
     ),
     pace: goal.pace,
+    targetDate: goal.targetDate ?? null,
   };
 };
+
+/** Today's local calendar day as `YYYY-MM-DD`. */
+export const localIsoDate = (now: Date): string =>
+  `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate(),
+  ).padStart(2, "0")}`;
+
+/** Recomp and maintain have no projection, so they never keep a date. */
+const effectiveTargetDate = (form: GoalSettingsForm): string | null =>
+  goalKindHasPace(form.kind) ? form.targetDate : null;
+
+/**
+ * The stored date a save would keep as-is: only an update of the same
+ * goal kind keeps it, since a kind change creates a new goal from today.
+ */
+export const keptStoredTargetDate = (
+  activeGoal: Goal | null,
+  form: GoalSettingsForm,
+): string | null =>
+  activeGoal !== null && activeGoal.kind === form.kind
+    ? (activeGoal.targetDate ?? null)
+    : null;
 
 export const validateGoalSettingsForm = (
   form: GoalSettingsForm,
   unitSystem: WeightUnitSystem,
+  now: Date = new Date(),
+  keptTargetDate: string | null = null,
 ): GoalSettingsValidation => {
   const weightDisplay = Number(form.targetWeight.trim().replace(",", "."));
   if (!Number.isFinite(weightDisplay) || weightDisplay <= 0) {
@@ -59,6 +89,20 @@ export const validateGoalSettingsForm = (
     return {
       ok: false,
       message: "Target weight must be between 30 and 250 kg.",
+    };
+  }
+  // Reject a newly chosen date in the past. A stored date that has
+  // passed (often the old invented 90-day default) is left alone so it
+  // never blocks a pace or weight change; the card flags it instead.
+  const targetDate = effectiveTargetDate(form);
+  if (
+    targetDate !== null &&
+    targetDate !== keptTargetDate &&
+    targetDate < localIsoDate(now)
+  ) {
+    return {
+      ok: false,
+      message: "Your target date has passed. Choose a new date or remove it.",
     };
   }
   return { ok: true, targetWeightKg: weightKg };
@@ -104,23 +148,28 @@ export const saveGoalSettings = async (
   | { readonly ok: true; readonly goal: Goal }
   | { readonly ok: false; readonly message: string }
 > => {
-  const validation = validateGoalSettingsForm(form, unitSystem);
+  const now = new Date();
+  const validation = validateGoalSettingsForm(
+    form,
+    unitSystem,
+    now,
+    keptStoredTargetDate(activeGoal, form),
+  );
   if (!validation.ok) {
     return { ok: false, message: validation.message };
   }
 
   const targetWeightKg = validation.targetWeightKg;
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const ninetyDays = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const targetDate = effectiveTargetDate(form);
+  const today = localIsoDate(now);
 
   // If there's an active goal with the SAME kind, update via PUT /v1/goals/:id
   if (activeGoal !== null && activeGoal.kind === form.kind) {
+    // Send the date only when it changed; null clears a stored date.
     const patchBody = goalPatchSchema.parse({
       target: { weightKg: targetWeightKg },
       pace: form.pace,
+      ...(targetDate !== (activeGoal.targetDate ?? null) ? { targetDate } : {}),
     });
     const result = await client.request<GoalResponse>({
       method: "PUT",
@@ -149,7 +198,7 @@ export const saveGoalSettings = async (
     pace: form.pace,
     target: { weightKg: targetWeightKg },
     startsOn: today,
-    targetDate: ninetyDays,
+    ...(targetDate !== null ? { targetDate } : {}),
   });
 
   const result = await client.request<GoalResponse>({

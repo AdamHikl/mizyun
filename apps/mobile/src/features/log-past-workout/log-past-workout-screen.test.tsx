@@ -83,11 +83,13 @@ vi.mock("@/constants/theme", () => ({
 vi.mock("@/components/ui", () => ({
   Button: "Button",
   Card: "Card",
-  ChoiceChip: "ChoiceChip",
-  ChoiceGroup: "ChoiceGroup",
   FormField: "FormField",
   FormStatus: "FormStatus",
   FormTextInput: "FormTextInput",
+}));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
 }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
@@ -189,9 +191,15 @@ describe("log past workout screen", () => {
   it("renders defaults and rejects a save with no exercises without sending", async () => {
     const tree = await open();
     expect(button(tree, "Add exercise")).toBeTruthy();
-    expect(
-      field(tree, "Start time, hours and minutes, 24 hour").props.value,
-    ).toBe("18:00");
+    const time = find(tree, (n) => n.type === "NativeTimePicker");
+    expect([time.props.hour, time.props.minute]).toEqual([18, 0]);
+    const now = new Date();
+    const date = find(tree, (n) => n.type === "NativeDatePicker");
+    expect(date.props.maximumDate).toEqual({
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      day: now.getDate(),
+    });
     expect(field(tree, "Duration in minutes").props.value).toBe("60");
 
     button(tree, "Save workout").props.onPress();
@@ -215,15 +223,24 @@ describe("log past workout screen", () => {
         return { ok: true, value: { workoutSet: { id: "set" } } };
       throw new Error(`unexpected ${o.method} ${o.path}`);
     });
-    const tree = await open();
+    let tree = await open();
     expect(field(tree, "Squat set 1 reps").props.value).toBe("5");
     expect(button(tree, "Save workout · 1 set")).toBeTruthy();
+    const date = find(tree, (n) => n.type === "NativeDatePicker");
+    expect(date.props.value).toEqual({ year: 2020, month: 1, day: 15 });
+    date.props.onChange({ year: 2020, month: 1, day: 14 });
+    tree = render();
+    find(tree, (n) => n.type === "NativeTimePicker").props.onChange(7, 30);
+    tree = render();
 
     button(tree, "Save workout · 1 set").props.onPress();
     await flush();
 
     const [create] = posts("POST", "/v1/workouts");
-    expect(create?.[0].body.completedAt).toEqual(expect.any(String));
+    // Picked 14 Jan 2020 at 07:30, plus the 60-minute duration.
+    expect(Date.parse(create?.[0].body.completedAt)).toBe(
+      new Date(2020, 0, 14, 8, 30).getTime(),
+    );
     expect(create?.[0].body.details.entryMode).toBe("past");
     expect(create?.[0].expectedUserId).toBe("user-a");
     const setPath = `/v1/workouts/${workoutResponse.workout.id}/sets`;
@@ -272,5 +289,48 @@ describe("log past workout screen", () => {
     // The confirmed workout and frozen request are retained for the retry.
     const kept = JSON.parse(mocks.store.get(draftKey("user-a"))!);
     expect(kept.pending.workoutId).toBe(workoutResponse.workout.id);
+  });
+
+  it("adds a saved custom exercise from the library without creating a record", async () => {
+    const custom = {
+      id: "44444444-4444-4444-8444-444444444444",
+      userId: "user-a",
+      name: "Sled push",
+      instructions: null,
+      metadata: { custom: true, trackingMode: "load_reps" },
+      createdAt: "2026-10-19T10:00:00.000Z",
+      updatedAt: "2026-10-19T10:00:00.000Z",
+    };
+    let tree = await open();
+    const library = find(tree, (n) => n.type === "ExerciseLibraryModal");
+    await expect(library.props.onSelectExercises([custom])).resolves.toBe(true);
+    tree = render();
+    expect(field(tree, "Sled push set 1 reps")).toBeTruthy();
+    const { createExerciseWith } =
+      await import("@/features/log-workout/log-workout-data");
+    expect(createExerciseWith).not.toHaveBeenCalled();
+    expect(posts("POST", "/v1/exercises")).toHaveLength(0);
+  });
+
+  it("refuses a timed custom exercise, since past workouts record weight and reps", async () => {
+    const plank = {
+      id: "55555555-5555-4555-8555-555555555555",
+      userId: "user-a",
+      name: "Wall hold",
+      instructions: null,
+      metadata: { custom: true, trackingMode: "duration" },
+      createdAt: "2026-10-19T10:00:00.000Z",
+      updatedAt: "2026-10-19T10:00:00.000Z",
+    };
+    let tree = await open();
+    const library = find(tree, (n) => n.type === "ExerciseLibraryModal");
+    await expect(library.props.onSelectExercises([plank])).resolves.toBe(false);
+    tree = render();
+    expect(
+      find(tree, (n) => n.type === "ExerciseLibraryModal").props.errorMessage,
+    ).toBe(
+      "Past workouts record weight and reps, so Wall hold can't be added here. Use Log activity for timed exercises.",
+    );
+    expect(field(tree, "Wall hold set 1 reps")).toBeFalsy();
   });
 });

@@ -15,6 +15,11 @@ import { MaxContentWidth } from "@/constants/theme";
 import { CommunityPage } from "../ui";
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
+import {
+  fromTimeInputValue,
+  toTimeInputValue,
+} from "@/components/ui/native-date-time-values";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { scopeCommunityClient } from "../scoped-client";
@@ -115,7 +120,7 @@ function PreferencesContent({ principal }: { principal: string | null }) {
         endMinutes === null ||
         startMinutes === endMinutes
       ) {
-        setMessage("Enter two different times in 24-hour HH:MM format.");
+        setMessage("Choose different start and end times for quiet hours.");
         return;
       }
       quietHours = { startMinutes, endMinutes };
@@ -194,6 +199,26 @@ function PreferencesContent({ principal }: { principal: string | null }) {
       />
     </View>
   );
+  const timePicker = (
+    label: string,
+    value: string,
+    change: (value: string) => void,
+    fallbackMinutes: number,
+  ) => {
+    const time = fromTimeInputValue(value) ?? {
+      hour: Math.floor(fallbackMinutes / 60),
+      minute: fallbackMinutes % 60,
+    };
+    return (
+      <NativeTimePicker
+        label={label}
+        hour={time.hour}
+        minute={time.minute}
+        disabled={busy}
+        onChange={(hour, minute) => change(toTimeInputValue(hour, minute))}
+      />
+    );
+  };
   return (
     <CommunityPage
       title="Update preferences"
@@ -259,8 +284,8 @@ function PreferencesContent({ principal }: { principal: string | null }) {
               )}
               {preferences.quietHours && (
                 <>
-                  {input("Quiet hours start (HH:MM)", start, setStart)}
-                  {input("Quiet hours end (HH:MM)", end, setEnd)}
+                  {timePicker("Quiet hours start", start, setStart, 22 * 60)}
+                  {timePicker("Quiet hours end", end, setEnd, 8 * 60)}
                   <ThemedText>
                     Times use your chosen timezone. Quiet hours can continue
                     past midnight.

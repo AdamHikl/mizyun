@@ -38,7 +38,7 @@ describe("energyPlanNotes", () => {
     expect(notes.unrealisticDate).toBeNull();
   });
 
-  it("warns when the target date is earlier than the safe pace", () => {
+  it("warns with an action when the target date is earlier than the safe pace", () => {
     const notes = energyPlanNotes(
       withFields({
         projection: {
@@ -50,9 +50,26 @@ describe("energyPlanNotes", () => {
       "metric",
     );
     expect(notes.unrealisticDate).toBe(
-      "Your target date is earlier than this mode's safe pace; expected around 1 May 2027.",
+      "At this pace you'll reach your target weight around 1 May 2027, after your target date. Choose a later date or remove it.",
     );
     expect(notes.projection).toBeNull();
+  });
+
+  it("shows the projection and no warning when the goal has no target date", () => {
+    const notes = energyPlanNotes(
+      withFields({
+        projection: {
+          projectedWeeksToTarget: 19,
+          projectedDate: "2027-03-02",
+          targetDateRealistic: null,
+        },
+      }),
+      "metric",
+    );
+    expect(notes.unrealisticDate).toBeNull();
+    expect(notes.projection).toBe(
+      "On track to reach your target weight around 2 Mar 2027.",
+    );
   });
 
   it("shows calibration only when non-zero, with a real minus sign", () => {

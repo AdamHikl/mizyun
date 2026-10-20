@@ -10,26 +10,60 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   EXERCISE_CATALOG,
+  customExerciseTrackingMode,
+  searchCustomExercises,
   searchExerciseCatalog,
   type CatalogExercise,
   type MovementPattern,
 } from "@mizyun/core";
+import type { Exercise } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Button, Chip, FormStatus, Icon, ListGroup } from "@/components/ui";
+import {
+  Button,
+  Chip,
+  FormStatus,
+  Icon,
+  ListGroup,
+  SectionHeader,
+} from "@/components/ui";
 import { MinTouchTarget, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { ExerciseProgressionModal } from "./exercise-progression-modal";
+import {
+  CustomExerciseEditor,
+  TRACKING_MODE_LABELS,
+} from "./custom-exercise-editor";
+import { loadSavedExercises } from "./custom-exercises-data";
+import {
+  isSavedLibraryExercise,
+  type LibraryExercise,
+} from "./library-exercise";
+
+interface SavedState {
+  readonly exercises: ReadonlyArray<Exercise>;
+  readonly truncated: boolean;
+}
+
+interface EditorState {
+  readonly exercise: Exercise | null;
+  readonly initialName: string;
+}
 
 interface ExerciseLibraryModalProps {
   readonly visible: boolean;
   readonly onClose: () => void;
   readonly errorMessage?: string | null;
   readonly onSelectExercise?: (exercise: CatalogExercise) => void;
+  /** Receives catalog entries and saved custom exercises in selection order. */
   readonly onSelectExercises?: (
-    exercises: readonly CatalogExercise[],
+    exercises: readonly LibraryExercise[],
   ) => Promise<boolean> | boolean;
+  /** Add each exercise as soon as its Add button is tapped, keeping the library open. */
+  readonly addOnTap?: boolean;
+  /** Saved exercises already in the open workout; they open read-only. */
+  readonly inUseExerciseIds?: readonly string[];
 }
 
 const PAGE_SIZE = 60;
@@ -56,6 +90,8 @@ export function ExerciseLibraryModal({
   onSelectExercise,
   onSelectExercises,
   errorMessage,
+  addOnTap = false,
+  inUseExerciseIds = [],
 }: ExerciseLibraryModalProps) {
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
@@ -69,28 +105,116 @@ export function ExerciseLibraryModal({
   const [progressionExercise, setProgressionExercise] =
     useState<CatalogExercise | null>(null);
 
-  const [selections, setSelections] = useState<CatalogExercise[]>([]);
+  const [selections, setSelections] = useState<LibraryExercise[]>([]);
   const [adding, setAdding] = useState(false);
   const additionInFlight = useRef(false);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [addedIds, setAddedIds] = useState<string[]>([]);
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [saved, setSaved] = useState<SavedState | null>(null);
+  const [savedError, setSavedError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  // Ignores a saved-exercise load that finishes after the library closed
+  // or after a local create, edit or delete.
+  const savedLoadToken = useRef(0);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const loadSaved = () => {
+    const token = ++savedLoadToken.current;
+    setSavedError(null);
+    void loadSavedExercises().then((result) => {
+      if (savedLoadToken.current !== token) return;
+      if (result.ok) {
+        setSaved({ exercises: result.exercises, truncated: result.truncated });
+      } else {
+        setSavedError(result.message);
+      }
+    });
+  };
   useEffect(() => {
     if (!visible) {
       setSelections([]);
       setSelectionError(null);
+      setAddedIds([]);
+      setEditor(null);
+      savedLoadToken.current++;
+      return;
     }
+    loadSaved();
   }, [visible]);
-  const selectExercise = (exercise: CatalogExercise) => {
+  const addExerciseNow = async (exercise: LibraryExercise) => {
+    if (!onSelectExercises || addedIds.includes(exercise.id)) return;
+    additionInFlight.current = true;
+    setAdding(true);
+    setAddingId(exercise.id);
+    setSelectionError(null);
+    try {
+      if (await onSelectExercises([exercise])) {
+        setAddedIds((current) => [...current, exercise.id]);
+      } else {
+        setSelectionError(`Could not add ${exercise.name}. Try again.`);
+      }
+    } catch {
+      setSelectionError(`Could not add ${exercise.name}. Try again.`);
+    } finally {
+      additionInFlight.current = false;
+      setAdding(false);
+      setAddingId(null);
+    }
+  };
+  const selectExercise = (exercise: LibraryExercise) => {
     if (additionInFlight.current) return;
-    if (onSelectExercises) {
+    if (onSelectExercises && addOnTap) {
+      void addExerciseNow(exercise);
+    } else if (onSelectExercises) {
       setSelections((current) =>
         current.some((item) => item.id === exercise.id)
           ? current.filter((item) => item.id !== exercise.id)
           : [...current, exercise],
       );
-    } else {
+    } else if (!isSavedLibraryExercise(exercise)) {
       onSelectExercise?.(exercise);
       onClose();
     }
+  };
+  const handleSaved = (exercise: Exercise, created: boolean) => {
+    if (!visibleRef.current) return;
+    savedLoadToken.current++;
+    setSaved((current) => ({
+      truncated: current?.truncated ?? false,
+      exercises: [
+        ...(current?.exercises ?? []).filter((item) => item.id !== exercise.id),
+        exercise,
+      ],
+    }));
+    setEditor(null);
+    // A new exercise made from a picker is selected (or added) right away.
+    if (created && onSelectExercises) {
+      if (addOnTap) void addExerciseNow(exercise);
+      else setSelections((current) => [...current, exercise]);
+    } else {
+      setSelections((current) =>
+        current.map((item) => (item.id === exercise.id ? exercise : item)),
+      );
+    }
+  };
+  const handleDeleted = (exerciseId: string) => {
+    if (!visibleRef.current) return;
+    savedLoadToken.current++;
+    setSaved((current) =>
+      current
+        ? {
+            ...current,
+            exercises: current.exercises.filter(
+              (item) => item.id !== exerciseId,
+            ),
+          }
+        : current,
+    );
+    setSelections((current) =>
+      current.filter((item) => item.id !== exerciseId),
+    );
+    setEditor(null);
   };
   const addSelections = async () => {
     if (
@@ -125,6 +249,73 @@ export function ExerciseLibraryModal({
     });
   }, [searchQuery, selectedPattern]);
   const visibleExercises = filteredExercises.slice(0, visibleCount);
+  const selectionStateOf = (exercise: LibraryExercise) => {
+    const isSelected = addOnTap
+      ? addedIds.includes(exercise.id)
+      : selections.some((item) => item.id === exercise.id);
+    return {
+      isSelected,
+      isAddingThis: addingId === exercise.id,
+      selectionLocked: adding || (addOnTap && isSelected),
+    };
+  };
+  const quickSelectButton = (exercise: LibraryExercise) => {
+    if (
+      !onSelectExercises &&
+      (!onSelectExercise || isSavedLibraryExercise(exercise))
+    )
+      return null;
+    const { isSelected, isAddingThis, selectionLocked } =
+      selectionStateOf(exercise);
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Quick select ${exercise.name}`}
+        onPress={() => selectExercise(exercise)}
+        disabled={selectionLocked}
+        accessibilityState={{
+          disabled: selectionLocked,
+          selected: isSelected,
+          busy: isAddingThis,
+        }}
+        style={{
+          ...styles.quickSelectButton,
+          backgroundColor: isSelected ? theme.primary : theme.primaryLight,
+        }}
+      >
+        <Icon
+          name={isSelected ? "check" : "add"}
+          size={13}
+          tintColor={isSelected ? theme.onPrimary : theme.primary}
+        />
+        <ThemedText
+          type="smallBold"
+          style={{ color: isSelected ? theme.onPrimary : theme.primary }}
+        >
+          {isAddingThis
+            ? "Adding…"
+            : isSelected
+              ? addOnTap
+                ? "Added"
+                : "Selected"
+              : "Add"}
+        </ThemedText>
+      </Pressable>
+    );
+  };
+  const showCustom = selectedPattern === "all";
+  // Duplicate checks need the complete saved list, so creating waits for it.
+  const canCreate =
+    saved !== null && !saved.truncated && savedError === null && !adding;
+  const isInWorkout = (exerciseId: string) =>
+    inUseExerciseIds.includes(exerciseId) || addedIds.includes(exerciseId);
+  const customMatches = useMemo(
+    () =>
+      showCustom && saved
+        ? searchCustomExercises(saved.exercises, searchQuery)
+        : [],
+    [saved, searchQuery, showCustom],
+  );
 
   return (
     <Modal
@@ -207,6 +398,87 @@ export function ExerciseLibraryModal({
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
           >
+            <Button
+              label="Create exercise"
+              accessibilityLabel="Create custom exercise"
+              accessibilityHint="Adds your own exercise to the library"
+              variant="tinted"
+              icon="add"
+              block
+              disabled={!canCreate}
+              accessibilityState={{ disabled: !canCreate }}
+              onPress={() =>
+                setEditor({ exercise: null, initialName: searchQuery })
+              }
+            />
+
+            {showCustom ? (
+              <View style={styles.customSection}>
+                <SectionHeader title="My exercises" />
+                {savedError ? (
+                  <View style={styles.customStatus}>
+                    <FormStatus tone="error">{savedError}</FormStatus>
+                    <Button
+                      label="Retry"
+                      accessibilityLabel="Retry loading my exercises"
+                      variant="secondary"
+                      size="small"
+                      onPress={loadSaved}
+                    />
+                  </View>
+                ) : saved === null ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Loading your exercises…
+                  </ThemedText>
+                ) : customMatches.length === 0 ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {searchQuery.trim()
+                      ? "None of your exercises match."
+                      : "Exercises you create appear here."}
+                  </ThemedText>
+                ) : (
+                  <ListGroup>
+                    {customMatches.map((exercise) => (
+                      <View key={exercise.id} style={styles.exerciseCardHeader}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit ${exercise.name}`}
+                          accessibilityHint="Opens name, tracking type and notes"
+                          onPress={() =>
+                            setEditor({ exercise, initialName: "" })
+                          }
+                          disabled={adding}
+                          accessibilityState={{ disabled: adding }}
+                          style={styles.exerciseDetailsButton}
+                        >
+                          <View style={styles.exerciseMainInfo}>
+                            <ThemedText type="default">
+                              {exercise.name}
+                            </ThemedText>
+                            <ThemedText
+                              type="footnote"
+                              themeColor="textSecondary"
+                            >
+                              {`Custom · ${TRACKING_MODE_LABELS[customExerciseTrackingMode(exercise)]}`}
+                            </ThemedText>
+                          </View>
+                          <Icon name="edit" size={14} color="textTertiary" />
+                        </Pressable>
+                        {quickSelectButton(exercise)}
+                      </View>
+                    ))}
+                  </ListGroup>
+                )}
+                {saved?.truncated ? (
+                  <ThemedText type="footnote" themeColor="textSecondary">
+                    {
+                      "Showing your first 200 saved exercises. Creating is unavailable because new names can't be checked for duplicates."
+                    }
+                  </ThemedText>
+                ) : null}
+              </View>
+            ) : null}
+
             <ThemedText type="footnote" themeColor="textSecondary">
               Showing {visibleExercises.length} of {filteredExercises.length}{" "}
               exercises
@@ -221,9 +493,8 @@ export function ExerciseLibraryModal({
               <ListGroup>
                 {visibleExercises.map((exercise) => {
                   const isExpanded = expandedExerciseId === exercise.id;
-                  const isSelected = selections.some(
-                    (item) => item.id === exercise.id,
-                  );
+                  const { isSelected, selectionLocked } =
+                    selectionStateOf(exercise);
                   const meta = [
                     exercise.movementPattern.replaceAll("_", " "),
                     exercise.category,
@@ -261,42 +532,7 @@ export function ExerciseLibraryModal({
                             color="textTertiary"
                           />
                         </Pressable>
-                        {onSelectExercise || onSelectExercises ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Quick select ${exercise.name}`}
-                            onPress={() => selectExercise(exercise)}
-                            disabled={adding}
-                            accessibilityState={{
-                              disabled: adding,
-                              selected: isSelected,
-                            }}
-                            style={{
-                              ...styles.quickSelectButton,
-                              backgroundColor: isSelected
-                                ? theme.primary
-                                : theme.primaryLight,
-                            }}
-                          >
-                            <Icon
-                              name={isSelected ? "check" : "add"}
-                              size={13}
-                              tintColor={
-                                isSelected ? theme.onPrimary : theme.primary
-                              }
-                            />
-                            <ThemedText
-                              type="smallBold"
-                              style={{
-                                color: isSelected
-                                  ? theme.onPrimary
-                                  : theme.primary,
-                              }}
-                            >
-                              {isSelected ? "Selected" : "Add"}
-                            </ThemedText>
-                          </Pressable>
-                        ) : null}
+                        {quickSelectButton(exercise)}
                       </View>
 
                       {isExpanded ? (
@@ -416,17 +652,21 @@ export function ExerciseLibraryModal({
                           {onSelectExercise || onSelectExercises ? (
                             <Button
                               label={
-                                isSelected
-                                  ? "Remove selection"
-                                  : "Select exercise"
+                                addOnTap
+                                  ? isSelected
+                                    ? "Added to workout"
+                                    : "Add to workout"
+                                  : isSelected
+                                    ? "Remove selection"
+                                    : "Select exercise"
                               }
                               accessibilityLabel={`Select ${exercise.name}`}
                               variant="tinted"
                               block
                               onPress={() => selectExercise(exercise)}
-                              disabled={adding}
+                              disabled={selectionLocked}
                               accessibilityState={{
-                                disabled: adding,
+                                disabled: selectionLocked,
                                 selected: isSelected,
                               }}
                             />
@@ -449,31 +689,49 @@ export function ExerciseLibraryModal({
               />
             ) : null}
           </ScrollView>
-          {onSelectExercises ? (
+          {onSelectExercises &&
+          (!addOnTap || selectionError || errorMessage) ? (
             <View style={[styles.footer, { borderTopColor: theme.separator }]}>
               {selectionError || errorMessage ? (
                 <FormStatus tone="error">
                   {errorMessage ?? selectionError}
                 </FormStatus>
               ) : null}
-              <Button
-                label={
-                  adding ? "Adding…" : `Add ${selections.length} exercises`
-                }
-                accessibilityLabel={`Add ${selections.length} exercises`}
-                variant="primary"
-                block
-                accessibilityState={{
-                  disabled: adding || selections.length === 0,
-                  busy: adding,
-                }}
-                disabled={adding || selections.length === 0}
-                onPress={() => void addSelections()}
-              />
+              {addOnTap ? null : (
+                <Button
+                  label={
+                    adding ? "Adding…" : `Add ${selections.length} exercises`
+                  }
+                  accessibilityLabel={`Add ${selections.length} exercises`}
+                  variant="primary"
+                  block
+                  accessibilityState={{
+                    disabled: adding || selections.length === 0,
+                    busy: adding,
+                  }}
+                  disabled={adding || selections.length === 0}
+                  onPress={() => void addSelections()}
+                />
+              )}
             </View>
           ) : null}
         </SafeAreaView>
       </ThemedView>
+
+      {editor !== null ? (
+        <CustomExerciseEditor
+          visible={editor !== null}
+          exercise={editor.exercise}
+          initialName={editor.initialName}
+          savedExercises={saved?.exercises ?? []}
+          inCurrentWorkout={
+            editor.exercise !== null && isInWorkout(editor.exercise.id)
+          }
+          onClose={() => setEditor(null)}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      ) : null}
 
       {progressionExercise !== null ? (
         <ExerciseProgressionModal
@@ -561,6 +819,13 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     gap: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  customSection: {
+    gap: Spacing.two,
+  },
+  customStatus: {
+    gap: Spacing.two,
+    alignItems: "flex-start",
   },
   quickSelectButton: {
     minHeight: 48,

@@ -132,6 +132,38 @@ it("appends a batch to a routine while retaining custom names and edited targets
   ]);
 });
 
+it("plans a saved custom exercise by name without a catalog id", () => {
+  hooks.slots = [];
+  let tree = render();
+  hooks.slots[2] = [];
+  tree = render();
+  const library = find(tree, (node) => node.type === "ExerciseLibraryModal");
+  expect(
+    library.props.onSelectExercises([
+      { id: "squat", name: "Squat", movementPattern: "knee_dominant" },
+      {
+        id: "00000000-0000-4000-8000-000000000001",
+        userId: "user-1",
+        name: "Sled push",
+        instructions: null,
+        metadata: { custom: true, trackingMode: "duration" },
+        createdAt: "2026-10-19T10:00:00.000Z",
+        updatedAt: "2026-10-19T10:00:00.000Z",
+      },
+    ]),
+  ).toBe(true);
+  expect(hooks.slots[2]).toEqual([
+    expect.objectContaining({ name: "Squat", catalogId: "squat" }),
+    {
+      name: "Sled push",
+      movementPattern: "custom",
+      targetSets: 3,
+      targetReps: "8-12",
+      restSeconds: 75,
+    },
+  ]);
+});
+
 it("saves per-set routine types and preserves existing choices when the set count changes", async () => {
   hooks.slots = [];
   mocks.save

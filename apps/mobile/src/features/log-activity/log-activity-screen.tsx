@@ -10,6 +10,7 @@ import {
   resolvedActivityLabel,
   type ActivityDescriptionDraft,
   type LocalDate,
+  type LocalTime,
 } from "@mizyun/core";
 import type { ApiClient } from "@mizyun/api-client";
 
@@ -24,12 +25,15 @@ import {
   FormTextInput,
   Notice,
 } from "@/components/ui";
+import {
+  NativeDatePicker,
+  NativeTimePicker,
+} from "@/components/ui/native-date-time-picker";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { hasRunDraftContent, runDraftStore } from "@/features/log-run";
 import { useAiConsentController } from "@/features/coach/ai-consent-controller";
-import { ActivityDatePicker } from "./activity-date-picker";
 import {
   draftActivityWithAi,
   type ActivityAiDraftFailure,
@@ -49,11 +53,9 @@ import {
   activityTimes,
   deviceTimeZone,
   distanceFieldText,
+  defaultStartTime,
   endedNowStart,
-  formatTimeInput,
-  localDateLabel,
   parseActivityForm,
-  parseTimeInput,
   resolvedDistance,
   runCreateBody,
   toLocalDate,
@@ -120,8 +122,7 @@ export function LogActivityScreen() {
   const [drafted, setDrafted] = useState<string | null>(null);
   const [activityText, setActivityText] = useState("");
   const [date, setDate] = useState<LocalDate>(() => toLocalDate(new Date()));
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [startTime, setStartTime] = useState("");
+  const [startTime, setStartTime] = useState<LocalTime | null>(null);
   const [minutes, setMinutes] = useState("");
   const [seconds, setSeconds] = useState("");
   const [distance, setDistance] = useState("");
@@ -326,17 +327,17 @@ export function LogActivityScreen() {
           ? duration.durationSeconds
           : null;
     if (draft.startTime) {
-      setStartTime(formatTimeInput(draft.startTime));
+      setStartTime(draft.startTime);
       filled.push(FIELD_NAMES.time);
     } else if (draft.endedNow && knownDuration !== null) {
       // "Just": it started that long ago, possibly yesterday.
       const start = endedNowStart(new Date(), knownDuration);
       setDate(start.date);
-      setStartTime(formatTimeInput(start.startTime));
+      setStartTime(start.startTime);
       filled.push(FIELD_NAMES.time);
     } else if (draft.endedNow || draft.date) {
       // A day without a time: today ends now, earlier days at noon.
-      setStartTime("");
+      setStartTime(null);
     }
     if (draft.environment) setEnvironment(draft.environment);
     if (draft.note && notes.trim().length === 0) {
@@ -365,10 +366,7 @@ export function LogActivityScreen() {
       tracksDistance,
     });
     if (!parsed.ok) return parsed.message;
-    const time = parseTimeInput(startTime);
-    if (time === "invalid") {
-      return "Enter the start time like 19:00 or 7pm, or leave it blank.";
-    }
+    const time = startTime;
     const now = new Date();
     if (activity.kind === "running") {
       const timeZone = deviceTimeZone();
@@ -584,37 +582,39 @@ export function LogActivityScreen() {
             Saved as a new activity named {activity.name}.
           </ThemedText>
         ) : null}
-        <FormField label="Date">
+        <NativeDatePicker
+          label="Date"
+          value={date}
+          maximumDate={today}
+          disabled={disabled}
+          onChange={setDate}
+        />
+        {startTime ? (
+          <View style={styles.startTime}>
+            <NativeTimePicker
+              label="Start time"
+              hour={startTime.hour}
+              minute={startTime.minute}
+              disabled={disabled}
+              onChange={(hour, minute) => setStartTime({ hour, minute })}
+            />
+            <Button
+              label="Remove start time"
+              variant="plain"
+              size="small"
+              disabled={disabled}
+              onPress={() => setStartTime(null)}
+            />
+          </View>
+        ) : (
           <Button
-            label={localDateLabel(date, today)}
-            accessibilityLabel={`Date, ${localDateLabel(date, today)}`}
+            label="Add start time (optional)"
             variant="secondary"
-            icon="calendar"
+            icon="timer"
             disabled={disabled}
-            onPress={() => setCalendarOpen((open) => !open)}
+            onPress={() => setStartTime(defaultStartTime(new Date()))}
           />
-        </FormField>
-        {calendarOpen && !disabled ? (
-          <ActivityDatePicker
-            value={date}
-            today={today}
-            onChange={(next) => {
-              setDate(next);
-              setCalendarOpen(false);
-            }}
-          />
-        ) : null}
-        <FormField label="Start time (optional)">
-          <FormTextInput
-            accessibilityLabel="Start time (optional)"
-            placeholder="19:00"
-            value={startTime}
-            editable={!disabled}
-            keyboardType="numbers-and-punctuation"
-            maxLength={8}
-            onChangeText={setStartTime}
-          />
-        </FormField>
+        )}
         <View style={styles.row}>
           <View style={styles.cell}>
             <FormField label="Minutes">
@@ -730,5 +730,6 @@ const styles = StyleSheet.create({
     paddingBottom: 64,
   },
   row: { flexDirection: "row", gap: 12 },
+  startTime: { gap: Spacing.one },
   cell: { flex: 1 },
 });

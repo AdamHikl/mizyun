@@ -16,7 +16,6 @@ import {
   Button,
   Card,
   Chip,
-  FormTextInput,
   Icon,
   IconBadge,
   IconButton,
@@ -25,6 +24,12 @@ import {
   ListRow,
   Notice,
 } from "@/components/ui";
+import { NativeDatePicker } from "@/components/ui/native-date-time-picker";
+import {
+  fromDateInputValue,
+  toDateInputValue,
+  todayLocalDate,
+} from "@/components/ui/native-date-time-values";
 import { PageGutter, Radius, Spacing } from "@/constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SharedWorkoutDetails } from "./shared-workout-details";
@@ -738,14 +743,15 @@ export function ShareWorkoutModal({
                   >
                     DAY
                   </ThemedText>
-                  <FormTextInput
-                    value={preview?.sharedDay ?? ""}
-                    accessibilityLabel="Shared calendar day YYYY-MM-DD"
-                    placeholder="YYYY-MM-DD"
-                    keyboardType="numbers-and-punctuation"
-                    autoCorrect={false}
-                    editable={!submitting}
-                    onChangeText={(sharedDay) => {
+                  <NativeDatePicker
+                    label="Shared day"
+                    value={
+                      fromDateInputValue(preview?.sharedDay ?? "") ??
+                      todayLocalDate()
+                    }
+                    disabled={submitting}
+                    onChange={(day) => {
+                      const sharedDay = toDateInputValue(day);
                       publicationOperation.current = null;
                       setPreview((current) =>
                         current ? { ...current, sharedDay } : current,

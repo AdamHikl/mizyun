@@ -83,7 +83,9 @@ export const submitOnboarding = async (
         pace: "steady",
         target: { weightKg: goalWeightKg },
         startsOn: form.goalStartDate,
-        targetDate: form.goalTargetDate,
+        ...(form.goalTargetDate !== null
+          ? { targetDate: form.goalTargetDate }
+          : {}),
       },
       schema: goalResponseSchema,
     });

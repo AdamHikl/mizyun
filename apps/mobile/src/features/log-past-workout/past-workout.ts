@@ -216,8 +216,7 @@ export function parsePastWorkoutForm(
   if (!startedAt)
     return {
       ok: false,
-      message:
-        "Enter a valid date (YYYY-MM-DD) and start time (HH:MM, 24-hour).",
+      message: "Choose a valid date and start time.",
     };
   const minutesText = form.durationMinutes.trim();
   const minutes = Number(minutesText);

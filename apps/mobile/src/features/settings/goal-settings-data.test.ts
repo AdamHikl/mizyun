@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
 import type { Goal } from "@mizyun/contracts";
 
@@ -25,12 +25,21 @@ const mockGoal: Goal = {
 };
 
 describe("goal-settings-data", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 20, 12));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("converts goal to metric form values", () => {
     const form = goalSettingsFormFromGoal(mockGoal, "metric");
     expect(form).toEqual({
       kind: "cut",
       targetWeight: "75.5",
       pace: "steady",
+      targetDate: "2026-11-01",
     });
   });
 
@@ -46,6 +55,7 @@ describe("goal-settings-data", () => {
       kind: "cut",
       targetWeight: "",
       pace: "steady",
+      targetDate: null,
     });
   });
 
@@ -55,6 +65,7 @@ describe("goal-settings-data", () => {
         kind: "cut",
         targetWeight: "72.0",
         pace: "steady",
+        targetDate: null,
       },
       "metric",
     );
@@ -70,6 +81,7 @@ describe("goal-settings-data", () => {
         kind: "cut",
         targetWeight: "abc",
         pace: "steady",
+        targetDate: null,
       },
       "metric",
     );
@@ -82,6 +94,7 @@ describe("goal-settings-data", () => {
         kind: "cut",
         targetWeight: "15.0",
         pace: "steady",
+        targetDate: null,
       },
       "metric",
     );
@@ -107,6 +120,7 @@ describe("goal-settings-data", () => {
         kind: "cut",
         targetWeight: "73.0",
         pace: "steady",
+        targetDate: "2026-11-01",
       },
       "metric",
     );
@@ -145,6 +159,7 @@ describe("goal-settings-data", () => {
         kind: "bulk",
         targetWeight: "80.0",
         pace: "steady",
+        targetDate: null,
       },
       "metric",
     );
@@ -167,5 +182,147 @@ describe("goal-settings-data", () => {
         }),
       }),
     );
+    // No invented deadline: the new goal has no target date.
+    expect(request.mock.calls[1]?.[0].body).not.toHaveProperty("targetDate");
+  });
+
+  it("asks for a new date when the stored target date has passed", () => {
+    const validation = validateGoalSettingsForm(
+      {
+        kind: "bulk",
+        targetWeight: "80",
+        pace: "steady",
+        targetDate: "2026-10-19",
+      },
+      "metric",
+    );
+    expect(validation).toEqual({
+      ok: false,
+      message: "Your target date has passed. Choose a new date or remove it.",
+    });
+    // Today is still a valid deadline.
+    expect(
+      validateGoalSettingsForm(
+        {
+          kind: "bulk",
+          targetWeight: "80",
+          pace: "steady",
+          targetDate: "2026-10-20",
+        },
+        "metric",
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("keeps a passed stored date from blocking a pace change, but not a new goal", async () => {
+    const pastGoal: Goal = { ...mockGoal, targetDate: "2026-10-01" };
+    const request = vi
+      .fn()
+      .mockResolvedValue({ ok: true, value: { goal: pastGoal } });
+    const client = { request } as unknown as ApiClient;
+
+    const update = await saveGoalSettings(
+      client,
+      pastGoal,
+      {
+        kind: "cut",
+        targetWeight: "75.5",
+        pace: "aggressive",
+        targetDate: "2026-10-01",
+      },
+      "metric",
+    );
+    expect(update.ok).toBe(true);
+    expect(request.mock.calls[0]?.[0].body).toEqual({
+      target: { weightKg: 75.5 },
+      pace: "aggressive",
+    });
+
+    // A kind change creates a goal starting today, so the old date can't carry over.
+    const create = await saveGoalSettings(
+      client,
+      pastGoal,
+      {
+        kind: "bulk",
+        targetWeight: "80",
+        pace: "steady",
+        targetDate: "2026-10-01",
+      },
+      "metric",
+    );
+    expect(create).toEqual({
+      ok: false,
+      message: "Your target date has passed. Choose a new date or remove it.",
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears or changes the stored target date on update", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue({ ok: true, value: { goal: mockGoal } });
+    const client = { request } as unknown as ApiClient;
+    const form = { kind: "cut", targetWeight: "75.5", pace: "steady" } as const;
+
+    await saveGoalSettings(
+      client,
+      mockGoal,
+      { ...form, targetDate: null },
+      "metric",
+    );
+    await saveGoalSettings(
+      client,
+      mockGoal,
+      { ...form, targetDate: "2027-01-15" },
+      "metric",
+    );
+
+    expect(request.mock.calls[0]?.[0].body).toEqual({
+      target: { weightKg: 75.5 },
+      pace: "steady",
+      targetDate: null,
+    });
+    expect(request.mock.calls[1]?.[0].body).toEqual({
+      target: { weightKg: 75.5 },
+      pace: "steady",
+      targetDate: "2027-01-15",
+    });
+  });
+
+  it("sends a chosen date on create but never one for maintain", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue({ ok: true, value: { goal: mockGoal } });
+    const client = { request } as unknown as ApiClient;
+
+    await saveGoalSettings(
+      client,
+      null,
+      {
+        kind: "bulk",
+        targetWeight: "80",
+        pace: "steady",
+        targetDate: "2027-02-01",
+      },
+      "metric",
+    );
+    await saveGoalSettings(
+      client,
+      null,
+      {
+        kind: "maintain",
+        targetWeight: "80",
+        pace: "steady",
+        targetDate: "2027-02-01",
+      },
+      "metric",
+    );
+
+    expect(request.mock.calls[0]?.[0].body).toMatchObject({
+      kind: "bulk",
+      startsOn: "2026-10-20",
+      targetDate: "2027-02-01",
+    });
+    expect(request.mock.calls[1]?.[0].body).not.toHaveProperty("targetDate");
   });
 });

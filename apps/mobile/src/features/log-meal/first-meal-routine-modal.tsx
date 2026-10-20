@@ -9,7 +9,7 @@ import {
   FormTextInput,
   IconBadge,
 } from "@/components/ui";
-import { IosTimePicker } from "@/components/ui/ios-time-picker";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -107,7 +107,7 @@ export function FirstMealRoutineModal({
               { backgroundColor: theme.backgroundSelected },
             ]}
           >
-            <IosTimePicker
+            <NativeTimePicker
               label="First-meal time"
               hour={hour}
               minute={minute}

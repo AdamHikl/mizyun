@@ -135,77 +135,15 @@ export const isoLocalDate = (date: LocalDate): string =>
 const atLocal = (date: LocalDate, hour: number, minute: number): Date =>
   new Date(date.year, date.month - 1, date.day, hour, minute, 0, 0);
 
-/** "Today", "Yesterday", or a short weekday date. */
-export const localDateLabel = (date: LocalDate, today: LocalDate): string => {
-  const yesterday = toLocalDate(
-    new Date(today.year, today.month - 1, today.day - 1),
-  );
-  if (sameLocalDate(date, today)) return "Today";
-  if (sameLocalDate(date, yesterday)) return "Yesterday";
-  return atLocal(date, 12, 0).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    ...(date.year !== today.year ? { year: "numeric" } : {}),
-  });
-};
-
-/** Monday-first weeks for a month; days outside it are null. */
-export const calendarMonth = (
-  year: number,
-  month: number,
-): {
-  readonly title: string;
-  readonly weeks: ReadonlyArray<ReadonlyArray<LocalDate | null>>;
-} => {
-  const first = new Date(year, month - 1, 1);
-  const days = new Date(year, month, 0).getDate();
-  const lead = (first.getDay() + 6) % 7;
-  const cells: (LocalDate | null)[] = [
-    ...Array.from({ length: lead }, () => null),
-    ...Array.from({ length: days }, (_, index) => ({
-      year,
-      month,
-      day: index + 1,
-    })),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-  const weeks: (LocalDate | null)[][] = [];
-  for (let index = 0; index < cells.length; index += 7) {
-    weeks.push(cells.slice(index, index + 7));
-  }
-  return {
-    title: first.toLocaleDateString(undefined, {
-      month: "long",
-      year: "numeric",
-    }),
-    weeks,
-  };
-};
-
 /**
- * Parse an optional start time: "19:00", "19.00", "7pm", "7:30 am".
- * Returns null for empty text and "invalid" for anything else unreadable.
+ * The start time offered when the user adds one: an hour before the current
+ * hour (midnight at the earliest), so a just-finished activity usually
+ * fits before now. The user adjusts it in the time picker.
  */
-export const parseTimeInput = (raw: string): LocalTime | null | "invalid" => {
-  const text = raw.trim().toLowerCase().replace(/\s+/g, "");
-  if (text.length === 0) return null;
-  const match = /^(\d{1,2})(?:[:.](\d{2}))?(am|pm)?$/.exec(text);
-  if (!match?.[1]) return "invalid";
-  let hour = Number(match[1]);
-  const minute = Number(match[2] ?? "0");
-  const period = match[3];
-  if (!match[2] && !period) return "invalid";
-  if (period) {
-    if (hour < 1 || hour > 12) return "invalid";
-    if (period === "pm" && hour < 12) hour += 12;
-    if (period === "am" && hour === 12) hour = 0;
-  }
-  return hour <= 23 && minute <= 59 ? { hour, minute } : "invalid";
-};
-
-export const formatTimeInput = (time: LocalTime): string =>
-  `${String(time.hour).padStart(2, "0")}:${String(time.minute).padStart(2, "0")}`;
+export const defaultStartTime = (now: Date): LocalTime => ({
+  hour: Math.max(0, now.getHours() - 1),
+  minute: 0,
+});
 
 /**
  * Start and end instants for a finished activity. A start time places it

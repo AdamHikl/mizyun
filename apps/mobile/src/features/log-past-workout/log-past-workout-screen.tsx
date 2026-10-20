@@ -4,7 +4,10 @@ import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, useNavigation, type Href } from "expo-router";
 import * as Crypto from "expo-crypto";
 import type { ApiClient } from "@mizyun/api-client";
-import { getCatalogExerciseNames, type CatalogExercise } from "@mizyun/core";
+import {
+  getCatalogExerciseNames,
+  resolveExerciseTrackingMode,
+} from "@mizyun/core";
 import {
   exerciseListResponseSchema,
   type Exercise,
@@ -17,18 +20,30 @@ import { ThemedView } from "@/components/themed-view";
 import {
   Button,
   Card,
-  ChoiceChip,
-  ChoiceGroup,
   FormField,
   FormStatus,
   FormTextInput,
 } from "@/components/ui";
+import {
+  NativeDatePicker,
+  NativeTimePicker,
+} from "@/components/ui/native-date-time-picker";
+import {
+  fromDateInputValue,
+  fromTimeInputValue,
+  toDateInputValue,
+  toTimeInputValue,
+} from "@/components/ui/native-date-time-values";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { createExerciseWith } from "@/features/log-workout/log-workout-data";
 import { findCatalogExerciseRecord } from "@/features/workouts/catalog-exercise-record";
 import { ExerciseLibraryModal } from "@/features/workouts/exercise-library-modal";
+import {
+  isSavedLibraryExercise,
+  type LibraryExercise,
+} from "@/features/workouts/library-exercise";
 import { weightUnitLabel } from "@/lib/weight-units";
 import {
   emptyPastWorkoutForm,
@@ -57,12 +72,6 @@ const SET_TYPE_ORDER: readonly WorkoutSetType[] = [
   "drop",
   "failure",
 ];
-const DATE_SHORTCUTS = [
-  { label: "Today", days: 0 },
-  { label: "Yesterday", days: 1 },
-  { label: "2 days ago", days: 2 },
-] as const;
-
 const newKey = () => Crypto.randomUUID();
 const blankSet = (from?: PastWorkoutSetInput): PastWorkoutSetInput => ({
   key: newKey(),
@@ -251,10 +260,22 @@ export function LogPastWorkoutScreen() {
 
   /** Mirrors the live session: reuse the saved record for a catalog movement, or create it. */
   const addExercises = async (
-    picked: readonly CatalogExercise[],
+    picked: readonly LibraryExercise[],
   ): Promise<boolean> => {
     if (!ready || !userId || locked) return false;
     setLibraryError(null);
+    // Past workouts record weight and reps only (WO-08).
+    const timed = picked.find(
+      (exercise) =>
+        isSavedLibraryExercise(exercise) &&
+        resolveExerciseTrackingMode(exercise) !== "load_reps",
+    );
+    if (timed) {
+      setLibraryError(
+        `Past workouts record weight and reps, so ${timed.name} can't be added here. Use Log activity for timed exercises.`,
+      );
+      return false;
+    }
     const owner = principal;
     let saved = exercises;
     if (saved === null) {
@@ -275,6 +296,19 @@ export function LogPastWorkoutScreen() {
     const known = [...saved];
     const additions: PastWorkoutExercise[] = [];
     for (const catalogEx of picked) {
+      // A saved custom exercise already has its record: use it as is.
+      if (isSavedLibraryExercise(catalogEx)) {
+        const index = known.findIndex((e) => e.id === catalogEx.id);
+        if (index === -1) known.push(catalogEx);
+        else known[index] = catalogEx;
+        additions.push({
+          key: newKey(),
+          exerciseId: catalogEx.id,
+          name: catalogEx.name,
+          sets: [blankSet()],
+        });
+        continue;
+      }
       let record = findCatalogExerciseRecord(known, catalogEx);
       if (!record) {
         const names = new Set(
@@ -493,7 +527,11 @@ export function LogPastWorkoutScreen() {
 
   const form = draft?.form;
   const unit = weightUnitLabel(form?.unitSystem ?? unitSystem);
-  const today = localDateDaysAgo(new Date(), 0);
+  const todayDate = fromDateInputValue(localDateDaysAgo(new Date(), 0))!;
+  const startTime = fromTimeInputValue(form?.startTime ?? "") ?? {
+    hour: 18,
+    minute: 0,
+  };
   const setCount = form?.exercises.reduce((n, e) => n + e.sets.length, 0) ?? 0;
 
   return (
@@ -531,49 +569,23 @@ export function LogPastWorkoutScreen() {
               />
             </FormField>
 
-            <FormField
-              label={
-                form.date === today
-                  ? "Date · Today (YYYY-MM-DD)"
-                  : "Date (YYYY-MM-DD)"
+            <NativeDatePicker
+              label="Date"
+              value={fromDateInputValue(form.date) ?? todayDate}
+              maximumDate={todayDate}
+              disabled={locked}
+              onChange={(date) => changeForm({ date: toDateInputValue(date) })}
+            />
+            <NativeTimePicker
+              label="Start time"
+              hour={startTime.hour}
+              minute={startTime.minute}
+              disabled={locked}
+              onChange={(hour, minute) =>
+                changeForm({ startTime: toTimeInputValue(hour, minute) })
               }
-            >
-              <ChoiceGroup>
-                {DATE_SHORTCUTS.map((shortcut) => {
-                  const value = localDateDaysAgo(new Date(), shortcut.days);
-                  return (
-                    <ChoiceChip
-                      key={shortcut.label}
-                      label={shortcut.label}
-                      selected={form.date === value}
-                      disabled={locked}
-                      onPress={() => changeForm({ date: value })}
-                    />
-                  );
-                })}
-              </ChoiceGroup>
-              <FormTextInput
-                accessibilityLabel="Workout date, year month day"
-                value={form.date}
-                editable={!locked}
-                maxLength={10}
-                keyboardType="numbers-and-punctuation"
-                onChangeText={(date) => changeForm({ date })}
-              />
-            </FormField>
+            />
             <View style={styles.row}>
-              <View style={styles.cell}>
-                <FormField label="Start time (24h)">
-                  <FormTextInput
-                    accessibilityLabel="Start time, hours and minutes, 24 hour"
-                    value={form.startTime}
-                    editable={!locked}
-                    maxLength={5}
-                    keyboardType="numbers-and-punctuation"
-                    onChangeText={(startTime) => changeForm({ startTime })}
-                  />
-                </FormField>
-              </View>
               <View style={styles.cell}>
                 <FormField label="Duration (min)">
                   <FormTextInput
@@ -759,6 +771,9 @@ export function LogPastWorkoutScreen() {
         errorMessage={libraryError}
         onClose={() => setLibraryVisible(false)}
         onSelectExercises={addExercises}
+        inUseExerciseIds={
+          draft?.form.exercises.map((exercise) => exercise.exerciseId) ?? []
+        }
       />
     </ThemedView>
   );

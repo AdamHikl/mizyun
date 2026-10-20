@@ -46,6 +46,10 @@ const hooks = vi.hoisted(() => ({
   effects: [] as (() => void)[],
   focus: null as (() => (() => void) | void) | null,
 }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
+}));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useRef: (current: unknown) => (hooks.slots[hooks.index++] ??= { current }),
@@ -138,7 +142,7 @@ vi.mock("@/components/brand-wordmark", () => ({
 vi.mock("@/components/account-header-button", () => ({
   AccountHeaderActions: "AccountHeaderActions",
 }));
-vi.mock("@/components/ui/ios-time-picker", () => ({
+vi.mock("@/components/ui/ios-time-picker-utils", () => ({
   formatTime12: () => "9 am",
 }));
 vi.mock("@/constants/theme", () => ({
@@ -722,6 +726,41 @@ describe("dashboard cached display and refresh status", () => {
         }),
       ),
     ).not.toContain("Protein ideas");
+  });
+
+  it("links the target-date warning to goal settings and hides it without a date", async () => {
+    render();
+    focus();
+    await settle();
+    const card = find(render(), (node) => node.type?.name === "EnergyCard");
+    const renderCard = (targetDateRealistic: boolean | null) =>
+      card.type({
+        ...card.props,
+        summary: {
+          ...energy,
+          projection: {
+            projectedWeeksToTarget: 19,
+            projectedDate: "2027-03-02",
+            targetDateRealistic,
+          },
+        },
+      });
+    const warning = (tree: any) =>
+      find(
+        tree,
+        (node) => node.type === "Notice" && node.props.tone === "warning",
+      );
+
+    const late = warning(renderCard(false));
+    expect(late.props.message).toContain("Choose a later date or remove it");
+    late.props.action.props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith("/account-settings/goal");
+
+    const noDate = renderCard(null);
+    expect(warning(noDate)).toBeFalsy();
+    expect(text(noDate)).toContain(
+      "On track to reach your target weight around 2 Mar 2027.",
+    );
   });
 
   it("shows cached numbers immediately without claiming offline before the live read settles", async () => {

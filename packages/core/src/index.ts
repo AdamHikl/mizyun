@@ -123,6 +123,7 @@ export {
 
 export {
   EXERCISE_NAME_MAX,
+  ExerciseInUseError,
   INSTRUCTIONS_MAX,
   applyExercisePatch,
   validateExerciseCreate,
@@ -326,6 +327,22 @@ export {
   type ExerciseTrackingMode,
   type TrackedDistanceUnit,
 } from "./exercise-tracking";
+
+export {
+  CUSTOM_EXERCISE_PREVIOUS_NAMES_MAX,
+  customExerciseMetadata,
+  customExerciseTrackingMode,
+  findSavedExerciseByName,
+  isCustomExerciseRecord,
+  normalizeCustomExerciseName,
+  searchCustomExercises,
+  validateCustomExerciseDraft,
+  type CustomExerciseDraft,
+  type CustomExerciseDraftError,
+  type CustomExerciseDraftResult,
+  type CustomExerciseRecord,
+  type NormalizedCustomExercise,
+} from "./custom-exercise";
 
 export {
   MEDIA_ALLOWED_MIME_TYPES,

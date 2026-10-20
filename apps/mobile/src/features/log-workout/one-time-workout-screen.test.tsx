@@ -795,6 +795,102 @@ it("does not create a duplicate after a truncated saved-exercise page", async ()
   expect(mocks.persist).not.toHaveBeenCalled();
 });
 
+it("adds a saved custom exercise without creating another record", async () => {
+  const custom = {
+    id: "00000000-0000-4000-8000-0000000000c5",
+    userId: "user-1",
+    name: "Sled push",
+    instructions: null,
+    metadata: { custom: true, trackingMode: "duration" },
+    createdAt: "2026-10-19T10:00:00.000Z",
+    updatedAt: "2026-10-19T10:00:00.000Z",
+  };
+  openLibrary().props.onSelectExercises([custom, catalogExercise]);
+  await settle();
+  expect(mocks.createExercise).not.toHaveBeenCalled();
+  expect(mocks.persist).toHaveBeenCalledTimes(1);
+  expect(mocks.persist.mock.calls[0][1]).toEqual([
+    expect.objectContaining({
+      id: custom.id,
+      name: "Sled push",
+      catalogId: "",
+      isPlanned: false,
+    }),
+    expect.objectContaining({ id: exercise.id, name: exercise.name }),
+  ]);
+});
+
+it("links a routine row planned by an old name to the renamed custom exercise", () => {
+  const renamed = {
+    ...exercise,
+    id: "00000000-0000-4000-8000-0000000000c6",
+    name: "Heavy sled push",
+    metadata: {
+      custom: true,
+      trackingMode: "load_reps",
+      previousNames: ["Sled push"],
+    },
+  };
+  mocks.workspace = {
+    ...mocks.workspace,
+    exercises: [exercise, renamed],
+    workout: {
+      ...workout,
+      details: {
+        workoutLifecycle: { kind: "session", routineId: "routine-origin" },
+        coachPlan: {
+          exercises: [{ name: "Sled push", targetSets: 1, targetReps: "8" }],
+        },
+      },
+    },
+  };
+  expect(feed().props.exercises).toEqual([
+    expect.objectContaining({ id: renamed.id, name: "Sled push" }),
+  ]);
+  // Its first set must not add a second row under the current name.
+  mocks.workspace = {
+    ...mocks.workspace,
+    sets: [{ ...recordedSet, id: "renamed-set", exerciseId: renamed.id }],
+  };
+  mocks.cells = [];
+  mocks.context = null;
+  expect(feed().props.exercises).toEqual([
+    expect.objectContaining({ id: renamed.id, name: "Sled push" }),
+  ]);
+});
+
+it("links a same-named planned row to a custom exercise created from the library", async () => {
+  mocks.workspace = {
+    ...mocks.workspace,
+    exercises: [exercise],
+    workout: {
+      ...workout,
+      details: {
+        workoutLifecycle: { kind: "session", routineId: "routine-origin" },
+        coachPlan: {
+          exercises: [{ name: "Sled push", targetSets: 1, targetReps: "8" }],
+        },
+      },
+    },
+  };
+  expect(feed().props.exercises[0].id).toBe("planned-Sled push");
+  const created = {
+    ...exercise,
+    id: "00000000-0000-4000-8000-0000000000c7",
+    userId: "user-1",
+    name: "Sled push",
+    metadata: { custom: true, trackingMode: "duration" },
+  };
+  await expect(openLibrary().props.onSelectExercises([created])).resolves.toBe(
+    true,
+  );
+  await settle();
+  expect(mocks.createExercise).not.toHaveBeenCalled();
+  expect(feed().props.exercises).toEqual([
+    expect.objectContaining({ id: created.id, name: "Sled push" }),
+  ]);
+});
+
 it("saves new form instructions as numbered separate lines", async () => {
   mocks.workspace.exercises = [];
   const selected = getExerciseFromCatalog("barbell-rdl")!;

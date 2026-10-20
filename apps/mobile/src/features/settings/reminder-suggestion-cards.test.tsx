@@ -57,8 +57,10 @@ vi.mock("@/components/ui", () => ({
   ListRow: "ListRow",
   SectionHeader: "SectionHeader",
 }));
-vi.mock("@/components/ui/ios-time-picker", () => ({
-  IosTimePicker: "IosTimePicker",
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeTimePicker: "NativeTimePicker",
+}));
+vi.mock("@/components/ui/ios-time-picker-utils", () => ({
   formatTime12: (h: number, m: number) => `${h}:${m}`,
 }));
 vi.mock("@/constants/theme", () => ({ MinTouchTarget: 44, Spacing: {} }));

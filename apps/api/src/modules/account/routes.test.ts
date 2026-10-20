@@ -495,6 +495,34 @@ describe("GET /v1/account/export", () => {
     expect(response.json().export.manifest.counts.memories).toBe(1);
   });
 
+  it("exports a goal without a target date as targetDate null", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        kind: "cut",
+        pace: "steady",
+        target: { weightKg: 78 },
+        startsOn: "2026-01-01",
+      },
+    });
+    expect(created.statusCode).toBe(200);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const goals = response.json().export.goals;
+    expect(goals).toHaveLength(1);
+    expect(goals[0]).toHaveProperty("targetDate", null);
+  });
+
   it("delivers the full memory export beyond the UI cap with accurate counts and owner isolation", async () => {
     const { app, memoryStore } = build(tokenVerifierFor({ userId: userA }));
     const ledger: string[] = [];

@@ -12,3 +12,7 @@ Moved verbatim from `status.md` on 2026-10-19 to make room for #307 (links rebas
 
 - **#226:** d5c2e06 Dev; review/gatePASS. Next: history/rest/AX acceptance. [Evidence](../../COMPLETED_WORKOUT_REVIEW_EVIDENCE_2026-10-07.md).
 - **#223:**3984c35 Home one-time guards Dev; gatePASS. Next: device start/add/finish/resume. [Evidence](../../HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md).
+
+Moved verbatim from `status.md` on 2026-10-20 to make room for #314 (link rebased).
+
+- **#195/#199 CI** — Community lint repair delivered; Linux43 fixtures/quality/navigation CI PASS at9b0c41a; #199 closed. Hosted DB workflow #23 separate. [Delivery](STATUS_PRE_AGENT_WORKFLOW_2026-10-04.md)

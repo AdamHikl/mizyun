@@ -47,19 +47,18 @@ export interface OnboardingForm {
   readonly goalKind: "cut" | "bulk" | "recomp" | "maintain" | null;
   readonly goalWeight: string;
   readonly goalStartDate: string;
-  readonly goalTargetDate: string;
+  /** Optional deadline; onboarding never invents one. */
+  readonly goalTargetDate: string | null;
 }
 
 /**
- * Default form values. The dates default to "today" and "today + 90
- * days" computed at construction time; the screen layer calls
- * `freshOnboardingForm()` on mount.
+ * Default form values. The start date defaults to "today" computed at
+ * construction time and there is no target date until the user sets one
+ * in Goal settings; the screen layer calls `freshOnboardingForm()` on
+ * mount.
  */
 export const freshOnboardingForm = (now: Date): OnboardingForm => {
   const today = now.toISOString().slice(0, 10);
-  const ninetyDays = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
   return {
     displayName: "",
     unitSystem: "metric",
@@ -71,7 +70,7 @@ export const freshOnboardingForm = (now: Date): OnboardingForm => {
     goalKind: null,
     goalWeight: "",
     goalStartDate: today,
-    goalTargetDate: ninetyDays,
+    goalTargetDate: null,
   };
 };
 
@@ -206,7 +205,7 @@ export type OnboardingPatch =
   | { readonly field: "goalKind"; readonly value: OnboardingForm["goalKind"] }
   | { readonly field: "goalWeight"; readonly value: string }
   | { readonly field: "goalStartDate"; readonly value: string }
-  | { readonly field: "goalTargetDate"; readonly value: string };
+  | { readonly field: "goalTargetDate"; readonly value: string | null };
 
 export const applyOnboardingPatch = (
   form: OnboardingForm,

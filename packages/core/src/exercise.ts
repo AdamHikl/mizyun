@@ -24,6 +24,19 @@ export const EXERCISE_NAME_MAX = 120;
 export const INSTRUCTIONS_MAX = 4_000;
 
 /**
+ * Thrown by `ExerciseRepository.delete` when logged sets still
+ * reference the exercise (`workout_sets` has a foreign key with no
+ * ON DELETE action). Carries a fixed, non-sensitive message; adapters
+ * must never copy raw database error text into it.
+ */
+export class ExerciseInUseError extends Error {
+  constructor() {
+    super("exercise has logged sets");
+    this.name = "ExerciseInUseError";
+  }
+}
+
+/**
  * Editable domain shape. The wire schema in `@mizyun/contracts`
  * adds `id`, `userId`, and audit timestamps. This type is the
  * editable subset the route accepts and returns.
@@ -218,6 +231,9 @@ export interface ExerciseRepository {
    * Permanently remove an exercise. Returns `true` when the row
    * existed and was removed, `false` otherwise. The route is the
    * owner of the 404 decision (no idempotency-200 on miss).
+   *
+   * Adapters throw `ExerciseInUseError` when logged sets still
+   * reference the exercise, so the route can answer 409.
    */
   delete(
     id: string,

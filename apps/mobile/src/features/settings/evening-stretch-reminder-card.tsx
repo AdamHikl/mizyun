@@ -3,7 +3,8 @@ import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
-import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
+import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { Spacing } from "@/constants/theme";
 import {
   DEFAULT_EVENING_STRETCH,
@@ -105,7 +106,7 @@ export function EveningStretchReminderCard({
           {enabled ? (
             <ListGroup>
               <View style={styles.pickerRow}>
-                <IosTimePicker
+                <NativeTimePicker
                   label="Reminder time"
                   hour={hour}
                   minute={minute}

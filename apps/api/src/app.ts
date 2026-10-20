@@ -1593,6 +1593,7 @@ export const buildApp = (
   void app.register(exercisesRoutes, {
     prefix: "/v1/exercises",
     exerciseRepository,
+    workoutSetRepository,
   });
   void app.register(runsRoutes, {
     prefix: "/v1/runs",

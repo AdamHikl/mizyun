@@ -67,7 +67,7 @@ import {
   type DailyStepsResult,
 } from "@/features/health-steps/health-steps";
 import { useTheme } from "@/hooks/use-theme";
-import { formatTime12 } from "@/components/ui/ios-time-picker";
+import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
 import {
   prepareQuickMealRepeat,
   completeQuickMealRepeat,
@@ -1944,7 +1944,21 @@ function EnergyCard(props: {
                 </ThemedText>
               ) : null}
               {planNotes.unrealisticDate ? (
-                <Notice tone="warning" message={planNotes.unrealisticDate} />
+                <Notice
+                  tone="warning"
+                  message={planNotes.unrealisticDate}
+                  action={
+                    <Button
+                      label="Change target date"
+                      accessibilityLabel="Change target date in goal settings"
+                      variant="plain"
+                      size="small"
+                      onPress={() => {
+                        void router.push("/account-settings/goal" as Href);
+                      }}
+                    />
+                  }
+                />
               ) : null}
               {[
                 planNotes.weightSource,

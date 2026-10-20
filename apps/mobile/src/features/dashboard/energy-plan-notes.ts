@@ -17,7 +17,10 @@ export interface EnergyPlanNotes {
   /** "Lean bulk · planned +0.2 kg/week" */
   readonly mode: string | null;
   readonly projection: string | null;
-  /** Shown as a warning when the target date is earlier than the safe pace. */
+  /**
+   * Shown as a warning when the user's own target date is earlier than the
+   * safe pace allows; the card links it to Goal settings.
+   */
   readonly unrealisticDate: string | null;
   readonly weightSource: string | null;
   readonly calibration: string | null;
@@ -96,7 +99,7 @@ export const energyPlanNotes = (
         : null,
     unrealisticDate:
       realistic === false && projectedText !== null
-        ? `Your target date is earlier than this mode's safe pace; expected around ${projectedText}.`
+        ? `At this pace you'll reach your target weight around ${projectedText}, after your target date. Choose a later date or remove it.`
         : null,
     weightSource:
       summary.weightSource === "trend"

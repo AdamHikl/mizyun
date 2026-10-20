@@ -7,6 +7,10 @@ const state = vi.hoisted(() => ({
   push: vi.fn(),
   navigate: vi.fn(),
 }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
+}));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useRef: (initial: unknown) =>
@@ -66,7 +70,7 @@ vi.mock("@/components/account-header-button", () => ({
 vi.mock("@/components/feedback-header-button", () => ({
   FeedbackHeaderButton: "FeedbackHeaderButton",
 }));
-vi.mock("@/components/ui/ios-time-picker", () => ({
+vi.mock("@/components/ui/ios-time-picker-utils", () => ({
   formatTime12: () => "9 am",
 }));
 vi.mock("@/constants/theme", () => ({

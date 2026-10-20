@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { StoredExercise, UserId } from "@mizyun/core";
+import {
+  ExerciseInUseError,
+  type StoredExercise,
+  type UserId,
+} from "@mizyun/core";
 
 import { SupabaseExerciseRepository } from "./exercise-repository.js";
 import { RepositoryError } from "./repository-error.js";
@@ -159,5 +163,39 @@ describe("SupabaseExerciseRepository.delete", () => {
       accessToken: "token",
     });
     expect(removed).toBe(false);
+  });
+
+  it("throws ExerciseInUseError on a foreign key violation (23503)", async () => {
+    const repo = new SupabaseExerciseRepository({
+      clientFor: () =>
+        fakeClient({
+          selectList: {
+            data: [],
+            error: {
+              code: "23503",
+              message:
+                'update or delete on table "exercises" violates foreign key constraint "workout_sets_exercise_fk" secret-detail',
+            },
+          },
+        }),
+    });
+    const attempt = repo.delete(exerciseRow.id, { accessToken: "token" });
+    await expect(attempt).rejects.toBeInstanceOf(ExerciseInUseError);
+    await expect(attempt).rejects.not.toThrow(/secret-detail/);
+  });
+
+  it("throws RepositoryError for any other database error", async () => {
+    const repo = new SupabaseExerciseRepository({
+      clientFor: () =>
+        fakeClient({
+          selectList: {
+            data: [],
+            error: { code: "42501", message: "permission denied" },
+          },
+        }),
+    });
+    const attempt = repo.delete(exerciseRow.id, { accessToken: "token" });
+    await expect(attempt).rejects.toBeInstanceOf(RepositoryError);
+    await expect(attempt).rejects.not.toBeInstanceOf(ExerciseInUseError);
   });
 });

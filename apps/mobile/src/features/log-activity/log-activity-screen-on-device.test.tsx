@@ -76,8 +76,9 @@ vi.mock("@/features/log-run", () => ({
   runDraftStore: { load: () => Promise.resolve(mocks.runDraft) },
   hasRunDraftContent: (draft: { content?: boolean }) => !!draft.content,
 }));
-vi.mock("./activity-date-picker", () => ({
-  ActivityDatePicker: "ActivityDatePicker",
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
 }));
 vi.mock("@/features/coach/ai-consent-controller", () => ({
   useAiConsentController: () => ({

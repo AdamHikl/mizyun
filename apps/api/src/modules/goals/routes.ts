@@ -212,7 +212,7 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         pace: parsed.data.pace as GoalPace,
         target: parsed.data.target as GoalTarget,
         startsOn: parsed.data.startsOn,
-        targetDate: parsed.data.targetDate,
+        targetDate: parsed.data.targetDate ?? null,
         ...(parsed.data.reviewDate !== undefined
           ? { reviewDate: parsed.data.reviewDate }
           : {}),
@@ -238,7 +238,8 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         pace: parsed.data.pace as GoalPace,
         target: parsed.data.target as GoalTarget,
         startsOn: parsed.data.startsOn,
-        targetDate: parsed.data.targetDate,
+        // An omitted target date means the user chose none.
+        targetDate: parsed.data.targetDate ?? null,
         ...(parsed.data.reviewDate !== undefined
           ? { reviewDate: parsed.data.reviewDate }
           : {}),
@@ -321,6 +322,7 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         ...(parsed.data.target !== undefined
           ? { target: parsed.data.target as GoalTarget }
           : {}),
+        // `null` clears the target date; an omitted field keeps it.
         ...(parsed.data.targetDate !== undefined
           ? { targetDate: parsed.data.targetDate }
           : {}),

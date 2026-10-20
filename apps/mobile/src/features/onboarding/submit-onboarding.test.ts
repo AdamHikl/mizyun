@@ -112,6 +112,28 @@ describe("submitOnboarding", () => {
     });
   });
 
+  it("creates the goal without a target date unless one was chosen", async () => {
+    const noDate = stubClient([
+      notFound,
+      createdGoal,
+      ok({ bodyMeasurements: [] }),
+      createdMeasurement,
+      savedProfile,
+    ]);
+    await submitOnboarding(baseForm({ goalTargetDate: null }), noDate);
+    expect(noDate.calls[1]?.body).not.toHaveProperty("targetDate");
+
+    const withDate = stubClient([
+      notFound,
+      createdGoal,
+      ok({ bodyMeasurements: [] }),
+      createdMeasurement,
+      savedProfile,
+    ]);
+    await submitOnboarding(baseForm(), withDate);
+    expect(withDate.calls[1]?.body).toMatchObject({ targetDate: "2026-10-17" });
+  });
+
   it("converts imperial display values to canonical kilograms", async () => {
     const client = stubClient([
       notFound,

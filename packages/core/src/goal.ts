@@ -61,7 +61,8 @@ export interface GoalCore {
   readonly pace: GoalPace;
   readonly target: GoalTarget;
   readonly startsOn: string;
-  readonly targetDate: string;
+  /** `null` when the user chose no target date. */
+  readonly targetDate: string | null;
   readonly reviewDate?: string;
 }
 
@@ -86,13 +87,14 @@ export interface StoredGoal extends GoalCore {
 /**
  * Patch shape for `PUT /v1/goals/:id`. Status is the only field
  * that drives a transition; other fields update the stored value
- * directly. `reviewDate` accepts `null` to clear it.
+ * directly. `targetDate` and `reviewDate` accept `null` to clear them;
+ * `undefined` leaves the stored value alone.
  */
 export type GoalPatch = {
   readonly status?: GoalStatus | undefined;
   readonly pace?: GoalPace | undefined;
   readonly target?: GoalTarget | undefined;
-  readonly targetDate?: string | undefined;
+  readonly targetDate?: string | null | undefined;
   readonly reviewDate?: string | null | undefined;
 };
 
@@ -132,24 +134,25 @@ export const validateGoalCreate = (create: {
   readonly pace: GoalPace;
   readonly target: GoalTarget;
   readonly startsOn: string;
-  readonly targetDate: string;
+  /** Omitted or `null` means no target date. */
+  readonly targetDate?: string | null | undefined;
   readonly reviewDate?: string;
 }): GoalValidationError | null => {
   const startsOn = create.startsOn;
-  const targetDate = create.targetDate;
+  const targetDate = create.targetDate ?? null;
   const reviewDate = create.reviewDate;
 
   if (!isIsoDate(startsOn)) {
     return { kind: "invalid_date_format", value: startsOn };
   }
-  if (!isIsoDate(targetDate)) {
+  if (targetDate !== null && !isIsoDate(targetDate)) {
     return { kind: "invalid_date_format", value: targetDate };
   }
   if (reviewDate !== undefined && !isIsoDate(reviewDate)) {
     return { kind: "invalid_date_format", value: reviewDate };
   }
 
-  if (targetDate < startsOn) {
+  if (targetDate !== null && targetDate < startsOn) {
     return { kind: "target_date_before_start" };
   }
   if (reviewDate !== undefined && reviewDate < startsOn) {
@@ -193,7 +196,11 @@ export const validateGoalPatch = (
     }
   }
 
-  if (patch.targetDate !== undefined && patch.targetDate < stored.startsOn) {
+  if (
+    patch.targetDate !== undefined &&
+    patch.targetDate !== null &&
+    patch.targetDate < stored.startsOn
+  ) {
     return { kind: "target_date_before_start" };
   }
   if (
@@ -231,6 +238,7 @@ export const applyGoalPatch = (
   pace: patch.pace === undefined ? stored.pace : patch.pace,
   target: patch.target === undefined ? stored.target : patch.target,
   startsOn: stored.startsOn,
+  // `null` clears the target date; `undefined` keeps the stored one.
   targetDate:
     patch.targetDate === undefined ? stored.targetDate : patch.targetDate,
   // clearing (null) and updating both flow through here; `undefined`

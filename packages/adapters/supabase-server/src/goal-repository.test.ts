@@ -273,3 +273,89 @@ describe("SupabaseGoalRepository calorie calibration (ENG-08)", () => {
     expect(saved.calorieCalibrationKcal).toBe(-150);
   });
 });
+
+describe("SupabaseGoalRepository optional target date", () => {
+  const userId = "00000000-0000-4000-8000-000000000001" as UserId;
+  const noDateGoal: StoredGoal = {
+    id: goalRow.id,
+    userId,
+    kind: "cut",
+    status: "active",
+    pace: "steady",
+    target: { weightKg: 78 },
+    startsOn: "2026-01-01",
+    targetDate: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const capturingClient = (
+    method: "insert" | "update",
+    single: RepositorySingleResult<unknown>,
+  ): {
+    client: RepositorySupabaseClient;
+    written: () => Record<string, unknown> | undefined;
+  } => {
+    let payload: Record<string, unknown> | undefined;
+    const base = fakeClient(
+      method === "insert" ? { insertSingle: single } : { updateSingle: single },
+    );
+    const from = base.from.bind(base);
+    const client = {
+      ...base,
+      from: (table: string) => {
+        const builder = from(table) as unknown as Record<
+          string,
+          (row: Record<string, unknown>) => unknown
+        >;
+        const original = builder[method]!;
+        builder[method] = (row: Record<string, unknown>) => {
+          payload = row;
+          return original.call(builder, row);
+        };
+        return builder as never;
+      },
+    } as RepositorySupabaseClient;
+    return { client, written: () => payload };
+  };
+
+  it("maps a NULL target_date row to null, not an empty string", async () => {
+    const repo = new SupabaseGoalRepository({
+      clientFor: () =>
+        fakeClient({
+          selectMaybeSingle: {
+            data: { ...goalRow, target_date: null },
+            error: null,
+          },
+        }),
+    });
+    const active = await repo.getActive(userId, { accessToken: "token" });
+    expect(active?.targetDate).toBeNull();
+  });
+
+  it("writes target_date null on create and returns null", async () => {
+    const { client, written } = capturingClient("insert", {
+      data: { ...goalRow, target_date: null },
+      error: null,
+    });
+    const repo = new SupabaseGoalRepository({ clientFor: () => client });
+    const saved = await repo.create(userId, noDateGoal, {
+      accessToken: "token",
+    });
+    expect(written()).toHaveProperty("target_date", null);
+    expect(saved.targetDate).toBeNull();
+  });
+
+  it("writes target_date null on update so a cleared date persists", async () => {
+    const { client, written } = capturingClient("update", {
+      data: { ...goalRow, target_date: null },
+      error: null,
+    });
+    const repo = new SupabaseGoalRepository({ clientFor: () => client });
+    const saved = await repo.update(userId, noDateGoal, {
+      accessToken: "token",
+    });
+    expect(written()).toHaveProperty("target_date", null);
+    expect(saved.targetDate).toBeNull();
+  });
+});

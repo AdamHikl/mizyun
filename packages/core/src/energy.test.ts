@@ -471,6 +471,35 @@ describe("computeEnergy / v2 rate-based inputs", () => {
     expect(result.breakdown.goalAdjustmentKcal).toBe(-536);
   });
 
+  it("projects a goal with no target date without a realism verdict or deficit change", () => {
+    const withDate = computeEnergy(
+      completeInputs({
+        latestBodyMeasurement: baseMeasurement({ weightKg: 78 }),
+        activeGoal: baseGoal({
+          target: { weightKg: 70 },
+          targetDate: "2026-07-31",
+        }),
+      }),
+      userId,
+    );
+    const noDate = computeEnergy(
+      completeInputs({
+        latestBodyMeasurement: baseMeasurement({ weightKg: 78 }),
+        activeGoal: baseGoal({ target: { weightKg: 70 }, targetDate: null }),
+      }),
+      userId,
+    );
+    if (!withDate.ok || !noDate.ok) throw new Error("expected ok");
+    expect(noDate.breakdown.projection?.projectedWeeksToTarget).toBe(17);
+    expect(noDate.breakdown.projection?.targetDateRealistic).toBeNull();
+    expect(noDate.breakdown.goalAdjustmentKcal).toBe(
+      withDate.breakdown.goalAdjustmentKcal,
+    );
+    expect(noDate.breakdown.dailyTargetKcal).toBe(
+      withDate.breakdown.dailyTargetKcal,
+    );
+  });
+
   it("clamps a calibrated target to the floor instead of removing it", () => {
     // Uncalibrated 1693 × … sedentary small female standard cut stays
     // above 1200; a −400 calibration would cross it.

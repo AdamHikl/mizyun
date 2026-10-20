@@ -67,6 +67,9 @@ vi.mock("expo-router", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+}));
 vi.mock("@/constants/theme", () => ({
   MaxContentWidth: 600,
   Spacing: { four: 16, three: 12 },
@@ -190,6 +193,38 @@ describe("direct run form", () => {
       distanceMeters: null,
       startedAt: null,
     });
+  });
+  it("picks the run date with the native date picker, never after today", async () => {
+    render();
+    await flush();
+    let tree = render();
+    const picker = find(tree, (n) => n.type === "NativeDatePicker");
+    expect(picker.props.value).toEqual(picker.props.maximumDate);
+    expect(picker.props.disabled).toBe(false);
+    picker.props.onChange({ year: 2026, month: 9, day: 30 });
+    tree = render();
+    expect(
+      find(tree, (n) => n.type === "NativeDatePicker").props.value,
+    ).toEqual({ year: 2026, month: 9, day: 30 });
+    input(tree, "Minutes").props.onChangeText("30");
+    tree = render();
+    action(tree, "Save run").props.onPress();
+    await flush();
+    expect(mocks.send.mock.calls[0]?.[1].pending.body).toMatchObject({
+      activityDate: "2026-09-30",
+    });
+  });
+  it("keeps a recorded run's date fixed", async () => {
+    mocks.load.mockResolvedValue({
+      ...restored,
+      form: { ...restored.form, startedAt: "2026-10-01T06:00:00.000Z" },
+    });
+    render();
+    await flush();
+    const tree = render();
+    const picker = find(tree, (n) => n.type === "NativeDatePicker");
+    expect(picker.props.value).toEqual({ year: 2026, month: 10, day: 1 });
+    expect(picker.props.disabled).toBe(true);
   });
   it("converts entered distance when switching units", async () => {
     mocks.load.mockResolvedValue(restored);

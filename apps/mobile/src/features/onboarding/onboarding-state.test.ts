@@ -27,8 +27,8 @@ describe("freshOnboardingForm", () => {
     expect(fresh().goalStartDate).toBe("2026-07-17");
   });
 
-  it("defaults the target date 90 days from today", () => {
-    expect(fresh().goalTargetDate).toBe("2026-10-15");
+  it("leaves the target date unset instead of inventing one", () => {
+    expect(fresh().goalTargetDate).toBeNull();
   });
 
   it("starts with an empty display name", () => {

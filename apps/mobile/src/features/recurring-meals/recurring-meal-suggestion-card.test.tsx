@@ -28,11 +28,14 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
-  TextInput: "TextInput",
   View: "View",
   StyleSheet: { create: (styles: unknown) => styles },
 }));
 vi.mock("expo-router", () => ({ router: { push: mocks.push } }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
+}));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({
@@ -83,6 +86,22 @@ function find(node: any, label: string): any {
   return node.props?.accessibilityLabel === label
     ? node
     : find(node.props?.children, label);
+}
+function findSave(node: any): any {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) return node.map(findSave).find(Boolean) ?? null;
+  return /^Auto-log Oats with banana .* at 09:05 /.test(
+    node.props?.accessibilityLabel ?? "",
+  )
+    ? node
+    : findSave(node.props?.children);
+}
+function timePicker(node: any): any {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) return node.map(timePicker).find(Boolean) ?? null;
+  return node.type === "NativeTimePicker"
+    ? node
+    : timePicker(node.props?.children);
 }
 function text(node: any): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
@@ -210,12 +229,12 @@ describe("recurring meal suggestion presentation", () => {
   it("customizes proposal defaults through the same accept operation and previews the first selected date", () => {
     press(render(), "Change");
     let tree = render();
-    expect(find(tree, "Automatic meal time, 24-hour HH:MM").props.value).toBe(
-      "10:15",
-    );
-    find(tree, "Automatic meal time, 24-hour HH:MM").props.onChangeText(
-      "11:30",
-    );
+    expect(timePicker(tree).props).toMatchObject({
+      label: "Automatic meal time",
+      hour: 10,
+      minute: 15,
+    });
+    timePicker(tree).props.onChange(11, 30);
     ["Sun", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((day) => {
       press(render(), `Auto-log on ${day}`);
     });
@@ -238,16 +257,15 @@ describe("recurring meal suggestion presentation", () => {
     expect(text(tree)).toContain("Fat: 0 g");
     expect(text(tree)).toContain("Timezone: Europe/Bratislava");
   });
-  it("prevents Save for invalid time or no selected days", () => {
+  it("prevents Save when no day is selected", () => {
     press(render(), "Change");
-    find(render(), "Automatic meal time, 24-hour HH:MM").props.onChangeText(
-      "25:30",
-    );
+    timePicker(render()).props.onChange(9, 5);
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((day) => {
+      press(render(), `Auto-log on ${day}`);
+    });
     const tree = render();
-    const control = press(
-      tree,
-      "Auto-log Oats with banana every day at 25:30 starting 2026-10-14 in Europe/Bratislava",
-    );
+    expect(text(tree)).toContain("Choose at least one day.");
+    const control = findSave(tree);
     expect(control.props.disabled).toBe(true);
     expect(mocks.accept).not.toHaveBeenCalled();
   });

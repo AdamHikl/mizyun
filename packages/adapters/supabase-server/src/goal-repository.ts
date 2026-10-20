@@ -71,7 +71,7 @@ export const goalFromRow = (row: GoalRow): StoredGoal => {
     pace: row.pace,
     target: parseTarget(row.target),
     startsOn: row.starts_on ?? "",
-    targetDate: row.target_date ?? "",
+    targetDate: row.target_date,
     ...(row.review_date !== null ? { reviewDate: row.review_date } : {}),
     calorieCalibrationKcal: row.calorie_calibration_kcal ?? 0,
     createdAt: new Date(row.created_at),

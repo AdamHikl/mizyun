@@ -92,6 +92,10 @@ vi.mock("@/components/ui", () => ({
   Notice: "Notice",
   SectionHeader: "SectionHeader",
 }));
+vi.mock("@/components/ui/native-date-time-picker", () => ({
+  NativeDatePicker: "NativeDatePicker",
+  NativeTimePicker: "NativeTimePicker",
+}));
 vi.mock("@/constants/theme", () => ({
   PageGutter: 20,
   Radius: { sm: 8, md: 12, lg: 16, xl: 22, pill: 999 },
@@ -197,6 +201,9 @@ function find(node: any, predicate: (node: any) => boolean): any {
   if (predicate(node)) return node;
   return find(node.props?.children, predicate);
 }
+function datePicker(node: any): any {
+  return find(node, (child) => child.type === "NativeDatePicker");
+}
 function checkbox(tree: any): any {
   return find(
     tree,
@@ -265,6 +272,47 @@ describe("actual sharing modal selection and lifecycle", () => {
     expect(checkbox(tree).props.accessibilityState.checked).toBe(true);
   });
 
+  it("shows the shared day in the date picker and publishes the picked day", async () => {
+    let tree = await load();
+    expect(datePicker(tree).props).toMatchObject({
+      label: "Shared day",
+      value: { year: 2026, month: 10, day: 1 },
+    });
+    datePicker(tree).props.onChange({ year: 2026, month: 10, day: 5 });
+    tree = render();
+    expect(datePicker(tree).props.value).toEqual({
+      year: 2026,
+      month: 10,
+      day: 5,
+    });
+    await publish(tree).props.onPress();
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        preview: expect.objectContaining({ sharedDay: "2026-10-05" }),
+      }),
+    );
+  });
+  it("shows today in the date picker while the stored day is unreadable and keeps the stored value", async () => {
+    mocks.fetch.mockResolvedValue({
+      ok: true,
+      value: { ...preview(), sharedDay: "" },
+    });
+    const tree = await load();
+    const now = new Date();
+    expect(datePicker(tree).props.value).toEqual({
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      day: now.getDate(),
+    });
+    await publish(tree).props.onPress();
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        preview: expect.objectContaining({ sharedDay: "" }),
+      }),
+    );
+  });
   it("defaults a new workout to summary and requires an explicit detail choice", async () => {
     let tree = await load();
     expect(checkbox(tree).props.accessibilityState.checked).toBe(false);
