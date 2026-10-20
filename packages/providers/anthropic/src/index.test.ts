@@ -265,6 +265,44 @@ describe("AnthropicAgentProvider", () => {
     expect(client.calls).toHaveLength(0);
   });
 
+  // #309: after tool rounds Haiku sometimes adds a preface and then the
+  // Gemini-style {"answer": …} envelope, which reached the chat as raw JSON.
+  it.each([
+    [
+      "separate blocks",
+      [
+        text("I've put together a 45-minute leg session."),
+        text('{"answer": "Here is your leg session: squats 4x6."}'),
+      ],
+    ],
+    [
+      "one block with a fenced envelope",
+      [
+        text(
+          'I\'ve put together a 45-minute leg session.\n\n```json\n{"answer": "Here is your leg session: squats 4x6."}\n```',
+        ),
+      ],
+    ],
+  ])(
+    "unwraps a JSON answer envelope after a preface (%s)",
+    async (_label, blocks) => {
+      const response = await provider(
+        fakeClient([message(blocks as Anthropic.ContentBlock[])]),
+      ).respond(request());
+      expect(response.message.text).toBe(
+        "Here is your leg session: squats 4x6.",
+      );
+    },
+  );
+
+  it("keeps conversational text that merely contains braces", async () => {
+    const reply = 'Log it as {"answer": 1} only if you weigh it.';
+    const response = await provider(
+      fakeClient([message([text(reply)])]),
+    ).respond(request());
+    expect(response.message.text).toBe(reply);
+  });
+
   it("replaces unsafe provider output with the safety message", async () => {
     const client = fakeClient([message([text("I diagnose you with X.")])]);
     const response = await provider(client).respond(request());

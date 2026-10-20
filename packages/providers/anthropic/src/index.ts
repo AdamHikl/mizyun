@@ -59,6 +59,20 @@ const groundingMessage = (request: AgentRequest): string =>
 const COACH_OUTPUT_RULE =
   "Reply to the user in plain conversational text (Markdown allowed). Never wrap the reply in JSON. When you use a tool, you may say a brief sentence first. If no tool can express what the user asked for, say so instead of guessing. Do not include internal or system XML tags in your response.";
 
+/**
+ * #309: after tool rounds Claude can write a short preface and then the
+ * Gemini-style `{"answer": …}` envelope anyway. The envelope holds the reply,
+ * so the preface is dropped. Text that only mentions braces is kept, because
+ * the rest of it does not parse as an envelope.
+ */
+const ANSWER_ENVELOPE = /(?:```(?:json)?\s*)?\{\s*"answer"\s*:/i;
+
+const unwrapPrefacedEnvelope = (text: string): string => {
+  const match = ANSWER_ENVELOPE.exec(text);
+  if (match === null || match.index === 0) return text;
+  return extractAssistantText(text.slice(match.index)) ?? text;
+};
+
 const toolDefinitions = (
   request: AgentRequest,
 ): readonly Anthropic.Tool[] | undefined => {
@@ -317,7 +331,7 @@ export class AnthropicAgentProvider implements AgentProvider {
       };
     }
 
-    const rawText = textOf(message);
+    const rawText = unwrapPrefacedEnvelope(textOf(message));
     const finalAnswer =
       rawText.length > 0 ? extractAssistantText(rawText) : null;
     if (finalAnswer === null) {
