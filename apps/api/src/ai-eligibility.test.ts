@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { StoredProfile, UserId } from "@mizyun/core";
-import { authorizeAiAccess, isAdultEligibleForAi } from "./ai-eligibility.js";
+import {
+  CURRENT_AI_CONSENT_VERSION,
+  DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+} from "@mizyun/contracts";
+import type { StoredAiConsent, StoredProfile, UserId } from "@mizyun/core";
+import { InMemoryAiConsentRepository } from "./ai-consent-repository.js";
+import {
+  authorizeAiAccess,
+  authorizedAiConsentVersion,
+  isAdultEligibleForAi,
+  resolveAcceptedAiConsentVersions,
+  withAcceptedAiConsentVersions,
+} from "./ai-eligibility.js";
 
 const makeProfile = (birthYear: number | null): StoredProfile => ({
   userId: "user-1" as UserId,
@@ -182,5 +194,134 @@ describe("authorizeAiAccess", () => {
         ).toBe(false);
       },
     );
+  });
+});
+
+describe("accepted AI consent versions", () => {
+  const now = new Date("2026-10-20T12:00:00Z");
+  const profile = makeProfile(1990);
+  const consentAt = (consentVersion: string): StoredAiConsent => ({
+    userId: "user-1" as UserId,
+    granted: true,
+    confirmedAdult: true,
+    consentVersion,
+    consentedAt: now,
+    revokedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  const devAccepted = ["2026-10-20"];
+
+  it("defaults to the contract set when unset or empty", () => {
+    expect(resolveAcceptedAiConsentVersions()).toBe(
+      DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+    );
+    expect(resolveAcceptedAiConsentVersions(null)).toBe(
+      DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+    );
+    expect(resolveAcceptedAiConsentVersions([])).toBe(
+      DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+    );
+    expect(resolveAcceptedAiConsentVersions(devAccepted)).toEqual(devAccepted);
+  });
+
+  it.each([
+    [LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY, true],
+    [CURRENT_AI_CONSENT_VERSION, true],
+    ["2025-01-01", false],
+    ["v1", false],
+  ])("default set: stored version %s authorized=%s", (version, expected) => {
+    const consent = consentAt(version);
+    expect(authorizeAiAccess({ profile, consent, now }).authorized).toBe(
+      expected,
+    );
+    expect(authorizedAiConsentVersion({ profile, consent, now })).toBe(
+      expected ? version : null,
+    );
+  });
+
+  it("a Dev-style set rejects the Gemini-only consent and keeps the current one", () => {
+    const legacy = authorizeAiAccess({
+      profile,
+      consent: consentAt(LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY),
+      acceptedConsentVersions: devAccepted,
+      now,
+    });
+    expect(legacy).toMatchObject({
+      authorized: false,
+      code: "AI_CONSENT_REQUIRED",
+    });
+    expect(
+      authorizeAiAccess({
+        profile,
+        consent: consentAt(CURRENT_AI_CONSENT_VERSION),
+        acceptedConsentVersions: devAccepted,
+        now,
+      }).authorized,
+    ).toBe(true);
+  });
+
+  it("keeps the deprecated single-version option strict", () => {
+    expect(
+      authorizeAiAccess({
+        profile,
+        consent: consentAt(LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY),
+        currentConsentVersion: CURRENT_AI_CONSENT_VERSION,
+        now,
+      }).authorized,
+    ).toBe(false);
+  });
+
+  it("returns null instead of a version when consent is refused", () => {
+    expect(
+      authorizedAiConsentVersion({ profile, consent: null, now }),
+    ).toBeNull();
+    expect(
+      authorizedAiConsentVersion({
+        profile: makeProfile(2012),
+        consent: consentAt(CURRENT_AI_CONSENT_VERSION),
+        now,
+      }),
+    ).toBeNull();
+  });
+
+  it("reads a granted consent under an unaccepted version as not granted, leaving the row", async () => {
+    const stored = new InMemoryAiConsentRepository();
+    const userId = "user-1" as UserId;
+    await stored.saveConsent(userId, {
+      granted: true,
+      confirmedAdult: true,
+      consentVersion: LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+    });
+    const dev = withAcceptedAiConsentVersions(stored, devAccepted);
+    const effective = await dev.getConsent(userId);
+    expect(effective).toMatchObject({
+      granted: false,
+      consentVersion: LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+    });
+    expect(
+      authorizeAiAccess({ profile, consent: effective, now }),
+    ).toMatchObject({ authorized: false, code: "AI_CONSENT_REQUIRED" });
+    expect((await stored.getConsent(userId))?.granted).toBe(true);
+
+    await dev.saveConsent(userId, {
+      granted: true,
+      confirmedAdult: true,
+      consentVersion: CURRENT_AI_CONSENT_VERSION,
+    });
+    expect(await dev.getConsent(userId)).toMatchObject({
+      granted: true,
+      consentVersion: CURRENT_AI_CONSENT_VERSION,
+    });
+    const defaults = withAcceptedAiConsentVersions(
+      stored,
+      DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+    );
+    await stored.saveConsent(userId, {
+      granted: true,
+      confirmedAdult: true,
+      consentVersion: LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+    });
+    expect((await defaults.getConsent(userId))?.granted).toBe(true);
   });
 });

@@ -11,6 +11,7 @@ import {
   GeminiRecipeGenerationProvider,
   GeminiIngredientRecognitionProvider,
   GeminiRecipeAssistantProvider,
+  type GeminiRecipeProviderOptions,
 } from "@mizyun/provider-gemini";
 import { SupabaseRecipeRequestLedger } from "@mizyun/adapter-supabase-server";
 import type { RecipeRequestLedger } from "@mizyun/core";
@@ -28,6 +29,7 @@ import {
   AnthropicRecipeAssistantProvider,
   AnthropicRecipeGenerationProvider,
   AnthropicVisionProvider,
+  type AnthropicRecipeProviderOptions,
 } from "@mizyun/provider-anthropic";
 import { mealIllustrationRoutes } from "./modules/meal-illustrations/routes.js";
 import { InMemoryMealIllustrationRepository } from "./modules/meal-illustrations/repository.js";
@@ -140,10 +142,13 @@ import {
 import {
   loadServerConfig,
   loadCommunityOperations,
+  type AiVendor,
   type CommunityOperationsConfig,
+  type ServerAiRouting,
   type ServerAppleAuthConfiguration,
   type ServerConfig,
 } from "@mizyun/config";
+import { createRoutingVisionDraftProvider } from "./routing-vision-draft-provider.js";
 import {
   RejectingAccessTokenVerifier,
   type AccessTokenVerifier,
@@ -153,10 +158,14 @@ import {
   GeminiContentModerator,
   GeminiVisionProvider,
 } from "@mizyun/provider-gemini";
-import type { AiProvider } from "@mizyun/contracts";
+import { CURRENT_AI_CONSENT_VERSION, type AiProvider } from "@mizyun/contracts";
 
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryAiConsentRepository } from "./ai-consent-repository.js";
+import {
+  resolveAcceptedAiConsentVersions,
+  withAcceptedAiConsentVersions,
+} from "./ai-eligibility.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { InMemoryCalorieAdjustmentRepository } from "./calorie-adjustment-repository.js";
 import { loggerConfig } from "./logging.js";
@@ -403,6 +412,8 @@ export interface AppDependencies {
   readonly communityRepository?: CommunityRepository;
   readonly communityNotifications?: CommunityNotificationRepository;
   readonly aiConsentRepository?: AiConsentRepository;
+  /** Overrides `AI_CONSENT_ACCEPTED_VERSIONS` (tests). */
+  readonly aiConsentAcceptedVersions?: readonly string[];
   readonly productAnalyticsRepository?: ProductAnalyticsRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
@@ -429,6 +440,64 @@ const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
   return new RejectingAccessTokenVerifier();
 };
 
+/** Routing used when the server config fails to load: Gemini when configured. */
+const GEMINI_ONLY_ROUTING: ServerAiRouting = {
+  coach: "gemini",
+  mealText: "gemini",
+  mealPhoto: "gemini",
+  activityDraft: "gemini",
+  recipeIdeas: "gemini",
+  ingredientPhotos: "gemini",
+  cookingAssistant: "gemini",
+  stretchPlan: "gemini",
+};
+
+/**
+ * Recipe ideas, ingredient photos and the cooking assistant each use their
+ * own routed vendor. A vendor without options yields its disabled provider;
+ * a feature never falls back to the other vendor.
+ */
+export const selectRecipeProviders = (input: {
+  readonly routing: Pick<
+    ServerAiRouting,
+    "recipeIdeas" | "ingredientPhotos" | "cookingAssistant"
+  >;
+  readonly anthropic: AnthropicRecipeProviderOptions | null;
+  readonly gemini: GeminiRecipeProviderOptions | null;
+}): {
+  readonly generation: RecipeGenerationProvider;
+  readonly recognition: IngredientRecognitionProvider;
+  readonly assistant: RecipeAssistantProvider;
+} => {
+  const { routing, anthropic, gemini } = input;
+  return {
+    generation:
+      routing.recipeIdeas === "anthropic"
+        ? anthropic
+          ? new AnthropicRecipeGenerationProvider(anthropic)
+          : new DisabledRecipeGenerationProvider()
+        : gemini
+          ? new GeminiRecipeGenerationProvider(gemini)
+          : new DisabledRecipeGenerationProvider(),
+    recognition:
+      routing.ingredientPhotos === "anthropic"
+        ? anthropic
+          ? new AnthropicIngredientRecognitionProvider(anthropic)
+          : new DisabledIngredientRecognitionProvider()
+        : gemini
+          ? new GeminiIngredientRecognitionProvider(gemini)
+          : new DisabledIngredientRecognitionProvider(),
+    assistant:
+      routing.cookingAssistant === "anthropic"
+        ? anthropic
+          ? new AnthropicRecipeAssistantProvider(anthropic)
+          : new DisabledRecipeAssistantProvider()
+        : gemini
+          ? new GeminiRecipeAssistantProvider(gemini)
+          : new DisabledRecipeAssistantProvider(),
+  };
+};
+
 const defaultDependencies = (): AppDependencies => {
   const result = loadServerConfig();
   // `server.ts` already exits if this fails, but we re-read here so the
@@ -442,6 +511,7 @@ const defaultDependencies = (): AppDependencies => {
         supabase: { configured: false, provider: "supabase", reason: "" },
         supabaseConfig: null,
         agentProvider: "disabled",
+        aiRouting: GEMINI_ONLY_ROUTING,
         visionProvider: "disabled",
         geminiConfig: null,
         geminiVisionConfig: null,
@@ -451,7 +521,11 @@ const defaultDependencies = (): AppDependencies => {
         aiAllowedEmails: [],
       };
   const geminiConfig = config.geminiConfig;
-  const anthropicConfig = config.anthropicConfig ?? null;
+  // Coach uses Anthropic only when routed there (ADR-0069 + per-feature routing).
+  const anthropicConfig =
+    config.aiRouting.coach === "anthropic"
+      ? (config.anthropicConfig ?? null)
+      : null;
   const emailSender: EmailSender =
     config.sesConfig !== null
       ? new SesEmailSender({
@@ -882,7 +956,7 @@ export const buildApp = (
     });
   }
 
-  const aiConsentRepository =
+  const storedAiConsentRepository =
     dependencies.aiConsentRepository ??
     (sp
       ? new SupabaseAiConsentRepository({
@@ -890,6 +964,22 @@ export const buildApp = (
           ...(sp.serviceRoleClient ? { client: sp.serviceRoleClient } : {}),
         })
       : new InMemoryAiConsentRepository({ defaultGranted: true }));
+  // Consent saved under a disclosure version this environment no longer
+  // accepts reads as "not granted" for AI routes and the consent GET, so
+  // clients ask again; exports and deletion use the stored rows unchanged.
+  const acceptedAiConsentVersions = resolveAcceptedAiConsentVersions(
+    dependencies.aiConsentAcceptedVersions ??
+      (configResult.ok ? configResult.value.aiConsentAcceptedVersions : null),
+  );
+  if (!acceptedAiConsentVersions.includes(CURRENT_AI_CONSENT_VERSION)) {
+    app.log.warn(
+      `AI_CONSENT_ACCEPTED_VERSIONS omits the current disclosure ${CURRENT_AI_CONSENT_VERSION}; current builds cannot record AI consent.`,
+    );
+  }
+  const aiConsentRepository = withAcceptedAiConsentVersions(
+    storedAiConsentRepository,
+    acceptedAiConsentVersions,
+  );
 
   const betaProRepository: BetaProRepository =
     dependencies.betaProRepository ??
@@ -1022,7 +1112,7 @@ export const buildApp = (
             ? { exportMediaStorage: foodLifecycleStorage }
             : {}),
           memoryStore: resolveMemoryStore(dependencies),
-          aiConsentRepository,
+          aiConsentRepository: storedAiConsentRepository,
           productAnalyticsRepository,
           ...(mealIllustrationRepository ? { mealIllustrationRepository } : {}),
           serviceRoleClient: sp.serviceRoleClient ?? null,
@@ -1048,7 +1138,7 @@ export const buildApp = (
           mediaAssetRepository,
           mediaStorage,
           memoryStore: resolveMemoryStore(dependencies),
-          aiConsentRepository,
+          aiConsentRepository: storedAiConsentRepository,
           productAnalyticsRepository,
           ...(mealIllustrationRepository ? { mealIllustrationRepository } : {}),
         }));
@@ -1104,11 +1194,19 @@ export const buildApp = (
   // so the route returns 503 AI_CONFIGURATION_ERROR). The dev
   // stub returns a deterministic candidate. GeminiVisionProvider
   // is wired when GEMINI_VISION_API_KEY or GEMINI_API_KEY is configured.
-  // ADR-0069 — when Anthropic is selected it replaces Gemini for every
-  // text and vision feature; meal illustrations stay on Gemini.
+  // ADR-0069 — each AI feature uses the vendor `aiRouting` resolves for it
+  // (per-feature *_PROVIDER keys, else AGENT_PROVIDER). Meal illustrations
+  // stay on Gemini.
   const anthropicConfig = configResult.ok
     ? (configResult.value.anthropicConfig ?? null)
     : null;
+  const aiRouting = configResult.ok
+    ? configResult.value.aiRouting
+    : GEMINI_ONLY_ROUTING;
+  if (configResult.ok) {
+    // Vendor names only; keys are never logged.
+    app.log.info({ aiRouting }, "AI feature routing resolved");
+  }
   if (
     configResult.ok &&
     configResult.value.agentProvider === "anthropic" &&
@@ -1118,8 +1216,14 @@ export const buildApp = (
       "AGENT_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set; using Gemini when configured.",
     );
   }
-  const modelVisionProvider =
-    anthropicConfig !== null
+  const visionVendors: readonly AiVendor[] = [
+    aiRouting.mealPhoto,
+    aiRouting.mealText,
+    aiRouting.activityDraft,
+    aiRouting.stretchPlan,
+  ];
+  const anthropicVisionProvider =
+    anthropicConfig !== null && visionVendors.includes("anthropic")
       ? new AnthropicVisionProvider({
           apiKey: anthropicConfig.apiKey,
           model: anthropicConfig.model,
@@ -1130,21 +1234,40 @@ export const buildApp = (
             configResult.ok && configResult.value.aiExternalAccess,
           enableWebSearch: anthropicConfig.webSearch,
         })
-      : configResult.ok && configResult.value.geminiVisionConfig !== null
-        ? new GeminiVisionProvider({
-            apiKey: configResult.value.geminiVisionConfig.apiKey,
-            model: configResult.value.geminiVisionConfig.model,
-            fallbackModel: configResult.value.geminiVisionConfig.fallbackModel,
-            thinkingBudget:
-              configResult.value.geminiVisionConfig.thinkingBudget,
-            timeoutMs: configResult.value.geminiVisionConfig.timeoutMs,
-            maxOutputTokens:
-              configResult.value.geminiVisionConfig.maxOutputTokens,
-            externalAccess: configResult.value.aiExternalAccess,
-            enableSearchGrounding:
-              configResult.value.geminiVisionConfig.searchGrounding,
-          })
-        : null;
+      : null;
+  const geminiVisionProvider =
+    configResult.ok &&
+    configResult.value.geminiVisionConfig !== null &&
+    visionVendors.includes("gemini")
+      ? new GeminiVisionProvider({
+          apiKey: configResult.value.geminiVisionConfig.apiKey,
+          model: configResult.value.geminiVisionConfig.model,
+          fallbackModel: configResult.value.geminiVisionConfig.fallbackModel,
+          thinkingBudget: configResult.value.geminiVisionConfig.thinkingBudget,
+          timeoutMs: configResult.value.geminiVisionConfig.timeoutMs,
+          maxOutputTokens:
+            configResult.value.geminiVisionConfig.maxOutputTokens,
+          externalAccess: configResult.value.aiExternalAccess,
+          enableSearchGrounding:
+            configResult.value.geminiVisionConfig.searchGrounding,
+        })
+      : null;
+  const visionFor = (vendor: AiVendor): VisionDraftProvider | null =>
+    vendor === "anthropic" ? anthropicVisionProvider : geminiVisionProvider;
+  // Photo drafts, text/refine drafts, activity drafts and stretch plans each
+  // go to their routed vendor; one vendor for all yields that provider as is.
+  const modelVisionProvider: VisionDraftProvider | null =
+    anthropicVisionProvider === null && geminiVisionProvider === null
+      ? null
+      : (() => {
+          const disabled = new DisabledVisionProvider();
+          return createRoutingVisionDraftProvider({
+            photo: visionFor(aiRouting.mealPhoto) ?? disabled,
+            text: visionFor(aiRouting.mealText) ?? disabled,
+            activity: visionFor(aiRouting.activityDraft) ?? disabled,
+            stretch: visionFor(aiRouting.stretchPlan) ?? disabled,
+          });
+        })();
 
   const visionProvider: VisionDraftProvider = dependencies.coachControls
     ?.visionProvider
@@ -1169,7 +1292,9 @@ export const buildApp = (
   };
 
   const anthropicAgent =
-    configResult.ok && anthropicConfig !== null
+    configResult.ok &&
+    anthropicConfig !== null &&
+    aiRouting.coach === "anthropic"
       ? new AgentOrchestrator({
           provider: new AnthropicAgentProvider({
             apiKey: anthropicConfig.apiKey,
@@ -1190,7 +1315,7 @@ export const buildApp = (
         })
       : null;
   const modelAgent =
-    anthropicAgent !== null
+    aiRouting.coach === "anthropic"
       ? anthropicAgent
       : configResult.ok && configResult.value.geminiConfig !== null
         ? new AgentOrchestrator({
@@ -1389,6 +1514,11 @@ export const buildApp = (
         externalAccess: configResult.ok && configResult.value.aiExternalAccess,
       }
     : null;
+  const routedRecipeProviders = selectRecipeProviders({
+    routing: aiRouting,
+    anthropic: anthropicRecipeOptions,
+    gemini: recipeProviderOptions,
+  });
   void app.register(mealRecipeRoutes, {
     prefix: "/v1/meal-recipes",
     repositories: {
@@ -1414,26 +1544,11 @@ export const buildApp = (
       }),
     ledger: recipeRequestLedger,
     generationProvider:
-      recipeControls?.generationProvider ??
-      (anthropicRecipeOptions
-        ? new AnthropicRecipeGenerationProvider(anthropicRecipeOptions)
-        : recipeProviderOptions
-          ? new GeminiRecipeGenerationProvider(recipeProviderOptions)
-          : new DisabledRecipeGenerationProvider()),
+      recipeControls?.generationProvider ?? routedRecipeProviders.generation,
     recognitionProvider:
-      recipeControls?.recognitionProvider ??
-      (anthropicRecipeOptions
-        ? new AnthropicIngredientRecognitionProvider(anthropicRecipeOptions)
-        : recipeProviderOptions
-          ? new GeminiIngredientRecognitionProvider(recipeProviderOptions)
-          : new DisabledIngredientRecognitionProvider()),
+      recipeControls?.recognitionProvider ?? routedRecipeProviders.recognition,
     assistantProvider:
-      recipeControls?.assistantProvider ??
-      (anthropicRecipeOptions
-        ? new AnthropicRecipeAssistantProvider(anthropicRecipeOptions)
-        : recipeProviderOptions
-          ? new GeminiRecipeAssistantProvider(recipeProviderOptions)
-          : new DisabledRecipeAssistantProvider()),
+      recipeControls?.assistantProvider ?? routedRecipeProviders.assistant,
     ...(recipeControls?.now ? { now: recipeControls.now } : {}),
     ...(recipeControls?.timeoutMs !== undefined
       ? { timeoutMs: recipeControls.timeoutMs }
@@ -1566,6 +1681,7 @@ export const buildApp = (
     accountRepository,
     memoryStore,
     aiConsentRepository,
+    acceptedAiConsentVersions,
     profileRepository,
     appleDeletionCleanup,
   });
@@ -1771,7 +1887,8 @@ export const buildApp = (
   void app.register(coachRoutes, {
     runRepository,
     prefix: "/v1/coach",
-    agent,
+    // `/v1/coach/status` reports the agent that actually serves Coach.
+    agent: resolveAgent(),
     resolveAgent,
     conversationRepository,
     profileRepository,

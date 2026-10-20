@@ -147,7 +147,8 @@ export interface SaveAiConsentResult {
 }
 
 /**
- * Persists the user's explicit consent to third-party AI processing (Google Gemini).
+ * Persists the user's explicit consent to third-party AI processing
+ * (Anthropic and Google Gemini API, depending on the feature).
  * Syncs with server /v1/account/ai-consent when apiClient is provided.
  */
 export const saveAiConsent = async (

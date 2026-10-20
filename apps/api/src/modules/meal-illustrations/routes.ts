@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import {
-  CURRENT_AI_CONSENT_VERSION,
-  mealIllustrationResponseSchema,
-} from "@mizyun/contracts";
+import { mealIllustrationResponseSchema } from "@mizyun/contracts";
 import {
   MEAL_ILLUSTRATION_STYLE,
   normalizeMealIllustrationName,
@@ -17,7 +14,7 @@ import {
   screenCoachInput,
   type MealIllustrationProvider,
 } from "@mizyun/agent-runtime";
-import { authorizeAiAccess } from "../../ai-eligibility.js";
+import { authorizedAiConsentVersion } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { hasMealVisuals } from "../../meal-visual-access.js";
@@ -60,18 +57,23 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
 > = async (app, options) => {
   const jobs = new Map<AbortController, Promise<void>>();
   let closing = false;
-  const authorized = async (
+  /**
+   * The user's stored, accepted consent version when an illustration is
+   * allowed, otherwise null. The SQL claim/complete functions compare the
+   * stored row to this exact version.
+   */
+  const authorizedVersion = async (
     userId: UserId,
     accessToken: string,
     signal: AbortSignal = AbortSignal.timeout(10_000),
-  ): Promise<boolean> => {
+  ): Promise<string | null> => {
     if (
       closing ||
       !options.enabled() ||
       !options.provider ||
       !options.repository
     )
-      return false;
+      return null;
     try {
       const [profile, consent] = await withAbort(
         Promise.all([
@@ -87,16 +89,19 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
         hasMealVisuals(options, userId, accessToken, profile.planTier),
         signal,
       );
-      return (
-        pro &&
-        !signal.aborted &&
-        options.enabled() &&
-        authorizeAiAccess({ profile, consent }).authorized
-      );
+      return pro && !signal.aborted && options.enabled()
+        ? authorizedAiConsentVersion({ profile, consent })
+        : null;
     } catch {
-      return false;
+      return null;
     }
   };
+  const authorized = async (
+    userId: UserId,
+    accessToken: string,
+    signal?: AbortSignal,
+  ): Promise<boolean> =>
+    (await authorizedVersion(userId, accessToken, signal)) !== null;
   app.addHook("onClose", async () => {
     closing = true;
     for (const controller of jobs.keys()) controller.abort();
@@ -159,12 +164,11 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
           "Meal not found.",
         );
       const dishName = normalizeMealIllustrationName(entry.name);
-      if (
-        entry.photoAssetId ||
-        !dishName ||
-        !screenCoachInput(dishName).allowed ||
-        !(await authorized(userId, principal.accessToken))
-      )
+      const consentVersion =
+        entry.photoAssetId || !dishName || !screenCoachInput(dishName).allowed
+          ? null
+          : await authorizedVersion(userId, principal.accessToken);
+      if (consentVersion === null || !dishName)
         return { status: "unavailable" };
       const key = createHash("sha256")
         .update(`${MEAL_ILLUSTRATION_STYLE}:${dishName}`)
@@ -172,12 +176,7 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
       let claim;
       try {
         claim = await withAbort(
-          options.repository!.claim(
-            userId,
-            key,
-            CURRENT_AI_CONSENT_VERSION,
-            entry.id,
-          ),
+          options.repository!.claim(userId, key, consentVersion, entry.id),
           AbortSignal.timeout(10_000),
         );
       } catch {
@@ -237,20 +236,22 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
                 currentEntry.userId !== userId ||
                 currentEntry.photoAssetId ||
                 normalizeMealIllustrationName(currentEntry.name) !== dishName ||
-                controller.signal.aborted ||
-                !(await authorized(
-                  userId,
-                  principal.accessToken,
-                  controller.signal,
-                ))
+                controller.signal.aborted
               )
+                throw new Error("Illustration disabled");
+              const completeVersion = await authorizedVersion(
+                userId,
+                principal.accessToken,
+                controller.signal,
+              );
+              if (completeVersion === null)
                 throw new Error("Illustration disabled");
               await withAbort(
                 options.repository!.complete(
                   userId,
                   id,
                   { base64, key, mimeType: "image/jpeg" },
-                  CURRENT_AI_CONSENT_VERSION,
+                  completeVersion,
                 ),
                 controller.signal,
               );

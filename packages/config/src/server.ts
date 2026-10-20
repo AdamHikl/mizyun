@@ -51,9 +51,9 @@ export interface ServerGeminiVisionConfiguration {
 }
 
 /**
- * ADR-0069 — Anthropic (Claude) serves Coach, meal drafts and recipes when
- * `AGENT_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` are both set. Meal
- * illustrations stay on Gemini because Claude does not generate images.
+ * ADR-0069 — Anthropic (Claude) serves every AI feature routed to it (see
+ * `ServerAiRouting`) once `ANTHROPIC_API_KEY` is set. Meal illustrations stay
+ * on Gemini because Claude does not generate images.
  */
 export interface ServerAnthropicConfiguration {
   readonly apiKey: string;
@@ -64,6 +64,45 @@ export interface ServerAnthropicConfiguration {
   readonly maxOutputTokens: number;
   readonly webSearch: boolean;
 }
+
+/** AI vendors a routed feature can use. */
+export type AiVendor = "gemini" | "anthropic";
+
+/**
+ * Effective AI vendor per feature. Each feature reads its own
+ * `*_PROVIDER` key (see `AI_FEATURE_PROVIDER_ENV_KEYS`) and otherwise
+ * inherits `AGENT_PROVIDER`, so an env without per-feature keys behaves
+ * exactly as before:
+ *
+ * - `AGENT_PROVIDER=anthropic` with `ANTHROPIC_API_KEY` routes to Claude;
+ *   without the key it falls back to Gemini (legacy, logged at startup).
+ * - `AGENT_PROVIDER=gemini` or `disabled` resolve to `gemini`, which means
+ *   "Gemini when a Gemini key is configured, otherwise disabled".
+ *
+ * An explicit per-feature key never falls back: config fails to load when
+ * its vendor's key is missing. Meal illustrations are not routed; they
+ * always use Gemini.
+ */
+export interface ServerAiRouting {
+  /** Coach chat (agent + content moderator). */
+  readonly coach: AiVendor;
+  /** Typed meal estimates and draft refinement (incl. Coach text drafts). */
+  readonly mealText: AiVendor;
+  /** Every photo draft: meal and label photos, and the Coach photo route. */
+  readonly mealPhoto: AiVendor;
+  /** Log activity description drafts. */
+  readonly activityDraft: AiVendor;
+  /** Recipe idea generation. */
+  readonly recipeIdeas: AiVendor;
+  /** Ingredient photo recognition for recipes. */
+  readonly ingredientPhotos: AiVendor;
+  /** Recipe cooking assistant. */
+  readonly cookingAssistant: AiVendor;
+  /** Dev-only evening stretch refinement (ADR-0076). */
+  readonly stretchPlan: AiVendor;
+}
+
+export type AiRoutedFeature = keyof ServerAiRouting;
 
 export interface ServerSesConfiguration {
   readonly region: string;
@@ -91,15 +130,24 @@ export interface ServerConfig {
   readonly supabase: AuthConfigurationStatus;
   readonly supabaseConfig: ServerSupabaseConfiguration | null;
   readonly agentProvider: "disabled" | "gemini" | "anthropic";
+  /** Resolved per-feature vendor routing; see `ServerAiRouting`. */
+  readonly aiRouting: ServerAiRouting;
   readonly visionProvider: "disabled" | "stub";
   readonly geminiConfig: ServerGeminiConfiguration | null;
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
-  /** Non-null only when Anthropic is selected and its key is present. */
+  /** Non-null only when a feature routes to Anthropic and its key is present. */
   readonly anthropicConfig?: ServerAnthropicConfiguration | null;
   readonly sesConfig: ServerSesConfiguration | null;
   readonly appleAuthConfig: ServerAppleAuthConfiguration | null;
   readonly appleRevocationEncryptionKey?: string | undefined;
   readonly aiExternalAccess: boolean;
+  /**
+   * Stored AI consent versions the server accepts, from
+   * `AI_CONSENT_ACCEPTED_VERSIONS`. `null` when unset, meaning the API's
+   * default set (every disclosure version still supported by installed
+   * builds). Dev narrows it to the current version so testers confirm again.
+   */
+  readonly aiConsentAcceptedVersions?: readonly string[] | null;
   readonly mealIllustrationConfig?: ServerMealIllustrationConfiguration | null;
   /** @deprecated Parsed only for configuration compatibility; never gates AI access. */
   readonly aiAllowedEmails: readonly string[];
@@ -140,6 +188,14 @@ export const SERVER_ENV_KEYS = {
   anthropicMaxOutputTokens: "ANTHROPIC_MAX_OUTPUT_TOKENS",
   anthropicWebSearch: "ANTHROPIC_WEB_SEARCH",
   anthropicDevTesting: "ANTHROPIC_DEV_TESTING",
+  coachProvider: "COACH_PROVIDER",
+  mealTextProvider: "MEAL_TEXT_PROVIDER",
+  mealPhotoProvider: "MEAL_PHOTO_PROVIDER",
+  activityDraftProvider: "ACTIVITY_DRAFT_PROVIDER",
+  recipeIdeasProvider: "RECIPE_IDEAS_PROVIDER",
+  ingredientPhotoProvider: "INGREDIENT_PHOTO_PROVIDER",
+  cookingAssistantProvider: "COOKING_ASSISTANT_PROVIDER",
+  stretchPlanProvider: "STRETCH_PLAN_PROVIDER",
   sesRegion: "SES_REGION",
   sesAccessKeyId: "SES_ACCESS_KEY_ID",
   sesSecretAccessKey: "SES_SECRET_ACCESS_KEY",
@@ -149,6 +205,7 @@ export const SERVER_ENV_KEYS = {
   aiUserMaxConcurrentRequests: "AI_USER_MAX_CONCURRENT_REQUESTS",
   aiExternalAccess: "AI_EXTERNAL_ACCESS",
   aiAllowedEmails: "AI_ALLOWED_EMAILS",
+  aiConsentAcceptedVersions: "AI_CONSENT_ACCEPTED_VERSIONS",
   appleTeamId: "APPLE_TEAM_ID",
   appleKeyId: "APPLE_KEY_ID",
   applePrivateKey: "APPLE_PRIVATE_KEY",
@@ -156,6 +213,35 @@ export const SERVER_ENV_KEYS = {
   appleClientId: "APPLE_CLIENT_ID",
   appleRevocationEncryptionKey: "APPLE_REVOCATION_ENCRYPTION_KEY",
 } as const;
+
+/** Schema field holding each routed feature's optional override. */
+const AI_FEATURE_FIELDS = {
+  coach: "coachProvider",
+  mealText: "mealTextProvider",
+  mealPhoto: "mealPhotoProvider",
+  activityDraft: "activityDraftProvider",
+  recipeIdeas: "recipeIdeasProvider",
+  ingredientPhotos: "ingredientPhotoProvider",
+  cookingAssistant: "cookingAssistantProvider",
+  stretchPlan: "stretchPlanProvider",
+} as const satisfies Record<AiRoutedFeature, keyof typeof SERVER_ENV_KEYS>;
+
+/** Environment key that overrides each routed feature's vendor. */
+export const AI_FEATURE_PROVIDER_ENV_KEYS: Readonly<
+  Record<AiRoutedFeature, string>
+> = Object.fromEntries(
+  Object.entries(AI_FEATURE_FIELDS).map(([feature, field]) => [
+    feature,
+    SERVER_ENV_KEYS[field],
+  ]),
+) as Record<AiRoutedFeature, string>;
+
+const aiVendorOverride = (key: string) =>
+  z
+    .enum(["gemini", "anthropic"], {
+      errorMap: () => ({ message: `${key} must be gemini or anthropic` }),
+    })
+    .optional();
 
 const DISABLED_REASON = "Supabase server configuration has not been provided.";
 
@@ -291,6 +377,20 @@ const baseServerSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  coachProvider: aiVendorOverride(SERVER_ENV_KEYS.coachProvider),
+  mealTextProvider: aiVendorOverride(SERVER_ENV_KEYS.mealTextProvider),
+  mealPhotoProvider: aiVendorOverride(SERVER_ENV_KEYS.mealPhotoProvider),
+  activityDraftProvider: aiVendorOverride(
+    SERVER_ENV_KEYS.activityDraftProvider,
+  ),
+  recipeIdeasProvider: aiVendorOverride(SERVER_ENV_KEYS.recipeIdeasProvider),
+  ingredientPhotoProvider: aiVendorOverride(
+    SERVER_ENV_KEYS.ingredientPhotoProvider,
+  ),
+  cookingAssistantProvider: aiVendorOverride(
+    SERVER_ENV_KEYS.cookingAssistantProvider,
+  ),
+  stretchPlanProvider: aiVendorOverride(SERVER_ENV_KEYS.stretchPlanProvider),
   sesRegion: z
     .string()
     .min(1, "SES_REGION must not be empty")
@@ -336,6 +436,34 @@ const baseServerSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  aiConsentAcceptedVersions: z
+    .string()
+    .optional()
+    .transform((val) =>
+      val === undefined
+        ? null
+        : [
+            ...new Set(
+              val
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0),
+            ),
+          ],
+    )
+    .refine((versions) => versions === null || versions.length > 0, {
+      message:
+        "AI_CONSENT_ACCEPTED_VERSIONS must list at least one consent version",
+    })
+    .refine(
+      (versions) =>
+        versions === null ||
+        versions.every((version) => /^\d{4}-\d{2}-\d{2}$/.test(version)),
+      {
+        message:
+          "AI_CONSENT_ACCEPTED_VERSIONS must be comma-separated YYYY-MM-DD consent versions",
+      },
+    ),
   aiAllowedEmails: z
     .string()
     .optional()
@@ -359,6 +487,49 @@ const baseServerSchema = z.object({
 });
 
 type BaseServerShape = Record<keyof typeof SERVER_ENV_KEYS, string | undefined>;
+
+type ParsedServerInput = z.infer<typeof baseServerSchema>;
+
+const resolveAiRouting = (value: ParsedServerInput): ServerAiRouting => {
+  const inherited: AiVendor =
+    value.agentProvider === "anthropic" && value.anthropicApiKey !== undefined
+      ? "anthropic"
+      : "gemini";
+  const routing = {} as Record<AiRoutedFeature, AiVendor>;
+  for (const [feature, field] of Object.entries(AI_FEATURE_FIELDS)) {
+    routing[feature as AiRoutedFeature] = value[field] ?? inherited;
+  }
+  return routing;
+};
+
+/**
+ * Validate per-feature overrides: an explicit vendor must have its key, so
+ * a feature never silently falls back to another vendor.
+ */
+const aiRoutingIssues = (value: ParsedServerInput): ConfigIssue[] => {
+  const issues: ConfigIssue[] = [];
+  const geminiKeyPresent =
+    value.geminiApiKey !== undefined || value.geminiVisionApiKey !== undefined;
+  for (const field of Object.values(AI_FEATURE_FIELDS)) {
+    const key = SERVER_ENV_KEYS[field];
+    const explicit = value[field];
+    if (explicit === "anthropic" && value.anthropicApiKey === undefined) {
+      issues.push({
+        kind: "malformed",
+        key,
+        reason: `${key}=anthropic requires ${SERVER_ENV_KEYS.anthropicApiKey}.`,
+      });
+    }
+    if (explicit === "gemini" && !geminiKeyPresent) {
+      issues.push({
+        kind: "malformed",
+        key,
+        reason: `${key}=gemini requires ${SERVER_ENV_KEYS.geminiApiKey}.`,
+      });
+    }
+  }
+  return issues;
+};
 
 const readString = (snapshot: EnvSnapshot, key: string): string | undefined => {
   const value = snapshot[key];
@@ -447,10 +618,12 @@ export const loadServerConfig = (
   ) {
     issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.geminiApiKey] });
   }
+  if (parsed.success) {
+    issues.push(...aiRoutingIssues(parsed.data));
+  }
   if (
     parsed.success &&
-    parsed.data.agentProvider === "anthropic" &&
-    parsed.data.anthropicApiKey !== undefined &&
+    Object.values(resolveAiRouting(parsed.data)).includes("anthropic") &&
     !parsed.data.anthropicDevTesting
   ) {
     // ADR-0069 — Dev and Production both run NODE_ENV=production, so the
@@ -459,7 +632,7 @@ export const loadServerConfig = (
       kind: "malformed",
       key: SERVER_ENV_KEYS.anthropicDevTesting,
       reason:
-        "AGENT_PROVIDER=anthropic is approved for Dev testing only; set ANTHROPIC_DEV_TESTING=true to acknowledge.",
+        "Routing an AI feature to Anthropic (AGENT_PROVIDER or a per-feature *_PROVIDER key) is approved for Dev testing only; set ANTHROPIC_DEV_TESTING=true to acknowledge.",
     });
   }
   if (parsed.success && parsed.data.env === "production") {
@@ -564,8 +737,10 @@ export const loadServerConfig = (
           searchGrounding: value.geminiVisionSearchGrounding,
         }
       : null;
+  const aiRouting = resolveAiRouting(value);
   const anthropicConfig: ServerAnthropicConfiguration | null =
-    value.agentProvider === "anthropic" && value.anthropicApiKey !== undefined
+    Object.values(aiRouting).includes("anthropic") &&
+    value.anthropicApiKey !== undefined
       ? {
           apiKey: value.anthropicApiKey,
           model: value.anthropicModel,
@@ -614,6 +789,7 @@ export const loadServerConfig = (
     supabase,
     supabaseConfig,
     agentProvider: value.agentProvider,
+    aiRouting,
     visionProvider: value.visionProvider,
     geminiConfig,
     geminiVisionConfig,
@@ -628,6 +804,7 @@ export const loadServerConfig = (
         ? { apiKey: value.geminiApiKey, model: value.geminiImageModel }
         : null,
     aiExternalAccess: value.aiExternalAccess,
+    aiConsentAcceptedVersions: value.aiConsentAcceptedVersions,
     aiAllowedEmails: value.aiAllowedEmails ?? [],
   });
 };

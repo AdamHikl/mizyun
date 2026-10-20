@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CURRENT_AI_CONSENT_VERSION } from "@mizyun/contracts";
+import {
+  CURRENT_AI_CONSENT_VERSION,
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+} from "@mizyun/contracts";
 import type { StoredFoodEntry, UserId } from "@mizyun/core";
 import { buildApp } from "../../app.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
@@ -341,6 +344,33 @@ describe("private background meal illustrations", () => {
       expect(s.provider.generate).toHaveBeenCalledTimes(2),
     );
   });
+  it.each([LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY, CURRENT_AI_CONSENT_VERSION])(
+    "passes the stored accepted consent version %s to the SQL claim and complete",
+    async (version) => {
+      const s = setup();
+      await s.consent.saveConsent(userA, {
+        granted: true,
+        confirmedAdult: true,
+        consentVersion: version,
+      });
+      const claim = vi.spyOn(s.repository, "claim");
+      const finalize = vi.spyOn(s.repository, "complete");
+      expect((await s.request()).statusCode).toBe(202);
+      await settle(s, "ready");
+      expect(claim).toHaveBeenCalledWith(
+        userA,
+        expect.any(String),
+        version,
+        entryId,
+      );
+      expect(finalize).toHaveBeenCalledWith(
+        userA,
+        expect.any(String),
+        expect.anything(),
+        version,
+      );
+    },
+  );
   it("blocks outdated consent", async () => {
     const s = setup();
     await s.consent.saveConsent(userA, {

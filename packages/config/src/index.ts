@@ -9,7 +9,11 @@ export {
 } from "./mobile";
 
 export {
+  type AiRoutedFeature,
+  type AiVendor,
+  AI_FEATURE_PROVIDER_ENV_KEYS,
   type NodeEnv,
+  type ServerAiRouting,
   type ServerAppleAuthConfiguration,
   type ServerConfig,
   type ServerConfigResult,

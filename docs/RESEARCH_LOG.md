@@ -3530,3 +3530,20 @@ Consequence: Claude multi-photo requests use the flattened `meals` wire format, 
 Checked [Apple Intelligence requirements](https://support.apple.com/en-us/121115) (published 2026-09-14: iPhone 15 Pro/Pro Max, iPhone 16 models or later and iPhone Air; up to 8 GB storage, 14 GB on iPhone 17 Pro/Air), [WWDC26 iOS guide](https://developer.apple.com/wwdc26/guides/ios/) (Foundation Models: multimodal prompts and Private Cloud Compute in iOS 27), [ML Kit GenAI Prompt API](https://developers.google.com/ml-kit/genai) (updated 2026-10-16: nano-v2/v3/v4 flagship list, foreground-only inference, per-app quota) and [Expo `expo-ai`](https://docs.expo.dev/versions/unversioned/sdk/ai) (alpha, next SDK; npm has only a `0.0.0` placeholder, so not usable on SDK 57). The installed SDK (Xcode 27.1, Swift 6.4) provides `SystemLanguageModel.default.availability`, `LanguageModelSession.prewarm()`, `DynamicGenerationSchema` and `GenerationOptions(samplingMode:maximumResponseTokens:)`.
 
 A local benchmark on an M1 Max (macOS 27.0.1) compared two setups. The full eight-field ADR-0073 prompt took 3.2–3.4 s warm and 5.0 s cold, and got dates and times wrong. An activity-name-only guided field took 0.64–0.94 s and named 9 of 10 samples as intended. Plain text was faster (0.47–0.83 s) but renamed "yardwork" to "Gardening". Consequence: a parser-first hybrid with one guided string field, an iOS-only local Expo module, and no Android path until a supported device is available. Decision in [ADR-0074](adr/0074-on-device-activity-drafts.md).
+
+## 2026-10-20 — Per-feature AI model routing (ADR-0077)
+
+The model choice comes from the Mizyun AI eval suite, which runs Mizyun's real provider code with judged rubrics (`AdamHikl/mizyun-ai-eval`, runs `gemini-3.8-flash-none`, `claude-haiku-5-5-{none,low,medium,high}`, `claude-sonnet-5-5-low`, `apple-foundation-models-mac`, and `cooking-{ondevice,haiku,gemini}` from 2026-10-20). No new platform surface was used: both vendors keep the request shapes recorded on 2026-10-17 (ADR-0069) and 2026-10-20 (#313).
+
+To keep the consent wording truthful, these vendor terms were checked on 2026-10-20:
+
+- [Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms) (effective 2026-03-23): Paid Services prompts and responses are not used to improve products, are logged for a limited period for abuse monitoring, and users must be 18 or older.
+- [Gemini API usage policies](https://ai.google.dev/gemini-api/docs/usage-policies) (updated 2026-06-09): 55-day abuse-monitoring retention.
+- [Anthropic commercial terms](https://www.anthropic.com/legal/commercial-terms): no training on Customer Content.
+- [Anthropic data retention](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data): API inputs and outputs are deleted within 30 days, except for usage-policy enforcement and legal holds.
+
+Consequences:
+
+- Routing uses one provider key per feature, and each key inherits `AGENT_PROVIDER`.
+- The consent wording names both vendors, with version `2026-10-20` and an accepted-version set on the server, so installed Store builds keep working.
+- Mizyun's Gemini billing tier was not verified, so the existing hedge about Google product improvement is kept.

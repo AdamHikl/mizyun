@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { capsForTier } from "@mizyun/config";
 import {
-  CURRENT_AI_CONSENT_VERSION,
   recipeTemplateSelectionSchema,
   recognizedIngredientProposalSchema,
   ingredientRecognitionResponseSchema,
@@ -30,7 +29,10 @@ import {
   type RecipeAssistantProvider,
   DisabledRecipeAssistantProvider,
 } from "@mizyun/agent-runtime";
-import { authorizeAiAccess } from "../../ai-eligibility.js";
+import {
+  authorizeAiAccess,
+  authorizedAiConsentVersion,
+} from "../../ai-eligibility.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import type { EnergyRoutesOptions } from "../energy/index.js";
 import { loadOwnedRecipeContext, recipeDigest } from "./context.js";
@@ -187,12 +189,23 @@ export class MealRecipeService {
     )
       throw new RecipeServiceError(503, "RECIPE_PROVIDER_BOUNDS_INVALID");
     const ledger = this.options.ledger!;
+    // The SQL reservation re-checks consent against this exact version, so
+    // pass the user's stored, accepted version rather than the current one.
+    const consentVersion = authorizedAiConsentVersion({
+      profile,
+      consent: await this.options.consentRepository.getConsent(userId, {
+        accessToken,
+      }),
+      now: this.now(),
+    });
+    if (consentVersion === null)
+      throw new RecipeServiceError(403, "RECIPE_LIMIT_CONSENT");
     const reserved = await ledger.reserve({
       userId,
       requestId,
       operation,
       fingerprint,
-      consentVersion: CURRENT_AI_CONSENT_VERSION,
+      consentVersion,
       tokensEstimated,
       limits: {
         dailyTokenBudget: caps.dailyTokenBudget,

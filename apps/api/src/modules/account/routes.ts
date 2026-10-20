@@ -10,6 +10,7 @@ import {
 import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
 import {
   CURRENT_AI_CONSENT_VERSION,
+  DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
   accountDeleteResponseSchema,
   accountDeleteSchema,
   accountDeleteStatusResponseSchema,
@@ -36,6 +37,11 @@ interface AccountRoutesOptions {
   readonly memoryStore: MemoryStore;
   readonly aiConsentRepository?: AiConsentRepository;
   readonly profileRepository?: ProfileRepository;
+  /**
+   * Disclosure versions a new grant may record (`AI_CONSENT_ACCEPTED_VERSIONS`);
+   * defaults to the contract's accepted set. Revocations are always accepted.
+   */
+  readonly acceptedAiConsentVersions?: readonly string[];
   readonly appleDeletionCleanup?: (
     context: AccountDeletionCleanupContext,
     authorizationCode?: string,
@@ -43,6 +49,10 @@ interface AccountRoutesOptions {
 }
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
+
+/** Shown by older builds' consent screens when their disclosure is retired. */
+export const AI_CONSENT_UPDATE_REQUIRED_MESSAGE =
+  "This version of Mizyun shows an older AI disclosure. Update Mizyun to keep using AI features.";
 
 const memoryToWire = (memory: MemoryRecord) => ({
   id: memory.id,
@@ -548,6 +558,25 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
           422,
           "VALIDATION_ERROR",
           `Invalid consent body: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+
+      const acceptedVersions =
+        options.acceptedAiConsentVersions ??
+        DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS;
+      if (
+        parsed.data.granted &&
+        !acceptedVersions.includes(parsed.data.consentVersion)
+      ) {
+        // An installed build showing a disclosure this server no longer
+        // accepts: refuse the grant with a message its consent screen shows.
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          AI_CONSENT_UPDATE_REQUIRED_MESSAGE,
         );
         return;
       }

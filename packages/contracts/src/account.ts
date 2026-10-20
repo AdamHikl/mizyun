@@ -258,10 +258,27 @@ export type AccountDeleteStatusResponse = z.infer<
 >;
 
 /**
- * Current authoritative version for third-party AI processing disclosures.
- * (Finding R5 / REL-AUD-005 / Q8-B).
+ * AI disclosure version saved by builds that named only Google Gemini
+ * (including the installed build6/build7 Store apps).
  */
-export const CURRENT_AI_CONSENT_VERSION = "2026-09-08";
+export const LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY = "2026-09-08";
+
+/**
+ * Current authoritative version for third-party AI processing disclosures:
+ * the per-feature Anthropic and Google Gemini disclosure. New builds save and
+ * display this version. (Finding R5 / REL-AUD-005 / Q8-B).
+ */
+export const CURRENT_AI_CONSENT_VERSION = "2026-10-20";
+
+/**
+ * Stored consent versions the server accepts by default, so installed older
+ * builds keep working. An environment narrows this with
+ * `AI_CONSENT_ACCEPTED_VERSIONS` (for example Dev, to ask testers again).
+ */
+export const DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS: readonly string[] = [
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+  CURRENT_AI_CONSENT_VERSION,
+];
 
 export const aiConsentSchema = z.object({
   granted: z.boolean(),

@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  CURRENT_AI_CONSENT_VERSION,
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+} from "@mizyun/contracts";
 import { loadAiConsent, revokeAiConsent, saveAiConsent } from "./ai-consent";
 
 class MemorySecureStore {
@@ -133,7 +137,7 @@ describe("ai-consent", () => {
               consent: {
                 granted: true,
                 confirmedAdult: true,
-                consentVersion: "2026-09-08",
+                consentVersion: CURRENT_AI_CONSENT_VERSION,
                 consentedAt: "2026-09-08T12:00:00Z",
                 revokedAt: null,
               },
@@ -154,7 +158,7 @@ describe("ai-consent", () => {
               consent: {
                 granted: body.granted,
                 confirmedAdult: body.confirmedAdult,
-                consentVersion: "2026-09-08",
+                consentVersion: CURRENT_AI_CONSENT_VERSION,
                 consentedAt: body.granted ? "2026-09-08T12:00:00Z" : null,
                 revokedAt: body.granted ? null : "2026-09-08T12:05:00Z",
               },
@@ -175,7 +179,7 @@ describe("ai-consent", () => {
     // Load fetches from server and caches in store
     const loaded = await loadAiConsent("user-1", store, mockApiClient as any);
     expect(loaded.granted).toBe(true);
-    expect(loaded.consentVersion).toBe("2026-09-08");
+    expect(loaded.consentVersion).toBe(CURRENT_AI_CONSENT_VERSION);
 
     // Save calls PUT on server and writes to store
     const saved = await saveAiConsent(
@@ -214,7 +218,7 @@ describe("ai-consent", () => {
             consent: {
               granted: true,
               confirmedAdult: true,
-              consentVersion: "2026-09-08",
+              consentVersion: CURRENT_AI_CONSENT_VERSION,
               consentedAt: "2026-09-08T12:00:00Z",
               revokedAt: null,
             },
@@ -297,5 +301,50 @@ describe("ai-consent", () => {
     );
     expect(loaded.granted).toBe(true);
     expect(loaded.confirmedAdult).toBe(true);
+  });
+  it("asks again when the server holds a Gemini-only consent from an older build", async () => {
+    const store = new MemorySecureStore();
+    const puts: unknown[] = [];
+    const mockApiClient = {
+      request: async (options: {
+        readonly method: string;
+        readonly body?: unknown;
+      }) => {
+        if (options.method === "PUT") puts.push(options.body);
+        return {
+          ok: true as const,
+          value: {
+            consent: {
+              granted: true,
+              confirmedAdult: true,
+              consentVersion:
+                options.method === "PUT"
+                  ? CURRENT_AI_CONSENT_VERSION
+                  : LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+              consentedAt: "2026-09-08T12:00:00Z",
+              revokedAt: null,
+            },
+          },
+        };
+      },
+      status: () => ({
+        configured: true as const,
+        baseUrl: "https://api.test",
+      }),
+    };
+    const loaded = await loadAiConsent("user-1", store, mockApiClient as any);
+    expect(loaded.granted).toBe(false);
+    expect(loaded.consentVersion).toBe(LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY);
+    expect(
+      (await saveAiConsent("user-1", true, true, store, mockApiClient as any))
+        .ok,
+    ).toBe(true);
+    expect(puts).toEqual([
+      expect.objectContaining({
+        granted: true,
+        consentVersion: CURRENT_AI_CONSENT_VERSION,
+      }),
+    ]);
+    expect(CURRENT_AI_CONSENT_VERSION).toBe("2026-10-20");
   });
 });

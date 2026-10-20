@@ -33,10 +33,14 @@ export interface AiConsentModalProps {
 /**
  * Explicit disclosure and consent dialog for third-party AI processing.
  * Addresses Finding R5 (REL-AUD-005):
- * - Discloses Google LLC (Google Gemini API) as the processing provider.
- * - Lists each AI feature and the data it sends (Coach, meal drafts and
- *   illustrations, recipes, Log activity descriptions).
- * - Clarifies data handling (transient processing, not used for public model training).
+ * - Discloses both processing providers and which features use each:
+ *   Anthropic (Claude) for Coach chat, typed meal estimates and draft
+ *   changes and Log activity descriptions; Google (Gemini API) for
+ *   meal/label/ingredient photos (including Coach photos), the cooking
+ *   assistant, meal illustrations and the evening stretch. On Apple
+ *   Intelligence iPhones, Log activity drafts stay on the device (ADR-0074).
+ * - Lists the data each feature sends.
+ * - States each provider's retention and training terms conservatively.
  * - Enforces adult eligibility requirement (18+).
  * - Apple App Store Guideline compliance (explicit consent before third-party sharing).
  */
@@ -111,47 +115,69 @@ export function AiConsentModal({
             showsVerticalScrollIndicator={true}
           >
             <Card>
-              <ThemedText type="headline">1. Third-Party Provider</ThemedText>
+              <ThemedText type="headline">1. AI Providers</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                AI features in Mizyun are powered by Google LLC (&ldquo;Google
-                Gemini API&rdquo;): Coach, meal drafts from photos or
-                descriptions, meal illustrations, recipe ideas and the cooking
-                assistant,{" "}
-                {stretchAi
-                  ? "filling in Log activity from a description, and tailoring the evening stretch to your workout."
-                  : "and filling in Log activity from a description."}
+                Mizyun&rsquo;s AI features use two outside providers, depending
+                on the feature:
               </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Anthropic (Claude): Coach chat, meal estimates from typed
+                descriptions, changes you ask for to a meal draft, and filling
+                in Log activity from a description.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Google (Gemini API): meal and nutrition-label photos,
+                including photos you send in Coach, ingredient photos, the
+                cooking assistant,{" "}
+                {stretchAi
+                  ? "meal illustrations, and tailoring the evening stretch to your workout."
+                  : "and meal illustrations."}
+              </ThemedText>
+              {Platform.OS === "ios" ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  When Apple Intelligence is on and ready on your iPhone,
+                  filling in Log activity from a description runs on the iPhone
+                  and isn&rsquo;t sent to either provider.
+                </ThemedText>
+              ) : null}
             </Card>
 
             <Card>
-              <ThemedText type="headline">
-                2. Data Shared with Google
+              <ThemedText type="headline">2. Data Shared</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Data is sent only for these features:
+              </ThemedText>
+              <ThemedText type="smallBold">Sent to Anthropic</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Coach: your messages, your recent conversation, saved
+                Coach memories, and confirmed context from your profile and logs
+                (workouts and runs, weight and measurements, meals, goals, and
+                calorie and protein targets).
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Data is sent to Google Gemini only for these features:
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                &bull; Coach: your messages and photos, your recent
-                conversation, saved Coach memories, and confirmed context from
-                your profile and logs (workouts and runs, weight and
-                measurements, meals, goals, and calorie and protein targets).
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                &bull; Meals: the photos and descriptions you submit for
-                nutrition estimates, your country setting, and the current draft
-                when you ask for changes. Descriptions that name a brand or
-                restaurant may also be looked up with Google Search. A
-                meal&rsquo;s name is sent automatically to create an
-                illustration for meals you save without a photo.
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                &bull; Recipes: ingredient photos, your messages and the
-                ingredients and ideas on screen, your saved diet preferences,
-                and the protein, carbs and fat left for today.
+                &bull; Meals: the descriptions you type for nutrition estimates,
+                your country setting, and the current draft when you ask for
+                changes. Descriptions that name a brand or restaurant may also
+                be looked up on the web.
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 &bull; Log activity: the description you type and your
                 phone&rsquo;s current date and time.
+              </ThemedText>
+              <ThemedText type="smallBold">Sent to Google</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Meal photos: the meal and nutrition-label photos you
+                submit, in Log meal or Coach, any text you add with them, and
+                your country setting.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Recipes: ingredient photos, your cooking assistant
+                messages, the ingredients and ideas on screen, your saved diet
+                preferences, and the protein, carbs and fat left for today.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Illustrations: a meal&rsquo;s name, sent automatically to
+                create an illustration for meals you save without a photo.
               </ThemedText>
               {stretchAi ? (
                 <ThemedText type="small" themeColor="textSecondary">
@@ -168,12 +194,21 @@ export function AiConsentModal({
                 3. Privacy &amp; Model Training
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Google processes submitted data to generate your response and
-                may retain prompts, context, and output for abuse monitoring for
-                up to 55 days. Additional use depends on the applicable Gemini
-                API service terms, billing status, and region; Mizyun does not
-                promise that every submission is excluded from Google product
-                improvement.
+                Each provider processes submitted data to generate your
+                response.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Anthropic&rsquo;s commercial terms say it does not train
+                models on this data. It normally deletes it within 30 days, but
+                may keep it longer to enforce its usage policy or where the law
+                requires.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                &bull; Google may retain prompts, context, and output for abuse
+                monitoring for up to 55 days. Additional use depends on the
+                applicable Gemini API service terms, billing status, and region;
+                Mizyun does not promise that every submission is excluded from
+                Google product improvement.
               </ThemedText>
             </Card>
 
@@ -182,9 +217,9 @@ export function AiConsentModal({
                 4. Adult Eligibility (18+)
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Google&rsquo;s API Terms require that AI features only be used
-                by individuals who are 18 years of age or older. By continuing,
-                you confirm that you are at least 18 years old.
+                Google&rsquo;s API Terms require users to be 18 or older, and
+                Mizyun applies this to all AI features. By continuing, you
+                confirm that you are at least 18 years old.
               </ThemedText>
               {needsBirthYear && (
                 <View style={styles.birthYearSection}>

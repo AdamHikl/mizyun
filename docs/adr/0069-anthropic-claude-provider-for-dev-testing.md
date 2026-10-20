@@ -2,6 +2,8 @@
 
 Date: 2026-10-17. Status: accepted by Adam on 2026-10-17 for Dev testing ("test out the Claude Haiku 5.5 for everything"). Production use is not approved by this ADR.
 
+> Amended 2026-10-20 by [ADR-0077](0077-per-feature-ai-model-routing.md): features are routed per provider key instead of all following `AGENT_PROVIDER`; the Dev-only `ANTHROPIC_DEV_TESTING` guard still applies to any Anthropic route.
+
 ## Context
 
 Mizyun has used Gemini as its only AI vendor since 2026-09-03. Model research ([AI_MODEL_SELECTION_RESEARCH_2026-10-17.md](../AI_MODEL_SELECTION_RESEARCH_2026-10-17.md)) found that Claude Haiku 5.5 costs $0.10 / $0.50 per million input/output tokens, against $0.75 / $3.75 for Gemini 3.8 Flash (rising to $1.50 / $7.50 on 2027-01-01). Adam wants to test Haiku 5.5 for every AI feature on Dev.

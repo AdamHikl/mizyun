@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { accountExportSchema } from "./account.js";
+import {
+  CURRENT_AI_CONSENT_VERSION,
+  DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+  accountExportSchema,
+  updateAiConsentSchema,
+} from "./account.js";
 
 const record = {
   requestId: "83000000-0000-4000-8000-000000000002",
@@ -30,5 +36,22 @@ describe("content-free recipe request account export", () => {
     { tokensCharged: 2_000_001 },
   ])("rejects extra content and malformed accounting: %j", (change) => {
     expect(schema.safeParse([{ ...record, ...change }]).success).toBe(false);
+  });
+});
+
+describe("AI consent versions", () => {
+  it("asks for the two-provider disclosure while accepting the Gemini-only one by default", () => {
+    expect(CURRENT_AI_CONSENT_VERSION).toBe("2026-10-20");
+    expect(LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY).toBe("2026-09-08");
+    expect(DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS).toEqual([
+      "2026-09-08",
+      "2026-10-20",
+    ]);
+  });
+  it("defaults an omitted consent version to the current disclosure", () => {
+    expect(
+      updateAiConsentSchema.parse({ granted: true, confirmedAdult: true })
+        .consentVersion,
+    ).toBe(CURRENT_AI_CONSENT_VERSION);
   });
 });

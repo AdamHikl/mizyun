@@ -26,7 +26,10 @@ vi.mock("@/features/coach/ai-consent-controller", () => ({
 vi.mock("./account-data-management", () => ({
   clearLocalUserData: mocks.clear,
 }));
-import { finishDeletedAccountLocally } from "./account-data-card";
+import {
+  aiConsentStatusText,
+  finishDeletedAccountLocally,
+} from "./account-data-card";
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.clear.mockResolvedValue(undefined);
@@ -55,5 +58,30 @@ describe("completed server deletion local cleanup", () => {
     await vi.waitFor(() => expect(mocks.clear).toHaveBeenCalledTimes(2));
     expect(mocks.clear.mock.calls[1][0]).toBe("captured-account");
     expect(signOut).toHaveBeenCalledOnce();
+  });
+});
+describe("AI consent status line", () => {
+  it("names which provider handles each AI feature", () => {
+    const text = aiConsentStatusText(true, true);
+    expect(text).toContain(
+      "Anthropic (Claude) handles Coach chat, typed meal estimates and draft changes, and Log activity descriptions.",
+    );
+    expect(text).toContain(
+      "Google (Gemini API) handles meal, label and ingredient photos, the cooking assistant, meal illustrations and the evening stretch.",
+    );
+    expect(text).not.toContain("recipe ideas");
+    expect(text).toContain("You confirmed adult eligibility (18+).");
+  });
+  it("leaves out the evening stretch where the build does not tailor it", () => {
+    const text = aiConsentStatusText(true, false);
+    expect(text).not.toContain("evening stretch");
+    expect(text).toContain(
+      "the cooking assistant and meal illustrations. You confirmed",
+    );
+  });
+  it("names no provider before consent", () => {
+    const text = aiConsentStatusText(false, true);
+    expect(text).toContain("currently not enabled");
+    expect(text).not.toMatch(/Anthropic|Google/);
   });
 });

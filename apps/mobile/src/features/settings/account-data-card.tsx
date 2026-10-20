@@ -60,6 +60,15 @@ export async function finishDeletedAccountLocally(
   );
 }
 
+/** Settings status line naming which provider handles each AI feature. */
+export const aiConsentStatusText = (
+  granted: boolean,
+  stretchAi: boolean,
+): string =>
+  granted
+    ? `Third-party AI processing is currently enabled. Anthropic (Claude) handles Coach chat, typed meal estimates and draft changes, and Log activity descriptions. Google (Gemini API) handles meal, label and ingredient photos, the cooking assistant${stretchAi ? ", meal illustrations and the evening stretch" : " and meal illustrations"}. You confirmed adult eligibility (18+).`
+    : "Third-party AI processing is currently not enabled. You'll be asked for consent the first time you use Coach or AI meal drafts.";
+
 export function AccountDataCard({
   disabled = false,
 }: {
@@ -154,7 +163,7 @@ export function AccountDataCard({
   const handleRevokeConsent = () => {
     Alert.alert(
       "Revoke AI Consent",
-      `Revoking consent turns off Coach, AI meal drafts and illustrations, and recipe ideas until you consent again. Log activity goes back to filling in descriptions on your device${isStretchAiEnabled() ? ", and the evening stretch uses Mizyun's own picks" : ""}. Your existing logs and workouts will remain untouched.`,
+      `Revoking consent turns off Coach, AI meal drafts and illustrations, ingredient photos and the cooking assistant until you consent again. Log activity goes back to filling in descriptions on your device${isStretchAiEnabled() ? ", and the evening stretch uses Mizyun's own picks" : ""}. Your existing logs and workouts will remain untouched.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -429,9 +438,7 @@ export function AccountDataCard({
       <SectionHeader title="Third-party AI & consent" />
       <Card>
         <ThemedText type="small" themeColor="textSecondary">
-          {aiConsentGranted
-            ? `Third-party AI processing (Google Gemini API) is currently enabled for Coach, meal drafts and illustrations, recipe ideas and the cooking assistant, ${isStretchAiEnabled() ? "filling in Log activity from a description, and tailoring the evening stretch" : "and filling in Log activity from a description"}. You confirmed adult eligibility (18+).`
-            : "Third-party AI processing is currently not enabled. You'll be asked for consent the first time you use Coach or AI meal drafts."}
+          {aiConsentStatusText(aiConsentGranted, isStretchAiEnabled())}
         </ThemedText>
         {aiConsentGranted ? (
           <Button

@@ -10,6 +10,7 @@ import {
 } from "@mizyun/agent-runtime";
 import {
   CURRENT_AI_CONSENT_VERSION,
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
   mealRecipeSuggestionResponseSchema,
   ingredientRecognitionResponseSchema,
   recipeAssistantReplySchema,
@@ -154,12 +155,14 @@ async function fixture({
     new InMemoryRecipeRequestLedger({
       clock: () => now,
       state,
-      authorize: async (id) =>
-        deleting
-          ? "deletion"
-          : (await consent.getConsent(id))?.granted
-            ? "allowed"
-            : "consent",
+      // Mirrors the SQL reservation: the stored row must equal the passed version.
+      authorize: async (id, consentVersion) => {
+        if (deleting) return "deletion";
+        const stored = await consent.getConsent(id);
+        return stored?.granted && stored.consentVersion === consentVersion
+          ? "allowed"
+          : "consent";
+      },
       budgetGate: {
         isAvailable: async () => available,
         reserve: async () => {
@@ -447,6 +450,20 @@ describe("cooking assistant route", () => {
     expect(f.assistant.requests).toHaveLength(0);
     expect(f.charges()).toBe(0);
   });
+  it.each([LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY, CURRENT_AI_CONSENT_VERSION])(
+    "reserves with the stored accepted consent version %s",
+    async (consentVersion) => {
+      const f = await fixture();
+      await f.consent.saveConsent(user, {
+        granted: true,
+        confirmedAdult: true,
+        consentVersion,
+      });
+      const response = await ask(f.app, turn(), 1);
+      expect(response.statusCode).toBe(200);
+      expect(f.assistant.requests).toHaveLength(1);
+    },
+  );
   it("enforces consent, the environment switch and Free image limits", async () => {
     const f = await fixture();
     f.profileRepository.__seedForTest({ ...f.profile, planTier: "free" });

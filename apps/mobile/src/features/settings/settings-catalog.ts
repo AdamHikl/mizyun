@@ -892,7 +892,7 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     destinationId: "account-data",
     label: "AI data consent",
     description:
-      "Manage or revoke third-party AI processing consent for Coach, meals, recipes and Log activity",
+      "Manage or revoke third-party AI processing consent (Anthropic and Google) for Coach, meals, recipes and Log activity",
     categoryId: "ai-coach",
     categoryLabel: "AI coach",
     breadcrumb: "Account → AI coach",
@@ -903,6 +903,8 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
       "revoke ai consent",
       "stop ai processing",
       "gemini consent",
+      "anthropic consent",
+      "claude consent",
     ],
     intentPhrases: [
       "stop sharing with AI",

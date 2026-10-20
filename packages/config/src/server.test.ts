@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AI_FEATURE_PROVIDER_ENV_KEYS,
   SERVER_ENV_KEYS,
   loadServerConfig,
+  type ServerAiRouting,
   type ServerConfig,
 } from "./server.js";
 
@@ -577,6 +579,219 @@ describe("loadServerConfig — closed-world", () => {
   });
 });
 
+describe("loadServerConfig — per-feature AI routing", () => {
+  const GEMINI_KEY = "test-gemini-key-12345";
+  const ANTHROPIC_KEY = "test-anthropic-key-12345";
+  const allRoutedTo = (vendor: "gemini" | "anthropic"): ServerAiRouting => ({
+    coach: vendor,
+    mealText: vendor,
+    mealPhoto: vendor,
+    activityDraft: vendor,
+    recipeIdeas: vendor,
+    ingredientPhotos: vendor,
+    cookingAssistant: vendor,
+    stretchPlan: vendor,
+  });
+  // Adam's 2026-10-20 benchmark decision for Dev.
+  const benchmarkEnv = {
+    [SERVER_ENV_KEYS.coachProvider]: "anthropic",
+    [SERVER_ENV_KEYS.mealTextProvider]: "anthropic",
+    [SERVER_ENV_KEYS.mealPhotoProvider]: "gemini",
+    [SERVER_ENV_KEYS.activityDraftProvider]: "anthropic",
+    [SERVER_ENV_KEYS.recipeIdeasProvider]: "anthropic",
+    [SERVER_ENV_KEYS.ingredientPhotoProvider]: "gemini",
+    [SERVER_ENV_KEYS.cookingAssistantProvider]: "gemini",
+  };
+
+  it("names one env key per routed feature", () => {
+    expect(AI_FEATURE_PROVIDER_ENV_KEYS).toEqual({
+      coach: "COACH_PROVIDER",
+      mealText: "MEAL_TEXT_PROVIDER",
+      mealPhoto: "MEAL_PHOTO_PROVIDER",
+      activityDraft: "ACTIVITY_DRAFT_PROVIDER",
+      recipeIdeas: "RECIPE_IDEAS_PROVIDER",
+      ingredientPhotos: "INGREDIENT_PHOTO_PROVIDER",
+      cookingAssistant: "COOKING_ASSISTANT_PROVIDER",
+      stretchPlan: "STRETCH_PLAN_PROVIDER",
+    });
+  });
+
+  it("inherits AGENT_PROVIDER for every feature when no override is set", () => {
+    const disabled = loadServerConfig({ env: baseSnapshot });
+    expect(disabled.ok && disabled.value.aiRouting).toEqual(
+      allRoutedTo("gemini"),
+    );
+
+    const gemini = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: GEMINI_KEY,
+        [SERVER_ENV_KEYS.anthropicApiKey]: ANTHROPIC_KEY,
+      },
+    });
+    expect(gemini.ok && gemini.value.aiRouting).toEqual(allRoutedTo("gemini"));
+    expect(gemini.ok && gemini.value.anthropicConfig).toBeNull();
+
+    const anthropic = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicApiKey]: ANTHROPIC_KEY,
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+      },
+    });
+    expect(anthropic.ok && anthropic.value.aiRouting).toEqual(
+      allRoutedTo("anthropic"),
+    );
+  });
+
+  it("keeps the legacy Gemini fallback when AGENT_PROVIDER=anthropic has no key", () => {
+    const pending = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.geminiApiKey]: GEMINI_KEY,
+      },
+    });
+    expect(pending.ok).toBe(true);
+    if (!pending.ok) return;
+    expect(pending.value.aiRouting).toEqual(allRoutedTo("gemini"));
+    expect(pending.value.anthropicConfig).toBeNull();
+  });
+
+  it("applies the benchmark table on a Gemini default", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        ...benchmarkEnv,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: GEMINI_KEY,
+        [SERVER_ENV_KEYS.anthropicApiKey]: ANTHROPIC_KEY,
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.aiRouting).toEqual({
+      coach: "anthropic",
+      mealText: "anthropic",
+      mealPhoto: "gemini",
+      activityDraft: "anthropic",
+      recipeIdeas: "anthropic",
+      ingredientPhotos: "gemini",
+      cookingAssistant: "gemini",
+      stretchPlan: "gemini",
+    });
+    expect(result.value.anthropicConfig?.apiKey).toBe(ANTHROPIC_KEY);
+    expect(result.value.geminiConfig?.apiKey).toBe(GEMINI_KEY);
+    expect(result.value.geminiVisionConfig?.apiKey).toBe(GEMINI_KEY);
+  });
+
+  it("lets a feature leave an Anthropic default for Gemini", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.mealPhotoProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: GEMINI_KEY,
+        [SERVER_ENV_KEYS.anthropicApiKey]: ANTHROPIC_KEY,
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+      },
+    });
+    expect(result.ok && result.value.aiRouting).toEqual({
+      ...allRoutedTo("anthropic"),
+      mealPhoto: "gemini",
+    });
+  });
+
+  it("fails clearly when a feature is routed to Anthropic without its key", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: GEMINI_KEY,
+        [SERVER_ENV_KEYS.coachProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual([
+      {
+        kind: "malformed",
+        key: "COACH_PROVIDER",
+        reason: "COACH_PROVIDER=anthropic requires ANTHROPIC_API_KEY.",
+      },
+    ]);
+  });
+
+  it("fails clearly when a feature is routed to Gemini without a Gemini key", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicApiKey]: ANTHROPIC_KEY,
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+        [SERVER_ENV_KEYS.ingredientPhotoProvider]: "gemini",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual([
+      {
+        kind: "malformed",
+        key: "INGREDIENT_PHOTO_PROVIDER",
+        reason: "INGREDIENT_PHOTO_PROVIDER=gemini requires GEMINI_API_KEY.",
+      },
+    ]);
+
+    const visionKeyOnly = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.mealPhotoProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiVisionApiKey]: GEMINI_KEY,
+      },
+    });
+    expect(visionKeyOnly.ok).toBe(true);
+  });
+
+  it("requires the Dev-testing acknowledgement for any Anthropic feature", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: GEMINI_KEY,
+        [SERVER_ENV_KEYS.anthropicApiKey]: ANTHROPIC_KEY,
+        [SERVER_ENV_KEYS.recipeIdeasProvider]: "anthropic",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual([
+      expect.objectContaining({
+        kind: "malformed",
+        key: SERVER_ENV_KEYS.anthropicDevTesting,
+      }),
+    ]);
+  });
+
+  it("rejects an unknown per-feature vendor", () => {
+    const result = loadServerConfig({
+      env: { ...baseSnapshot, [SERVER_ENV_KEYS.mealTextProvider]: "openai" },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual([
+      {
+        kind: "malformed",
+        key: "MEAL_TEXT_PROVIDER",
+        reason: "MEAL_TEXT_PROVIDER must be gemini or anthropic",
+      },
+    ]);
+  });
+});
+
 describe("loadServerConfig — SES email configuration", () => {
   it("defaults sesConfig to null when SES keys are omitted", () => {
     const result = loadServerConfig({ env: baseSnapshot });
@@ -823,4 +1038,59 @@ describe("loadServerConfig — SES email configuration", () => {
       expect(result.value.appleAuthConfig?.clientId).toBe("com.mizyun.app");
     });
   });
+});
+
+describe("loadServerConfig — AI_CONSENT_ACCEPTED_VERSIONS", () => {
+  const load = (value?: string) =>
+    loadServerConfig({
+      env:
+        value === undefined
+          ? baseSnapshot
+          : {
+              ...baseSnapshot,
+              [SERVER_ENV_KEYS.aiConsentAcceptedVersions]: value,
+            },
+    });
+
+  it("is null when unset so the API applies its default accepted set", () => {
+    const result = load();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.aiConsentAcceptedVersions).toBeNull();
+    expect(SERVER_ENV_KEYS.aiConsentAcceptedVersions).toBe(
+      "AI_CONSENT_ACCEPTED_VERSIONS",
+    );
+  });
+
+  it("parses a Dev-style single current version", () => {
+    const result = load("2026-10-20");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.aiConsentAcceptedVersions).toEqual(["2026-10-20"]);
+  });
+
+  it("trims, drops empty entries and de-duplicates a list", () => {
+    const result = load(" 2026-09-08 , 2026-10-20,,2026-10-20 ");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.aiConsentAcceptedVersions).toEqual([
+      "2026-09-08",
+      "2026-10-20",
+    ]);
+  });
+
+  it.each([",", " , ", "v1", "2026-10-20,latest", "20261020"])(
+    "fails closed on malformed value %j",
+    (value) => {
+      const result = load(value);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toEqual([
+        expect.objectContaining({
+          kind: "malformed",
+          key: "AI_CONSENT_ACCEPTED_VERSIONS",
+        }),
+      ]);
+    },
+  );
 });

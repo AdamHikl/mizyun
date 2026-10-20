@@ -600,6 +600,8 @@ export {
 
 export {
   CURRENT_AI_CONSENT_VERSION,
+  DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
   accountDeleteChallengeResponseSchema,
   accountDeleteResponseSchema,
   accountDeleteSchema,

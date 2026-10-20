@@ -3,18 +3,30 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentOrchestrator,
   DisabledAgentProvider,
+  DisabledIngredientRecognitionProvider,
+  VisionProviderError,
 } from "@mizyun/agent-runtime";
 import type { UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
+import {
+  AnthropicRecipeGenerationProvider,
+  AnthropicVisionProvider,
+} from "@mizyun/provider-anthropic";
+import {
+  GeminiIngredientRecognitionProvider,
+  GeminiRecipeAssistantProvider,
+  GeminiVisionProvider,
+} from "@mizyun/provider-gemini";
 
-import { buildApp } from "./app.js";
+import { buildApp, selectRecipeProviders } from "./app.js";
 
 const apps: ReturnType<typeof buildApp>[] = [];
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("API foundation", () => {
@@ -164,6 +176,15 @@ describe("AI vendor selection (ADR-0069)", () => {
       "GEMINI_VISION_API_KEY",
       "ANTHROPIC_API_KEY",
       "ANTHROPIC_DEV_TESTING",
+      "COACH_PROVIDER",
+      "MEAL_TEXT_PROVIDER",
+      "MEAL_PHOTO_PROVIDER",
+      "ACTIVITY_DRAFT_PROVIDER",
+      "RECIPE_IDEAS_PROVIDER",
+      "INGREDIENT_PHOTO_PROVIDER",
+      "COOKING_ASSISTANT_PROVIDER",
+      "STRETCH_PLAN_PROVIDER",
+      "VISION_PROVIDER",
       "SUPABASE_URL",
       "SUPABASE_PUBLISHABLE_KEY",
     ]) {
@@ -207,6 +228,178 @@ describe("AI vendor selection (ADR-0069)", () => {
     await expect(coachStatus()).resolves.toMatchObject({
       provider: "gemini",
     });
+  });
+
+  // Adam's 2026-10-20 benchmark decision for Dev.
+  const benchmarkEnv = {
+    AGENT_PROVIDER: "gemini",
+    AI_EXTERNAL_ACCESS: "true",
+    GEMINI_API_KEY: "test-gemini-key-12345",
+    ANTHROPIC_API_KEY: "test-anthropic-key-12345",
+    ANTHROPIC_DEV_TESTING: "true",
+    COACH_PROVIDER: "anthropic",
+    MEAL_TEXT_PROVIDER: "anthropic",
+    MEAL_PHOTO_PROVIDER: "gemini",
+    ACTIVITY_DRAFT_PROVIDER: "anthropic",
+    RECIPE_IDEAS_PROVIDER: "anthropic",
+    INGREDIENT_PHOTO_PROVIDER: "gemini",
+    COOKING_ASSISTANT_PROVIDER: "gemini",
+  };
+
+  it("serves Coach from Claude under the Dev benchmark routing", async () => {
+    stubAiEnv(benchmarkEnv);
+    await expect(coachStatus()).resolves.toMatchObject({
+      ready: true,
+      provider: "anthropic",
+      model: "claude-haiku-5-5",
+    });
+  });
+
+  it("serves Coach from Gemini when COACH_PROVIDER overrides an Anthropic default", async () => {
+    stubAiEnv({
+      AGENT_PROVIDER: "anthropic",
+      AI_EXTERNAL_ACCESS: "true",
+      GEMINI_API_KEY: "test-gemini-key-12345",
+      ANTHROPIC_API_KEY: "test-anthropic-key-12345",
+      ANTHROPIC_DEV_TESTING: "true",
+      COACH_PROVIDER: "gemini",
+    });
+    await expect(coachStatus()).resolves.toMatchObject({
+      ready: true,
+      provider: "gemini",
+    });
+  });
+
+  it("routes photo drafts to Gemini and text/activity drafts to Claude", async () => {
+    stubAiEnv(benchmarkEnv);
+    const unavailable = () => {
+      throw new VisionProviderError("unavailable", "test stop", false);
+    };
+    const geminiPhoto = vi
+      .spyOn(GeminiVisionProvider.prototype, "generateDraft")
+      .mockImplementation(unavailable);
+    const geminiText = vi
+      .spyOn(GeminiVisionProvider.prototype, "generateTextDraft")
+      .mockImplementation(unavailable);
+    const geminiActivity = vi
+      .spyOn(GeminiVisionProvider.prototype, "generateActivityDraft")
+      .mockImplementation(unavailable);
+    const claudePhoto = vi
+      .spyOn(AnthropicVisionProvider.prototype, "generateDraft")
+      .mockImplementation(unavailable);
+    const claudeText = vi
+      .spyOn(AnthropicVisionProvider.prototype, "generateTextDraft")
+      .mockImplementation(unavailable);
+    const claudeActivity = vi
+      .spyOn(AnthropicVisionProvider.prototype, "generateActivityDraft")
+      .mockImplementation(unavailable);
+    const verifier: AccessTokenVerifier = {
+      verify: async (token) =>
+        token === "valid"
+          ? {
+              userId: "00000000-0000-4000-8000-000000000001" as UserId,
+              accessToken: "test-access-token",
+            }
+          : null,
+    };
+    // A fresh app per request keeps the per-minute draft limiter out of the way.
+    const freshApp = () => {
+      const app = buildApp({ tokenVerifier: verifier });
+      apps.push(app);
+      return app;
+    };
+    const auth = { authorization: "Bearer valid" };
+
+    await freshApp().inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { description: "Two eggs and one slice of toast" },
+    });
+    await freshApp().inject({
+      method: "POST",
+      url: "/v1/activity-drafts/text",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        description: "Ran 5 km this morning",
+        localDate: "2026-10-20",
+        localTime: "08:30",
+      },
+    });
+    const boundary = "----MizyunRoutingTest";
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+      0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+      0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ]);
+    await freshApp().inject({
+      method: "POST",
+      url: "/v1/food-entries/draft",
+      headers: {
+        ...auth,
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="label.png"\r\nContent-Type: image/png\r\n\r\n`,
+        ),
+        png,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]),
+    });
+
+    expect(claudeText).toHaveBeenCalledTimes(1);
+    expect(claudeActivity).toHaveBeenCalledTimes(1);
+    expect(geminiPhoto).toHaveBeenCalledTimes(1);
+    expect(geminiText).not.toHaveBeenCalled();
+    expect(geminiActivity).not.toHaveBeenCalled();
+    expect(claudePhoto).not.toHaveBeenCalled();
+  });
+
+  it("selects each recipe provider by its own route", () => {
+    const anthropic = {
+      apiKey: "test-anthropic-key-12345",
+      model: "claude-haiku-5-5",
+      externalAccess: true,
+    };
+    const gemini = {
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.8-flash",
+      externalAccess: true,
+    };
+    const benchmark = selectRecipeProviders({
+      routing: {
+        recipeIdeas: "anthropic",
+        ingredientPhotos: "gemini",
+        cookingAssistant: "gemini",
+      },
+      anthropic,
+      gemini,
+    });
+    expect(benchmark.generation).toBeInstanceOf(
+      AnthropicRecipeGenerationProvider,
+    );
+    expect(benchmark.recognition).toBeInstanceOf(
+      GeminiIngredientRecognitionProvider,
+    );
+    expect(benchmark.assistant).toBeInstanceOf(GeminiRecipeAssistantProvider);
+
+    // A route never falls back to the other vendor.
+    const noAnthropic = selectRecipeProviders({
+      routing: {
+        recipeIdeas: "gemini",
+        ingredientPhotos: "anthropic",
+        cookingAssistant: "gemini",
+      },
+      anthropic: null,
+      gemini,
+    });
+    expect(noAnthropic.recognition).toBeInstanceOf(
+      DisabledIngredientRecognitionProvider,
+    );
   });
 
   it("reports Claude as not ready while external AI access is off", async () => {
