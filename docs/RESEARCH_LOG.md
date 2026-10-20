@@ -3512,3 +3512,15 @@ Checked [Gemini structured output for generateContent](https://ai.google.dev/gem
 ## 2026-10-19 — AI-tailored evening stretch (ADR-0076)
 
 No new platform surface: the refinement reuses the ADR-0073 structured-output transports (Gemini `generateContent` with `responseJsonSchema` and `thinkingLevel: LOW` for `gemini-3.8-flash`; Anthropic `output_config.format` without numeric bounds or `maxItems`), so bounds live in `normalizeStretchRefinementOutput` and `stretchPlanFromChoice` instead of the provider schema. Consequence: ids, holds and focus muscles are re-validated twice (server and device) and anything outside the catalog list is rejected. Expo SDK57 SecureStore (already used for reminder state) holds the once-a-day cache. Live model quality is unmeasured until the `BEFORE_TESTING.md` gates close.
+
+## 2026-10-20 — Claude multi-photo meal schema (#313)
+
+Checked [Anthropic structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) and [strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use) (fetched 2026-10-20). `output_config.format` needs no beta header. Per request, across all strict schemas, the limits are 20 strict tools, 24 optional properties and 16 union-typed properties, with a 180 s compilation timeout. The docs warn that a 400 "Schema is too complex" can occur even when every individual limit is met, because optional properties, unions and nesting compound. They say each optional property "roughly doubles" part of the grammar state space. Suggested mitigations are making properties required and flattening nested structures. Compiled grammars are cached for 24 h; the docs state no per-model difference.
+
+Live probes on 2026-10-20 (`claude-haiku-5-5`, effort low, no thinking) behaved as follows:
+
+- **Old schema:** the primary meal plus an `additionalDrafts` array of optional-field meals met the counts (22 optional, 12 unions). It still timed out at 120 s without advanced nutrients, and with them got HTTP 400 "The compiled grammar is too large".
+- **Partial fixes:** making every item field required, or making the array required, still failed whenever advanced nutrients were on.
+- **Flattened schema:** `{ meals: [meal], photoAdvice? }`, with the single-photo meal schema defined once, compiled for all four advanced/Coach variants in about 6 s.
+
+Consequence: Claude multi-photo requests use the flattened `meals` wire format, which the provider maps back to the shared primary draft plus `additionalDrafts`. Single-photo, Gemini and the shared draft contract are unchanged. A regression test requires the multi-photo schema to reuse the meal schema once with no more optional or union properties than single-photo.

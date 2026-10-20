@@ -418,7 +418,42 @@ describe("Anthropic structured-output schema limits", () => {
           allowPhotoAdvice: true,
         }),
       ),
-    ).toEqual({ optional: 22, unions: 12, forbidden: [] });
+    ).toEqual({ optional: 5, unions: 12, forbidden: [] });
+  });
+  // #313: Claude rejected every multi-photo schema that nested a second meal
+  // schema (timeout, "Schema is too complex", "compiled grammar is too
+  // large") although each stayed inside the 24/16 counts. Multi-photo must
+  // reuse the single-photo meal schema once, adding no unions or optionals.
+  it.each(
+    [false, true].flatMap((includeAdvancedNutrition) =>
+      [false, true].map((allowPhotoAdvice) => ({
+        includeAdvancedNutrition,
+        allowPhotoAdvice,
+      })),
+    ),
+  )("defines the meal schema once for multi-photo drafts %j", (variant) => {
+    const single = anthropicVisionOutputJsonSchema({
+      ...variant,
+      allowAdditionalDrafts: false,
+    });
+    const multi = anthropicVisionOutputJsonSchema({
+      ...variant,
+      allowAdditionalDrafts: true,
+    }) as { properties: Record<string, Record<string, unknown>> };
+    const meal = anthropicVisionOutputJsonSchema({
+      includeAdvancedNutrition: variant.includeAdvancedNutrition,
+      allowAdditionalDrafts: false,
+      allowPhotoAdvice: false,
+    });
+    expect(multi.properties.meals).toMatchObject({
+      type: "array",
+      minItems: 1,
+      items: meal,
+    });
+    expect(JSON.stringify(multi)).not.toContain("additionalDrafts");
+    const mealDefinitions = JSON.stringify(multi).split('"caloriesKcal":{');
+    expect(mealDefinitions).toHaveLength(2);
+    expect(complexity(multi)).toEqual(complexity(single));
   });
 });
 
@@ -482,7 +517,7 @@ describe("Anthropic multi-photo inference", () => {
 
   it("sends all angles in one inference before the text", async () => {
     const { provider, create, params } = makeProvider([
-      jsonMessage(candidateOutput),
+      jsonMessage({ meals: [candidateOutput] }),
     ]);
     const result = await provider.generateDraft(multiRequest);
     expect(create).toHaveBeenCalledTimes(1);
@@ -498,15 +533,21 @@ describe("Anthropic multi-photo inference", () => {
       source: { type: "base64", media_type: "image/png", data: "AQID" },
     });
     expect(params(0).system).toContain("count each edible component once");
-    expect(schemaOf(params(0)).properties).toHaveProperty("additionalDrafts");
+    expect(params(0).system).toContain("Return the estimates in meals");
+    expect(Object.keys(schemaOf(params(0)).properties)).toEqual(["meals"]);
+    expect(result).toMatchObject({
+      name: "Chicken and rice",
+      caloriesKcal: 420,
+      provenance: { promptVersion: "nutrition-photo-v5" },
+    });
     expect(result).not.toHaveProperty("additionalDrafts");
   });
 
   it("normalizes distinct meals separately with shared provenance and one token count", async () => {
     const { provider } = makeProvider([
       jsonMessage({
-        ...candidateOutput,
-        additionalDrafts: [
+        meals: [
+          candidateOutput,
           {
             name: "Apple",
             caloriesKcal: 95,
@@ -537,12 +578,80 @@ describe("Anthropic multi-photo inference", () => {
   it("rejects a malformed additional meal instead of silently dropping it", async () => {
     const { provider } = makeProvider([
       jsonMessage({
-        ...candidateOutput,
-        additionalDrafts: [{ name: "Apple", confidence: 3 }],
+        meals: [candidateOutput, { name: "Apple", confidence: 3 }],
       }),
     ]);
     await expect(provider.generateDraft(multiRequest)).rejects.toMatchObject({
       kind: "malformed_response",
+    });
+  });
+
+  it("replaces a medically unsafe additional meal with the safety fallback", async () => {
+    const { provider } = makeProvider([
+      jsonMessage({
+        meals: [
+          candidateOutput,
+          { ...candidateOutput, name: "Diagnose your disorder" },
+        ],
+      }),
+    ]);
+    const result = await provider.generateDraft(multiRequest);
+    expect(result.name).toBe("Chicken and rice");
+    const unsafe = result.additionalDrafts![0]!;
+    expect(unsafe.name).toBeNull();
+    expect(unsafe.caloriesKcal).toBeNull();
+    expect(unsafe.warnings.at(-1)).toContain("safety policy");
+  });
+
+  it("screens Coach advice on multi-photo drafts", async () => {
+    const { provider } = makeProvider([
+      jsonMessage({
+        meals: [{ ...candidateOutput, name: null }],
+        photoAdvice:
+          "The lesion is melanoma. Take ibuprofen 800 mg twice daily.",
+      }),
+    ]);
+    const result = await provider.generateDraft({
+      ...multiRequest,
+      purpose: "coach",
+    });
+    expect(result.photoAdvice).toContain("qualified medical professional");
+    expect(result.photoAdvice).not.toContain("800 mg");
+  });
+
+  it.each([
+    ["no meals", { meals: [] }],
+    ["more than three meals", { meals: Array(4).fill(candidateOutput) }],
+    ["the single-photo shape", candidateOutput],
+  ])("rejects %s", async (_label, output) => {
+    const { provider } = makeProvider([jsonMessage(output)]);
+    await expect(provider.generateDraft(multiRequest)).rejects.toMatchObject({
+      kind: "malformed_response",
+    });
+  });
+
+  it("keeps Coach advice and advanced nutrients on multi-photo drafts", async () => {
+    const { provider, params } = makeProvider([
+      jsonMessage({
+        meals: [{ ...candidateOutput, fibreG: 4, sodiumMg: null }],
+        photoAdvice: "Both photos show the same plate.",
+      }),
+    ]);
+    const result = await provider.generateDraft({
+      ...multiRequest,
+      purpose: "coach",
+      includeAdvancedNutrition: true,
+    });
+    expect(Object.keys(schemaOf(params(0)).properties)).toEqual([
+      "meals",
+      "photoAdvice",
+    ]);
+    expect(result).toMatchObject({
+      name: "Chicken and rice",
+      fibreG: 4,
+      sodiumMg: null,
+      photoAdvice: "Both photos show the same plate.",
+      provenance: { promptVersion: "coach-photo-v1" },
     });
   });
 

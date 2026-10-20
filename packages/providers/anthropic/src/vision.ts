@@ -294,21 +294,24 @@ export const normalizeCandidateValues = (
 //
 // Claude structured outputs allow at most 24 optional properties and 16
 // union-typed (type-array/anyOf) properties per request, counted across all
-// nested schemas. The Gemini schema marks 11-16 fields nullable and repeats
-// the whole meal schema inside additionalDrafts, which would need up to 32
-// unions. To stay inside the limits:
-// - the primary meal keeps nullable (["number","null"]) required point
-//   estimates, name and calculation (7 unions; 12 with advanced nutrients);
+// nested schemas, and still reject schemas whose compiled grammar is too
+// large even within those counts (#313). The Gemini schema marks 11-16 fields
+// nullable and repeats the whole meal schema inside additionalDrafts. Claude
+// rejected every variant that nested a second meal schema (timeout, "Schema
+// is too complex" or "compiled grammar is too large"), so:
+// - a meal keeps nullable (["number","null"]) required point estimates, name
+//   and calculation (7 unions; 12 with advanced nutrients);
 // - the four low/high range objects are optional, never nullable (omitted
 //   means unknown; normalization derives them from point estimates);
-// - additionalDrafts items use optional (omit-when-unknown) fields instead of
-//   nullable ones, so they add optional properties but no unions;
-// - additionalDrafts and photoAdvice are optional.
-// Worst case (advanced + multi-photo + coach): 12 unions, 22 optional.
-// Numeric/length bounds are not expressible and are enforced by Zod above.
+// - multi-photo requests return { meals: [meal, ...] } with the meal schema
+//   defined once; parseVisionText maps meals[0] to the primary draft and the
+//   rest to additionalDrafts, so the shared draft contract is unchanged;
+// - photoAdvice is optional.
+// Worst case (advanced + multi-photo + coach): 12 unions, 5 optional.
+// Numeric/length/item-count bounds are not expressible and are enforced by
+// Zod above.
 
 type JsonSchema = Record<string, unknown>;
-type FieldMode = "nullable" | "optional";
 
 const rangeSchema = (label: string, unit: string): JsonSchema => ({
   type: "object",
@@ -397,23 +400,17 @@ const ADVANCED_MEAL_FIELDS: Readonly<
   },
 };
 
-const mealJsonSchema = (
-  includeAdvancedNutrition: boolean,
-  mode: FieldMode,
-): JsonSchema => {
+const mealJsonSchema = (includeAdvancedNutrition: boolean): JsonSchema => {
   const unknownFields = {
     ...NULLABLE_MEAL_FIELDS,
     ...(includeAdvancedNutrition ? ADVANCED_MEAL_FIELDS : {}),
   };
   const properties: Record<string, unknown> = {};
   for (const [key, field] of Object.entries(unknownFields)) {
-    properties[key] =
-      mode === "nullable"
-        ? { type: [field.type, "null"], description: field.description }
-        : {
-            type: field.type,
-            description: `${field.description.replace(/; null when unknown\.$/, ".")} Omit when unknown.`,
-          };
+    properties[key] = {
+      type: [field.type, "null"],
+      description: field.description,
+    };
   }
   properties.calorieRangeKcal = rangeSchema("calories", "kcal");
   properties.proteinRangeG = rangeSchema("protein", "grams");
@@ -429,7 +426,7 @@ const mealJsonSchema = (
     type: "object",
     properties,
     required: [
-      ...(mode === "nullable" ? Object.keys(unknownFields) : []),
+      ...Object.keys(unknownFields),
       "confidence",
       "warnings",
       "assumptions",
@@ -444,30 +441,37 @@ export const anthropicVisionOutputJsonSchema = (input: {
   readonly allowAdditionalDrafts: boolean;
   readonly allowPhotoAdvice: boolean;
 }): JsonSchema => {
-  const primary = mealJsonSchema(input.includeAdvancedNutrition, "nullable");
+  const meal = mealJsonSchema(input.includeAdvancedNutrition);
+  const photoAdvice = input.allowPhotoAdvice
+    ? {
+        photoAdvice: {
+          type: "string",
+          description:
+            "Advisory Coach answer for visual context; omit when proposing meal drafts.",
+        },
+      }
+    : {};
+  if (input.allowAdditionalDrafts) {
+    return toAnthropicJsonSchema({
+      type: "object",
+      properties: {
+        meals: {
+          type: "array",
+          minItems: 1,
+          description:
+            "One entry per distinct meal shown in the photos, main meal first, at most three. Repeated angles of the same meal are one entry.",
+          items: meal,
+        },
+        ...photoAdvice,
+      },
+      required: ["meals"],
+    });
+  }
   return toAnthropicJsonSchema({
-    ...primary,
+    ...meal,
     properties: {
-      ...(primary.properties as Record<string, unknown>),
-      ...(input.allowAdditionalDrafts
-        ? {
-            additionalDrafts: {
-              type: "array",
-              description:
-                "Up to two other distinct meals shown in the photos; omit when every photo shows the same meal.",
-              items: mealJsonSchema(input.includeAdvancedNutrition, "optional"),
-            },
-          }
-        : {}),
-      ...(input.allowPhotoAdvice
-        ? {
-            photoAdvice: {
-              type: "string",
-              description:
-                "Advisory Coach answer for visual context; omit when proposing meal drafts.",
-            },
-          }
-        : {}),
+      ...(meal.properties as Record<string, unknown>),
+      ...photoAdvice,
     },
   });
 };
@@ -500,6 +504,13 @@ export const visionSystemPolicy = [
   "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema requested.",
 ].join("\n");
+
+/**
+ * Claude's multi-photo schema lists meals instead of nesting additionalDrafts
+ * (#313); this maps the shared policy's wording onto that shape.
+ */
+const multiPhotoMealsPolicy =
+  "Return the estimates in meals: the first entry is the main meal and each further entry is one of the separate distinct-meal estimates described above (additionalDrafts), at most three entries in total. Repeated angles of the same meal are one entry.";
 
 export const textNutritionSystemPolicy = [
   "You are a nutrition analyzer specializing in text meal descriptions, recipes, and restaurant items.",
@@ -725,33 +736,39 @@ const parseVisionText = (
   const mealSchema = includeAdvancedNutrition
     ? advancedVisionOutputSchema
     : visionOutputSchema;
-  const result = mealSchema
-    .extend({
-      ...(allowAdditionalDrafts
-        ? { additionalDrafts: z.array(mealSchema).max(2).optional() }
+  const photoAdviceShape = allowPhotoAdvice
+    ? { photoAdvice: z.string().trim().min(1).max(5000).optional() }
+    : {};
+  const advice = (data: { readonly photoAdvice?: unknown }) =>
+    allowPhotoAdvice && typeof data.photoAdvice === "string"
+      ? { photoAdvice: data.photoAdvice }
+      : {};
+  if (allowAdditionalDrafts) {
+    // Multi-photo wire format: { meals: [primary, ...distinct meals] }.
+    const result = z
+      .object({
+        meals: z.array(mealSchema).min(1).max(3),
+        ...photoAdviceShape,
+      })
+      .safeParse(parsed);
+    if (!result.success) return null;
+    const [primary, ...others] = result.data.meals as [
+      VisionModelOutput,
+      ...VisionModelOutput[],
+    ];
+    return {
+      candidate: normalizeCandidateValues(primary),
+      ...(others.length > 0
+        ? { additionalDrafts: others.map(normalizeCandidateValues) }
         : {}),
-      ...(allowPhotoAdvice
-        ? { photoAdvice: z.string().trim().min(1).max(5000).optional() }
-        : {}),
-    })
-    .safeParse(parsed);
+      ...advice(result.data),
+    };
+  }
+  const result = mealSchema.extend(photoAdviceShape).safeParse(parsed);
   if (!result.success) return null;
   return {
     candidate: normalizeCandidateValues(result.data),
-    ...(allowAdditionalDrafts &&
-    "additionalDrafts" in result.data &&
-    Array.isArray(result.data.additionalDrafts)
-      ? {
-          additionalDrafts: (
-            result.data.additionalDrafts as VisionModelOutput[]
-          ).map(normalizeCandidateValues),
-        }
-      : {}),
-    ...(allowPhotoAdvice &&
-    "photoAdvice" in result.data &&
-    typeof result.data.photoAdvice === "string"
-      ? { photoAdvice: result.data.photoAdvice }
-      : {}),
+    ...advice(result.data),
   };
 };
 
@@ -1233,9 +1250,13 @@ export class AnthropicVisionProvider implements VisionDraftProvider {
     const includeAdvancedNutrition =
       overrides.includeAdvancedNutrition === true;
     const basicSystemPolicy = overrides.systemPolicy ?? visionSystemPolicy;
-    const systemPolicy = includeAdvancedNutrition
-      ? [basicSystemPolicy, advancedNutritionSystemPolicy].join("\n")
-      : basicSystemPolicy;
+    const systemPolicy = [
+      basicSystemPolicy,
+      ...(includeAdvancedNutrition ? [advancedNutritionSystemPolicy] : []),
+      ...(overrides.allowAdditionalDrafts === true
+        ? [multiPhotoMealsPolicy]
+        : []),
+    ].join("\n");
     const promptVersion =
       overrides.promptVersion ?? NUTRITION_DRAFT_PROMPT_VERSION;
     const controls = requestControls({

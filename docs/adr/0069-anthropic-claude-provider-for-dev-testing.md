@@ -27,7 +27,7 @@ Mizyun has used Gemini as its only AI vendor since 2026-09-03. Model research ([
 ## Consequences
 
 - **Privacy.** Health text and meal photos go to Anthropic when this is enabled. Anthropic deletes API inputs and outputs within 30 days by default and keeps flagged content for up to 2 years. Inference runs only in the `global` or `us` geography, and no EU option exists. The consent copy, the privacy policy and `ai-eligibility.ts` still name Google Gemini. They must be updated, and a DPA reviewed, before Production or any wider testing group. On Dev, Adam informs the testing partner directly.
-- **Gates.** Live accuracy, latency and cost on Mizyun prompts are unmeasured (#29). Haiku 5.5 web search support, and whether the structured-output schemas compile, are unverified until the first keyed Dev run.
+- **Gates.** Live accuracy, latency and cost on Mizyun prompts are unmeasured (#29). Haiku 5.5 web search support, and whether the text, refine, activity and recipe structured-output schemas compile, are unverified until the first keyed Dev run. The photo draft schemas were verified live on 2026-10-20 (#313): single- and multi-photo, each with and without advanced nutrients and Coach advice. The original multi-photo schema did not compile, although it met the documented limits, so multi-photo requests now use a flattened `meals` schema; [research log](../RESEARCH_LOG.md). The `nutrition-photo-v5`/`coach-photo-v1` provenance labels were kept, because no Claude multi-photo draft had succeeded before.
 - **Cost estimates.** The usage ledger counts tokens per provider response. Haiku 5.5's tokenizer counts about 30% more tokens for the same text than Haiku 4.5, so daily token quotas run out somewhat sooner.
 
 ## Sources
