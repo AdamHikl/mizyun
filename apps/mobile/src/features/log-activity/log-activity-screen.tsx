@@ -35,6 +35,11 @@ import {
   type ActivityAiDraftFailure,
 } from "./activity-ai-draft";
 import {
+  canDraftActivityOnDevice,
+  draftActivityOnDevice,
+  prewarmActivityDrafting,
+} from "./activity-on-device-draft";
+import {
   saveLoggedActivityWith,
   saveLoggedRunWith,
   type LogActivityPlan,
@@ -86,6 +91,10 @@ const ON_DEVICE_NOTICE: Readonly<Record<ActivityAiDraftFailure, string>> = {
     "AI drafting couldn't use that description, so it was filled in on your device.",
 };
 
+/** The on-device model did not answer; the parser's fields are kept. */
+const ON_DEVICE_MODEL_NOTICE =
+  "Apple Intelligence didn't name the activity, so add it yourself.";
+
 const FIELD_NAMES = {
   activity: "activity",
   duration: "duration",
@@ -131,6 +140,36 @@ export function LogActivityScreen() {
     apiClient,
   });
   const aiDrafting = consentGranted && confirmedAdult;
+  const aiDraftingRef = useRef(aiDrafting);
+  aiDraftingRef.current = aiDrafting;
+  // With Apple Intelligence the description is drafted on this device and
+  // never sent to the AI provider, not even as a fallback. Null while the
+  // check runs; a fill waits for the same check instead of reading state.
+  const [onDevice, setOnDevice] = useState<boolean | null>(null);
+  const onDeviceCheck = useRef<Promise<boolean>>(Promise.resolve(false));
+  // Set once a mount check said no, so a tap asks again (model downloaded).
+  const onDeviceRecheck = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    setOnDevice(null);
+    onDeviceRecheck.current = false;
+    if (!aiDrafting) {
+      onDeviceCheck.current = Promise.resolve(false);
+      return;
+    }
+    const check = canDraftActivityOnDevice();
+    onDeviceCheck.current = check;
+    void check.then((available) => {
+      if (!active) return;
+      onDeviceRecheck.current = !available;
+      setOnDevice(available);
+      if (available) void prewarmActivityDrafting();
+    });
+    return () => {
+      active = false;
+    };
+  }, [aiDrafting]);
 
   useEffect(() => {
     // A run left unfinished in the run editor stays reachable from here.
@@ -164,7 +203,49 @@ export function LogActivityScreen() {
     if (busyRef.current) return;
     let draft: ActivityDescriptionDraft | null = null;
     let notice: string | null = null;
+    let onDeviceReady = false;
     if (aiDrafting && userId) {
+      const checkOwner = userId;
+      // Show the drafting state at once; each branch below keeps it.
+      busyRef.current = true;
+      setBusy(true);
+      setDrafting(true);
+      try {
+        // A model that finished downloading since the screen opened counts.
+        onDeviceReady =
+          (await onDeviceCheck.current) ||
+          (onDeviceRecheck.current && (await canDraftActivityOnDevice()));
+      } finally {
+        busyRef.current = false;
+      }
+      if (onDeviceReady) setOnDevice(true);
+      // Consent revoked or the account changed during the check: send nothing.
+      if (!aiDraftingRef.current || owner.current !== checkOwner) {
+        setBusy(false);
+        setDrafting(false);
+        return;
+      }
+    }
+    if (aiDrafting && userId && onDeviceReady) {
+      const fillOwner = userId;
+      busyRef.current = true;
+      setBusy(true);
+      setDrafting(true);
+      setError(null);
+      try {
+        const result = await draftActivityOnDevice(description, new Date());
+        if (owner.current !== fillOwner) return;
+        draft = result.draft;
+        if (!result.ok) notice = ON_DEVICE_MODEL_NOTICE;
+        if (result.timing) {
+          notice = notice ? `${notice} ${result.timing}` : result.timing;
+        }
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+        setDrafting(false);
+      }
+    } else if (aiDrafting && userId) {
       const fillOwner = userId;
       const isCurrent = () => owner.current === fillOwner;
       const scoped: ApiClient = {
@@ -445,7 +526,13 @@ export function LogActivityScreen() {
           disabled={disabled || description.trim().length === 0}
           onPress={() => void fillFromDescription()}
         />
-        {aiDrafting ? (
+        {aiDrafting && onDevice === true ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Apple Intelligence fills in the fields on this device. Your
+            description isn&apos;t sent anywhere, and nothing is saved until you
+            tap Save.
+          </ThemedText>
+        ) : aiDrafting && onDevice === false ? (
           <ThemedText type="small" themeColor="textSecondary">
             Your description is sent to our AI provider to fill in the fields.
             Nothing is saved until you tap Save.

@@ -1,0 +1,29 @@
+# ADR 0074 — On-device AI for Log activity drafts
+
+- Date: 2026-10-19
+- Status: accepted for local engineering; iPhone acceptance and Android open
+- Package: on-device Log activity drafting, follow-up to ADR-0073 (Adam, 2026-10-19: "can we try to implement the on-device ai for the log activity 'fill in from description' feature?")
+
+## Context
+
+ADR-0073 sends the description to Gemini for consenting adults. The draft takes about 4 seconds, uses the shared daily AI draft budget, and sends health-adjacent text to an external provider. iOS 26 ships Apple Foundation Models: a system language model on Apple Intelligence iPhones (iPhone 15 Pro and later), free, offline and on the device. Its context is about 4,096 tokens, and it is much weaker than Gemini at following a long prompt.
+
+A Mac benchmark (M1 Max, macOS 27.0.1) used the full ADR-0073 prompt and an eight-field guided schema. Each draft took 3.2–3.4 s warm and 5.0 s cold. The model invented start times, set `endedNow` wrongly and resolved "last Saturday" a day early. It filled optional fields with placeholders (`distance 0 m`, the string `"null"`). The same model asked only for the activity name took 0.64–0.94 s per call and named 9 of 10 sample descriptions as intended (Yardwork, Boxing, Kayaking, Housework, Moving Furniture, None for a nap). The deterministic parser (`draftActivityFromDescription`) already reads durations, distances, days and clock times well; its gap is unrecognized activity names.
+
+## Decision
+
+- **Parser first, the model only names the activity.** On a device where `SystemLanguageModel.default` is available, Fill in from description runs the parser. When the parser finds no activity, the on-device model is asked for the activity name alone, through guided generation of one string field (`activity-name-on-device-v1`). The answer is cleaned (title case, at most four words and 60 characters, "None" gives no activity) and resolved with `resolveActivityName`; a sets-and-reps exercise is left for the user, as before.
+- **No provider fallback when on-device is available.** If the model fails or takes longer than 5 s, the parser's draft is used and the status line says Apple Intelligence did not name the activity. The description is therefore never sent off the device on these iPhones, which keeps the note under the button truthful ("Apple Intelligence fills in the fields on this iPhone. Your description isn't sent anywhere…"). The parser misses some details Gemini reads, such as "from 2 to 4pm"; those are parser improvements, not a reason to send the text.
+- **Same admission as ADR-0073 for now.** The on-device path runs only for accounts with current AI consent and confirmed adult eligibility, so no consent or eligibility rule changes. Whether on-device drafting should also serve users without the provider consent is Adam's decision.
+- **Server budget not used.** On-device fills do not reserve the shared daily draft budget and make no network request. Devices without the model (older iPhones, Apple Intelligence off, model not downloaded, Android) keep the ADR-0073 server path unchanged.
+- **Generic native module.** `apps/mobile/modules/mizyun-on-device-llm` (iOS only, `FoundationModels` weak-linked, deployment target unchanged at 16.4) exposes `getAvailability`, `prewarm` and `generateFields(instructions, prompt, fields, maximumResponseTokens)`. Each request uses a fresh session with greedy sampling, so nothing from one description reaches the next. The screen checks availability and prewarms the model on mount. The feature loads the wrapper lazily, so non-native tests and web never load the bridge.
+
+- **Founder timing readout (Dev only).** The native module exposes `showsTimings`, true only for the `com.mizyun.development` bundle, and the status line then appends the model time ("Dev: Apple Intelligence answered in 0.62 s."). Production builds never show it. It exists because physical-iPhone logs are not readable from the Mac without root, and latency is an open acceptance question.
+
+## Consequences and limits
+
+- The on-device model's names can differ from Gemini's ("Salsa" vs "Salsa Dancing"). Like ADR-0073, different names create separate custom activities the user can edit before saving.
+- Apple updates the model with iOS, so the same description can be named differently after an update. The prompt version is recorded in code, and the sample set above should be rerun when iOS changes.
+- Android (Gemini Nano through ML Kit Prompt API, alpha, flagship-only, foreground-only) is not implemented. The module reports `unsupported` there and Android keeps the server path.
+- Mocked tests do not prove native behavior. In the iOS 26.5 simulator on a macOS 27.0.1 host (Xcode 27.1), the module loaded, reported `available` and the on-device note rendered, but generation failed in the host inference service with `promptTemplateNotFound` (simulator runtime older than the host model); the screen fell back to the parser as designed. On-device latency and naming quality on a physical iPhone remain open gates; the Mac benchmark above is the only measured latency.
+- A tap during the availability check waits for it, so the description is never sent while the check is pending, and nothing is sent if consent is revoked or the account changes during that wait. When the mount check said no (model not downloaded yet, Apple Intelligence off), a tap asks again, so a model that became ready is used instead of the provider (two independent review rounds). A native timeout cancels generation through task-group cancellation; whether Foundation Models stops promptly on cancellation is unverified on a device. The provider consent copy (ADR-0024 amendment, #300) still lists Log activity under Google Gemini; on Apple Intelligence devices that is no longer what happens, which is a copy follow-up for Adam.

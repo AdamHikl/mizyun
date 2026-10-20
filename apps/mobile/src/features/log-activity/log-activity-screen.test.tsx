@@ -402,16 +402,20 @@ describe("log activity screen", () => {
       return render();
     };
 
-    it("tells consenting users their description goes to AI", () => {
+    // The provider note appears once the on-device check says no
+    // (log-activity-screen-on-device.test.tsx); until then neither note shows.
+    it("shows no AI note while the on-device check runs", () => {
       const tree = render();
       expect(
         find(
           tree,
           (n) =>
             n.type === "ThemedText" &&
-            String(n.props.children).includes("sent to our AI provider"),
+            /sent to our AI provider|isn.t sent anywhere/.test(
+              String(n.props.children),
+            ),
         ),
-      ).not.toBeNull();
+      ).toBeNull();
     });
 
     it("uses the on-device parser when the request throws", async () => {
