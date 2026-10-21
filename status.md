@@ -10,10 +10,10 @@
 
 - **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key and gate-symlink fixes pushed (main283bf05); gatePASS(2612mobile/1109API+15skips), fix reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev (Oct20):** 9862b09a (#303/#308/#314 merge) over f02fbf94 (ADR0077, #309/#310/#304/#313/#307); gatePASS(3479mobile/1286API+15skips), deploy:dev OK, migrations unchanged, health200 20:15Z; Prod untouched.
+- **Dev (Oct21):** 0eacc52a (Android 24h pickers, expo-localization) over 9862b09a (#303/#308/#314) and f02fbf94 (ADR0077, #309/#310/#304/#313/#307); gatePASS(3486mobile/1286API+15skips), deploy:dev OK 12:27Z, migrations unchanged, health200; Prod untouched.
 - **iPhone Dev (Oct18):** f388c722 Release installed/launched 11:10Z on 00008140-001114501A86801C; acceptance open. Xcode27.1 fix: patched expo-modules-jsi@57.1.0 + `with-ios-source-built-expo-modules`; drop at SDK58. #287 flaky core test.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
-- **AI (Oct20, ADR0077):** Dev routing: Coach, typed meals, activity, catalog recipes on Haiku5.5; photos, ingredients, cooking assistant, stretch, illustrations on Gemini3.8. 8 keys + `AI_CONSENT_ACCEPTED_VERSIONS=2026-10-20` in dev.env (.bak-20261020-routing); Coach status haiku. Old Dev builds must update. No Store build with this copy before Prod routing/privacy docs. iPhone 9862b09a installed 20:16Z; signed-in AI checks open. Adult/consent/usage/kill switches; Qwen paused.
+- **AI (Oct20, ADR0077):** Dev routing: Coach, typed meals, activity, catalog recipes on Haiku5.5; photos, ingredients, cooking assistant, stretch, illustrations on Gemini3.8. 8 keys + `AI_CONSENT_ACCEPTED_VERSIONS=2026-10-20` in dev.env (.bak-20261020-routing); Coach status haiku. Old Dev builds must update. No Store build with this copy before Prod routing/privacy docs. iPhone 0eacc52a clean build installed 05:50Z; signed-in AI checks open. Adult/consent/usage/kill switches; Qwen paused.
 
 ## Running and usability acceptance
 
