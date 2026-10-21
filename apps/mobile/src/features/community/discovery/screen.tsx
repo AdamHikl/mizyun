@@ -590,7 +590,7 @@ export function DiscoveryScreen({
                 ? "Checking your Community access…"
                 : (community.error ??
                   (principalKey
-                    ? "Join Community before viewing this invitation. Participation requires admission during this pilot. Your private tracking stays available."
+                    ? "Join Community before viewing this invitation. Your private tracking stays available."
                     : "Sign in before viewing an invitation. Your friend's identity is hidden until Community access is checked."))}
             </Text>
             <Link href={"/account" as Href} style={{ color: colors.primary }}>

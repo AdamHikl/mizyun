@@ -381,8 +381,8 @@ function SettingsContent({
                       />
                       <ThemedText type="small" themeColor="textSecondary">
                         3–24 lowercase letters, digits or underscore. Your
-                        handle cannot change during this pilot and stays
-                        reserved when you leave.
+                        handle cannot be changed later and stays reserved when
+                        you leave.
                       </ThemedText>
                       {form.displayName.trim() !== "" && (
                         <View style={styles.profilePreview}>
@@ -602,8 +602,8 @@ function SettingsContent({
               onPress={() => router.push("/community/safety" as Href)}
             />
             <ThemedText type="small" themeColor="textSecondary">
-              Community safety contact and appeal coverage are not verified yet.
-              For imminent danger, contact your local emergency services.
+              Report anything that breaks the Community rules from its menu. For
+              imminent danger, contact your local emergency services.
             </ThemedText>
             {!embedded && (
               <>

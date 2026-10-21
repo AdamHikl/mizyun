@@ -13,8 +13,8 @@ export default function CommunityRulesScreen() {
       <ThemedText>
         Rules version: 2026-09-30.{" "}
         {COMMUNITY_ENROLLMENT_OPEN
-          ? "Community is available only to the approved Dev testing cohort. Broader enrollment, safety coverage and legal acceptance remain pending."
-          : "Enrollment is closed while safety contact, legal review and pilot acceptance are pending."}
+          ? "Community is open to adults with a Mizyun account. The full Community Standards are published at www.phiskel.com/mizyun/community-standards."
+          : "Community enrollment is not available in this build."}
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Your choice
@@ -43,7 +43,7 @@ export default function CommunityRulesScreen() {
         future cards you deliberately share. Following is directional. Saving a
         private meal or workout never shares it. Search is off by default; a
         valid invite can let someone request to follow you even with search off.
-        Your handle cannot change during the pilot.
+        Your handle cannot be changed after you choose it.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Respect each other
@@ -71,14 +71,14 @@ export default function CommunityRulesScreen() {
         shared source meal removes the post until you choose to share again.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
-        Optional Dev features
+        Optional features
       </ThemedText>
       <ThemedText>
-        Where enabled for Dev testing, comments and mentions, private groups,
-        cooperative challenges, messages, photos, routine sharing and broader
-        handle search each have separate choices. Joining Community enables none
-        of them automatically. Messages require mutual following and both people
-        to opt in. Group history starts with your current membership. Photos are
+        Where available, comments and mentions, private groups, cooperative
+        challenges, messages, photos, routine sharing and broader handle search
+        each have separate choices. Joining Community enables none of them
+        automatically. Messages require mutual following and both people to opt
+        in. Group history starts with your current membership. Photos are
         separately selected and held for moderation before sharing; your private
         tracking photos are never uploaded automatically. Routine imports create
         independent private copies. Broader search is separately opted in and
@@ -111,18 +111,18 @@ export default function CommunityRulesScreen() {
         Export and deletion
       </ThemedText>
       <ThemedText>
-        Export and account deletion remain available through Account settings.
-        Community retention, export and restore acceptance are pending; broader
-        enrollment stays closed until those checks and the full disclosures are
-        accepted.
+        Export and account deletion are available in Account settings. Your
+        Community data is included in the export and removed when you delete
+        your account.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Help and safety
       </ThemedText>
       <ThemedText>
-        Community safety contact, reporting coverage and independent appeals are
-        not verified yet. The existing Account help route is general support.
-        For imminent danger, contact your local emergency services.
+        Report a person or card from its menu. Mizyun's moderator reviews
+        reports. The safety contact is under Community reports, appeals and
+        safety contact in Community settings. For imminent danger, contact your
+        local emergency services.
       </ThemedText>
     </CommunityPage>
   );

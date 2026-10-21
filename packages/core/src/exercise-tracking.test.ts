@@ -54,6 +54,8 @@ describe("exercise tracking modes", () => {
     expect(performance.now() - started).toBeLessThan(100);
   });
 
+  // A fresh search per catalog entry takes ~3 s alone and passed 5 s under
+  // parallel gate load (#287). It checks correctness, not speed.
   it("resolves every exact catalog name the same as a fresh lookup", () => {
     for (const exercise of EXERCISE_CATALOG) {
       const fresh = findCatalogExercise(exercise.name)!;
@@ -61,7 +63,7 @@ describe("exercise tracking modes", () => {
         getCatalogTrackingMode(fresh),
       );
     }
-  });
+  }, 30_000);
 
   it("uses only exact names, not the best fuzzy search hit", () => {
     // "swim" is an alias search hit, not an exact catalog name.

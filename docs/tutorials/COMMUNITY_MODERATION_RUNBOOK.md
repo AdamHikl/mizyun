@@ -10,6 +10,23 @@ Staff use dedicated Supabase Auth accounts with MFA (`aal2`). The coordinator pr
 
 Set `COMMUNITY_SAFETY_EMAIL`, `COMMUNITY_STANDARDS_URL`, and `COMMUNITY_SAFETY_CONTACT_VERIFIED=true` only after inbound/reply and the published URL are tested. No mailbox or public rules deployment is supplied by this implementation. The app displays contact unavailable until verified configuration exists. Verification configuration attests operational evidence; it cannot test deliverability itself. Keep enrollment closed until #153/#154/#155 accept contact, staffing, disclosures and freeze behavior.
 
+## Getting a moderator session
+
+Staff operations need an `aal2` token. Run the helper yourself in a terminal; it prompts for email, password (hidden) and the 6-digit authenticator code, and never accepts them as arguments or environment variables. The target and public Supabase configuration come from `apps/mobile/.env.<environment>`; the Supabase origin must be exactly the pinned host for that environment and requests never follow redirects.
+
+```bash
+# Sign in, complete MFA, then run the moderation CLI (default: --queue)
+node scripts/community-staff-session.mjs --env production -- --queue
+node scripts/community-staff-session.mjs --env production -- --inspect <report-uuid>
+
+# Or export the session into the current shell (the only mode that prints the token)
+eval "$(node scripts/community-staff-session.mjs --env production --print-export)"
+node scripts/community-moderation.mjs --env production --queue
+unset COMMUNITY_STAFF_ACCESS_TOKEN API_URL
+```
+
+First use with no verified TOTP factor enrolls one ("Mizyun moderator") and prints the `otpauth://` URI and secret once; add them to an authenticator app, then enter the current code. The screen is cleared after enrollment; do not copy the secret anywhere. An abandoned unverified factor is removed only after you confirm. A wrong code allows three attempts. Tokens expire (about one hour); rerun the helper for a new one. `--print-export` refuses to run when stdout is a terminal, so it must be wrapped in `eval`; always `unset` both variables when finished. The helper proves only that this account can obtain `aal2`; the account must still be in `community_moderation_staff` and `COMMUNITY_MODERATOR_USER_IDS`.
+
 ## Queue and decisions
 
 The CLI uses `COMMUNITY_STAFF_ACCESS_TOKEN` for the current named MFA session and an explicitly reviewed HTTPS `API_URL`. Never paste credentials into an issue, command argument, screenshot or durable log.

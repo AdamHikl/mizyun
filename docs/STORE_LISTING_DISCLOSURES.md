@@ -166,6 +166,8 @@ Please let us know if you need any additional information or have any questions.
 
 ## 5. Manual Store changes for the 2026-10-21 Production release (Adam)
 
+**Use [STORE_PRIVACY_CHECKLIST_2026-10-21.md](STORE_PRIVACY_CHECKLIST_2026-10-21.md) for the click-by-click steps.** It was checked against Apple's and Google's definitions on 2026-10-21 and adds the opt-in product analytics rows (Apple Product Interaction, Google App interactions) that this section omits.
+
 Date prepared: 2026-10-21. These are Adam's manual actions in the Store consoles. Preparing this list does not change any label, and none of them is recorded as done. Perform them before submitting the new Production build, and only after `docs/PRIVACY_POLICY.md` has been published at the Privacy Policy URL (publishing the website is a separate action in `/Users/adam/Documents/mizyun-website`). ADR-0077 requires the policy, this document and the Store labels to name Anthropic before a Store build carries the new consent wording.
 
 ### 5.1 App Store Connect > App Privacy (edit the existing answers, then Publish)
