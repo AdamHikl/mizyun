@@ -27,7 +27,7 @@ Feature sets are small (5–17 cases), so gaps under about 3 points are ties.
   | Catalog recipe ideas (`/v1/meal-recipes/suggest`, older builds only) | `RECIPE_IDEAS_PROVIDER`      | anthropic          |
   | Ingredient photos                                                    | `INGREDIENT_PHOTO_PROVIDER`  | gemini             |
   | Cooking assistant                                                    | `COOKING_ASSISTANT_PROVIDER` | gemini             |
-  | AI-tailored evening stretch (ADR-0076, not benchmarked)              | `STRETCH_PLAN_PROVIDER`      | gemini (inherited) |
+  | AI-tailored evening stretch (ADR-0076)                               | `STRETCH_PLAN_PROVIDER`      | gemini             |
   | Meal illustrations                                                   | —                            | gemini (unchanged) |
 
   Sonnet is never used. Haiku runs at `ANTHROPIC_EFFORT` (low) with thinking off, so the fixed draft token estimates stay valid.
@@ -53,4 +53,5 @@ Feature sets are small (5–17 cases), so gaps under about 3 points are ties.
   - `docs/PRIVACY_POLICY.md` and `docs/STORE_LISTING_DISCLOSURES.md` listing Anthropic as a processor;
   - updated Store privacy labels.
 - **Dev must set every feature key explicitly.** It sets all eight provider keys, including `STRETCH_PLAN_PROVIDER=gemini`, so a later change to `AGENT_PROVIDER` cannot move a feature away from the provider the wording names.
-- **Not benchmarked:** the evening stretch refinement. The eval figures are a Mac and API benchmark, not device acceptance.
+- **Evening stretch (benchmarked 2026-10-21):** across 11 training days, Gemini scored 98.8, Haiku 88.3, the rules-only plan 83.7 and on-device 32.3 (5 of 11 on-device answers formed no valid plan). The rules-only plan already scores 100 on most ordinary days. AI adds most on days with custom or unusual exercises (38 → 100 on a day of custom exercises), so the stretch stays on Gemini.
+- **Eval figures are not device acceptance:** they come from a Mac and API benchmark.
