@@ -45,6 +45,7 @@ import {
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
 
+import { runWithAiConsent } from "../../ai-consent-routing.js";
 import { authorizeAiAccess } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { CoachLimitService } from "../coach/limits.js";
@@ -122,7 +123,9 @@ export const stretchPlanRoutes: FastifyPluginAsync<
         auth.authorized && options.resolveVisionProvider
           ? options.resolveVisionProvider(profile.aiProvider)
           : options.visionProvider;
-      return { ...auth, planTier: profile.planTier, provider };
+      // The stored consent picks the vendor at call time (consent-gated
+      // routing: Anthropic only when the consent disclosed it).
+      return { ...auth, planTier: profile.planTier, provider, consent };
     } catch {
       return { ...AGE_RESTRICTED };
     }
@@ -284,19 +287,22 @@ export const stretchPlanRoutes: FastifyPluginAsync<
           activities: parsed.data.activities,
         };
         const deterministic = buildEveningStretchSession(input);
-        const candidate = await auth.provider.refineStretchPlan({
-          userId,
-          exercises: parsed.data.exercises,
-          activities: parsed.data.activities,
-          unresolvedNames: unresolvedStretchExerciseNames(input),
-          deterministic: {
-            focusMuscles: deterministic.focusMuscles,
-            stepIds: deterministic.steps.map((step) => step.exerciseId),
-          },
-          options: listStretchOptions(),
-          muscleVocabulary: STRETCH_MUSCLE_VOCABULARY,
-          requestId,
-        });
+        const refineStretchPlan = auth.provider.refineStretchPlan;
+        const candidate = await runWithAiConsent(auth.consent, () =>
+          refineStretchPlan.call(auth.provider, {
+            userId,
+            exercises: parsed.data.exercises,
+            activities: parsed.data.activities,
+            unresolvedNames: unresolvedStretchExerciseNames(input),
+            deterministic: {
+              focusMuscles: deterministic.focusMuscles,
+              stepIds: deterministic.steps.map((step) => step.exerciseId),
+            },
+            options: listStretchOptions(),
+            muscleVocabulary: STRETCH_MUSCLE_VOCABULARY,
+            requestId,
+          }),
+        );
         // The model was called, so its tokens count even when the
         // choice turns out unusable.
         await options.limits?.commitDraftTokens(

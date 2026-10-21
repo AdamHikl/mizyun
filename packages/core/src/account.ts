@@ -177,7 +177,12 @@ export interface AccountProviderRevocation {
   readonly jobId: string;
   readonly userId: UserId;
   readonly provider: string;
-  readonly status: "not_required" | "pending" | "revoked";
+  /**
+   * `skipped_no_authorization_code`: an Apple identity was linked but the
+   * client sent no authorization code, so deletion continued unrevoked.
+   */
+  readonly status:
+    "not_required" | "pending" | "revoked" | "skipped_no_authorization_code";
   readonly subject: string | null;
   readonly clientId: string | null;
   readonly encryptedToken: string | null;

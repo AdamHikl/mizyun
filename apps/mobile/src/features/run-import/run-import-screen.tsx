@@ -24,7 +24,7 @@ import { MaxContentWidth, MinTouchTarget, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
-import { getAppVariant } from "@/composition/app-variant";
+import { isRunImportsEnabled } from "@/composition/app-variant";
 import { importRun, listRuns } from "@/features/running/client";
 import { spokenRunPace } from "@/features/running/presentation";
 import {
@@ -45,8 +45,7 @@ const nativeReader: RunImportReader = {
 const MAX_EXISTING_PAGES = 4;
 
 export const runImportAvailable = (): boolean =>
-  getAppVariant() === "dev" &&
-  (Platform.OS === "ios" || Platform.OS === "android");
+  isRunImportsEnabled() && (Platform.OS === "ios" || Platform.OS === "android");
 
 export function RunImportScreen() {
   const { session } = useAuth();

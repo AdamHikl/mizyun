@@ -42,7 +42,12 @@ export class SupabaseAccountProviderRevocationRepository implements AccountProvi
       row.job_id !== input.jobId ||
       row.user_id !== input.userId ||
       row.provider !== input.provider ||
-      !["not_required", "pending", "revoked"].includes(row.status)
+      ![
+        "not_required",
+        "pending",
+        "revoked",
+        "skipped_no_authorization_code",
+      ].includes(row.status)
     ) {
       throw new RepositoryError("Provider cleanup state is invalid");
     }

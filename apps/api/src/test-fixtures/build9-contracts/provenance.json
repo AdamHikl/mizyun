@@ -1,0 +1,432 @@
+{
+  "sourceCommit": "dd5b435385b379d8c0df1b69813f8d8fdd3d985a",
+  "build": "1.0.9 (9) Store build (iOS and Android)",
+  "transform": "TypeScript syntax-tree selection of the named root schemas plus transitive local declarations and relative runtime imports; TypeScript transpileModule ES2022 ESNext; local imports use .mjs; Zod loaded from installed contracts dependency; Prettier formatting. packages/contracts/src/index.ts goal declarations are written to goal.mjs.",
+  "modules": {
+    "account": {
+      "sourcePath": "packages/contracts/src/account.ts",
+      "sourceSha256": "6ce73ceffb1faebf13711038ebc98f21dfedef89c56ea76e96cb3019a4e0a28d",
+      "snapshotSha256": "ed107657077ca9c40f60337a496c20651cb99faf941cb2839d11874ad1219872",
+      "declarations": [
+        {
+          "names": ["conversationStubSchema"],
+          "sourceSha256": "d598a27bc7cc3a37b83bd718b24b0090ee69dc5738ceb1dd795ea75f644c5dc0",
+          "startLine": 36,
+          "endLine": 51
+        },
+        {
+          "names": ["exportManifestSchema"],
+          "sourceSha256": "bc7e9b58b1d73d59e7403e7d14b7190624ae06d85b2807ea7d66d2fdefa4be80",
+          "startLine": 54,
+          "endLine": 74
+        },
+        {
+          "names": ["exportedMediaAssetSchema"],
+          "sourceSha256": "a73aeeac857de9c15534e12c710cd1e9be3ffa30b97f048bd135fd526ea7f804",
+          "startLine": 79,
+          "endLine": 87
+        },
+        {
+          "names": ["communityAccountExportSchema"],
+          "sourceSha256": "126dece716a43081afe838ab6c8291c54793d5bf6caf8779ee6d41a607acce8f",
+          "startLine": 99,
+          "endLine": 107
+        },
+        {
+          "names": ["accountExportSchema"],
+          "sourceSha256": "e85773dff3f9454830c41e014edc38aabfdb6803741fe167f50f90d4ddf510be",
+          "startLine": 109,
+          "endLine": 141
+        },
+        {
+          "names": ["accountExportResponseSchema"],
+          "sourceSha256": "53e09b6ea6ed584b70b30667e843ad5e684b7d2ea95d134140cd99ea8e918a8e",
+          "startLine": 145,
+          "endLine": 147
+        },
+        {
+          "names": ["accountDeleteSchema"],
+          "sourceSha256": "4e6e679a92191edc5afe42385d8a739e28cbe5f0471cf91415a33543fcd11d62",
+          "startLine": 167,
+          "endLine": 172
+        },
+        {
+          "names": ["accountDeleteResponseSchema"],
+          "sourceSha256": "a1c0cdca14e8fc4aee2c34eb9f34290a1f8675affe1a477fa66e7938724c7a5c",
+          "startLine": 176,
+          "endLine": 178
+        },
+        {
+          "names": ["accountDeleteStatusResponseSchema"],
+          "sourceSha256": "3efdaaa6be69f2f5b41f2561d60c0b5fbcfab9a4fa2260dba1339d81b55b3b10",
+          "startLine": 199,
+          "endLine": 204
+        },
+        {
+          "names": ["CURRENT_AI_CONSENT_VERSION"],
+          "sourceSha256": "77ddfde07ddd0b5ab533b536605381e78cd78be143c3dfc382b31f6180ece90f",
+          "startLine": 214,
+          "endLine": 214
+        },
+        {
+          "names": ["aiConsentSchema"],
+          "sourceSha256": "8591022460483b04c5c12bca2414e89b8280d96eea06303f3309162ceca95dc1",
+          "startLine": 216,
+          "endLine": 222
+        },
+        {
+          "names": ["updateAiConsentSchema"],
+          "sourceSha256": "05fb7107a2b76e949faf13d0f9dd1fd524e2d030e49c5bc2e59d9eed045685b6",
+          "startLine": 226,
+          "endLine": 236
+        },
+        {
+          "names": ["aiConsentResponseSchema"],
+          "sourceSha256": "02ed8456a43dbc9e9928162dbf850322ba5c5c6d050cb5b57e24f93ca4914d55",
+          "startLine": 240,
+          "endLine": 242
+        }
+      ]
+    },
+    "analytics": {
+      "sourcePath": "packages/contracts/src/analytics.ts",
+      "sourceSha256": "ba6828ac0257da9e431d2b67bff5d09851655326e1f57c1ecee13b344fa5d7f5",
+      "snapshotSha256": "db3729eb18b291d097795a034126c69d5df9b74d8c6e653b418edb38472fdbb5",
+      "declarations": [
+        {
+          "names": ["screenNameSchema"],
+          "sourceSha256": "e9c3eb46b41e114107d5186fcbf33ce29a88ca16438e0f3bfdfeecef37f0d2d9",
+          "startLine": 6,
+          "endLine": 21
+        },
+        {
+          "names": ["dashboardControlSchema"],
+          "sourceSha256": "871e383c72dfc335ca6cb3b8d7b1d4e687685c5fdf2a76da06710dbcbd814b2d",
+          "startLine": 25,
+          "endLine": 42
+        },
+        {
+          "names": ["analyticsSettingsDestinationSchema"],
+          "sourceSha256": "2d8bd8a1dab6c028541852858ff8bc5f0c528f091ecce06e681ed349c85267e3",
+          "startLine": 46,
+          "endLine": 69
+        },
+        {
+          "names": ["loggingFlowSchema"],
+          "sourceSha256": "2f871cf2d0724b7d9b9184bd5198ff4124a1d7369deabe1ed2f2a27a7fa3a29e",
+          "startLine": 74,
+          "endLine": 78
+        },
+        {
+          "names": ["coreRecordKindSchema"],
+          "sourceSha256": "5e9c0d20917ab4e154bce419d74ce952c1bacc09da9e357b12bc71762f4db7d9",
+          "startLine": 81,
+          "endLine": 85
+        },
+        {
+          "names": ["durationBucketSchema"],
+          "sourceSha256": "775b1c8ba2632a917df37430187d79fd05a9cf4a93870f02fb653ccb19754a28",
+          "startLine": 88,
+          "endLine": 94
+        },
+        {
+          "names": ["tapCountBucketSchema"],
+          "sourceSha256": "609b92fcfc541e463403797d783cbeca3c5ab601e9f61bc0cfbd3dcc0e5835d1",
+          "startLine": 97,
+          "endLine": 102
+        },
+        {
+          "names": ["retryCountBucketSchema"],
+          "sourceSha256": "b37b5cdaed783a7accd48c896e333a77920dafe4fd3fae37e88ea9d9c28ae0d3",
+          "startLine": 105,
+          "endLine": 105
+        },
+        {
+          "names": ["failureStageSchema"],
+          "sourceSha256": "27e5346f552bf22bd162fc8e59c75ed807913e30ef5d397f51e7fe815afe6ff4",
+          "startLine": 108,
+          "endLine": 113
+        },
+        {
+          "names": ["failureReasonSchema"],
+          "sourceSha256": "0c1d6c4b77fd62ff01985a3a90108173de2ffca53b8d829544f5cd5452ec018a",
+          "startLine": 116,
+          "endLine": 123
+        },
+        {
+          "names": ["featureActionSchema"],
+          "sourceSha256": "2071f04ac96ef1bbdcaf9c5d835f878af4a3b0af0b09b863a3def7dd793be82e",
+          "startLine": 126,
+          "endLine": 136
+        },
+        {
+          "names": ["legacyOnboardingStepSchema"],
+          "sourceSha256": "6197319f55d78b23e12e8a6bcaf3f697b23abf7c8a925a07824652c857036aba",
+          "startLine": 140,
+          "endLine": 147
+        },
+        {
+          "names": ["onboardingStepSchema"],
+          "sourceSha256": "39a50fe2269284cbd6a6a1dd7e15094f77336a144ff94238637fe42c866188f0",
+          "startLine": 148,
+          "endLine": 155
+        },
+        {
+          "names": ["loggingModeSchema"],
+          "sourceSha256": "e3443fb777848ffe85df145dec88a9517ccba15626aab109d356000410229f15",
+          "startLine": 158,
+          "endLine": 164
+        },
+        {
+          "names": ["loggingExitReasonSchema"],
+          "sourceSha256": "4b18d849033222c4cca58e80326274694a726c3c5b275bfd8664477146be5fd1",
+          "startLine": 167,
+          "endLine": 167
+        },
+        {
+          "names": ["baseEventEnvelopeShape"],
+          "sourceSha256": "564550a3af935804c55fe207bfb2dc69f0a669a9d2dd625a2b0f202c9e8ffbf1",
+          "startLine": 170,
+          "endLine": 180
+        },
+        {
+          "names": ["appSessionStartedEventSchema"],
+          "sourceSha256": "f2f40ec6328744b92386fde132f4e883be3ab73eba2a821e1503de258a3467d3",
+          "startLine": 182,
+          "endLine": 192
+        },
+        {
+          "names": ["screenViewedEventSchema"],
+          "sourceSha256": "9bdf748fb553a1e9e5112be31b010ae17dd0bc1165a4987d1fa9ba6f8a28450f",
+          "startLine": 197,
+          "endLine": 207
+        },
+        {
+          "names": ["onboardingStartedEventSchema"],
+          "sourceSha256": "af8ef5a4d9d17330749cb34fc764c35084819513e580e20add4420602cc120bc",
+          "startLine": 210,
+          "endLine": 216
+        },
+        {
+          "names": ["onboardingStepCompletedEventSchema"],
+          "sourceSha256": "a44dbbd435e2eef54d5b5c2522f85acfbadd19c3d4692b85e7610d3e97f0a425",
+          "startLine": 221,
+          "endLine": 231
+        },
+        {
+          "names": ["onboardingCompletedEventSchema"],
+          "sourceSha256": "da4e4d31f26587c4bde7912ecd7a851055b5df9d7a7f966968969d8b61c19875",
+          "startLine": 236,
+          "endLine": 247
+        },
+        {
+          "names": ["onboardingFailedEventSchema"],
+          "sourceSha256": "b3a014dd70c044595e01a9b08cdc0f2860429d078b81a2d34863ac755bcc0865",
+          "startLine": 252,
+          "endLine": 260
+        },
+        {
+          "names": ["onboardingExitedEventSchema"],
+          "sourceSha256": "13ee157aaab68165fe0e4ef791351a7896dfd8eb62b558acc078b93ff44b3d85",
+          "startLine": 263,
+          "endLine": 275
+        },
+        {
+          "names": ["loggingFlowStartedEventSchema"],
+          "sourceSha256": "d7b0c200dd77ebcc69add6c46c26c55fa48a370d40f882c37a7982868e324904",
+          "startLine": 278,
+          "endLine": 289
+        },
+        {
+          "names": ["loggingFlowCompletedEventSchema"],
+          "sourceSha256": "3a967b2b0bb598b6d2a7bfd823dfe3a82452bf5a1aa01f2bd5fd3f71975ce081",
+          "startLine": 294,
+          "endLine": 307
+        },
+        {
+          "names": ["loggingFlowFailedEventSchema"],
+          "sourceSha256": "d46f79c3b809201168091ae734cf1a845c097a974f0252969a1de440c84c1e7f",
+          "startLine": 312,
+          "endLine": 326
+        },
+        {
+          "names": ["loggingFlowExitedEventSchema"],
+          "sourceSha256": "4c712d610d2fc0feed568d7c066b601547aa5e0959bc85afa2e45ee129c6f03e",
+          "startLine": 331,
+          "endLine": 343
+        },
+        {
+          "names": ["coreRecordCreatedEventSchema"],
+          "sourceSha256": "06757fe7c938051fddaebc9ea4493131e324fe09ed0a24bac198769fab28e34d",
+          "startLine": 348,
+          "endLine": 358
+        },
+        {
+          "names": ["featureActionResultEventSchema"],
+          "sourceSha256": "539e7ae954fbb8c5921b26774df48c190269577275045e0441951eb66c2ec9ef",
+          "startLine": 363,
+          "endLine": 376
+        },
+        {
+          "names": ["dashboardControlClickedEventSchema"],
+          "sourceSha256": "9d1e4b81fed3f4d3e16aeb2f0a1cce75066c44b68071b27d4f0b1eef96916fc6",
+          "startLine": 381,
+          "endLine": 387
+        },
+        {
+          "names": ["settingsSearchUsedEventSchema"],
+          "sourceSha256": "1ca210b56c56494a015320286862fcec3bfd5c74e6317c813e15b166281096a1",
+          "startLine": 389,
+          "endLine": 397
+        },
+        {
+          "names": ["settingsSearchSelectedEventSchema"],
+          "sourceSha256": "654923e47ec6a0c57f834f6d896c9a1d7c1eb06fbbc5ba14653b13860a21708a",
+          "startLine": 399,
+          "endLine": 407
+        },
+        {
+          "names": ["analyticsEventV2Schema"],
+          "sourceSha256": "f2f1be3b21b8a603352e326883591530aa55a54a32baec493675a63c7e6082ac",
+          "startLine": 409,
+          "endLine": 426
+        },
+        {
+          "names": ["CURRENT_ANALYTICS_CONSENT_VERSION"],
+          "sourceSha256": "2a35e4cbf2132e1c7b506fc8d3abdbde58f920b2c1d92b53f41179f7b317b911",
+          "startLine": 453,
+          "endLine": 453
+        },
+        {
+          "names": ["ANALYTICS_DASHBOARD_CATALOG"],
+          "sourceSha256": "aeeae1f7aefb272adb8902ba9592142ec76a5eb3fb180a84d8f19921fa484900",
+          "startLine": 454,
+          "endLine": 454
+        },
+        {
+          "names": ["analyticsConsentResponseSchema"],
+          "sourceSha256": "647173eaea96f4a1ffb64f0ab3c830f48daaa2e41b922d7001109a09ab1db8c2",
+          "startLine": 495,
+          "endLine": 503
+        }
+      ]
+    },
+    "goal": {
+      "sourcePath": "packages/contracts/src/index.ts",
+      "sourceSha256": "e6f53435431a75293fc18ab50a9251839a663888b624bb711c3ed53cfc335c7b",
+      "snapshotSha256": "279ad93697e9ea75acd66efdd6bc26dcb3d30907adecfef2600e4aff9b10c396",
+      "declarations": [
+        {
+          "names": ["goalKindSchema"],
+          "sourceSha256": "cb7d4f095ab650bfefa178da8699d9afc8487ddc3470bb887e14db0fedafa826",
+          "startLine": 364,
+          "endLine": 364
+        },
+        {
+          "names": ["goalPaceSchema"],
+          "sourceSha256": "a7f3b8ca10a22c2efef1088b0f0487cf6db593850fecbd183ce86ec62a76f039",
+          "startLine": 367,
+          "endLine": 367
+        },
+        {
+          "names": ["goalStatusSchema"],
+          "sourceSha256": "130193231490e81013ea0912fb232427f259560ab08a7206bce0fd372fee7252",
+          "startLine": 370,
+          "endLine": 375
+        },
+        {
+          "names": ["isoDateSchema"],
+          "sourceSha256": "d9a1660a31faec2e3bf2d8e377f118c53ad09bd9bea4dd40be768ad73ead8553",
+          "startLine": 378,
+          "endLine": 380
+        },
+        {
+          "names": ["targetWeightKgSchema"],
+          "sourceSha256": "bb9a246b40bb4396c3378544bf1bff7ca32d471cb7122024058714b29131c981",
+          "startLine": 387,
+          "endLine": 387
+        },
+        {
+          "names": ["goalTargetSchema"],
+          "sourceSha256": "d8b771c0e10373c512b11aae9314a1d9f860a0542fa0b26eb0978e3ef70a5c58",
+          "startLine": 389,
+          "endLine": 392
+        },
+        {
+          "names": ["goalSchema"],
+          "sourceSha256": "ce5cc42f67d80c8bc41c6d2d1fbb02338ded260211e1b019e29cabe0edc6f41e",
+          "startLine": 402,
+          "endLine": 426
+        },
+        {
+          "names": ["goalResponseSchema"],
+          "sourceSha256": "f7ac5d7861b87c59c290e0cc711cc8ba4791fbfc8f675b04fc459c1abda9f072",
+          "startLine": 430,
+          "endLine": 432
+        },
+        {
+          "names": ["goalHistoryResponseSchema"],
+          "sourceSha256": "4c978999040b880f8dd373138156655e177915926a112ea9af89797998be125c",
+          "startLine": 435,
+          "endLine": 437
+        },
+        {
+          "names": ["goalCreateSchema"],
+          "sourceSha256": "51f58e2b29e5f2fccf4199cd5eb46c27112d7543c24973c12af35020365c67aa",
+          "startLine": 446,
+          "endLine": 467
+        },
+        {
+          "names": ["goalPatchSchema"],
+          "sourceSha256": "10c08a9a81e75aee2ada15124d3b1ff5e661ac61d640d3d539c8312831c81672",
+          "startLine": 479,
+          "endLine": 496
+        }
+      ]
+    },
+    "community": {
+      "sourcePath": "packages/contracts/src/community.ts",
+      "sourceSha256": "59bae24ce37ed9bed063e8349059aeade20121ef4e0f524f1ec60712e6573af8",
+      "snapshotSha256": "6c8ec1bfbde02c2159e2519ad00475ed1ab45eda0a596e860c04d5390b1c5616",
+      "declarations": [
+        {
+          "names": ["workoutCategorySchema"],
+          "sourceSha256": "66f196bbf869222c8667274e29245ded28f2b49f5a5b36cec9001c37862d28da",
+          "startLine": 51,
+          "endLine": 59
+        },
+        {
+          "names": ["communityReactionKindSchema"],
+          "sourceSha256": "edf01d8c2abaded4ced40649ab65aa5d71ab17f4830e47a7165b0967aa871ece",
+          "startLine": 62,
+          "endLine": 68
+        },
+        {
+          "names": ["sharedWorkoutDetailsSchema"],
+          "sourceSha256": "cf699d691b21ce19f29b880f9e9f35641a97d5fd1841bef4b3e1d180da66ee33",
+          "startLine": 290,
+          "endLine": 325
+        },
+        {
+          "names": ["sharedActivityFeedItemDtoSchema"],
+          "sourceSha256": "4a9ae55a7768f51d34dd91df36b813f2033c91e306d2550e24492412ab0dcabe",
+          "startLine": 356,
+          "endLine": 372
+        },
+        {
+          "names": ["authorSharedActivityDtoSchema"],
+          "sourceSha256": "27e0312ecf9ceae5f00fe06709c0e48c81f5e36a6f149893d95b8581e77cc78f",
+          "startLine": 377,
+          "endLine": 382
+        },
+        {
+          "names": ["communityFeedResponseSchema"],
+          "sourceSha256": "097bbf7f2fa0331e2d0b0c7b413a8d057dc75039256252e50a05e7e4eaa80413",
+          "startLine": 693,
+          "endLine": 696
+        }
+      ]
+    }
+  },
+  "zodRuntimeSha256": "c432f1324be75ee73ed88d34865a761b59c8b9e6b42729427d5ce57a36d55a28"
+}

@@ -11,6 +11,8 @@ import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
 import {
   CURRENT_AI_CONSENT_VERSION,
   DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
+  LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+  LEGACY_COMMUNITY_EXPORT_SCHEMA_VERSION,
   accountDeleteResponseSchema,
   accountDeleteSchema,
   accountDeleteStatusResponseSchema,
@@ -30,6 +32,8 @@ import {
 } from "@mizyun/contracts";
 
 import { isAdultEligibleForAi } from "../../ai-eligibility.js";
+import { isLegacyClient } from "../../client-compat.js";
+import type { AppleDeletionCleanupOutcome } from "./apple-deletion.js";
 import { sendApiError } from "../../errors.js";
 
 interface AccountRoutesOptions {
@@ -45,7 +49,7 @@ interface AccountRoutesOptions {
   readonly appleDeletionCleanup?: (
     context: AccountDeletionCleanupContext,
     authorizationCode?: string,
-  ) => Promise<void>;
+  ) => Promise<AppleDeletionCleanupOutcome | undefined | void>;
 }
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
@@ -69,11 +73,27 @@ const memoryToWire = (memory: MemoryRecord) => ({
   metadata: { ...memory.metadata },
 });
 
+/**
+ * Installed Store builds up to 1.0.9 (9) parse `community` strictly with
+ * schema versions "2026-09-30" | "2026-10-01". "2026-10-11" only added
+ * categories (`commentSettings`, `challengeMemberships`), which that build's
+ * `categories` record accepts, so legacy requests get the older label.
+ */
+const communityForClient = (
+  community: AccountExport["community"],
+  legacy: boolean,
+): AccountExport["community"] =>
+  community && legacy && community.schemaVersion === "2026-10-11"
+    ? { ...community, schemaVersion: LEGACY_COMMUNITY_EXPORT_SCHEMA_VERSION }
+    : community;
+
 const accountExportToWire = (
   exportDoc: AccountExport,
   memories: readonly MemoryRecord[],
-  catalog?: AnalyticsEventsListQuery["catalog"],
+  catalog: AnalyticsEventsListQuery["catalog"] | undefined,
+  legacy: boolean,
 ): AccountExportResponse => {
+  const recurring = exportDoc.recurringMeals;
   const analytics = exportDoc.productAnalytics;
   const projected = projectAnalyticsEventsForCatalog(
     (analytics?.events ?? []).map((event) => ({
@@ -109,7 +129,7 @@ const accountExportToWire = (
             },
           }
         : undefined,
-      community: exportDoc.community,
+      community: communityForClient(exportDoc.community, legacy),
       recipeRequests: exportDoc.recipeRequests?.map((record) => ({
         requestId: record.requestId,
         operation: record.operation,
@@ -121,7 +141,22 @@ const accountExportToWire = (
       mealIllustrations: exportDoc.mealIllustrations,
       mealIllustrationUsage: exportDoc.mealIllustrationUsage,
       mealImagePaths: exportDoc.mealImagePaths,
-      recurringMeals: exportDoc.recurringMeals,
+      // Build 9 parses `recurringMeals` strictly, so suggestion data lives
+      // in its own top-level section for every client.
+      recurringMeals: recurring
+        ? { schedules: recurring.schedules, occurrences: recurring.occurrences }
+        : undefined,
+      recurringMealSuggestions:
+        recurring &&
+        (recurring.suggestionStates !== undefined ||
+          recurring.suggestionPreferences !== undefined ||
+          recurring.suggestionReceipts !== undefined)
+          ? {
+              states: recurring.suggestionStates ?? [],
+              preferences: recurring.suggestionPreferences ?? [],
+              receipts: recurring.suggestionReceipts ?? [],
+            }
+          : undefined,
       runOperationReceipts: exportDoc.runOperationReceipts,
       bouldering: exportDoc.bouldering,
       productAnalytics: analytics
@@ -340,7 +375,12 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
           accessToken: principal.accessToken,
         },
       );
-      return accountExportToWire(exportDoc, memories, query.data.catalog);
+      return accountExportToWire(
+        exportDoc,
+        memories,
+        query.data.catalog,
+        isLegacyClient(request),
+      );
     },
   );
 
@@ -400,10 +440,19 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
           accessToken: principal.accessToken,
           beforeCleanup: async (context) => {
             if (options.appleDeletionCleanup) {
-              await options.appleDeletionCleanup(
+              const outcome = await options.appleDeletionCleanup(
                 context,
                 parsed.data.appleAuthorizationCode,
               );
+              if (outcome === "skipped_no_authorization_code")
+                request.log.warn(
+                  {
+                    event: "account_deletion_apple_revocation_skipped",
+                    jobId: context.jobId,
+                    reason: "no_authorization_code",
+                  },
+                  "Account deletion continued without Apple token revocation",
+                );
             } else if (parsed.data.appleAuthorizationCode !== undefined) {
               throw new Error("External authorization cleanup requires retry");
             }
@@ -527,11 +576,32 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
         });
       }
 
+      // Installed builds up to 1.0.9 (9) treat any version other than their
+      // own Gemini-only disclosure as "not granted" and would ask again, then
+      // overwrite a newer grant with the older version (a re-consent loop
+      // with the current app). When the stored grant is a newer disclosure
+      // this server accepts, and the legacy disclosure is still accepted
+      // here, such a client is told the version it understands. Nothing is
+      // stored: the record keeps the version the user actually agreed to,
+      // and AI admission keeps checking that stored version. Revoked or
+      // ungranted records, and current clients, see the stored version.
+      const acceptedVersions =
+        options.acceptedAiConsentVersions ??
+        DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS;
+      const reportLegacyVersion =
+        isLegacyClient(request) &&
+        consent.granted &&
+        consent.consentVersion !== LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY &&
+        acceptedVersions.includes(consent.consentVersion) &&
+        acceptedVersions.includes(LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY);
+
       return aiConsentResponseSchema.parse({
         consent: {
           granted: consent.granted,
           confirmedAdult: consent.confirmedAdult,
-          consentVersion: consent.consentVersion,
+          consentVersion: reportLegacyVersion
+            ? LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY
+            : consent.consentVersion,
           consentedAt: consent.consentedAt
             ? consent.consentedAt.toISOString()
             : null,

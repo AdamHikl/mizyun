@@ -23,6 +23,7 @@ import {
   type CoachMessage,
 } from "@mizyun/contracts";
 
+import { runWithAiConsent } from "../../ai-consent-routing.js";
 import { authorizeAiAccess } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
@@ -32,6 +33,7 @@ import {
 } from "../food-entries/index.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import type { CoachLimitService } from "./limits.js";
+import { stripCoachPayloadForLegacyClient } from "./legacy-client-compat.js";
 
 interface CoachNutritionPhotoRoutesOptions {
   readonly betaProRepository?: BetaProRepository;
@@ -93,6 +95,12 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
   CoachNutritionPhotoRoutesOptions
 > = async (app, options) => {
   const now = options.now ?? (() => new Date());
+
+  // Installed Store builds (<= 9) parse Coach proposals strictly and do not
+  // know `additionalCandidates`; strip it from responses to them.
+  app.addHook("preSerialization", async (request, _reply, payload) =>
+    stripCoachPayloadForLegacyClient(request, payload),
+  );
 
   app.post(
     "/conversations/:id/nutrition-photo",
@@ -374,17 +382,19 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
         try {
           const inputSafety = screenCoachInput(textHint ?? "");
           const generated = inputSafety.allowed
-            ? await draftProvider.generateDraft({
-                userId: principal.userId as UserId,
-                ...primary,
-                ...(photos.length > 1
-                  ? { additionalPhotos: photos.slice(1) }
-                  : {}),
-                requestId: crypto.randomUUID(),
-                includeAdvancedNutrition,
-                purpose: "coach",
-                ...(textHint !== undefined ? { textHint } : {}),
-              })
+            ? await runWithAiConsent(consent, () =>
+                draftProvider.generateDraft({
+                  userId: principal.userId as UserId,
+                  ...primary,
+                  ...(photos.length > 1
+                    ? { additionalPhotos: photos.slice(1) }
+                    : {}),
+                  requestId: crypto.randomUUID(),
+                  includeAdvancedNutrition,
+                  purpose: "coach",
+                  ...(textHint !== undefined ? { textHint } : {}),
+                }),
+              )
             : null;
           const candidate =
             generated === null

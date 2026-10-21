@@ -8,6 +8,7 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 import { buildApp } from "../../app.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
 import { InMemoryRecurringMealRepository } from "../../recurring-meal-repository.js";
+import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
 
 const userA = "00000000-0000-4000-8000-000000000001" as UserId;
 const userB = "00000000-0000-4000-8000-000000000002" as UserId;
@@ -171,19 +172,36 @@ describe("recurring meal routes", () => {
     const other = await app.inject({
       method: "GET",
       url: "/v1/account/export",
-      headers: { authorization: "Bearer b" },
+      headers: {
+        authorization: "Bearer b",
+        [API_COMPAT_HEADER]: API_COMPAT_VERSION,
+      },
     });
     expect(other.statusCode).toBe(200);
     expect(other.json().export.userId).toBe(userB);
+    // Suggestion data has its own section: installed build 9 parses
+    // `recurringMeals` strictly with only schedules and occurrences.
     expect(other.json().export.recurringMeals).toEqual({
       schedules: [],
       occurrences: [],
-      suggestionStates: [],
-      suggestionPreferences: [],
-      suggestionReceipts: [],
+    });
+    expect(other.json().export.recurringMealSuggestions).toEqual({
+      states: [],
+      preferences: [],
+      receipts: [],
     });
     expect(other.body).not.toContain(id);
     expect(other.body).not.toContain("Breakfast");
+    const legacy = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers: { authorization: "Bearer b" },
+    });
+    expect(legacy.statusCode).toBe(200);
+    expect(Object.keys(legacy.json().export.recurringMeals).sort()).toEqual([
+      "occurrences",
+      "schedules",
+    ]);
   });
   it("fails writes closed when durable automatic logging is unavailable", async () => {
     const { request, repo } = build(true);

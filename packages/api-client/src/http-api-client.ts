@@ -4,6 +4,8 @@ import {
 } from "./meal-recipe-session-api";
 import { err, ok, type Result } from "@mizyun/core";
 import {
+  API_COMPAT_HEADER,
+  API_COMPAT_VERSION,
   coachMessageResponseSchema,
   foodDraftResponseSchema,
   mealIllustrationResponseSchema,
@@ -37,6 +39,27 @@ export interface HttpApiClientDependencies {
 const AUTHORIZATION_HEADER = "authorization";
 const CONTENT_TYPE_HEADER = "content-type";
 const JSON_CONTENT_TYPE = "application/json";
+
+/**
+ * Adds the client capability header to every request this client sends, so
+ * the server can tell current clients from installed legacy builds.
+ */
+const withCompatHeader =
+  (fetcher: typeof globalThis.fetch): typeof globalThis.fetch =>
+  (input, init) => {
+    const headers = init?.headers;
+    let next: NonNullable<NonNullable<typeof init>["headers"]>;
+    if (headers instanceof Headers) {
+      const copy = new Headers(headers);
+      copy.set(API_COMPAT_HEADER, API_COMPAT_VERSION);
+      next = copy;
+    } else if (Array.isArray(headers)) {
+      next = [...headers, [API_COMPAT_HEADER, API_COMPAT_VERSION]];
+    } else {
+      next = { ...(headers ?? {}), [API_COMPAT_HEADER]: API_COMPAT_VERSION };
+    }
+    return fetcher(input, { ...(init ?? {}), headers: next });
+  };
 
 const isAbsoluteUrl = (path: string): boolean => /^https?:\/\//i.test(path);
 
@@ -81,7 +104,9 @@ export class HttpApiClient implements ApiClient {
   constructor(dependencies: HttpApiClientDependencies) {
     this.#baseUrl = trimTrailingSlash(dependencies.baseUrl);
     this.#authClient = dependencies.authClient;
-    this.#fetch = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+    this.#fetch = withCompatHeader(
+      dependencies.fetch ?? globalThis.fetch.bind(globalThis),
+    );
     const recipes = createMealRecipeTransport({
       ...dependencies,
       fetch: this.#fetch,

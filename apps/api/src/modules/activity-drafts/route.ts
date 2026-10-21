@@ -31,6 +31,7 @@ import {
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
 
+import { runWithAiConsent } from "../../ai-consent-routing.js";
 import { authorizeAiAccess } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { CoachLimitService } from "../coach/limits.js";
@@ -84,7 +85,9 @@ export const activityDraftRoutes: FastifyPluginAsync<
         auth.authorized && options.resolveVisionProvider
           ? options.resolveVisionProvider(profile.aiProvider)
           : options.visionProvider;
-      return { ...auth, planTier: profile.planTier, provider };
+      // The stored consent picks the vendor at call time (consent-gated
+      // routing: Anthropic only when the consent disclosed it).
+      return { ...auth, planTier: profile.planTier, provider, consent };
     } catch {
       return { ...AGE_RESTRICTED };
     }
@@ -217,13 +220,16 @@ export const activityDraftRoutes: FastifyPluginAsync<
             false,
           );
         }
-        const candidate = await auth.provider.generateActivityDraft({
-          userId,
-          description: parsed.data.description,
-          localDate: parsed.data.localDate,
-          localTime: parsed.data.localTime,
-          requestId,
-        });
+        const generateActivityDraft = auth.provider.generateActivityDraft;
+        const candidate = await runWithAiConsent(auth.consent, () =>
+          generateActivityDraft.call(auth.provider, {
+            userId,
+            description: parsed.data.description,
+            localDate: parsed.data.localDate,
+            localTime: parsed.data.localTime,
+            requestId,
+          }),
+        );
         await options.limits?.commitDraftTokens(
           userId,
           candidate.tokensUsed ?? ACTIVITY_DRAFT_ESTIMATED_TOKENS,

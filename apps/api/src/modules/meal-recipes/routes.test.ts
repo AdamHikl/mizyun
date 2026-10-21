@@ -7,6 +7,9 @@ import {
   FakeIngredientRecognitionProvider,
   FakeRecipeAssistantProvider,
   RecipeProviderError,
+  type IngredientRecognitionProvider,
+  type RecipeAssistantProvider,
+  type RecipeGenerationProvider,
 } from "@mizyun/agent-runtime";
 import {
   CURRENT_AI_CONSENT_VERSION,
@@ -29,6 +32,11 @@ import { InMemoryBodyMeasurementRepository } from "../../body-measurement-reposi
 import { InMemoryWorkoutRepository } from "../../workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
 import { buildApp } from "../../app.js";
+import {
+  consentGatedIngredientRecognitionProvider,
+  consentGatedRecipeAssistantProvider,
+  consentGatedRecipeGenerationProvider,
+} from "../../ai-consent-routing.js";
 import { mealRecipeRoutes } from "./routes.js";
 import { loadOwnedRecipeContext, utcOffsetMinutesAt } from "./context.js";
 import { buildFeasibleRecipeTemplates } from "./templates.js";
@@ -94,7 +102,17 @@ function deferred<T>() {
 async function fixture({
   timeoutMs = 25,
   assistant = new FakeRecipeAssistantProvider(),
-}: { timeoutMs?: number; assistant?: FakeRecipeAssistantProvider } = {}) {
+  providers = {},
+}: {
+  timeoutMs?: number;
+  assistant?: FakeRecipeAssistantProvider;
+  /** Overrides what the routes receive (e.g. consent-gated providers). */
+  providers?: {
+    generation?: RecipeGenerationProvider;
+    recognition?: IngredientRecognitionProvider;
+    assistant?: RecipeAssistantProvider;
+  };
+} = {}) {
   const profileRepository = new InMemoryProfileRepository({
     defaultTimezone: "UTC",
     defaultUnitSystem: "metric",
@@ -206,9 +224,9 @@ async function fixture({
       consentRepository: consent,
       accountRepository: account as never,
       ledger: ledger(),
-      generationProvider: generation,
-      recognitionProvider: recognition,
-      assistantProvider: assistant,
+      generationProvider: providers.generation ?? generation,
+      recognitionProvider: providers.recognition ?? recognition,
+      assistantProvider: providers.assistant ?? assistant,
       enabled: () => enabled,
       now: () => now,
       timeoutMs,
@@ -1175,5 +1193,112 @@ describe("guarded recipe routes", () => {
     expect(
       utcOffsetMinutesAt(new Date("2026-01-01T12:00:00Z"), "Not/AZone"),
     ).toBe(0);
+  });
+});
+
+describe("consent-gated recipe vendors", () => {
+  // Every recipe slot routed to "Anthropic" (the consented fakes); the
+  // fallback fakes stand for Gemini.
+  const gatedFixture = async () => {
+    const anthropic = {
+      generation: new FakeRecipeGenerationProvider(),
+      recognition: new FakeIngredientRecognitionProvider(),
+      assistant: new FakeRecipeAssistantProvider({
+        reply: "Here are ideas.",
+        ingredients: ["eggs"],
+        ideas: [idea],
+        tokensUsed: 10,
+      }),
+    };
+    const gemini = {
+      generation: new FakeRecipeGenerationProvider(),
+      recognition: new FakeIngredientRecognitionProvider(),
+      assistant: new FakeRecipeAssistantProvider({
+        reply: "Here are ideas.",
+        ingredients: ["eggs"],
+        ideas: [idea],
+        tokensUsed: 10,
+      }),
+    };
+    const spies = {
+      anthropic: [
+        vi.spyOn(anthropic.generation, "generate"),
+        vi.spyOn(anthropic.recognition, "recognize"),
+        vi.spyOn(anthropic.assistant, "assist"),
+      ],
+      gemini: [
+        vi.spyOn(gemini.generation, "generate"),
+        vi.spyOn(gemini.recognition, "recognize"),
+        vi.spyOn(gemini.assistant, "assist"),
+      ],
+    };
+    const f = await fixture({
+      providers: {
+        generation: consentGatedRecipeGenerationProvider({
+          consented: anthropic.generation,
+          fallback: gemini.generation,
+        }),
+        recognition: consentGatedIngredientRecognitionProvider({
+          consented: anthropic.recognition,
+          fallback: gemini.recognition,
+        }),
+        assistant: consentGatedRecipeAssistantProvider({
+          consented: anthropic.assistant,
+          fallback: gemini.assistant,
+        }),
+      },
+    });
+    return { f, spies };
+  };
+  const exercise = async (app: FastifyInstance) => {
+    expect((await send(app)).statusCode).toBe(200);
+    expect(
+      (
+        await photo(
+          app,
+          photoBody(
+            "62000000-0000-4000-8000-000000000002",
+            1,
+            "image/png",
+            png,
+          ),
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await ask(
+          app,
+          turn({
+            requestId: "62000000-0000-4000-8000-000000000003",
+            messages: [{ role: "user", text: "Ideas please" }],
+          }),
+        )
+      ).statusCode,
+    ).toBe(200);
+  };
+
+  it("serves a legacy Gemini-only consent with Gemini for ideas, photos and the assistant", async () => {
+    const { f, spies } = await gatedFixture();
+    await f.consent.saveConsent(user, {
+      granted: true,
+      confirmedAdult: true,
+      consentVersion: LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+    });
+    await exercise(f.app);
+    for (const spy of spies.gemini) expect(spy).toHaveBeenCalledTimes(1);
+    for (const spy of spies.anthropic) expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the current consent on Gemini, because no recipe feature was disclosed for Anthropic", async () => {
+    const { f, spies } = await gatedFixture();
+    await f.consent.saveConsent(user, {
+      granted: true,
+      confirmedAdult: true,
+      consentVersion: CURRENT_AI_CONSENT_VERSION,
+    });
+    await exercise(f.app);
+    for (const spy of spies.gemini) expect(spy).toHaveBeenCalledTimes(1);
+    for (const spy of spies.anthropic) expect(spy).not.toHaveBeenCalled();
   });
 });

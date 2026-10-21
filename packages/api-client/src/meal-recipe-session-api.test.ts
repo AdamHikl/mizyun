@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
 import type { AuthClient, AuthSession } from "@mizyun/identity";
 import { createMealRecipeSessionApi } from "./meal-recipe-session-api";
 import { HttpApiClient } from "./http-api-client";
 import { DisabledApiClient } from "./disabled-api-client";
+
+const compat = { [API_COMPAT_HEADER]: API_COMPAT_VERSION };
 const options = { expectedUserId: "owner", isCurrent: () => true };
 const input = {
   version: "meal-recipe-v1" as const,
@@ -183,7 +186,7 @@ describe("provider-free recipe session transport", () => {
     expect(f.fetcher).toHaveBeenCalledTimes(1);
     expect(f.fetcher).toHaveBeenCalledWith(
       "https://api.example/v1/meal-recipes/session-context",
-      { method: "GET", headers: { authorization: "Bearer token" } },
+      { method: "GET", headers: { authorization: "Bearer token", ...compat } },
     );
   });
   it("makes one explicit JSON revalidation request and never retries a failure", async () => {
@@ -215,6 +218,7 @@ describe("provider-free recipe session transport", () => {
         headers: {
           authorization: "Bearer token",
           "content-type": "application/json",
+          ...compat,
         },
         body: expect.any(String),
       },

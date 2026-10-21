@@ -20,6 +20,7 @@ import {
   type GoalResponse,
 } from "@mizyun/contracts";
 
+import { isLegacyClient } from "../../client-compat.js";
 import { sendApiError } from "../../errors.js";
 
 interface GoalsRoutesOptions {
@@ -97,12 +98,28 @@ const validationErrorToApi = (
   }
 };
 
+/** Matches the default the installed build-9 app uses when it creates a goal. */
+const LEGACY_TARGET_DATE_DAYS = 90;
+
+/**
+ * Installed Store builds up to 1.0.9 (9) parse `targetDate` as a required
+ * date. For those clients only, a goal without a chosen date is shown with
+ * `startsOn + 90 days`. The value exists only in the response: it is never
+ * stored, and build 9 never sends `targetDate` back on an update. Current
+ * clients (with the compatibility header) always see the stored `null`.
+ */
+export const legacyTargetDate = (startsOn: string): string => {
+  const date = new Date(`${startsOn}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + LEGACY_TARGET_DATE_DAYS);
+  return date.toISOString().slice(0, 10);
+};
+
 /**
  * Convert a `StoredGoal` (Date timestamps) into the wire shape. The
  * shape is parsed through the Zod contract at the producer side so
  * any future drift is caught at the boundary.
  */
-const toWire = (stored: StoredGoal): GoalResponse =>
+const toWire = (stored: StoredGoal, legacy = false): GoalResponse =>
   goalResponseSchema.parse({
     goal: {
       id: stored.id,
@@ -117,7 +134,10 @@ const toWire = (stored: StoredGoal): GoalResponse =>
           : {}),
       },
       startsOn: stored.startsOn,
-      targetDate: stored.targetDate,
+      targetDate:
+        stored.targetDate === null && legacy
+          ? legacyTargetDate(stored.startsOn)
+          : stored.targetDate,
       ...(stored.reviewDate !== undefined
         ? { reviewDate: stored.reviewDate }
         : {}),
@@ -129,9 +149,12 @@ const toWire = (stored: StoredGoal): GoalResponse =>
     },
   });
 
-const historyToWire = (goals: ReadonlyArray<StoredGoal>): GoalHistoryResponse =>
+const historyToWire = (
+  goals: ReadonlyArray<StoredGoal>,
+  legacy: boolean,
+): GoalHistoryResponse =>
   goalHistoryResponseSchema.parse({
-    goals: goals.map((g) => toWire(g).goal),
+    goals: goals.map((g) => toWire(g, legacy).goal),
   });
 
 export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
@@ -161,7 +184,7 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         );
         return;
       }
-      return toWire(active);
+      return toWire(active, isLegacyClient(request));
     },
   );
 
@@ -179,7 +202,7 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         principal.userId,
         { accessToken: principal.accessToken },
       );
-      return historyToWire(history);
+      return historyToWire(history, isLegacyClient(request));
     },
   );
 
@@ -252,7 +275,7 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
           stored,
           { accessToken: principal.accessToken },
         );
-        return toWire(saved);
+        return toWire(saved, isLegacyClient(request));
       } catch (cause) {
         // Repository enforces the at-most-one-active invariant.
         const message =
@@ -352,7 +375,7 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
           accessToken: principal.accessToken,
         },
       );
-      return toWire(saved);
+      return toWire(saved, isLegacyClient(request));
     },
   );
 };

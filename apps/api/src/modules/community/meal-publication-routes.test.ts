@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
 import type { StoredFoodEntry, UserId } from "@mizyun/core";
 import { buildApp } from "../../app.js";
 import { InMemoryCommunityRepository } from "../../community-repository.js";
@@ -9,7 +10,12 @@ const alice = "c2380000-0000-4000-8000-000000000001" as UserId;
 const bob = "c2380000-0000-4000-8000-000000000002" as UserId;
 const eve = "c2380000-0000-4000-8000-000000000003" as UserId;
 const mealId = "d2380000-0000-4000-8000-000000000001";
-const headers = (user: UserId) => ({ authorization: `Bearer ${user}` });
+// A current client; installed build 9 sends neither compatibility header.
+const headers = (user: UserId) => ({
+  authorization: `Bearer ${user}`,
+  [API_COMPAT_HEADER]: API_COMPAT_VERSION,
+});
+const legacyHeaders = (user: UserId) => ({ authorization: `Bearer ${user}` });
 const apps: ReturnType<typeof buildApp>[] = [];
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
@@ -198,6 +204,47 @@ describe("Community meal publication", () => {
         })
       ).statusCode,
     ).toBe(404);
+  });
+  it("hides meal cards from installed build-9 clients but keeps them for negotiating clients", async () => {
+    const { app, publish } = await setup();
+    const card = (await publish()).json();
+    const get = (url: string, h: Record<string, string>) =>
+      app.inject({ method: "GET", url, headers: h });
+    // Build 9 renders every card as a workout card and requires a
+    // sourceWorkoutId in owner context, so it receives no meal cards.
+    const feed = await get("/v1/community/feed", legacyHeaders(bob));
+    expect(feed.statusCode).toBe(200);
+    expect(feed.json().items).toEqual([]);
+    const profile = await get(
+      `/v1/community/profiles/${alice}/activities`,
+      legacyHeaders(bob),
+    );
+    expect(profile.statusCode).toBe(200);
+    expect(profile.json().items).toEqual([]);
+    expect(
+      (await get(`/v1/community/activities/${card.id}`, legacyHeaders(bob)))
+        .statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await get(
+          `/v1/community/activities/${card.id}/manage`,
+          legacyHeaders(alice),
+        )
+      ).statusCode,
+    ).toBe(404);
+    // Clients that negotiate kinds postdate meal cards, with or without the
+    // compatibility header.
+    for (const value of ["meal,bouldering", "bouldering"]) {
+      const negotiated = await get("/v1/community/feed", {
+        ...legacyHeaders(bob),
+        "x-mizyun-activity-kinds": value,
+      });
+      expect(
+        negotiated.json().items.map((item: { id: string }) => item.id),
+        value,
+      ).toEqual([card.id]);
+    }
   });
   it("requires explicit nutrition opt-in and rejects cross-owner or unconfirmed sources", async () => {
     const { app, preview, publish, foodEntryRepository, meal } = await setup();

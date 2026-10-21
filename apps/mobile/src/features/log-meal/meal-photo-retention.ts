@@ -7,7 +7,6 @@ import {
 import Constants from "expo-constants";
 import type { ApiClient } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
-import { getAppVariant } from "@/composition/app-variant";
 import {
   clearLoggingDraft,
   loadLoggingDraft,
@@ -16,8 +15,8 @@ import {
 import { createOperationId, isValidOperationId } from "./meal-form";
 import type { MealPhotoAssetInput } from "./meal-photo";
 
+/** On only when the build sets `extra.enableMealPhotos` (Dev, and Production since 2026-10-21). */
 export const mealPhotoRetentionEnabled = () =>
-  getAppVariant() === "dev" &&
   Constants.expoConfig?.extra?.enableMealPhotos === true;
 export const MAX_RETAINED_MEAL_PHOTO_BYTES = 256 * 1024;
 const retiredOwners = new Set<string>();

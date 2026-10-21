@@ -445,7 +445,7 @@ describe("loadServerConfig — closed-world", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("refuses Anthropic without the Dev-testing acknowledgement", () => {
+  it("refuses Anthropic without the ANTHROPIC_ENABLED acknowledgement", () => {
     const result = loadServerConfig({
       env: {
         ...baseSnapshot,
@@ -456,8 +456,49 @@ describe("loadServerConfig — closed-world", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toContainEqual(
-      expect.objectContaining({ key: SERVER_ENV_KEYS.anthropicDevTesting }),
+      expect.objectContaining({
+        key: SERVER_ENV_KEYS.anthropicEnabled,
+        reason: expect.stringContaining("ANTHROPIC_ENABLED=true"),
+      }),
     );
+  });
+
+  it("accepts ANTHROPIC_ENABLED=true in production without any Dev flag", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.env]: "production",
+        [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8000",
+        [SERVER_ENV_KEYS.supabasePublishableKey]: "publishable-key",
+        [SERVER_ENV_KEYS.supabaseServiceRoleKey]:
+          "service-role-key-that-is-long-enough",
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: "test-gemini-key-12345",
+        [SERVER_ENV_KEYS.anthropicApiKey]: "test-anthropic-key-12345",
+        [SERVER_ENV_KEYS.anthropicEnabled]: "true",
+        [SERVER_ENV_KEYS.coachProvider]: "anthropic",
+        [SERVER_ENV_KEYS.mealTextProvider]: "anthropic",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.env).toBe("production");
+    expect(result.value.aiRouting.coach).toBe("anthropic");
+    expect(result.value.aiRouting.mealPhoto).toBe("gemini");
+    expect(result.value.anthropicConfig).not.toBeNull();
+  });
+
+  it("keeps ANTHROPIC_DEV_TESTING=true as a legacy alias", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "anthropic",
+        [SERVER_ENV_KEYS.anthropicApiKey]: "test-anthropic-key-12345",
+        [SERVER_ENV_KEYS.anthropicDevTesting]: "true",
+        [SERVER_ENV_KEYS.anthropicEnabled]: "false",
+      },
+    });
+    expect(result.ok).toBe(true);
   });
 
   it("only accepts claude-haiku-5-5 as ANTHROPIC_MODEL", () => {
@@ -756,7 +797,7 @@ describe("loadServerConfig — per-feature AI routing", () => {
     expect(visionKeyOnly.ok).toBe(true);
   });
 
-  it("requires the Dev-testing acknowledgement for any Anthropic feature", () => {
+  it("requires the Anthropic acknowledgement for any Anthropic feature", () => {
     const result = loadServerConfig({
       env: {
         ...baseSnapshot,
@@ -771,7 +812,7 @@ describe("loadServerConfig — per-feature AI routing", () => {
     expect(result.error).toEqual([
       expect.objectContaining({
         kind: "malformed",
-        key: SERVER_ENV_KEYS.anthropicDevTesting,
+        key: SERVER_ENV_KEYS.anthropicEnabled,
       }),
     ]);
   });

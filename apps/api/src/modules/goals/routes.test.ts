@@ -4,6 +4,7 @@ import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
+import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
 import type { UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
@@ -413,6 +414,7 @@ describe("optional goal target date", () => {
   const headers = {
     authorization: "Bearer valid",
     "content-type": "application/json",
+    [API_COMPAT_HEADER]: API_COMPAT_VERSION,
   };
   const createBody = {
     kind: "cut",
@@ -512,5 +514,90 @@ describe("optional goal target date", () => {
     expect(response.json()).toMatchObject({
       error: { code: "VALIDATION_ERROR" },
     });
+  });
+});
+
+describe("goal target date for installed build-9 clients", () => {
+  const current = {
+    authorization: "Bearer valid",
+    "content-type": "application/json",
+    [API_COMPAT_HEADER]: API_COMPAT_VERSION,
+  };
+  const legacy = {
+    authorization: "Bearer valid",
+    "content-type": "application/json",
+  };
+
+  it("shows startsOn + 90 days to legacy clients only and never stores it", async () => {
+    const { app, goalRepository } = build(tokenVerifierFor({ userId: userA }));
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers: current,
+      payload: {
+        kind: "cut",
+        pace: "steady",
+        target: { weightKg: 78 },
+        startsOn: "2026-12-15",
+      },
+    });
+    expect(created.statusCode).toBe(200);
+    expect(created.json().goal.targetDate).toBeNull();
+    const id = created.json().goal.id as string;
+
+    const active = await app.inject({
+      method: "GET",
+      url: "/v1/goals/active",
+      headers: legacy,
+    });
+    expect(active.json().goal.targetDate).toBe("2027-03-15");
+    const history = await app.inject({
+      method: "GET",
+      url: "/v1/goals/history",
+      headers: legacy,
+    });
+    expect(history.json().goals[0].targetDate).toBe("2027-03-15");
+    // Build 9's goal settings update sends only target and pace.
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/v1/goals/${id}`,
+      headers: legacy,
+      payload: { target: { weightKg: 77 }, pace: "gradual" },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().goal.targetDate).toBe("2027-03-15");
+
+    expect(
+      (await goalRepository.getActive(userA, { accessToken: "test-token" }))
+        ?.targetDate,
+    ).toBeNull();
+    const currentRead = await app.inject({
+      method: "GET",
+      url: "/v1/goals/active",
+      headers: current,
+    });
+    expect(currentRead.json().goal.targetDate).toBeNull();
+  });
+
+  it("returns a stored target date unchanged to legacy clients", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers: legacy,
+      payload: {
+        kind: "cut",
+        pace: "steady",
+        target: { weightKg: 78 },
+        startsOn: "2026-01-01",
+        targetDate: "2026-02-01",
+      },
+    });
+    const active = await app.inject({
+      method: "GET",
+      url: "/v1/goals/active",
+      headers: legacy,
+    });
+    expect(active.json().goal.targetDate).toBe("2026-02-01");
   });
 });

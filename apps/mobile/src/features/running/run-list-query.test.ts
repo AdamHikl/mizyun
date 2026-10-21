@@ -1,18 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
-const variant = vi.hoisted(() => ({
-  value: "production" as "dev" | "production",
-}));
+const flags = vi.hoisted(() => ({ runImports: false }));
 vi.mock("@/composition/app-variant", () => ({
-  getAppVariant: () => variant.value,
+  isRunImportsEnabled: () => flags.runImports,
 }));
 import { runListBaseQuery } from "./run-list-query";
 
 describe("run list query", () => {
-  it("asks for imported runs only in Dev, where older APIs aren't in use", () => {
-    variant.value = "production";
+  it("asks for imported runs exactly when this build can import them", () => {
+    flags.runImports = false;
     expect(runListBaseQuery()).toEqual({ limit: "50" });
-    variant.value = "dev";
+    flags.runImports = true;
     expect(runListBaseQuery()).toEqual({ limit: "50", include: "imports" });
   });
 });

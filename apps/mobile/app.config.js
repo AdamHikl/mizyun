@@ -324,7 +324,12 @@ module.exports = {
           }
         : {}),
       enableProgressPhotos: variantName === "dev",
-      enableMealPhotos: variantName === "dev",
+      // Released to Production on 2026-10-21; each still needs its server switch.
+      enableMealPhotos: true,
+      enableBouldering: true,
+      enableStretchAi: true,
+      enableRunImports: true,
+      enableCommunity: true,
     },
     ios: {
       ...baseIos,

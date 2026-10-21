@@ -54,7 +54,7 @@ export function setCommunityReadPrincipal(
  * not change the read identity; it is added only on the network leg.
  */
 export const COMMUNITY_ACTIVITY_KINDS_HEADER = "x-mizyun-activity-kinds";
-export const COMMUNITY_RENDERED_EXTRA_KINDS = ["bouldering"] as const;
+export const COMMUNITY_RENDERED_EXTRA_KINDS = ["meal", "bouldering"] as const;
 
 export function withRenderedActivityKinds(
   options: RequestOptions,

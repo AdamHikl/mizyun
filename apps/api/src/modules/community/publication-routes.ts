@@ -29,6 +29,7 @@ import {
   type WorkoutSharePreviewDto,
 } from "@mizyun/contracts";
 import { sendApiError } from "../../errors.js";
+import { clientRendersActivity } from "./activity-kinds.js";
 import { registerCommunityErrorHandler } from "./error-handler.js";
 
 const GENERIC_UUID =
@@ -705,7 +706,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         profile.status !== "active" ||
         !activity ||
         activity.userId !== principal.userId ||
-        activity.revokedAt !== null
+        activity.revokedAt !== null ||
+        !clientRendersActivity(request, activity.activityKind)
       )
         return unavailable();
       if (activity.activityKind === "meal") {
@@ -813,7 +815,11 @@ export const communityPublicationRoutes: FastifyPluginAsync<
       const activity = await options.communityRepository.getActivityById(id, {
         accessToken: principal.accessToken,
       });
-      if (!activity || activity.revokedAt !== null) {
+      if (
+        !activity ||
+        activity.revokedAt !== null ||
+        !clientRendersActivity(request, activity.activityKind)
+      ) {
         return sendApiError(
           reply,
           request,

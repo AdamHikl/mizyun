@@ -51,9 +51,13 @@ export interface ServerGeminiVisionConfiguration {
 }
 
 /**
- * ADR-0069 — Anthropic (Claude) serves every AI feature routed to it (see
- * `ServerAiRouting`) once `ANTHROPIC_API_KEY` is set. Meal illustrations stay
- * on Gemini because Claude does not generate images.
+ * ADR-0069 / ADR-0077 — Anthropic (Claude) serves AI features routed to it
+ * (see `ServerAiRouting`) once `ANTHROPIC_API_KEY` is set and the route is
+ * acknowledged with `ANTHROPIC_ENABLED=true` (or the legacy Dev alias
+ * `ANTHROPIC_DEV_TESTING=true`). The API serves a request with Anthropic
+ * only when the user's stored consent disclosed Anthropic; other requests
+ * use Gemini. Meal illustrations stay on Gemini because Claude does not
+ * generate images.
  */
 export interface ServerAnthropicConfiguration {
   readonly apiKey: string;
@@ -187,6 +191,7 @@ export const SERVER_ENV_KEYS = {
   anthropicVisionTimeoutMs: "ANTHROPIC_VISION_TIMEOUT_MS",
   anthropicMaxOutputTokens: "ANTHROPIC_MAX_OUTPUT_TOKENS",
   anthropicWebSearch: "ANTHROPIC_WEB_SEARCH",
+  anthropicEnabled: "ANTHROPIC_ENABLED",
   anthropicDevTesting: "ANTHROPIC_DEV_TESTING",
   coachProvider: "COACH_PROVIDER",
   mealTextProvider: "MEAL_TEXT_PROVIDER",
@@ -373,6 +378,15 @@ const baseServerSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((value) => value === "true"),
+  /**
+   * Explicit acknowledgement that AI features may route to Anthropic, valid
+   * in any environment (Adam, 2026-10-21: Production routes per ADR-0077).
+   */
+  anthropicEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /** Legacy Dev alias of `ANTHROPIC_ENABLED` (ADR-0069); still accepted. */
   anthropicDevTesting: z
     .enum(["true", "false"])
     .default("false")
@@ -624,15 +638,17 @@ export const loadServerConfig = (
   if (
     parsed.success &&
     Object.values(resolveAiRouting(parsed.data)).includes("anthropic") &&
+    !parsed.data.anthropicEnabled &&
     !parsed.data.anthropicDevTesting
   ) {
-    // ADR-0069 — Dev and Production both run NODE_ENV=production, so the
-    // Dev-only approval is an explicit opt-in that a copied env cannot omit.
+    // ADR-0069 / ADR-0077 — routing to Anthropic is a deliberate decision,
+    // so an env that names Anthropic without the acknowledgement fails to
+    // load instead of silently sending data to a new processor.
     issues.push({
       kind: "malformed",
-      key: SERVER_ENV_KEYS.anthropicDevTesting,
+      key: SERVER_ENV_KEYS.anthropicEnabled,
       reason:
-        "Routing an AI feature to Anthropic (AGENT_PROVIDER or a per-feature *_PROVIDER key) is approved for Dev testing only; set ANTHROPIC_DEV_TESTING=true to acknowledge.",
+        "Routing an AI feature to Anthropic (AGENT_PROVIDER or a per-feature *_PROVIDER key) must be acknowledged; set ANTHROPIC_ENABLED=true (ANTHROPIC_DEV_TESTING=true is accepted as a legacy alias).",
     });
   }
   if (parsed.success && parsed.data.env === "production") {

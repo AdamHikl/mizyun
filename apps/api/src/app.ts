@@ -32,6 +32,14 @@ import {
   type AnthropicRecipeProviderOptions,
 } from "@mizyun/provider-anthropic";
 import { mealIllustrationRoutes } from "./modules/meal-illustrations/routes.js";
+import {
+  consentGatedAgentProvider,
+  consentGatedContentModerator,
+  consentGatedIngredientRecognitionProvider,
+  consentGatedRecipeAssistantProvider,
+  consentGatedRecipeGenerationProvider,
+  consentGatedVisionDraftProvider,
+} from "./ai-consent-routing.js";
 import { InMemoryMealIllustrationRepository } from "./modules/meal-illustrations/repository.js";
 import type { RunRepository } from "@mizyun/core";
 import { SupabaseRunRepository } from "@mizyun/adapter-supabase-server";
@@ -90,7 +98,7 @@ import { sendApiError } from "./errors.js";
 import fs from "node:fs";
 import path from "node:path";
 
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fastifyMultipart from "@fastify/multipart";
 
 import {
@@ -98,6 +106,7 @@ import {
   DisabledAgentProvider,
   DisabledVisionProvider,
   StubVisionProvider,
+  type AgentProvider,
   type AgentToolRegistry,
   type ContentModerator,
   type VisionDraftProvider,
@@ -498,6 +507,51 @@ export const selectRecipeProviders = (input: {
   };
 };
 
+/**
+ * Recipe providers for the routed features, gated by consent: a slot routed
+ * to Anthropic serves a request with Anthropic only when the user's stored
+ * consent disclosed Anthropic, and otherwise with that slot's Gemini (or
+ * disabled) provider. Slots routed to Gemini use the Gemini provider.
+ */
+export const selectConsentGatedRecipeProviders = (input: {
+  readonly routing: Pick<
+    ServerAiRouting,
+    "recipeIdeas" | "ingredientPhotos" | "cookingAssistant"
+  >;
+  readonly anthropic: AnthropicRecipeProviderOptions | null;
+  readonly gemini: GeminiRecipeProviderOptions | null;
+}): ReturnType<typeof selectRecipeProviders> => {
+  const fallback = selectRecipeProviders({
+    routing: GEMINI_ONLY_ROUTING,
+    anthropic: null,
+    gemini: input.gemini,
+  });
+  const consented = selectRecipeProviders(input);
+  return {
+    generation:
+      input.routing.recipeIdeas === "anthropic"
+        ? consentGatedRecipeGenerationProvider({
+            consented: consented.generation,
+            fallback: fallback.generation,
+          })
+        : fallback.generation,
+    recognition:
+      input.routing.ingredientPhotos === "anthropic"
+        ? consentGatedIngredientRecognitionProvider({
+            consented: consented.recognition,
+            fallback: fallback.recognition,
+          })
+        : fallback.recognition,
+    assistant:
+      input.routing.cookingAssistant === "anthropic"
+        ? consentGatedRecipeAssistantProvider({
+            consented: consented.assistant,
+            fallback: fallback.assistant,
+          })
+        : fallback.assistant,
+  };
+};
+
 const defaultDependencies = (): AppDependencies => {
   const result = loadServerConfig();
   // `server.ts` already exits if this fails, but we re-read here so the
@@ -537,29 +591,36 @@ const defaultDependencies = (): AppDependencies => {
           },
         })
       : new InMemoryEmailSender();
-  const provider =
-    anthropicConfig !== null
-      ? new AnthropicAgentProvider({
-          apiKey: anthropicConfig.apiKey,
-          model: anthropicConfig.model,
-          effort: anthropicConfig.effort,
-          timeoutMs: anthropicConfig.timeoutMs,
-          maxOutputTokens: anthropicConfig.maxOutputTokens,
+  // Gemini serves Coach for every consent version; Anthropic only for users
+  // whose stored consent disclosed it (consent-gated, fails closed to Gemini).
+  const geminiCoachProvider =
+    geminiConfig !== null && config.agentProvider !== "disabled"
+      ? new GeminiAgentProvider({
+          apiKey: geminiConfig.apiKey,
+          model: geminiConfig.model,
+          ...(geminiConfig.fallbackModel
+            ? { fallbackModel: geminiConfig.fallbackModel }
+            : {}),
+          thinkingBudget: geminiConfig.thinkingBudget,
+          timeoutMs: geminiConfig.timeoutMs,
+          maxOutputTokens: geminiConfig.maxOutputTokens,
           externalAccess: config.aiExternalAccess,
         })
-      : geminiConfig !== null && config.agentProvider !== "disabled"
-        ? new GeminiAgentProvider({
-            apiKey: geminiConfig.apiKey,
-            model: geminiConfig.model,
-            ...(geminiConfig.fallbackModel
-              ? { fallbackModel: geminiConfig.fallbackModel }
-              : {}),
-            thinkingBudget: geminiConfig.thinkingBudget,
-            timeoutMs: geminiConfig.timeoutMs,
-            maxOutputTokens: geminiConfig.maxOutputTokens,
+      : null;
+  const provider =
+    anthropicConfig !== null
+      ? consentGatedAgentProvider({
+          consented: new AnthropicAgentProvider({
+            apiKey: anthropicConfig.apiKey,
+            model: anthropicConfig.model,
+            effort: anthropicConfig.effort,
+            timeoutMs: anthropicConfig.timeoutMs,
+            maxOutputTokens: anthropicConfig.maxOutputTokens,
             externalAccess: config.aiExternalAccess,
-          })
-        : new DisabledAgentProvider();
+          }),
+          fallback: geminiCoachProvider ?? new DisabledAgentProvider(),
+        })
+      : (geminiCoachProvider ?? new DisabledAgentProvider());
   // The default memory store is in-memory. When Supabase is
   // configured, the buildApp step swaps it for a Supabase-backed
   // store below; we leave the in-memory default here so dev/test
@@ -571,8 +632,13 @@ const defaultDependencies = (): AppDependencies => {
     tokenVerifier: tokenVerifierFromConfig(config),
     ...(anthropicConfig !== null
       ? {
-          moderator: new AnthropicContentModerator({
-            externalAccess: config.aiExternalAccess,
+          moderator: consentGatedContentModerator({
+            consented: new AnthropicContentModerator({
+              externalAccess: config.aiExternalAccess,
+            }),
+            fallback: new GeminiContentModerator({
+              externalAccess: config.aiExternalAccess,
+            }),
           }),
         }
       : geminiConfig !== null && config.agentProvider !== "disabled"
@@ -1235,10 +1301,10 @@ export const buildApp = (
           enableWebSearch: anthropicConfig.webSearch,
         })
       : null;
+  // Gemini also serves Anthropic-routed drafts for users whose stored
+  // consent did not disclose Anthropic, so build it whenever configured.
   const geminiVisionProvider =
-    configResult.ok &&
-    configResult.value.geminiVisionConfig !== null &&
-    visionVendors.includes("gemini")
+    configResult.ok && configResult.value.geminiVisionConfig !== null
       ? new GeminiVisionProvider({
           apiKey: configResult.value.geminiVisionConfig.apiKey,
           model: configResult.value.geminiVisionConfig.model,
@@ -1256,16 +1322,21 @@ export const buildApp = (
     vendor === "anthropic" ? anthropicVisionProvider : geminiVisionProvider;
   // Photo drafts, text/refine drafts, activity drafts and stretch plans each
   // go to their routed vendor; one vendor for all yields that provider as is.
+  // Anthropic serves only requests whose stored consent disclosed it; every
+  // other request uses Gemini (or the disabled provider), never Anthropic.
   const modelVisionProvider: VisionDraftProvider | null =
     anthropicVisionProvider === null && geminiVisionProvider === null
       ? null
       : (() => {
           const disabled = new DisabledVisionProvider();
-          return createRoutingVisionDraftProvider({
-            photo: visionFor(aiRouting.mealPhoto) ?? disabled,
-            text: visionFor(aiRouting.mealText) ?? disabled,
-            activity: visionFor(aiRouting.activityDraft) ?? disabled,
-            stretch: visionFor(aiRouting.stretchPlan) ?? disabled,
+          return consentGatedVisionDraftProvider({
+            consented: createRoutingVisionDraftProvider({
+              photo: visionFor(aiRouting.mealPhoto) ?? disabled,
+              text: visionFor(aiRouting.mealText) ?? disabled,
+              activity: visionFor(aiRouting.activityDraft) ?? disabled,
+              stretch: visionFor(aiRouting.stretchPlan) ?? disabled,
+            }),
+            fallback: geminiVisionProvider ?? disabled,
           });
         })();
 
@@ -1291,57 +1362,75 @@ export const buildApp = (
     return visionProvider;
   };
 
-  const anthropicAgent =
+  const geminiCoachAgentProvider =
+    configResult.ok && configResult.value.geminiConfig !== null
+      ? new GeminiAgentProvider({
+          apiKey: configResult.value.geminiConfig.apiKey,
+          model: configResult.value.geminiConfig.model,
+          ...(configResult.value.geminiConfig.fallbackModel
+            ? {
+                fallbackModel: configResult.value.geminiConfig.fallbackModel,
+              }
+            : {}),
+          thinkingBudget: configResult.value.geminiConfig.thinkingBudget,
+          timeoutMs: configResult.value.geminiConfig.timeoutMs,
+          maxOutputTokens: configResult.value.geminiConfig.maxOutputTokens,
+          externalAccess: configResult.value.aiExternalAccess,
+        })
+      : null;
+  const anthropicCoachAgentProvider =
     configResult.ok &&
     anthropicConfig !== null &&
     aiRouting.coach === "anthropic"
-      ? new AgentOrchestrator({
-          provider: new AnthropicAgentProvider({
-            apiKey: anthropicConfig.apiKey,
-            model: anthropicConfig.model,
-            effort: anthropicConfig.effort,
-            timeoutMs: anthropicConfig.timeoutMs,
-            maxOutputTokens: anthropicConfig.maxOutputTokens,
-            externalAccess: configResult.value.aiExternalAccess,
-          }),
-          memories: resolveMemoryStore(dependencies),
-          maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
-          moderator: new AnthropicContentModerator({
-            externalAccess: configResult.value.aiExternalAccess,
-          }),
-          ...(defaultToolSet.list().length > 0
-            ? { tools: defaultToolSet }
-            : {}),
+      ? new AnthropicAgentProvider({
+          apiKey: anthropicConfig.apiKey,
+          model: anthropicConfig.model,
+          effort: anthropicConfig.effort,
+          timeoutMs: anthropicConfig.timeoutMs,
+          maxOutputTokens: anthropicConfig.maxOutputTokens,
+          externalAccess: configResult.value.aiExternalAccess,
         })
       : null;
+  const externalModerationAccess =
+    configResult.ok && configResult.value.aiExternalAccess;
+  const coachModelAgent = (
+    provider: AgentProvider,
+    moderator: ContentModerator,
+  ): AgentOrchestrator =>
+    new AgentOrchestrator({
+      provider,
+      memories: resolveMemoryStore(dependencies),
+      maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
+      moderator,
+      ...(defaultToolSet.list().length > 0 ? { tools: defaultToolSet } : {}),
+    });
+  // Coach routed to Anthropic answers with Anthropic only for users whose
+  // stored consent disclosed it; everyone else gets Gemini (or the disabled
+  // provider when Gemini is not configured). Provenance names the provider
+  // that actually answered.
   const modelAgent =
-    aiRouting.coach === "anthropic"
-      ? anthropicAgent
-      : configResult.ok && configResult.value.geminiConfig !== null
-        ? new AgentOrchestrator({
-            provider: new GeminiAgentProvider({
-              apiKey: configResult.value.geminiConfig.apiKey,
-              model: configResult.value.geminiConfig.model,
-              ...(configResult.value.geminiConfig.fallbackModel
-                ? {
-                    fallbackModel:
-                      configResult.value.geminiConfig.fallbackModel,
-                  }
-                : {}),
-              thinkingBudget: configResult.value.geminiConfig.thinkingBudget,
-              timeoutMs: configResult.value.geminiConfig.timeoutMs,
-              maxOutputTokens: configResult.value.geminiConfig.maxOutputTokens,
-              externalAccess: configResult.value.aiExternalAccess,
+    anthropicCoachAgentProvider !== null
+      ? coachModelAgent(
+          consentGatedAgentProvider({
+            consented: anthropicCoachAgentProvider,
+            fallback: geminiCoachAgentProvider ?? new DisabledAgentProvider(),
+          }),
+          consentGatedContentModerator({
+            consented: new AnthropicContentModerator({
+              externalAccess: externalModerationAccess,
             }),
-            memories: resolveMemoryStore(dependencies),
-            maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
-            moderator: new GeminiContentModerator({
-              externalAccess: configResult.value.aiExternalAccess,
+            fallback: new GeminiContentModerator({
+              externalAccess: externalModerationAccess,
             }),
-            ...(defaultToolSet.list().length > 0
-              ? { tools: defaultToolSet }
-              : {}),
-          })
+          }),
+        )
+      : aiRouting.coach === "gemini" && geminiCoachAgentProvider !== null
+        ? coachModelAgent(
+            geminiCoachAgentProvider,
+            new GeminiContentModerator({
+              externalAccess: externalModerationAccess,
+            }),
+          )
         : null;
 
   const resolveAgent = (_providerKind?: AiProvider): AgentOrchestrator => {
@@ -1514,7 +1603,7 @@ export const buildApp = (
         externalAccess: configResult.ok && configResult.value.aiExternalAccess,
       }
     : null;
-  const routedRecipeProviders = selectRecipeProviders({
+  const routedRecipeProviders = selectConsentGatedRecipeProviders({
     routing: aiRouting,
     anthropic: anthropicRecipeOptions,
     gemini: recipeProviderOptions,
@@ -1885,12 +1974,26 @@ export const buildApp = (
   // share the same backing store. The orchestrator's
   // `dependencies.memories` is the default; tests may inject a
   // custom store via `coachControls.memoryStore`.
+  // `/v1/coach/status` is public; a valid bearer token lets it report the
+  // provider that serves that caller under consent-gated routing.
+  const resolveStatusConsent = async (request: FastifyRequest) => {
+    const token = /^Bearer\s+(.+)$/i
+      .exec(request.headers.authorization ?? "")?.[1]
+      ?.trim();
+    if (!token) return null;
+    const principal = await dependencies.tokenVerifier.verify(token);
+    if (!principal) return null;
+    return aiConsentRepository.getConsent(principal.userId, {
+      accessToken: principal.accessToken,
+    });
+  };
   void app.register(coachRoutes, {
     runRepository,
     prefix: "/v1/coach",
     // `/v1/coach/status` reports the agent that actually serves Coach.
     agent: resolveAgent(),
     resolveAgent,
+    resolveStatusConsent,
     conversationRepository,
     profileRepository,
     betaProRepository,

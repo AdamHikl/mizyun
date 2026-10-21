@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { loadMealPhotosEnabled } from "./meal-photos";
-describe("Dev retained meal photos", () => {
-  it("fails closed unless every explicit Dev condition holds", () => {
+describe("retained meal photos", () => {
+  it("fails closed in Dev unless every explicit Dev condition holds", () => {
     const dev = {
       MIZYUN_ENVIRONMENT: "dev",
       MEAL_PHOTOS_ENABLED: "true",
@@ -16,5 +16,23 @@ describe("Dev retained meal photos", () => {
     ])
       expect(loadMealPhotosEnabled({ ...dev, ...change })).toBe(false);
     expect(loadMealPhotosEnabled({})).toBe(false);
+  });
+
+  it("needs the explicit release flag outside Dev", () => {
+    const production = { API_PORT: "4000", MEAL_PHOTOS_ENABLED: "true" };
+    expect(loadMealPhotosEnabled(production)).toBe(false);
+    expect(
+      loadMealPhotosEnabled({
+        ...production,
+        MIZYUN_MEAL_PHOTOS_ENABLED: "true",
+      }),
+    ).toBe(true);
+    for (const value of ["1", "TRUE", "", undefined])
+      expect(
+        loadMealPhotosEnabled({
+          ...production,
+          MIZYUN_MEAL_PHOTOS_ENABLED: value,
+        }),
+      ).toBe(false);
   });
 });

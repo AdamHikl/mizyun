@@ -615,6 +615,11 @@ export {
 
 export {
   AI_CONSENT_VERSION_TWO_PROVIDERS,
+  AI_CONSENT_VERSIONS_DISCLOSING_ANTHROPIC,
+  AI_FEATURES_DISCLOSED_FOR_ANTHROPIC,
+  aiConsentDisclosesAnthropic,
+  aiConsentDisclosesAnthropicFor,
+  type AiRoutedFeature,
   CURRENT_AI_CONSENT_VERSION,
   DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
   LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
@@ -625,6 +630,7 @@ export {
   accountDeleteStatusSchema,
   accountExportResponseSchema,
   legacyAccountExportResponseSchema,
+  LEGACY_COMMUNITY_EXPORT_SCHEMA_VERSION,
   accountExportSchema,
   aiConsentResponseSchema,
   aiConsentSchema,
@@ -913,3 +919,5 @@ export * from "./meal-recipe-session";
 export * from "./meal-recipe-assistant";
 
 export * from "./recurring-meal-suggestion";
+
+export * from "./client-compat";

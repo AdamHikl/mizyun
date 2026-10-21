@@ -184,12 +184,84 @@ describe("Apple cleanup under accepted deletion job", () => {
     ).rejects.toThrow(/^Apple account cleanup failed$/);
     expect(f.client.revokeToken).not.toHaveBeenCalled();
     expect(f.state.record).toBeNull();
+    await createAppleDeletionCleanup(f.options)(f.context, "fresh-code");
+    expect(f.client.exchangeAuthorizationCode).toHaveBeenCalledTimes(2);
+    expect(f.state.record?.status).toBe("revoked");
+  });
+
+  it("continues deletion without an authorization code and records a subject-free skipped outcome", async () => {
+    const f = setup();
+    // Even without Apple configuration (for example an Android-only host).
+    const options = {
+      repository: f.repository,
+      revocationRepository: f.revocationRepository,
+    };
+    await expect(createAppleDeletionCleanup(options)(f.context)).resolves.toBe(
+      "skipped_no_authorization_code",
+    );
+    expect(f.client.exchangeAuthorizationCode).not.toHaveBeenCalled();
+    expect(f.client.revokeToken).not.toHaveBeenCalled();
+    expect(f.context.assertLease).toHaveBeenCalled();
+    expect(f.state.record).toEqual({
+      jobId: baseContext.jobId,
+      userId,
+      provider: "apple",
+      status: "skipped_no_authorization_code",
+      subject: null,
+      clientId: null,
+      encryptedToken: null,
+    });
+    expect(JSON.stringify(f.state.record)).not.toContain("apple-a");
+    // The recorded outcome is final for this job: a resumed attempt neither
+    // fails nor exchanges a later code.
+    await expect(
+      createAppleDeletionCleanup(f.options)(f.context, "late-code"),
+    ).resolves.toBe("skipped_no_authorization_code");
+    expect(f.client.exchangeAuthorizationCode).not.toHaveBeenCalled();
+    expect(f.revocationRepository.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the strict path when a code arrives: missing protection still fails before exchange", async () => {
+    const f = setup();
+    await expect(
+      createAppleDeletionCleanup({ ...f.options, encryptionKey: undefined })(
+        f.context,
+        "fresh-code",
+      ),
+    ).rejects.toThrow(/^Apple account cleanup failed$/);
+    expect(f.client.exchangeAuthorizationCode).not.toHaveBeenCalled();
+    expect(f.state.record).toBeNull();
+  });
+
+  it("finishes a persisted pending revocation even when the resumed request has no code", async () => {
+    const f = setup();
+    f.client.revokeToken.mockResolvedValueOnce(
+      err({ kind: "http_error", error: "server_error", message: "down" }),
+    );
+    await expect(
+      createAppleDeletionCleanup(f.options)(f.context, "fresh-code"),
+    ).rejects.toThrow(/^Apple account cleanup failed$/);
+    expect(f.state.record?.status).toBe("pending");
+    await expect(
+      createAppleDeletionCleanup(f.options)(f.context),
+    ).resolves.toBe("revoked");
+    expect(f.state.record?.status).toBe("revoked");
+  });
+
+  it("rejects a skipped marker that carries Apple identity data", async () => {
+    const f = setup();
+    f.state.record = {
+      jobId: baseContext.jobId,
+      userId,
+      provider: "apple",
+      status: "skipped_no_authorization_code",
+      subject: "apple-a",
+      clientId: null,
+      encryptedToken: null,
+    };
     await expect(
       createAppleDeletionCleanup(f.options)(f.context),
     ).rejects.toThrow(/^Apple account cleanup failed$/);
-    expect(f.client.exchangeAuthorizationCode).toHaveBeenCalledTimes(1);
-    await createAppleDeletionCleanup(f.options)(f.context, "fresh-code");
-    expect(f.client.exchangeAuthorizationCode).toHaveBeenCalledTimes(2);
   });
 
   it("does not store or revoke an exchanged token whose identity fails verification", async () => {

@@ -4,6 +4,8 @@ import {
   getAppVariant,
   isBoulderingEnabled,
   isProgressPhotosEnabled,
+  isRunImportsEnabled,
+  isStretchAiEnabled,
   resolveAppVariant,
 } from "./app-variant";
 
@@ -145,6 +147,28 @@ describe("app-variant", () => {
           expoExtraBouldering: false,
         }),
       ).toBe(false);
+    });
+  });
+
+  describe.each([
+    ["isStretchAiEnabled", isStretchAiEnabled, "expoExtraStretchAi"],
+    ["isRunImportsEnabled", isRunImportsEnabled, "expoExtraRunImports"],
+  ] as const)("%s", (_name, enabled, flag) => {
+    it("is on for Dev and off for Production without a flag", () => {
+      expect(enabled({ expoExtraVariant: "dev", [flag]: null })).toBe(true);
+      expect(enabled({ expoExtraVariant: "production", [flag]: null })).toBe(
+        false,
+      );
+    });
+
+    it("follows an explicit boolean flag in either variant", () => {
+      expect(enabled({ expoExtraVariant: "production", [flag]: true })).toBe(
+        true,
+      );
+      expect(enabled({ expoExtraVariant: "dev", [flag]: false })).toBe(false);
+      expect(enabled({ expoExtraVariant: "production", [flag]: "true" })).toBe(
+        false,
+      );
     });
   });
 });

@@ -5,6 +5,10 @@ import {
   VisionProviderError,
   type VisionDraftProvider,
 } from "@mizyun/agent-runtime";
+import {
+  API_COMPAT_HEADER,
+  coachNutritionProposalSchema,
+} from "@mizyun/contracts";
 import type { UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 
@@ -55,6 +59,7 @@ const postPhoto = (
   authorization = "Bearer valid",
   photos: readonly Buffer[] = [Buffer.from([0xff, 0xd8, 0xff, 0xe0])],
   textHint?: string,
+  extraHeaders: Readonly<Record<string, string>> = {},
 ) => {
   const boundary = `----MizyunCoach${randomUUID()}`;
   const body = Buffer.concat([
@@ -82,10 +87,14 @@ const postPhoto = (
       "content-type": `multipart/form-data; boundary=${boundary}`,
       "content-length": String(body.length),
       "idempotency-key": idempotencyKey,
+      ...extraHeaders,
     },
     payload: body,
   });
 };
+
+/** Current clients (packages/api-client) send the compatibility header. */
+const currentClient = { [API_COMPAT_HEADER]: "2026-10-21" };
 
 describe("Coach nutrition photo proposals", () => {
   it.each(["free", "paid"] as const)(
@@ -267,6 +276,7 @@ describe("Coach multiple photo requests", () => {
       "Bearer valid",
       [photo, photo, photo],
       "Two meals",
+      currentClient,
     );
     expect(first.statusCode).toBe(200);
     expect(first.json().userMessage.text).toBe(
@@ -289,8 +299,103 @@ describe("Coach multiple photo requests", () => {
       "multi-photo-request-001",
       "Bearer valid",
       [photo],
+      undefined,
+      currentClient,
     );
     expect(replay.json()).toEqual(first.json());
+    expect(generateDraft).toHaveBeenCalledTimes(1);
+  });
+  it("keeps a multi-photo thread parseable by the installed build 9 strict proposal schema", async () => {
+    // Build 9 (dd5b4353) parsed meal-log proposals with `.strict()` and had
+    // no `additionalCandidates`; that is the only difference from today.
+    const build9ProposalSchema = coachNutritionProposalSchema
+      .omit({ additionalCandidates: true })
+      .strict();
+    const stub = new StubVisionProvider();
+    const generateDraft = vi.fn(
+      async (request: Parameters<VisionDraftProvider["generateDraft"]>[0]) => {
+        const candidate = await stub.generateDraft(request);
+        return {
+          ...candidate,
+          additionalDrafts: [{ ...candidate, name: "Second meal" }],
+        };
+      },
+    );
+    const app = buildApp({
+      tokenVerifier,
+      profileRepository: new InMemoryProfileRepository({
+        defaultPlanTier: "paid",
+        defaultBirthYear: 1990,
+        defaultTimezone: "UTC",
+        defaultUnitSystem: "metric",
+      }),
+      coachControls: {
+        visionProvider: { status: () => stub.status(), generateDraft },
+      },
+    });
+    apps.push(app);
+    const id = await createConversation(app);
+    // A current client stores the extra estimate in the shared thread.
+    const stored = await postPhoto(
+      app,
+      id,
+      "multi-photo-request-legacy",
+      "Bearer valid",
+      [photo, photo],
+      "Two meals",
+      currentClient,
+    );
+    expect(
+      stored.json().assistantMessage.actionProposal.additionalCandidates,
+    ).toHaveLength(1);
+    // Unstripped, that proposal breaks the installed build's strict parse.
+    expect(
+      build9ProposalSchema.safeParse(
+        stored.json().assistantMessage.actionProposal,
+      ).success,
+    ).toBe(false);
+
+    // The installed build (no header) replays and reloads the same thread.
+    const replay = await postPhoto(
+      app,
+      id,
+      "multi-photo-request-legacy",
+      "Bearer valid",
+      [photo],
+    );
+    expect(replay.statusCode).toBe(200);
+    const replayed = replay.json().assistantMessage.actionProposal;
+    expect(replayed).not.toHaveProperty("additionalCandidates");
+    expect(build9ProposalSchema.safeParse(replayed).success).toBe(true);
+    const thread = await app.inject({
+      method: "GET",
+      url: `/v1/coach/conversations/${id}`,
+      headers: auth,
+    });
+    expect(thread.statusCode).toBe(200);
+    const proposals = (
+      thread.json().messages as { actionProposal: unknown }[]
+    ).flatMap((message) =>
+      message.actionProposal === null ? [] : [message.actionProposal],
+    );
+    expect(proposals).toHaveLength(1);
+    for (const proposal of proposals) {
+      expect(build9ProposalSchema.safeParse(proposal).success).toBe(true);
+    }
+    // The current client still sees the extra estimate.
+    const current = await app.inject({
+      method: "GET",
+      url: `/v1/coach/conversations/${id}`,
+      headers: { ...auth, ...currentClient },
+    });
+    expect(
+      current
+        .json()
+        .messages.find(
+          (message: { actionProposal: unknown }) =>
+            message.actionProposal !== null,
+        ).actionProposal.additionalCandidates,
+    ).toHaveLength(1);
     expect(generateDraft).toHaveBeenCalledTimes(1);
   });
   it("rejects multiple photos for free accounts regardless of paid quota override", async () => {

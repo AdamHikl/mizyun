@@ -37,16 +37,49 @@ describe("Dev-only Community enrollment presentation", () => {
       ).toBe(false);
     },
   );
-  it("keeps Production closed even when a public enrollment flag is true", () => {
+  const productionEnv = {
+    ...devEnv,
+    EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
+  };
+  const resolveProduction = (communityReleased: unknown, env = productionEnv) =>
+    resolveCommunityEnrollmentOpen({
+      variant: "production",
+      configuration: loadMobileConfig({ env }),
+      communityReleased,
+    });
+  it("keeps Production closed without the build's release flag, even when a public enrollment flag is true", () => {
     vi.stubEnv("EXPO_PUBLIC_COMMUNITY_ENROLLMENT_OPEN", "true");
-    const productionEnv = {
-      ...devEnv,
-      EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
-      EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
-      EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
-    };
     expect(resolve("production", productionEnv)).toBe(false);
+    for (const flag of [false, "true", 1, null, undefined])
+      expect(resolveProduction(flag)).toBe(false);
     expect(resolve("dev", productionEnv)).toBe(false);
+  });
+  it("opens a released Production build only on the canonical Production targets", () => {
+    expect(resolveProduction(true)).toBe(true);
+    expect(
+      resolveProduction(true, {
+        ...productionEnv,
+        EXPO_PUBLIC_API_URL: `${productionEnv.EXPO_PUBLIC_API_URL}/`,
+      }),
+    ).toBe(true);
+    for (const override of [
+      { EXPO_PUBLIC_API_URL: "https://mizyun-api-dev.phiskel.com" },
+      { EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase-dev.phiskel.com" },
+      { EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun-dev://auth/callback" },
+      { EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com.attacker.test" },
+    ])
+      expect(resolveProduction(true, { ...productionEnv, ...override })).toBe(
+        false,
+      );
+    expect(
+      resolveCommunityEnrollmentOpen({
+        variant: "preview",
+        configuration: loadMobileConfig({ env: productionEnv }),
+        communityReleased: true,
+      }),
+    ).toBe(false);
   });
   it.each([
     { EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com" },

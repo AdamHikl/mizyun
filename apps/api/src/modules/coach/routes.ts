@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import {
   AgentProviderError,
   AgentToolBudgetExceededError,
@@ -24,6 +24,7 @@ import type {
   RunRepository,
   WorkoutSetRepository,
   AiConsentRepository,
+  StoredAiConsent,
 } from "@mizyun/core";
 import {
   coachConversationCreateSchema,
@@ -50,10 +51,12 @@ import {
 } from "@mizyun/contracts";
 import type { MemoryStore } from "@mizyun/memory";
 
+import { runWithAiConsent } from "../../ai-consent-routing.js";
 import {
   authorizeAiAccess,
   isAdultEligibleForAi,
 } from "../../ai-eligibility.js";
+import { stripCoachPayloadForLegacyClient } from "./legacy-client-compat.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
 import {
@@ -94,6 +97,14 @@ interface CoachRoutesOptions {
   readonly conversationRepository: ConversationRepository;
   readonly profileRepository: ProfileRepository;
   readonly aiConsentRepository?: AiConsentRepository;
+  /**
+   * Optional. Reads the stored AI consent of the caller of the public
+   * `/status` route when it carries a valid bearer token, so status names
+   * the provider that would serve that caller (consent-gated routing).
+   */
+  readonly resolveStatusConsent?: (
+    request: FastifyRequest,
+  ) => Promise<StoredAiConsent | null>;
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
   readonly workoutRepository: WorkoutRepository;
@@ -219,9 +230,23 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
   const limits = options.limits;
   const planTierOverride = options.planTierOverride;
 
-  app.get("/status", async () =>
-    coachProviderStatusSchema.parse(await options.agent.status()),
+  // Installed Store builds (<= 9) parse Coach proposals strictly and do not
+  // know `additionalCandidates`; strip it from every Coach response to them.
+  app.addHook("preSerialization", async (request, _reply, payload) =>
+    stripCoachPayloadForLegacyClient(request, payload),
   );
+
+  // Reports the provider that would serve this caller's Coach messages: the
+  // consent-gated agent uses Anthropic only for a signed-in caller whose
+  // stored consent disclosed it, and Gemini for everyone else.
+  app.get("/status", async (request) => {
+    const consent = options.resolveStatusConsent
+      ? await options.resolveStatusConsent(request).catch(() => null)
+      : null;
+    return coachProviderStatusSchema.parse(
+      await runWithAiConsent(consent, () => options.agent.status()),
+    );
+  });
 
   app.post(
     "/conversations",
@@ -705,12 +730,15 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             principal.accessToken,
             profile.planTier,
           );
-          const generated = await draftProvider.generateTextDraft({
-            userId: principal.userId as UserId,
-            description: parsed.data.text,
-            requestId: crypto.randomUUID(),
-            includeAdvancedNutrition,
-          });
+          const generateTextDraft = draftProvider.generateTextDraft;
+          const generated = await runWithAiConsent(consent, () =>
+            generateTextDraft.call(draftProvider, {
+              userId: principal.userId as UserId,
+              description: parsed.data.text,
+              requestId: crypto.randomUUID(),
+              includeAdvancedNutrition,
+            }),
+          );
           const candidate = draftForCapability(
             generated,
             includeAdvancedNutrition,
@@ -899,16 +927,20 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         const activeAgent = options.resolveAgent
           ? options.resolveAgent(profile.aiProvider)
           : options.agent;
-        const response = await activeAgent.respond({
-          userId: principal.userId,
-          accessToken: principal.accessToken,
-          conversationId,
-          messages: storedMessages.map((message) => ({
-            role: message.role,
-            text: message.text,
-          })),
-          grounding,
-        });
+        // Consent-gated: Anthropic answers only when this user's stored
+        // consent disclosed it; otherwise Gemini answers.
+        const response = await runWithAiConsent(consent, () =>
+          activeAgent.respond({
+            userId: principal.userId,
+            accessToken: principal.accessToken,
+            conversationId,
+            messages: storedMessages.map((message) => ({
+              role: message.role,
+              text: message.text,
+            })),
+            grounding,
+          }),
+        );
 
         // Inspect tool results in evidence for attached action proposals
         let actionProposal: CoachActionProposal | null = null;

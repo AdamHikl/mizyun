@@ -573,7 +573,7 @@ describe("rendered activity kinds (BLD-05 S1)", () => {
       expect((await cache.request(read)).ok).toBe(true);
       expect(request).toHaveBeenCalledOnce();
       expect(request.mock.calls[0]![0].headers).toEqual({
-        "x-mizyun-activity-kinds": "bouldering",
+        "x-mizyun-activity-kinds": "meal,bouldering",
       });
       // The constant header does not change the read identity.
       await cache.request(read);

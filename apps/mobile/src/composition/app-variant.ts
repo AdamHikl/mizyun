@@ -8,6 +8,8 @@ export interface AppVariantOverrides {
   readonly expoExtraVariant?: unknown;
   readonly expoExtraProgressPhotos?: unknown;
   readonly expoExtraBouldering?: unknown;
+  readonly expoExtraStretchAi?: unknown;
+  readonly expoExtraRunImports?: unknown;
   readonly authRedirectUri?: string | null;
   readonly apiUrl?: string | null;
 }
@@ -83,9 +85,29 @@ export function isProgressPhotosEnabled(
 
 /**
  * Returns true if the AI-tailored evening stretch (ADR-0076) is enabled in
- * this build. Dev builds only; Production does not register the endpoint.
+ * this build. Dev builds have it on; Production needs
+ * `extra.enableStretchAi === true` (released 2026-10-21) and a server with
+ * the stretch endpoint registered. An explicit boolean wins either way.
  */
 export function isStretchAiEnabled(overrides?: AppVariantOverrides): boolean {
+  const extraFlag =
+    overrides?.expoExtraStretchAi ??
+    Constants.expoConfig?.extra?.enableStretchAi;
+  if (typeof extraFlag === "boolean") return extraFlag;
+  return resolveAppVariant(overrides) === "dev";
+}
+
+/**
+ * Returns true if importing runs from Health (ADR-0065) is enabled in this
+ * build. Dev builds have it on; Production needs
+ * `extra.enableRunImports === true` (released 2026-10-21). An explicit
+ * boolean wins either way.
+ */
+export function isRunImportsEnabled(overrides?: AppVariantOverrides): boolean {
+  const extraFlag =
+    overrides?.expoExtraRunImports ??
+    Constants.expoConfig?.extra?.enableRunImports;
+  if (typeof extraFlag === "boolean") return extraFlag;
   return resolveAppVariant(overrides) === "dev";
 }
 

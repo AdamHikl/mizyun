@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mizyun",
     "slug": "mizyun",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "orientation": "portrait",
     "icon": "./assets/images/mizyun-icon.png",
     "scheme": "mizyun",
@@ -13,18 +13,18 @@
       "config": {
         "usesNonExemptEncryption": false
       },
-      "buildNumber": "9",
+      "buildNumber": "10",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Mizyun accesses a photo only when you choose it for a meal draft or your private progress timeline.",
         "NSPhotoLibraryAddUsageDescription": "Mizyun saves photos to your photo library only when you explicitly export a progress photo.",
         "NSCameraUsageDescription": "Mizyun uses the camera when you choose to take photos of your meals or private progress timeline.",
-        "NSHealthShareUsageDescription": "Mizyun reads steps when you enable Steps, and reads weight or completed workouts only when you choose that Health preview. Preview records stay on this device and are cleared when you leave the preview or background the app. In Mizyun Dev, Import runs reads your running workouts and their distance; only the runs you select are saved to your Mizyun account. Health records never change your targets.",
+        "NSHealthShareUsageDescription": "Mizyun reads steps when you enable Steps, and reads weight or completed workouts only when you choose that Health preview. Preview records stay on this device and are cleared when you leave the preview or background the app. Import runs reads your running workouts and their distance; only the runs you select are saved to your Mizyun account. Health records never change your targets.",
         "NSHealthUpdateUsageDescription": "When you enable a selected export in Mizyun Dev, Mizyun writes your confirmed first-party nutrition values or completed workout times to Apple Health. Nutrition and workout access are requested separately."
       }
     },
     "android": {
       "package": "com.mizyun.app",
-      "versionCode": 9,
+      "versionCode": 10,
       "predictiveBackGestureEnabled": false,
       "icon": "./assets/images/mizyun-icon.png",
       "adaptiveIcon": {

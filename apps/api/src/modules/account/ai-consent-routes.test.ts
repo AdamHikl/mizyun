@@ -6,6 +6,8 @@ import {
   StubVisionProvider,
 } from "@mizyun/agent-runtime";
 import {
+  API_COMPAT_HEADER,
+  API_COMPAT_VERSION,
   CURRENT_AI_CONSENT_VERSION,
   LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
 } from "@mizyun/contracts";
@@ -22,6 +24,8 @@ import { InMemoryGoalRepository } from "../../goal-repository.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryWorkoutRepository } from "../../workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
+
+const currentClient = { [API_COMPAT_HEADER]: API_COMPAT_VERSION };
 
 const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
 
@@ -297,11 +301,11 @@ describe("AI Consent Endpoints & Authorization Boundary", () => {
       expect(putBody.consent.consentedAt).toBeTruthy();
       expect(putBody.consent.revokedAt).toBeNull();
 
-      // Verify GET returns the same state
+      // Verify GET returns the same state to a current client
       const getRes = await app.inject({
         method: "GET",
         url: "/v1/account/ai-consent",
-        headers: { authorization: "Bearer valid" },
+        headers: { authorization: "Bearer valid", ...currentClient },
       });
       expect(getRes.statusCode).toBe(200);
       expect(getRes.json()).toEqual(putBody);
@@ -454,14 +458,58 @@ describe("accepted AI consent versions", () => {
       headers: auth,
       payload: { description: "2 scrambled eggs and toast" },
     });
-  const getConsent = async (app: ReturnType<typeof buildApp>) =>
+  const getConsent = async (
+    app: ReturnType<typeof buildApp>,
+    client: "current" | "legacy" = "current",
+  ) =>
     (
       await app.inject({
         method: "GET",
         url: "/v1/account/ai-consent",
-        headers: auth,
+        headers: client === "current" ? { ...auth, ...currentClient } : auth,
       })
     ).json().consent;
+
+  it("tells an installed build-9 client a newer accepted grant in its own version, without storing it", async () => {
+    const { app, aiConsentRepository } = build();
+    expect((await put(app, true, CURRENT_AI_CONSENT_VERSION)).statusCode).toBe(
+      200,
+    );
+    // Build 9 treats any version except its own as "not granted" and would
+    // ask again, then overwrite the newer grant (a re-consent loop).
+    expect(await getConsent(app, "legacy")).toMatchObject({
+      granted: true,
+      consentVersion: LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+    });
+    expect(await getConsent(app, "current")).toMatchObject({
+      granted: true,
+      consentVersion: CURRENT_AI_CONSENT_VERSION,
+    });
+    expect((await aiConsentRepository.getConsent(userA))?.consentVersion).toBe(
+      CURRENT_AI_CONSENT_VERSION,
+    );
+    // A revoked newer grant is reported as stored (not granted).
+    expect((await put(app, false, CURRENT_AI_CONSENT_VERSION)).statusCode).toBe(
+      200,
+    );
+    expect(await getConsent(app, "legacy")).toMatchObject({
+      granted: false,
+      consentVersion: CURRENT_AI_CONSENT_VERSION,
+    });
+  });
+
+  it("does not report a granted legacy version where the legacy disclosure is retired", async () => {
+    const { app } = build({
+      aiConsentAcceptedVersions: [CURRENT_AI_CONSENT_VERSION],
+    });
+    expect((await put(app, true, CURRENT_AI_CONSENT_VERSION)).statusCode).toBe(
+      200,
+    );
+    expect(await getConsent(app, "legacy")).toMatchObject({
+      granted: true,
+      consentVersion: CURRENT_AI_CONSENT_VERSION,
+    });
+  });
 
   it("by default keeps an installed Gemini-only build working and accepts the new disclosure", async () => {
     const { app } = build();

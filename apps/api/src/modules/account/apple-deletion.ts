@@ -25,6 +25,15 @@ export interface AppleDeletionCleanupOptions {
 
 const CLEANUP_ERROR = "Apple account cleanup failed";
 
+/**
+ * Apple cleanup result the deletion route may log. `skipped_no_authorization_code`
+ * means an Apple identity was linked but the client sent no authorization code
+ * (Android, an iPhone without Sign in with Apple, or an installed older build),
+ * so deletion continued without revoking the Apple token.
+ */
+export type AppleDeletionCleanupOutcome =
+  "not_required" | "revoked" | "skipped_no_authorization_code";
+
 /** This callback must run only after challenge acceptance and worker lease acquisition. */
 export function createAppleDeletionCleanup(
   options: AppleDeletionCleanupOptions,
@@ -32,7 +41,7 @@ export function createAppleDeletionCleanup(
   return async (
     context: AccountDeletionCleanupContext,
     authorizationCode?: string,
-  ): Promise<void> => {
+  ): Promise<AppleDeletionCleanupOutcome | undefined> => {
     try {
       const store = options.revocationRepository;
       const existing = store
@@ -57,7 +66,18 @@ export function createAppleDeletionCleanup(
             authorizationCode !== undefined
           )
             throw new Error(CLEANUP_ERROR);
-          return;
+          return "not_required";
+        }
+        if (existing.status === "skipped_no_authorization_code") {
+          // The recorded outcome is final for this deletion job; a resumed
+          // attempt continues without revoking, whatever the client sends now.
+          if (
+            existing.subject !== null ||
+            existing.clientId !== null ||
+            existing.encryptedToken !== null
+          )
+            throw new Error(CLEANUP_ERROR);
+          return "skipped_no_authorization_code";
         }
         if (existing.status === "revoked") {
           if (
@@ -67,7 +87,7 @@ export function createAppleDeletionCleanup(
             existing.encryptedToken !== null
           )
             throw new Error(CLEANUP_ERROR);
-          return;
+          return "revoked";
         }
         if (existing.status !== "pending") throw new Error(CLEANUP_ERROR);
       }
@@ -99,7 +119,8 @@ export function createAppleDeletionCleanup(
       } else {
         if (!options.repository.getLinkedAuthIdentities) {
           // Preserve ordinary deletion for the test-only in-memory repository.
-          if (authorizationCode === undefined && !options.config) return;
+          if (authorizationCode === undefined && !options.config)
+            return undefined;
           throw new Error(CLEANUP_ERROR);
         }
         await context.assertLease();
@@ -126,7 +147,28 @@ export function createAppleDeletionCleanup(
               { workerId: context.workerId },
             );
           }
-          return;
+          return "not_required";
+        }
+        if (authorizationCode === undefined) {
+          // No code arrived, so Apple cannot be asked to revoke. Deletion must
+          // still proceed (the user asked to delete their account); record
+          // the truthful outcome without storing the Apple subject.
+          if (store) {
+            await context.assertLease();
+            await store.save(
+              {
+                jobId: context.jobId,
+                userId: context.userId,
+                provider: "apple",
+                status: "skipped_no_authorization_code",
+                subject: null,
+                clientId: null,
+                encryptedToken: null,
+              },
+              { workerId: context.workerId },
+            );
+          }
+          return "skipped_no_authorization_code";
         }
         const { config, client, encryptionKey } = options;
         const subject = appleIdentities[0]?.subject;
@@ -201,6 +243,7 @@ export function createAppleDeletionCleanup(
         { ...pending, status: "revoked", encryptedToken: null },
         { workerId: context.workerId },
       );
+      return "revoked";
     } catch {
       // Provider, token, key and repository details must not escape into deletion jobs or routes.
       throw new Error(CLEANUP_ERROR);

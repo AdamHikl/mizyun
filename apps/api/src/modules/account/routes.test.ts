@@ -843,6 +843,67 @@ describe("DELETE /v1/account", () => {
     expect(revokedTokens).toEqual(["apple-refresh-token"]);
   });
 
+  it.each([
+    ["with Apple configured", true],
+    ["without Apple configuration", false],
+  ])(
+    "deletes an Apple-linked account without an authorization code %s and records the unrevoked outcome",
+    async (_label, configured) => {
+      const { privateKey } = generateKeyPairSync("ec", {
+        namedCurve: "prime256v1",
+        privateKeyEncoding: { type: "pkcs8", format: "pem" },
+        publicKeyEncoding: { type: "spki", format: "pem" },
+      });
+      const exchangeAuthorizationCode = vi.fn();
+      const revokeToken = vi.fn();
+      const { app, accountRepository, providerStates } = build(
+        tokenVerifierFor({ userId: userA }),
+        {
+          linkedAuthIdentities: [
+            { provider: "apple", subject: "synthetic-apple-subject" },
+          ],
+          ...(configured
+            ? {
+                appleAuthConfig: {
+                  teamId: "TEST_TEAM",
+                  keyId: "TEST_KEY",
+                  clientId: "com.mizyun.development",
+                  privateKey,
+                },
+                appleAuthClient: { exchangeAuthorizationCode, revokeToken },
+              }
+            : {}),
+        },
+      );
+      const token = await accountRepository.issueDeletionChallenge(userA, {
+        ttlSeconds: 300,
+        now: new Date(),
+      });
+      // Android and installed build 9 send only the confirmation token.
+      const response = await app.inject({
+        method: "DELETE",
+        url: "/v1/account",
+        headers: { authorization: "Bearer valid" },
+        payload: { confirmationToken: token },
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.json()).toEqual({ deleted: true });
+      expect(exchangeAuthorizationCode).not.toHaveBeenCalled();
+      expect(revokeToken).not.toHaveBeenCalled();
+      expect([...providerStates.values()]).toEqual([
+        expect.objectContaining({
+          status: "skipped_no_authorization_code",
+          subject: null,
+          clientId: null,
+          encryptedToken: null,
+        }),
+      ]);
+      expect(await accountRepository.getDeletionJob(userA)).toMatchObject({
+        status: "completed",
+      });
+    },
+  );
+
   it("preserves the accepted account operation when Apple exchange fails", async () => {
     const { privateKey } = generateKeyPairSync("ec", {
       namedCurve: "prime256v1",

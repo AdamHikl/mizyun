@@ -24,6 +24,7 @@ import type {
   AiConsentRepository,
   PlanTier,
   ProfileRepository,
+  StoredAiConsent,
   UserId,
 } from "@mizyun/core";
 import {
@@ -43,6 +44,7 @@ import {
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
 
+import { runWithAiConsent } from "../../ai-consent-routing.js";
 import {
   authorizeAiAccess,
   type AiAuthorizationResult,
@@ -134,6 +136,8 @@ export const foodDraftRoutes: FastifyPluginAsync<
     userEmail?: string | null,
   ): Promise<
     AiAuthorizationResult & {
+      /** Stored consent that picks the vendor (consent-gated routing). */
+      readonly consent?: StoredAiConsent | null;
       readonly countryCode?: string | null;
       readonly planTier?: PlanTier;
       readonly includeAdvancedNutrition?: boolean;
@@ -174,6 +178,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
       }
       return {
         ...auth,
+        consent,
         countryCode: profile.coachingPreferences?.countryCode ?? null,
         planTier: profile.planTier,
         includeAdvancedNutrition,
@@ -351,13 +356,16 @@ export const foodDraftRoutes: FastifyPluginAsync<
         }
         const resolvedCountryCode =
           parsed.data.countryCode ?? auth.countryCode ?? null;
-        const candidate = await vision.generateTextDraft({
-          userId: principal.userId as UserId,
-          description: parsed.data.description,
-          requestId,
-          countryCode: resolvedCountryCode,
-          includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
-        });
+        const generateTextDraft = vision.generateTextDraft;
+        const candidate = await runWithAiConsent(auth.consent, () =>
+          generateTextDraft.call(vision, {
+            userId: principal.userId as UserId,
+            description: parsed.data.description,
+            requestId,
+            countryCode: resolvedCountryCode,
+            includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
+          }),
+        );
         await commitDraftLimit(
           principal.userId as UserId,
           candidate.tokensUsed ?? 500,
@@ -480,16 +488,19 @@ export const foodDraftRoutes: FastifyPluginAsync<
             false,
           );
         }
-        const candidate = await vision.refineDraft({
-          userId: principal.userId as UserId,
-          currentDraft: draftForCapability(
-            parsed.data.currentDraft,
-            auth.includeAdvancedNutrition,
-          ),
-          instruction: parsed.data.instruction,
-          requestId,
-          includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
-        });
+        const refineDraft = vision.refineDraft;
+        const candidate = await runWithAiConsent(auth.consent, () =>
+          refineDraft.call(vision, {
+            userId: principal.userId as UserId,
+            currentDraft: draftForCapability(
+              parsed.data.currentDraft,
+              auth.includeAdvancedNutrition,
+            ),
+            instruction: parsed.data.instruction,
+            requestId,
+            includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
+          }),
+        );
         // Refine is free and does not consume daily meal draft quota; release in-flight slot
         await releaseDraftLimit(principal.userId as UserId, "refine");
         released = true;
@@ -701,7 +712,9 @@ export const foodDraftRoutes: FastifyPluginAsync<
           principal.accessToken,
         );
 
-        const candidate = await vision.generateDraft(visionRequest);
+        const candidate = await runWithAiConsent(auth.consent, () =>
+          vision.generateDraft(visionRequest),
+        );
         await commitDraftLimit(
           principal.userId as UserId,
           candidate.tokensUsed ?? 1500,

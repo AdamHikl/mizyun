@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  AI_CONSENT_VERSIONS_DISCLOSING_ANTHROPIC,
   CURRENT_AI_CONSENT_VERSION,
   DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS,
   LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
   accountExportSchema,
+  aiConsentDisclosesAnthropic,
   updateAiConsentSchema,
 } from "./account.js";
 
@@ -54,5 +56,22 @@ describe("AI consent versions", () => {
       updateAiConsentSchema.parse({ granted: true, confirmedAdult: true })
         .consentVersion,
     ).toBe(CURRENT_AI_CONSENT_VERSION);
+  });
+  it("lets only the two-provider disclosures route to Anthropic", () => {
+    expect(AI_CONSENT_VERSIONS_DISCLOSING_ANTHROPIC).toEqual([
+      "2026-10-20",
+      "2026-10-21",
+    ]);
+    expect(aiConsentDisclosesAnthropic("2026-10-20")).toBe(true);
+    expect(aiConsentDisclosesAnthropic(CURRENT_AI_CONSENT_VERSION)).toBe(true);
+    for (const version of [
+      LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+      "2026-10-22",
+      "",
+      null,
+      undefined,
+    ]) {
+      expect(aiConsentDisclosesAnthropic(version)).toBe(false);
+    }
   });
 });

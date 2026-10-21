@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
 import type { AuthClient, AuthSession } from "@mizyun/identity";
 import { createMealRecipeApi } from "./meal-recipe-api";
 import { HttpApiClient } from "./http-api-client";
 import { DisabledApiClient } from "./disabled-api-client";
+
+const compat = { [API_COMPAT_HEADER]: API_COMPAT_VERSION };
 
 const requestId = "00000000-0000-4000-8000-000000000001";
 const options = { expectedUserId: "owner", isCurrent: () => true };
@@ -125,7 +128,7 @@ describe("recipe API boundary", () => {
       "https://api.example/v1/meal-recipes/capabilities",
       expect.objectContaining({
         method: "GET",
-        headers: { authorization: "Bearer token" },
+        headers: { authorization: "Bearer token", ...compat },
       }),
     );
   });
@@ -162,7 +165,7 @@ describe("recipe API boundary", () => {
       "https://api.example/v1/meal-recipes/recognize-ingredients",
     );
     expect(init?.signal).toBe(controller.signal);
-    expect(init?.headers).toEqual({ authorization: "Bearer token" });
+    expect(init?.headers).toEqual({ authorization: "Bearer token", ...compat });
     const form = init?.body as FormData;
     expect([...form.keys()]).toEqual([
       "requestId",
@@ -230,7 +233,7 @@ describe("recipe API boundary", () => {
     });
     const [url, init] = fetcher.mock.calls[0]!;
     expect(url).toBe("https://api.example/v1/meal-recipes/assistant");
-    expect(init?.headers).toEqual({ authorization: "Bearer token" });
+    expect(init?.headers).toEqual({ authorization: "Bearer token", ...compat });
     const form = init?.body as FormData;
     expect([...form.keys()]).toEqual(["turn", "images"]);
     expect(JSON.parse(form.get("turn") as string)).toEqual(turn);

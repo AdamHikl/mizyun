@@ -168,7 +168,12 @@ if (
   prodConfig.expo.name !== "Mizyun" ||
   prodConfig.expo.scheme !== "mizyun" ||
   prodConfig.expo.extra.mizyunVariant !== "production" ||
-  prodConfig.expo.extra.enableMealPhotos !== false
+  prodConfig.expo.extra.enableMealPhotos !== true ||
+  prodConfig.expo.extra.enableProgressPhotos !== false ||
+  prodConfig.expo.extra.enableBouldering !== true ||
+  prodConfig.expo.extra.enableStretchAi !== true ||
+  prodConfig.expo.extra.enableRunImports !== true ||
+  prodConfig.expo.extra.enableCommunity !== true
 ) {
   throw new Error(
     `Production profile evaluated to unexpected identity: ${JSON.stringify(prodConfig.expo)}`,

@@ -2,6 +2,7 @@ import { describe, expect, it, vi, type Mock } from "vitest";
 import { z } from "zod";
 
 import type { AuthClient, AuthSession } from "@mizyun/identity";
+import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
 
 import { HttpApiClient } from "./http-api-client";
 
@@ -992,5 +993,48 @@ describe("HttpApiClient — status", () => {
     if (status.configured) {
       expect(status.baseUrl).toBe("https://api.test");
     }
+  });
+});
+
+describe("HttpApiClient — client capability header", () => {
+  it("marks JSON requests as a current client without dropping caller headers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, {}));
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock,
+    });
+    await client.request({
+      method: "GET",
+      path: "/v1/goals/active",
+      headers: { "x-mizyun-activity-kinds": "meal" },
+    });
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer test-token",
+      "x-mizyun-activity-kinds": "meal",
+      [API_COMPAT_HEADER]: API_COMPAT_VERSION,
+    });
+  });
+
+  it("marks multipart meal-draft uploads too", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(500, {}));
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock,
+    });
+    await client.draftFoodEntry({
+      photo: new Blob(["x"], { type: "image/jpeg" }),
+      mimeType: "image/jpeg",
+    } as never);
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      [API_COMPAT_HEADER]: API_COMPAT_VERSION,
+    });
   });
 });

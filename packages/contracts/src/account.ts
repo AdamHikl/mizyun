@@ -100,6 +100,14 @@ export const privateMediaStubSchema = exportedMediaAssetSchema;
  * represented; reserved fields default to empty arrays until the
  * per-feature list endpoints land.
  */
+/**
+ * Community section of the account export. Installed Store builds up to
+ * 1.0.9 (9) accept only "2026-09-30" and "2026-10-01" in a strict object, so
+ * the server labels the (additive) "2026-10-11" categories as "2026-10-01"
+ * for requests without the client compatibility header.
+ */
+export const LEGACY_COMMUNITY_EXPORT_SCHEMA_VERSION = "2026-10-01";
+
 export const communityAccountExportSchema = z
   .object({
     schemaVersion: z.enum(["2026-09-30", "2026-10-01", "2026-10-11"]),
@@ -170,6 +178,12 @@ export const accountExportSchema = z.object({
   aiConsent: z.unknown().nullable().optional(),
   community: communityAccountExportSchema.optional(),
   calorieAdjustmentProposals: z.array(z.record(z.unknown())).optional(),
+  /**
+   * Installed Store builds up to 1.0.9 (9) parse this object strictly with
+   * only `schedules` and `occurrences`, so the server never adds keys here.
+   * The `suggestion*` keys are accepted only from servers that predate
+   * `recurringMealSuggestions` (Dev rollout skew); current servers omit them.
+   */
   recurringMeals: z
     .object({
       schedules: z.array(z.record(z.unknown())),
@@ -177,6 +191,15 @@ export const accountExportSchema = z.object({
       suggestionStates: z.array(z.record(z.unknown())).optional(),
       suggestionPreferences: z.array(z.record(z.unknown())).optional(),
       suggestionReceipts: z.array(z.record(z.unknown())).optional(),
+    })
+    .strict()
+    .optional(),
+  /** Recurring meal suggestion state, preferences and operation receipts. */
+  recurringMealSuggestions: z
+    .object({
+      states: z.array(z.record(z.unknown())),
+      preferences: z.array(z.record(z.unknown())),
+      receipts: z.array(z.record(z.unknown())),
     })
     .strict()
     .optional(),
@@ -288,6 +311,61 @@ export const DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS: readonly string[] = [
   AI_CONSENT_VERSION_TWO_PROVIDERS,
   CURRENT_AI_CONSENT_VERSION,
 ];
+
+/**
+ * Stored consent versions whose disclosure names Anthropic (Claude). The
+ * server may serve a request with Anthropic only when the user's authorized
+ * stored version is listed here; every other version (including the legacy
+ * Gemini-only `2026-09-08`) is served by Gemini. Add a future version here
+ * only when its disclosure names Anthropic.
+ */
+export const AI_CONSENT_VERSIONS_DISCLOSING_ANTHROPIC: readonly string[] = [
+  AI_CONSENT_VERSION_TWO_PROVIDERS,
+  CURRENT_AI_CONSENT_VERSION,
+];
+
+/**
+ * Whether a stored AI consent version disclosed Anthropic as a processor.
+ * Unknown, missing and legacy versions return false (fail closed to Gemini).
+ */
+export const aiConsentDisclosesAnthropic = (
+  version: string | null | undefined,
+): boolean =>
+  typeof version === "string" &&
+  AI_CONSENT_VERSIONS_DISCLOSING_ANTHROPIC.includes(version);
+
+/** AI features a consent disclosure can name per vendor (ADR-0077). */
+export type AiRoutedFeature =
+  | "coach"
+  | "mealText"
+  | "mealPhoto"
+  | "activityDraft"
+  | "recipeIdeas"
+  | "ingredientPhoto"
+  | "cookingAssistant"
+  | "stretchPlan";
+
+/**
+ * Features the Anthropic-naming disclosures (2026-10-20, 2026-10-21) list
+ * for Anthropic: Coach chat, typed meal estimates and draft changes, and Log
+ * activity descriptions. Every other feature was disclosed for Google only.
+ */
+export const AI_FEATURES_DISCLOSED_FOR_ANTHROPIC: readonly AiRoutedFeature[] = [
+  "coach",
+  "mealText",
+  "activityDraft",
+];
+
+/**
+ * Whether a stored consent version disclosed Anthropic for this feature.
+ * Fails closed (false) for undisclosed features and unknown versions.
+ */
+export const aiConsentDisclosesAnthropicFor = (
+  version: string | null | undefined,
+  feature: AiRoutedFeature,
+): boolean =>
+  aiConsentDisclosesAnthropic(version) &&
+  AI_FEATURES_DISCLOSED_FOR_ANTHROPIC.includes(feature);
 
 export const aiConsentSchema = z.object({
   granted: z.boolean(),

@@ -15,6 +15,7 @@ import {
   type UserId,
   type AiConsentRepository,
   type AccountRepository,
+  type StoredAiConsent,
   type StoredProfile,
   type RecipeRequestLedger,
   type RecipeRequestOperation,
@@ -29,6 +30,7 @@ import {
   type RecipeAssistantProvider,
   DisabledRecipeAssistantProvider,
 } from "@mizyun/agent-runtime";
+import { runWithAiConsent } from "../../ai-consent-routing.js";
 import {
   authorizeAiAccess,
   authorizedAiConsentVersion,
@@ -74,6 +76,29 @@ export class MealRecipeService {
       options.assistantProvider ?? new DisabledRecipeAssistantProvider();
   }
   async authorize(userId: UserId, accessToken: string): Promise<StoredProfile> {
+    return (await this.#authorizeWithConsent(userId, accessToken)).profile;
+  }
+  /**
+   * Run `fn` in the caller's consent-routing context: providers routed to
+   * Anthropic serve it only when the stored consent disclosed Anthropic,
+   * and Gemini otherwise. Token estimates, status and the provider call all
+   * run inside, so they use the same vendor. Access is still authorized
+   * inside `fn`; a failed read routes to Gemini.
+   */
+  async #consentRouted<T>(
+    userId: UserId,
+    accessToken: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const consent = await this.options.consentRepository
+      .getConsent(userId, { accessToken })
+      .catch(() => null);
+    return runWithAiConsent(consent, fn);
+  }
+  async #authorizeWithConsent(
+    userId: UserId,
+    accessToken: string,
+  ): Promise<{ profile: StoredProfile; consent: StoredAiConsent | null }> {
     // Fail closed: the deterministic suggestion path has no ledger SQL fence
     // to catch deletion when the repository cannot report it.
     if (!this.options.accountRepository.getDeletionJob)
@@ -92,7 +117,7 @@ export class MealRecipeService {
     const auth = authorizeAiAccess({ profile, consent, now: this.now() });
     if (!auth.authorized)
       throw new RecipeServiceError(auth.statusCode, auth.code);
-    return profile;
+    return { profile, consent };
   }
   async maximumImages(
     userId: UserId,
@@ -116,8 +141,12 @@ export class MealRecipeService {
       requestIdRequired: true as const,
     };
     let profile: StoredProfile;
+    let consent: StoredAiConsent | null;
     try {
-      profile = await this.authorize(userId, accessToken);
+      ({ profile, consent } = await this.#authorizeWithConsent(
+        userId,
+        accessToken,
+      ));
     } catch {
       return { ...base, reason: "access_required" as const };
     }
@@ -134,10 +163,12 @@ export class MealRecipeService {
         maximumImages,
         reason: "durable_budget_unavailable" as const,
       };
-    const [generation, recognition] = await Promise.all([
-      this.options.generationProvider.status(),
-      this.options.recognitionProvider.status(),
-    ]);
+    const [generation, recognition] = await runWithAiConsent(consent, () =>
+      Promise.all([
+        this.options.generationProvider.status(),
+        this.options.recognitionProvider.status(),
+      ]),
+    );
     return {
       ...base,
       maximumImages,
@@ -155,17 +186,22 @@ export class MealRecipeService {
     operation: RecipeRequestOperation,
     provider?: { status(): ReturnType<RecipeAssistantProvider["status"]> },
   ) {
-    const profile = await this.authorize(userId, accessToken);
+    const { profile, consent } = await this.#authorizeWithConsent(
+      userId,
+      accessToken,
+    );
     if (!this.options.enabled())
       throw new RecipeServiceError(503, "RECIPES_DISABLED");
     if (!this.options.ledger || !(await this.options.ledger.isAvailable()))
       throw new RecipeServiceError(503, "RECIPE_BUDGET_UNAVAILABLE");
-    const status = await (
-      provider ??
-      (operation === "suggest"
-        ? this.options.generationProvider
-        : this.options.recognitionProvider)
-    ).status();
+    const status = await runWithAiConsent(consent, () =>
+      (
+        provider ??
+        (operation === "suggest"
+          ? this.options.generationProvider
+          : this.options.recognitionProvider)
+      ).status(),
+    );
     if (!status.ready)
       throw new RecipeServiceError(503, "RECIPE_PROVIDER_UNAVAILABLE");
     return profile;
@@ -299,7 +335,16 @@ export class MealRecipeService {
       controller.abort();
     }
   }
-  async suggest(
+  suggest(
+    userId: UserId,
+    accessToken: string,
+    request: MealRecipeSuggestionRequest,
+  ) {
+    return this.#consentRouted(userId, accessToken, () =>
+      this.#suggest(userId, accessToken, request),
+    );
+  }
+  async #suggest(
     userId: UserId,
     accessToken: string,
     request: MealRecipeSuggestionRequest,
@@ -431,7 +476,17 @@ export class MealRecipeService {
       },
     );
   }
-  async recognize(
+  recognize(
+    userId: UserId,
+    accessToken: string,
+    requestId: string,
+    images: IngredientRecognitionRequest["images"],
+  ) {
+    return this.#consentRouted(userId, accessToken, () =>
+      this.#recognize(userId, accessToken, requestId, images),
+    );
+  }
+  async #recognize(
     userId: UserId,
     accessToken: string,
     requestId: string,
@@ -522,7 +577,17 @@ export class MealRecipeService {
    * charges the existing recipe ledger (photo turns as `recognize`, text
    * turns as `suggest`) and re-validates the provider output.
    */
-  async assist(
+  assist(
+    userId: UserId,
+    accessToken: string,
+    turn: RecipeAssistantTurn,
+    images: IngredientRecognitionRequest["images"],
+  ) {
+    return this.#consentRouted(userId, accessToken, () =>
+      this.#assist(userId, accessToken, turn, images),
+    );
+  }
+  async #assist(
     userId: UserId,
     accessToken: string,
     turn: RecipeAssistantTurn,

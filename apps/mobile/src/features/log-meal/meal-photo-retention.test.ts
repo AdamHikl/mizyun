@@ -411,11 +411,12 @@ it("recognizes an owned file when native directory URIs end with a slash", () =>
   discardOwnedMealPhoto("owner-a", photo.uri);
   expect(mocks.files.has(photo.uri)).toBe(false);
 });
-it("requires Dev and the explicit manifest flag", () => {
+it("follows only the explicit manifest flag in either variant", () => {
   mocks.variant = "production";
+  expect(mealPhotoRetentionEnabled()).toBe(true);
+  mocks.enabled = false;
   expect(mealPhotoRetentionEnabled()).toBe(false);
   mocks.variant = "dev";
-  mocks.enabled = false;
   expect(mealPhotoRetentionEnabled()).toBe(false);
 });
 it("purges only the deleted owner and prevents late retry reinsertion", async () => {
