@@ -33,15 +33,16 @@ Feature sets are small (5–17 cases), so gaps under about 3 points are ties.
   Sonnet is never used. Haiku runs at `ANTHROPIC_EFFORT` (low) with thinking off, so the fixed draft token estimates stay valid.
 
 - **Label photos stay on Gemini.** Nothing in the request marks a label photo, and detecting one would need an app change. Gemini scored the same 100, and Haiku would save only about $0.002 per label.
-- **On-device.** Log activity keeps ADR-0074: on Apple Intelligence iPhones it never falls back to a provider, and other devices use Haiku. On-device recipe ideas were not built. The benchmark's "recipe ideas" is the catalog flow that ADR-0071 replaced with the cooking assistant, so the current app no longer calls it. The cooking assistant stays on Gemini, because on-device scored 65 there.
+- **On-device.** Log activity uses the on-device model on Apple Intelligence iPhones (ADR-0074). When that model fails or times out, and on every other device, it uses Haiku. On-device recipe ideas were not built. The benchmark's "recipe ideas" is the catalog flow that ADR-0071 replaced with the cooking assistant, so the current app no longer calls it. The cooking assistant stays on Gemini, because on-device scored 65 there.
 - **Composition.** `ServerConfig.aiRouting` resolves the vendor for each feature. `createRoutingVisionDraftProvider` sends photo drafts, text drafts and refinements, activity drafts and stretch refinements to their routed providers, and returns the single provider unchanged when all routes agree. Coach status reports the agent that actually serves Coach. A recipe slot without its vendor's configuration is disabled; it never falls back to the other vendor.
 - **Guards.** A feature routed to a vendor whose API key is missing fails config validation. Any route to Anthropic still requires `ANTHROPIC_DEV_TESTING=true` (ADR-0069), so Production cannot route to Anthropic by copying an env file. `AI_EXTERNAL_ACCESS`, consent, adult eligibility, per-user limits and the shared daily token ledger apply to both vendors unchanged.
 - **Coach fixes required for Haiku.**
   - #309: an `{"answer": …}` envelope that follows a preface after tool rounds is unwrapped instead of being shown as raw JSON.
   - #310: logged meal times in Coach grounding are sent as local time with the UTC offset instead of UTC.
 - **Consent.** The AI consent screen and Account › Data now name Anthropic (Claude) and Google (Gemini API), list which features use each and give both retention summaries. New builds save consent version `2026-10-20`. The server accepts the versions in `AI_CONSENT_ACCEPTED_VERSIONS`:
-  - The default accepts `2026-09-08` and `2026-10-20`, so installed Store builds keep working.
-  - Dev accepts only `2026-10-20`, so Dev testers confirm the new wording.
+  - The default accepts `2026-09-08`, `2026-10-20` and `2026-10-21`, so installed Store builds keep working.
+  - Dev accepts `2026-10-20` and `2026-10-21`, so Dev testers confirm the two-provider wording.
+  - Version `2026-10-21` corrects the Log activity line after the on-device model gained a Haiku fallback (ADR-0074). New builds ask again.
 
 ## Consequences and limits
 

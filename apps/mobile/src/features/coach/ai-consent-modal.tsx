@@ -135,9 +135,9 @@ export function AiConsentModal({
               </ThemedText>
               {Platform.OS === "ios" ? (
                 <ThemedText type="small" themeColor="textSecondary">
-                  When Apple Intelligence is on and ready on your iPhone,
-                  filling in Log activity from a description runs on the iPhone
-                  and isn&rsquo;t sent to either provider.
+                  When Apple Intelligence is on and ready on your iPhone, Log
+                  activity first tries to fill in on the iPhone and sends the
+                  description to Anthropic only if that doesn&rsquo;t work.
                 </ThemedText>
               ) : null}
             </Card>

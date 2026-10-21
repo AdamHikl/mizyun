@@ -111,7 +111,7 @@ describe("AI consent disclosure", () => {
 
   it("mentions on-device processing only on iOS", () => {
     const onDevice =
-      "When Apple Intelligence is on and ready on your iPhone, filling in Log activity from a description runs on the iPhone and isn’t sent to either provider.";
+      "When Apple Intelligence is on and ready on your iPhone, Log activity first tries to fill in on the iPhone and sends the description to Anthropic only if that doesn’t work.";
     expect(render()).toContain(onDevice);
     platform.OS = "android";
     const android = render();

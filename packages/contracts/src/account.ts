@@ -264,11 +264,19 @@ export type AccountDeleteStatusResponse = z.infer<
 export const LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY = "2026-09-08";
 
 /**
- * Current authoritative version for third-party AI processing disclosures:
- * the per-feature Anthropic and Google Gemini disclosure. New builds save and
- * display this version. (Finding R5 / REL-AUD-005 / Q8-B).
+ * The first per-feature Anthropic and Google disclosure, which said Log
+ * activity stays on Apple Intelligence iPhones (ADR-0077).
  */
-export const CURRENT_AI_CONSENT_VERSION = "2026-10-20";
+export const AI_CONSENT_VERSION_TWO_PROVIDERS = "2026-10-20";
+
+/**
+ * Current authoritative version for third-party AI processing disclosures:
+ * the per-feature Anthropic and Google Gemini disclosure, where Log activity
+ * falls back to Anthropic when the on-device model fails (ADR-0074, amended
+ * 2026-10-21). New builds save and display this version. (Finding R5 /
+ * REL-AUD-005 / Q8-B).
+ */
+export const CURRENT_AI_CONSENT_VERSION = "2026-10-21";
 
 /**
  * Stored consent versions the server accepts by default, so installed older
@@ -277,6 +285,7 @@ export const CURRENT_AI_CONSENT_VERSION = "2026-10-20";
  */
 export const DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS: readonly string[] = [
   LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY,
+  AI_CONSENT_VERSION_TWO_PROVIDERS,
   CURRENT_AI_CONSENT_VERSION,
 ];
 

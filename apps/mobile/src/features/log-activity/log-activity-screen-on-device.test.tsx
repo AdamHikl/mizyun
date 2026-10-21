@@ -171,8 +171,12 @@ const fill = async (tree: any, description: string) => {
   return render();
 };
 
-const ON_DEVICE_NOTE = "Apple Intelligence fills in the fields on this device";
-const PROVIDER_NOTE = "sent to our AI provider";
+/** Neither former note under the button (removed on 2026-10-21). */
+const expectNoNote = (tree: any) => {
+  expect(hasText(tree, "Apple Intelligence")).toBe(false);
+  expect(hasText(tree, "sent to our AI provider")).toBe(false);
+  expect(status(tree)).not.toContain("Apple Intelligence");
+};
 
 beforeEach(() => {
   hooks.slots = [];
@@ -207,8 +211,7 @@ describe("log activity screen with on-device drafting", () => {
     });
     let tree = await mount();
     expect(mocks.prewarm).toHaveBeenCalledTimes(1);
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(true);
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(false);
+    expectNoNote(tree);
 
     tree = await fill(tree, "did yardwork for 2 hours yesterday from 9am");
     expect(mocks.onDeviceDraft).toHaveBeenCalledTimes(1);
@@ -220,13 +223,13 @@ describe("log activity screen with on-device drafting", () => {
     expect(byLabel(tree, "Activity").props.value).toBe("Yardwork");
     expect(byLabel(tree, "Minutes").props.value).toBe("120");
     expect(status(tree)).toContain("Filled in activity");
-    expect(status(tree)).not.toContain("Apple Intelligence didn't");
+    expectNoNote(tree);
     expect(byLabel(tree, "Fill in from description").props.label).toBe(
       "Fill in from description",
     );
   });
 
-  it("shows the provider note and uses the server when on-device is unavailable", async () => {
+  it("uses the server when on-device is unavailable, with no note under the button", async () => {
     mocks.aiConsent = true;
     mocks.canOnDevice.mockResolvedValue(false);
     mocks.aiDraft.mockResolvedValue({
@@ -244,8 +247,7 @@ describe("log activity screen with on-device drafting", () => {
     });
     let tree = await mount();
     expect(mocks.prewarm).not.toHaveBeenCalled();
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(true);
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(false);
+    expectNoNote(tree);
 
     tree = await fill(tree, "did yardwork for 2 hours");
     expect(mocks.aiDraft).toHaveBeenCalledTimes(1);
@@ -258,8 +260,7 @@ describe("log activity screen with on-device drafting", () => {
     mocks.canOnDevice.mockResolvedValue(true);
     let tree = await mount();
     expect(mocks.canOnDevice).not.toHaveBeenCalled();
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(false);
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(false);
+    expectNoNote(tree);
 
     tree = await fill(tree, "I swam for 30 minutes");
     expect(mocks.onDeviceDraft).not.toHaveBeenCalled();
@@ -267,33 +268,95 @@ describe("log activity screen with on-device drafting", () => {
     expect(byLabel(tree, "Activity").props.value).toBe("Swimming");
   });
 
-  it("says Apple Intelligence didn't name the activity and keeps the parser fields", async () => {
+  it("falls back to the AI provider when the on-device model fails", async () => {
     mocks.aiConsent = true;
     mocks.canOnDevice.mockResolvedValue(true);
     mocks.onDeviceDraft.mockResolvedValue({
       ok: false,
+      draft: { ...emptyDraft, durationSeconds: 7200 },
+    });
+    mocks.aiDraft.mockResolvedValue({
+      ok: true,
       draft: {
-        activity: null,
+        ...emptyDraft,
+        activity: { kind: "custom", name: "Yardwork" },
         durationSeconds: 7200,
-        distance: null,
-        date: null,
-        startTime: null,
-        endedNow: false,
-        environment: null,
-        note: null,
       },
     });
     let tree = await mount();
     tree = await fill(tree, "did yardwork for 2 hours");
-    expect(mocks.aiDraft).not.toHaveBeenCalled();
-    expect(status(tree)).toMatch(
-      /^Apple Intelligence didn't name the activity, so add it yourself\./,
-    );
-    expect(byLabel(tree, "Activity").props.value).toBe("");
+    expect(mocks.onDeviceDraft).toHaveBeenCalledTimes(1);
+    expect(mocks.aiDraft).toHaveBeenCalledTimes(1);
+    expect(mocks.aiDraft.mock.calls[0]?.[1]).toBe("did yardwork for 2 hours");
+    expect(byLabel(tree, "Activity").props.value).toBe("Yardwork");
     expect(byLabel(tree, "Minutes").props.value).toBe("120");
+    expect(status(tree)).toContain("Filled in activity");
+    expectNoNote(tree);
     expect(byLabel(tree, "Fill in from description").props.disabled).toBe(
       false,
     );
+  });
+
+  it("sends nothing to the provider when the account switches during a failed on-device attempt", async () => {
+    mocks.aiConsent = true;
+    mocks.canOnDevice.mockResolvedValue(true);
+    const attempt = deferred<{ ok: boolean; draft: Record<string, unknown> }>();
+    mocks.onDeviceDraft.mockReturnValue(attempt.promise);
+    const tree = await mount();
+    byLabel(tree, "Describe it (optional)").props.onChangeText(
+      "did yardwork for 2 hours",
+    );
+    press(render());
+    await flush();
+    mocks.userId = "other";
+    render();
+    attempt.resolve({
+      ok: false,
+      draft: { ...emptyDraft, durationSeconds: 7200 },
+    });
+    await flush();
+    expect(mocks.aiDraft).not.toHaveBeenCalled();
+  });
+
+  it("keeps the parser fields and says why when the provider also fails after the fallback", async () => {
+    mocks.aiConsent = true;
+    mocks.canOnDevice.mockResolvedValue(true);
+    mocks.onDeviceDraft.mockResolvedValue({
+      ok: false,
+      draft: { ...emptyDraft, durationSeconds: 7200 },
+    });
+    mocks.aiDraft.mockResolvedValue({ ok: false, failure: "unavailable" });
+    let tree = await mount();
+    tree = await fill(tree, "did yardwork for 2 hours");
+    expect(mocks.aiDraft).toHaveBeenCalledTimes(1);
+    expect(typeof mocks.aiDraft.mock.calls[0]?.[0]?.request).toBe("function");
+    expect(byLabel(tree, "Minutes").props.value).toBe("120");
+    expect(status(tree)).toContain("filled in on your device");
+    expect(byLabel(tree, "Fill in from description").props.disabled).toBe(
+      false,
+    );
+  });
+
+  it("sends nothing to the provider when consent is revoked during the on-device attempt", async () => {
+    mocks.aiConsent = true;
+    mocks.canOnDevice.mockResolvedValue(true);
+    const attempt = deferred<{ ok: boolean; draft: Record<string, unknown> }>();
+    mocks.onDeviceDraft.mockReturnValue(attempt.promise);
+    const tree = await mount();
+    byLabel(tree, "Describe it (optional)").props.onChangeText(
+      "did yardwork for 2 hours",
+    );
+    press(render());
+    await flush();
+    mocks.aiConsent = false;
+    render();
+    attempt.resolve({
+      ok: false,
+      draft: { ...emptyDraft, durationSeconds: 7200 },
+    });
+    await flush();
+    expect(mocks.aiDraft).not.toHaveBeenCalled();
+    expect(byLabel(render(), "Minutes").props.value).toBe("120");
   });
 });
 
@@ -311,16 +374,15 @@ describe("on-device availability check and races", () => {
     },
   };
 
-  it("shows neither note while the availability check is pending", async () => {
+  it("shows no note under the button before or after the check", async () => {
     const check = deferred<boolean>();
     mocks.canOnDevice.mockReturnValue(check.promise);
     let tree = await mount();
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(false);
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(false);
+    expectNoNote(tree);
     check.resolve(true);
     await flush();
     tree = render();
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(true);
+    expectNoNote(tree);
   });
 
   it("waits for a pending check on tap and then drafts on the device", async () => {
@@ -376,8 +438,7 @@ describe("on-device availability check and races", () => {
     check.resolve(true);
     await flush();
     const tree = render();
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(false);
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(false);
+    expectNoNote(tree);
     expect(mocks.prewarm).not.toHaveBeenCalled();
   });
 
@@ -447,7 +508,7 @@ describe("on-device availability check and races", () => {
     const tree = render();
     expect(byLabel(tree, "Activity").props.value).toBe("");
     expect(byLabel(tree, "Minutes").props.value).toBe("60");
-    expect(status(tree)).not.toContain("Apple Intelligence didn't");
+    expectNoNote(tree);
     expect(status(tree)).toContain("Filled in duration");
   });
 });
@@ -496,8 +557,7 @@ describe("fills that race the availability check or re-check it", () => {
       await flush();
       expectNothingSent();
       const tree = render();
-      expect(hasText(tree, ON_DEVICE_NOTE)).toBe(false);
-      expect(hasText(tree, PROVIDER_NOTE)).toBe(false);
+      expectNoNote(tree);
     },
   );
 
@@ -522,7 +582,6 @@ describe("fills that race the availability check or re-check it", () => {
     mocks.canOnDevice.mockResolvedValueOnce(false);
     mocks.onDeviceDraft.mockResolvedValue({ ok: true, draft: yardworkDraft });
     let tree = await mount();
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(true);
     expect(mocks.canOnDevice).toHaveBeenCalledTimes(1);
 
     mocks.canOnDevice.mockResolvedValueOnce(true);
@@ -531,8 +590,7 @@ describe("fills that race the availability check or re-check it", () => {
     expect(mocks.onDeviceDraft).toHaveBeenCalledTimes(1);
     expect(mocks.aiDraft).not.toHaveBeenCalled();
     expect(byLabel(tree, "Activity").props.value).toBe("Yardwork");
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(true);
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(false);
+    expectNoNote(tree);
   });
 
   it("uses the server when the mount check and the tap-time check both say no", async () => {
@@ -544,7 +602,6 @@ describe("fills that race the availability check or re-check it", () => {
     expect(mocks.aiDraft).toHaveBeenCalledTimes(1);
     expect(mocks.onDeviceDraft).not.toHaveBeenCalled();
     expect(byLabel(tree, "Activity").props.value).toBe("Yardwork");
-    expect(hasText(tree, PROVIDER_NOTE)).toBe(true);
-    expect(hasText(tree, ON_DEVICE_NOTE)).toBe(false);
+    expectNoNote(tree);
   });
 });

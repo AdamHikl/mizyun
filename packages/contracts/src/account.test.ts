@@ -40,12 +40,13 @@ describe("content-free recipe request account export", () => {
 });
 
 describe("AI consent versions", () => {
-  it("asks for the two-provider disclosure while accepting the Gemini-only one by default", () => {
-    expect(CURRENT_AI_CONSENT_VERSION).toBe("2026-10-20");
+  it("asks for the Log activity fallback disclosure while accepting both older ones by default", () => {
+    expect(CURRENT_AI_CONSENT_VERSION).toBe("2026-10-21");
     expect(LEGACY_AI_CONSENT_VERSION_GEMINI_ONLY).toBe("2026-09-08");
     expect(DEFAULT_ACCEPTED_AI_CONSENT_VERSIONS).toEqual([
       "2026-09-08",
       "2026-10-20",
+      "2026-10-21",
     ]);
   });
   it("defaults an omitted consent version to the current disclosure", () => {

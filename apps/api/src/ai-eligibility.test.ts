@@ -210,7 +210,7 @@ describe("accepted AI consent versions", () => {
     createdAt: now,
     updatedAt: now,
   });
-  const devAccepted = ["2026-10-20"];
+  const devAccepted = [CURRENT_AI_CONSENT_VERSION];
 
   it("defaults to the contract set when unset or empty", () => {
     expect(resolveAcceptedAiConsentVersions()).toBe(

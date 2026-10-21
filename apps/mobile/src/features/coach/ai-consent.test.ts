@@ -345,6 +345,6 @@ describe("ai-consent", () => {
         consentVersion: CURRENT_AI_CONSENT_VERSION,
       }),
     ]);
-    expect(CURRENT_AI_CONSENT_VERSION).toBe("2026-10-20");
+    expect(CURRENT_AI_CONSENT_VERSION).toBe("2026-10-21");
   });
 });
