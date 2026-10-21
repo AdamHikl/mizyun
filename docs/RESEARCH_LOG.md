@@ -3561,3 +3561,14 @@ Consequences:
 - Routing uses one provider key per feature, and each key inherits `AGENT_PROVIDER`.
 - The consent wording names both vendors, with version `2026-10-20` and an accepted-version set on the server, so installed Store builds keep working.
 - Mizyun's Gemini billing tier was not verified, so the existing hedge about Google product improvement is kept.
+
+## 2026-10-19 — Device 12/24-hour clock for time pickers and labels (#303)
+
+Checked [Expo SDK57 Localization](https://docs.expo.dev/versions/v57.0.0/sdk/localization/) (fetched 2026-10-19) and the installed `expo-localization` 57.0.2 sources.
+
+- **API:** `getCalendars()` always returns at least one `Calendar`. Its `uses24hourClock: boolean | null` is documented as "True when current device settings use 24-hour time format". It is null only on browsers without `hourCycle`.
+- **Android:** `LocalizationModule.kt` returns `DateFormat.is24HourFormat(reactContext)`, which reads the system "Use 24-hour format" toggle and otherwise the locale. The `Intl` hour cycle used before reflected only the locale. The module emits `onCalendarSettingsChanged` only on configuration (locale) changes, so the app reads `getCalendars()` on every format rather than through the memoized `useCalendars()`.
+- **iOS and web:** iOS uses `DateFormatter.dateFormat(fromTemplate: "j", …, locale: Locale.current)`, which follows the 24-Hour Time setting. Web uses the `Intl` hour cycle.
+- **Config plugin:** optional. It only applies `supportsRTL`, `forcesRTL`, `supportedLocales` or `allowDynamicLocaleChangesAndroid`, and Mizyun sets none of them, so no plugin entry was added.
+- **Consequence:** `deviceUses24HourClock()` (in `components/ui/device-clock.ts`) drives Android `is24Hour` and `formatDeviceTime()`, with the locale `Intl` cycle as fallback. The picker row, the reminder save messages and the Dashboard reminder label share this formatter. `formatPickerTime` passes an explicit `hourCycle`. If the engine's resolved options show it was ignored, it writes a plain `19:30` / `7:30 PM` instead. This supersedes the "locale's hour cycle" note in the entry above.
+- **Native rebuild:** `ExpoLocalization` is a new native module. Its JS entry calls `requireNativeModule` at import, so `device-clock.ts` reads it with `requireOptionalNativeModule` instead (2026-10-21 review). A binary without the module keeps the locale hour cycle; a native rebuild is needed to follow the device toggle.

@@ -109,7 +109,11 @@ export function pickerDateToLocalDate(
   };
 }
 
-/** Whether the device locale writes times on a 24-hour clock. */
+/**
+ * Whether the locale writes times on a 24-hour clock. This is only the
+ * locale's default: the device's own 12/24-hour setting comes from
+ * `deviceUses24HourClock()` in `device-clock.ts`, which falls back here.
+ */
 export function uses24HourClock(locale?: string): boolean {
   try {
     const options = new Intl.DateTimeFormat(locale, {
@@ -124,16 +128,45 @@ export function uses24HourClock(locale?: string): boolean {
   }
 }
 
-/** A time as the device locale writes it, e.g. "7:30 PM" or "19:30". */
+export interface FormatPickerTimeOptions {
+  readonly locale?: string;
+  /** The clock to use; the locale's default when omitted. */
+  readonly uses24Hour?: boolean;
+}
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+/**
+ * A time in the locale's style on the chosen clock, e.g. "7:30 PM" or
+ * "19:30". An explicit `hourCycle` overrides the locale's own cycle; if
+ * the JS engine ignores it, a plain "19:30" / "7:30 PM" keeps the text on
+ * the chosen clock.
+ */
 export function formatPickerTime(
   hour: number,
   minute: number,
-  locale?: string,
+  { locale, uses24Hour }: FormatPickerTimeOptions = {},
 ): string {
-  return timeToPickerDate(hour, minute).toLocaleTimeString(locale, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const h = clamp(hour, 0, 23);
+  const m = clamp(minute, 0, 59);
+  const twentyFour = uses24Hour ?? uses24HourClock(locale);
+  const requested = twentyFour ? "h23" : "h12";
+  try {
+    const formatter = new Intl.DateTimeFormat(locale, {
+      hour: "numeric",
+      minute: "2-digit",
+      hourCycle: requested,
+    });
+    // An h11 or h24 locale default would show "0:30 PM" or "24:05".
+    if (formatter.resolvedOptions().hourCycle === requested) {
+      return formatter.format(timeToPickerDate(h, m));
+    }
+  } catch {
+    // Fall through to the plain format below.
+  }
+  if (twentyFour) return `${pad2(h)}:${pad2(m)}`;
+  const period = h < 12 ? "AM" : "PM";
+  return `${h % 12 === 0 ? 12 : h % 12}:${pad2(m)} ${period}`;
 }
 
 /** A calendar day as the device locale writes it, e.g. "19 Oct 2026". */

@@ -9,7 +9,7 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
-import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { formatDeviceTime } from "@/components/ui/device-clock";
 import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { MinTouchTarget, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -103,7 +103,7 @@ export function FirstMealRemindersCard({
     });
     setMessage(
       result.settings.enabled
-        ? `First-meal reminder scheduled for ${formatTime12(result.settings.hour, result.settings.minute)}.`
+        ? `First-meal reminder scheduled for ${formatDeviceTime(result.settings.hour, result.settings.minute)}.`
         : "First-meal reminder turned off.",
     );
   };

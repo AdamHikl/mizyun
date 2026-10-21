@@ -70,8 +70,8 @@ vi.mock("@/components/account-header-button", () => ({
 vi.mock("@/components/feedback-header-button", () => ({
   FeedbackHeaderButton: "FeedbackHeaderButton",
 }));
-vi.mock("@/components/ui/ios-time-picker-utils", () => ({
-  formatTime12: () => "9 am",
+vi.mock("@/components/ui/device-clock", () => ({
+  formatDeviceTime: () => "9 am",
 }));
 vi.mock("@/constants/theme", () => ({
   BottomTabInset: 0,

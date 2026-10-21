@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  formatPickerTime,
   fromDateInputValue,
   fromTimeInputValue,
   localDateToPickerBound,
@@ -11,8 +12,12 @@ import {
   timeToPickerDate,
   toDateInputValue,
   toTimeInputValue,
+  uses24HourClock,
   withinLocalDateRange,
 } from "./native-date-time-values";
+
+/** ICU may separate "PM" with a narrow no-break space. */
+const plain = (text: string) => text.replace(/\s/g, " ");
 
 const originalTz = process.env.TZ;
 
@@ -141,5 +146,59 @@ describe("native date/time picker values", () => {
     });
     expect(fromDateInputValue("2026-02-30")).toBeNull();
     expect(fromDateInputValue("")).toBeNull();
+  });
+
+  it("formats a time on the chosen clock, not the locale's", () => {
+    expect(uses24HourClock("en-US")).toBe(false);
+    expect(uses24HourClock("en-GB")).toBe(true);
+    // A UK phone with "Use 24-hour format" off, and a US phone with it on.
+    expect(
+      plain(formatPickerTime(19, 30, { locale: "en-GB", uses24Hour: false })),
+    ).toMatch(/^7:30 pm$/i);
+    expect(
+      formatPickerTime(19, 30, { locale: "en-US", uses24Hour: true }),
+    ).toBe("19:30");
+    expect(formatPickerTime(0, 5, { locale: "en-US", uses24Hour: true })).toBe(
+      "00:05",
+    );
+    expect(
+      plain(formatPickerTime(0, 5, { locale: "en-US", uses24Hour: false })),
+    ).toBe("12:05 AM");
+  });
+
+  it("follows the locale's clock when no setting is given", () => {
+    expect(plain(formatPickerTime(8, 0, { locale: "en-US" }))).toBe("8:00 AM");
+    expect(formatPickerTime(8, 0, { locale: "en-GB" })).toMatch(/^0?8:00$/);
+  });
+
+  it("keeps the chosen clock when the engine ignores hourCycle", () => {
+    const real = Intl.DateTimeFormat;
+    // An engine that answers in the locale's own hour cycle.
+    const ignoring = function (this: unknown, locale?: string) {
+      return new real(locale, { hour: "numeric", minute: "2-digit" });
+    } as unknown as typeof Intl.DateTimeFormat;
+    vi.stubGlobal("Intl", { ...Intl, DateTimeFormat: ignoring });
+    try {
+      expect(
+        formatPickerTime(19, 30, { locale: "en-US", uses24Hour: true }),
+      ).toBe("19:30");
+      expect(
+        plain(formatPickerTime(19, 30, { locale: "en-GB", uses24Hour: false })),
+      ).toBe("7:30 PM");
+      // h11 and h24 defaults are on the right clock but read "0:30" and "24:05".
+      expect(
+        plain(
+          formatPickerTime(12, 30, {
+            locale: "ja-u-hc-h11",
+            uses24Hour: false,
+          }),
+        ),
+      ).toBe("12:30 PM");
+      expect(
+        formatPickerTime(0, 5, { locale: "en-US-u-hc-h24", uses24Hour: true }),
+      ).toBe("00:05");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

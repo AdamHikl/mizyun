@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
-import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { formatDeviceTime } from "@/components/ui/device-clock";
 import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { Spacing } from "@/constants/theme";
 import {
@@ -70,7 +70,7 @@ export function EveningStretchReminderCard({
         permission === "denied"
           ? "permission_denied"
           : await eveningStretchRuntime.refresh();
-      setMessage(savedMessage(enabled, formatTime12(hour, minute), status));
+      setMessage(savedMessage(enabled, formatDeviceTime(hour, minute), status));
     } catch {
       setMessage("The evening stretch reminder could not be saved. Try again.");
     } finally {

@@ -60,8 +60,8 @@ vi.mock("@/components/ui", () => ({
 vi.mock("@/components/ui/native-date-time-picker", () => ({
   NativeTimePicker: "NativeTimePicker",
 }));
-vi.mock("@/components/ui/ios-time-picker-utils", () => ({
-  formatTime12: (h: number, m: number) => `${h}:${m}`,
+vi.mock("@/components/ui/device-clock", () => ({
+  formatDeviceTime: (h: number, m: number) => `${h}:${m}`,
 }));
 vi.mock("@/constants/theme", () => ({ MinTouchTarget: 44, Spacing: {} }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));

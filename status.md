@@ -28,7 +28,7 @@
 - **#307 evening catch-up dupes (Oct19):** per-user queue + pending sweep; reviewed; pushed f02fbf94, on Dev. Next: iPhone one-per-evening.
 - **#313 Claude multi-photo (Oct20):** flattened `{meals}` schema; reviewed; live 2-photo 7/7; pushed f02fbf94, on Dev.
 - **#314 goal target date (Oct20):** optional/editable in Goal settings; no invented 90-day date; Home warning links there. Contract nullable, no migration; 2 reviews. Old builds reject null. Shared gatePASS(3452mobile/1226API+15skips); committed in the Oct20 merge with #303/#308, Dev. Next: iPhone.
-- **#303 native pickers (Oct19):** shared Native{Date,Time}Picker (SwiftUI/Material3) replaces every custom/typed date-time input (#303); JS-only. Reviewed; gatePASS(3296mobile); committed Oct20 merge, Dev; Android24h+device open.
+- **#303 native pickers (Oct19):** shared Native{Date,Time}Picker (SwiftUI/Material3) replaces every custom/typed date-time input (#303); JS-only. Reviewed; gatePASS(3296mobile); committed Oct20 merge, Dev. Android 24h (expo-localization, native rebuild) merged Oct21; device open.
 - **#308 custom exercises (Oct19):** library create/edit/delete, tracking type, My exercises, rename via previousNames; API PUT/DELETE 409 when sets exist (ADR0075). 2 reviews resolved; shared-tree gatePASS(3439mobile/1221API+15skips); committed Oct20 merge, Dev. Next: iPhone. #311/#312.
 - **#295/#297 (Oct18):** photo+chat assistant (ADR0071); 2 reviews; 57815004 gatePASS(3186mobile/1195API+15skips), Dev health200, iPhone installed; Free 10k blocks photo turns. Next: Adam device test. #296;#294.
 - **#290 (Oct17):** lock/resume keeps sets, no false sign-out; 2 reviews/gatePASS; on main. Next: Dev/iPhone lock test; #291.

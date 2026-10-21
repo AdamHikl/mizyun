@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
-import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { formatDeviceTime } from "@/components/ui/device-clock";
 import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { Spacing } from "@/constants/theme";
 import {
@@ -109,7 +109,7 @@ export function EveningCatchUpRemindersCard({
     });
     setMessage(
       result.settings.enabled
-        ? `Evening catch-up reminder scheduled for ${formatTime12(result.settings.hour, result.settings.minute)}.`
+        ? `Evening catch-up reminder scheduled for ${formatDeviceTime(result.settings.hour, result.settings.minute)}.`
         : "Evening catch-up reminder turned off.",
     );
   };

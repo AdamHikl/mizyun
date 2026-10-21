@@ -4,15 +4,14 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { useTheme } from "@/hooks/use-theme";
+import { deviceUses24HourClock, formatDeviceTime } from "./device-clock";
 import {
   formatPickerDate,
-  formatPickerTime,
   localDateToPickerBound,
   localDateToPickerDate,
   pickerDateToLocalDate,
   pickerDateToTime,
   timeToPickerDate,
-  uses24HourClock,
   type NativeDatePickerProps,
   type NativeTimePickerProps,
 } from "./native-date-time-values";
@@ -75,7 +74,7 @@ export function NativeTimePicker({
     <View>
       <PickerRow
         label={label}
-        value={formatPickerTime(hour, minute)}
+        value={formatDeviceTime(hour, minute)}
         disabled={disabled}
         onPress={() => setOpen(true)}
       />
@@ -84,7 +83,7 @@ export function NativeTimePicker({
           mode="time"
           presentation="dialog"
           value={timeToPickerDate(hour, minute)}
-          is24Hour={uses24HourClock()}
+          is24Hour={deviceUses24HourClock()}
           accentColor={theme.primary}
           onValueChange={(_event, date) => {
             setOpen(false);

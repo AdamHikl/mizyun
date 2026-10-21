@@ -67,7 +67,7 @@ import {
   type DailyStepsResult,
 } from "@/features/health-steps/health-steps";
 import { useTheme } from "@/hooks/use-theme";
-import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { formatDeviceTime } from "@/components/ui/device-clock";
 import {
   prepareQuickMealRepeat,
   completeQuickMealRepeat,
@@ -1646,7 +1646,7 @@ function FirstMealDashboardCard(props: {
             <Icon name="bell" size={14} color="textSecondary" />
             <ThemedText type="footnote" themeColor="textSecondary">
               Reminder{" "}
-              {formatTime12(reminderSettings.hour, reminderSettings.minute)}
+              {formatDeviceTime(reminderSettings.hour, reminderSettings.minute)}
             </ThemedText>
           </View>
         ) : (

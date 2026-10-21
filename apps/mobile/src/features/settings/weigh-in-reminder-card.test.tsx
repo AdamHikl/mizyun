@@ -55,11 +55,9 @@ vi.mock("@/components/ui", () => ({
 vi.mock("@/components/ui/native-date-time-picker", () => ({
   NativeTimePicker: "NativeTimePicker",
 }));
-vi.mock("@/components/ui/ios-time-picker-utils", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@/components/ui/ios-time-picker-utils")
-  >()),
-  formatTime12: (h: number, m: number) => `${h}:${String(m).padStart(2, "0")}`,
+vi.mock("@/components/ui/device-clock", () => ({
+  formatDeviceTime: (h: number, m: number) =>
+    `device ${h}:${String(m).padStart(2, "0")}`,
 }));
 vi.mock("@/constants/theme", () => ({ MinTouchTarget: 44, Spacing: {} }));
 vi.mock("@/features/log-weight/log-weight-data", () => ({
@@ -170,6 +168,17 @@ describe("weigh-in reminder card", () => {
       { enabled: true, hour: 7, minute: 30, weekdays: [5, 1] },
       { todayLogged: false },
     );
+    tree = render();
+    const saved = findAll(
+      tree,
+      (n) =>
+        typeof n.props?.children === "string" &&
+        n.props.children.startsWith("Weigh-in reminder scheduled"),
+    );
+    // The summary uses the device clock formatter, like the time picker.
+    expect(saved.map((n) => n.props.children)).toEqual([
+      expect.stringMatching(/ at device 7:30\.$/),
+    ]);
   });
 
   it("will not save an enabled reminder with no days", async () => {

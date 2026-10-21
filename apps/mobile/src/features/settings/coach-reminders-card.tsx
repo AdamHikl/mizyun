@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { Button, ListGroup, ListRow, SectionHeader } from "@/components/ui";
-import { formatTime12 } from "@/components/ui/ios-time-picker-utils";
+import { formatDeviceTime } from "@/components/ui/device-clock";
 import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
 import { IosWeekdayPicker } from "@/components/ui/ios-weekday-picker";
 import { Spacing } from "@/constants/theme";
@@ -56,7 +56,7 @@ export function CoachRemindersCard({ userId }: { readonly userId: string }) {
     setSettings(result.settings);
     setMessage(
       result.settings.dailyEnabled || result.settings.weeklyEnabled
-        ? `Coach reminders scheduled for ${formatTime12(result.settings.hour, result.settings.minute ?? 0)}.`
+        ? `Coach reminders scheduled for ${formatDeviceTime(result.settings.hour, result.settings.minute ?? 0)}.`
         : "Coach reminders are off and prior schedules were removed.",
     );
   };

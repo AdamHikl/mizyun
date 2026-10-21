@@ -9,11 +9,9 @@ import {
   ListRow,
   SectionHeader,
 } from "@/components/ui";
+import { formatDeviceTime } from "@/components/ui/device-clock";
+import { getWeekdayLabel } from "@/components/ui/ios-time-picker-utils";
 import { NativeTimePicker } from "@/components/ui/native-date-time-picker";
-import {
-  formatTime12,
-  getWeekdayLabel,
-} from "@/components/ui/ios-time-picker-utils";
 import { MinTouchTarget, Spacing } from "@/constants/theme";
 import {
   isWeightLoggedToday,
@@ -115,7 +113,7 @@ export function WeighInReminderCard({ userId }: { readonly userId: string }) {
     setSettings(result.settings);
     setMessage(
       result.settings.enabled
-        ? `Weigh-in reminder scheduled for ${describeWeighInDays(result.settings.weekdays)} at ${formatTime12(result.settings.hour, result.settings.minute)}.`
+        ? `Weigh-in reminder scheduled for ${describeWeighInDays(result.settings.weekdays)} at ${formatDeviceTime(result.settings.hour, result.settings.minute)}.`
         : "Weigh-in reminder turned off.",
     );
   };
