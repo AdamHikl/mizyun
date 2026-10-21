@@ -13,7 +13,7 @@
 - **Dev (Oct21):** 70adb7cc (ADR0078 release) deploy:dev OK 17:18Z, migration 20261021120000, health200; revocation key added.
 - **iPhone Dev (Oct18):** f388c722 Release installed/launched 11:10Z on 00008140-001114501A86801C; acceptance open. Xcode27.1 fix: patched expo-modules-jsi@57.1.0 + `with-ios-source-built-expo-modules`; drop at SDK58. #287 flaky core test.
 - **Production (Oct21, ADR0078):** 70adb7cc promoted 17:39Z; deploy backup OK; 24 migrations through 20261021120000; health200. Env (bak-20261021T174040Z-release): Community (all users), bouldering, AI stretch, run imports, meal photos, recipes, Haiku for Coach/typed meals/activity (consent-gated per feature), Apple revocation. iPhone 1.0.10(10) Release installed 17:31Z. Device tests skipped by Adam; moderator unset; Store labels/ToS open (#319). [Evidence](docs/PRODUCTION_RELEASE_2026-10-21.md)
-- **Legal/Store (Oct21, e71607ca):** moderator adoh811 (no MFA yet; single, appeals wait); website a7742b0 live; standards URL relinked; optional Community features off. IPA export blocked (Xcode account), AAB blocked (keystore flag). #319
+- **Legal/Store (Oct21-22):** moderator adoh811 (no MFA yet); website a7742b0 live; optional Community features off. AAB 1.0.10(10) af11f072 signed (upload cert match). IPA archive kept; CLI export lacks Xcode account, Adam exports via Organizer. #319
 - **AI (ADR0077/0078):** Anthropic only for features the stored consent names (Coach, typed meals/draft changes, Log activity); 2026-09-08 consent and all other features on Gemini3.8. `ANTHROPIC_ENABLED` acknowledgement; build-9 shapes for requests without `x-mizyun-api-compat`. Signed-in AI checks open; Qwen paused.
 
 ## Running and usability acceptance
