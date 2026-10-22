@@ -229,6 +229,11 @@ const disconnected = (state: Network.NetworkState): boolean =>
     state.type !== undefined &&
     state.type !== Network.NetworkStateType.UNKNOWN);
 
+// Leaving the app retires in-flight reads and Home refreshes again on return,
+// so a retired read is a cancelled refresh rather than a failure to report.
+const retiredRead = (result: DailyDataResult<unknown>): boolean =>
+  result.error?.kind === "context_changed";
+
 const caloriesDetail = (
   summary: DailySummary | null,
   energy: EnergySummary | null,
@@ -607,6 +612,22 @@ export function DashboardScreen() {
           error: null,
         });
 
+    let retired = false;
+    const settledStatus = (
+      status: SectionStatus,
+      result: DailyDataResult<unknown>,
+    ): SectionStatus => {
+      if (retiredRead(result)) return { ...status, loading: false };
+      const hasError = result.error !== null;
+      return {
+        loading: false,
+        hasError,
+        savedAt: hasError
+          ? status.savedAt
+          : new Date(oldestSavedRead ?? Date.now()).toISOString(),
+      };
+    };
+
     // Handle Tier 1 resolution independently:
     const dailySignalsPromise = Promise.all([
       todaySummaryPromise,
@@ -614,6 +635,7 @@ export function DashboardScreen() {
       energyPromise,
     ]).then(([summary, weight, energy]) => {
       if (!isCurrentRequest()) return;
+      if ([summary, weight, energy].some(retiredRead)) retired = true;
 
       setMetrics((current) => {
         const hasNutritionError = summary.error !== null;
@@ -676,27 +698,12 @@ export function DashboardScreen() {
           energy: freshEnergy,
           sectionStatus: {
             ...current.sectionStatus,
-            nutritionToday: {
-              loading: false,
-              hasError: hasNutritionError,
-              savedAt: hasNutritionError
-                ? current.sectionStatus.nutritionToday.savedAt
-                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
-            },
-            weight: {
-              loading: false,
-              hasError: hasWeightError,
-              savedAt: hasWeightError
-                ? current.sectionStatus.weight.savedAt
-                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
-            },
-            energy: {
-              loading: false,
-              hasError: hasEnergyError,
-              savedAt: hasEnergyError
-                ? current.sectionStatus.energy.savedAt
-                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
-            },
+            nutritionToday: settledStatus(
+              current.sectionStatus.nutritionToday,
+              summary,
+            ),
+            weight: settledStatus(current.sectionStatus.weight, weight),
+            energy: settledStatus(current.sectionStatus.energy, energy),
           },
         };
       });
@@ -709,6 +716,10 @@ export function DashboardScreen() {
       todaySummaryPromise,
     ]).then(([count, historicalResult, summaryResult]) => {
       if (!isCurrentRequest()) return;
+      const reviewRetired = [count, historicalResult, summaryResult].some(
+        retiredRead,
+      );
+      if (reviewRetired) retired = true;
 
       const hasHistoricalError =
         historicalResult.error !== null || summaryResult.error !== null;
@@ -740,13 +751,15 @@ export function DashboardScreen() {
           workoutsInReview: effectiveWorkouts,
           sectionStatus: {
             ...current.sectionStatus,
-            review: {
-              loading: false,
-              hasError: hasReviewError,
-              savedAt: hasReviewError
-                ? current.sectionStatus.review.savedAt
-                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
-            },
+            review: reviewRetired
+              ? { ...current.sectionStatus.review, loading: false }
+              : {
+                  loading: false,
+                  hasError: hasReviewError,
+                  savedAt: hasReviewError
+                    ? current.sectionStatus.review.savedAt
+                    : new Date(oldestSavedRead ?? Date.now()).toISOString(),
+                },
           },
         };
       });
@@ -771,7 +784,7 @@ export function DashboardScreen() {
         current.sectionStatus.review.loading;
 
       // Save fresh merged snapshot if we have valid non-empty daily data
-      if (userId && !overallHasError && !usedSavedRead) {
+      if (userId && !overallHasError && !usedSavedRead && !retired) {
         void saveCachedDashboard(userId, {
           localDate: todayDate,
           reviewPeriod,

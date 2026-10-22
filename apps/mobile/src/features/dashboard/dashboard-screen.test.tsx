@@ -855,6 +855,48 @@ describe("dashboard cached display and refresh status", () => {
     await settle();
     expect(nutrition(render()).props.caloriesToday).toBe(1400);
   });
+
+  it("treats reads cancelled by leaving the app as a cancelled refresh, not a failure", async () => {
+    mocks.daily.mockResolvedValueOnce(
+      success({ ...summary, caloriesKcal: 1400 }),
+    );
+    render();
+    focus();
+    await settle();
+    mocks.save.mockClear();
+    const cancelled = { value: null, error: { kind: "context_changed" } };
+    const reads = [
+      mocks.daily,
+      mocks.weight,
+      mocks.energy,
+      mocks.workouts,
+      mocks.history,
+    ].map((read) => {
+      const pending = deferred<any>();
+      read.mockReturnValueOnce(pending.promise);
+      return pending;
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    // Opening Control Center retires the in-flight reads.
+    mocks.appState!("inactive");
+    for (const pending of reads) pending.resolve(cancelled);
+    await settle();
+    let tree = render();
+    expect(text(tree)).not.toMatch(/couldn.t update|offline|retrying/i);
+    expect(nutrition(tree).props.caloriesToday).toBe(1400);
+    expect(nutrition(tree).props.loading).toBe(false);
+    expect(weight(tree).props.value).toContain("81.5");
+    expect(mocks.save).not.toHaveBeenCalled();
+    mocks.daily.mockResolvedValueOnce(
+      success({ ...summary, caloriesKcal: 1500 }),
+    );
+    mocks.appState!("active");
+    await settle();
+    tree = render();
+    expect(text(tree)).not.toMatch(/couldn.t update|retrying/i);
+    expect(nutrition(tree).props.caloriesToday).toBe(1500);
+  });
+
   it("records a successful section timestamp even when no persistent snapshot exists", async () => {
     mocks.cache.mockResolvedValue(null);
     render();
