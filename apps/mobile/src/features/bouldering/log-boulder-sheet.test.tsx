@@ -17,10 +17,11 @@ vi.mock("react", async (original) => ({
     ];
   },
 }));
+const platform = vi.hoisted(() => ({ OS: "ios" }));
 vi.mock("react-native", () => ({
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Modal: "Modal",
-  Platform: { OS: "ios" },
+  Platform: platform,
   Pressable: "Pressable",
   ScrollView: "ScrollView",
   View: "View",
@@ -89,11 +90,20 @@ const baseProps = (over: Partial<Props> = {}): Props => ({
 });
 
 beforeEach(() => {
+  platform.OS = "ios";
   hooks.slots = [];
   hooks.index = 0;
 });
 
 describe("LogBoulderSheet", () => {
+  it("keeps Save above the keyboard on both platforms", () => {
+    const keyboard = (tree: any) =>
+      find(tree, (n) => n.type === "KeyboardAvoidingView");
+    expect(keyboard(render(baseProps())).props.behavior).toBe("padding");
+    platform.OS = "android";
+    expect(keyboard(render(baseProps())).props.behavior).toBe("height");
+  });
+
   it("pre-selects the given grade and keeps Save disabled until a result is chosen", () => {
     const tree = render(baseProps());
     const grades = find(tree, (n) => n.type === GradeChips);

@@ -193,9 +193,11 @@ export function LogBoulderSheet({
     >
       <ThemedView style={styles.page}>
         <SafeAreaView style={styles.page} edges={["top", "bottom"]}>
+          {/* Android modals don't resize for the keyboard, so shrink the
+              sheet there too; otherwise the note's keyboard hides Save. */}
           <KeyboardAvoidingView
             style={styles.page}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
             <View style={styles.header}>
               <ThemedText type="title3" accessibilityRole="header">
