@@ -23,7 +23,12 @@ Adam asked that tapping anything in a "Sends by grade" row on Bouldering progres
 - Independent Opus review: no blockers. Fixed: stale overlapping loads, re-signing photos, raw-param title and invalid links, the raw `+` query, and non-selectable rows announced as dimmed. Not changed: sequential photo signing (same as the session screen) and Modal-close plus push timing (needs a device check).
 - Full gate: recorded in `status.md` and the commit.
 
+## Delivery (post-gate record)
+
+- Commit `4645debebb4c2e02a28ea7b193b3dcaf5e28687f`, pushed to `origin/main`. The pre-commit gate passed on an isolated candidate (`ba07b1f6` + owned files, input SHA-256 `82b99bab…`).
+- `pnpm deploy:dev 4645debe…` re-ran the gate (PASS, input SHA-256 `4e1ed34d…`), reconciled migrations (no new migration) and restarted the Dev API. Public `/v1/health` returned 200 at 2026-10-22T19:41:28Z. Unauthenticated `GET /v1/bouldering/progress/grade` returns 401; an unknown sibling path returns 404.
+- Mizyun Dev (`com.mizyun.development`), Release build from clean HEAD `4645debe` after a clean prebuild from the Production native project. Installed at 19:45:56Z on Adam's iPhone `00008140-001114501A86801C`. The first launch was refused because the phone was locked; a manual `devicectl` relaunch succeeded.
+
 ## Open
 
-- Not on Dev. The API endpoint needs `deploy:dev`. The screen needs a new Dev app build, because the route and UI are JS that ship in the binary or a Metro bundle.
 - Device: tap 6A, 6B and 5+ rows in each window, open a boulder with a photo, check that Open session works and the sheet dismisses smoothly, and check VoiceOver row labels and hints.
