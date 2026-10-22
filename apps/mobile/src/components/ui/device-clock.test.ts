@@ -11,7 +11,11 @@ vi.mock("expo", () => ({
       : null,
 }));
 
-import { deviceUses24HourClock, formatDeviceTime } from "./device-clock";
+import {
+  deviceUses24HourClock,
+  formatDeviceInstant,
+  formatDeviceTime,
+} from "./device-clock";
 import { uses24HourClock } from "./native-date-time-values";
 
 const calendar = (uses24hourClock: boolean | null) => [
@@ -56,5 +60,21 @@ describe("device clock", () => {
     mocks.native = false;
     expect(deviceUses24HourClock()).toBe(uses24HourClock());
     expect(mocks.getCalendars).not.toHaveBeenCalled();
+  });
+});
+
+describe("formatDeviceInstant", () => {
+  it("formats an instant's local time with the device's 12/24-hour setting", () => {
+    const instant = new Date(2026, 9, 21, 19, 30);
+    mocks.getCalendars.mockReturnValue(calendar(true));
+    expect(formatDeviceInstant(instant)).toBe("19:30");
+    mocks.getCalendars.mockReturnValue(calendar(false));
+    expect(formatDeviceInstant(instant).replace(/\s/g, " ")).toMatch(
+      /^7:30 pm$/i,
+    );
+  });
+
+  it("returns an empty string for an invalid date", () => {
+    expect(formatDeviceInstant(new Date("not a date"))).toBe("");
   });
 });

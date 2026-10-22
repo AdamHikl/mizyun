@@ -67,7 +67,10 @@ import {
   type DailyStepsResult,
 } from "@/features/health-steps/health-steps";
 import { useTheme } from "@/hooks/use-theme";
-import { formatDeviceTime } from "@/components/ui/device-clock";
+import {
+  formatDeviceInstant,
+  formatDeviceTime,
+} from "@/components/ui/device-clock";
 import {
   prepareQuickMealRepeat,
   completeQuickMealRepeat,
@@ -214,8 +217,7 @@ const formatCount = (n: number | null): string =>
 const formatCachedTime = (isoString: string | null): string => {
   if (!isoString) return "earlier";
   try {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return formatDeviceInstant(new Date(isoString)) || "earlier";
   } catch {
     return "earlier";
   }

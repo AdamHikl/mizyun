@@ -194,7 +194,8 @@ export class CommunityProfileController {
     return { ok: false, error: { kind: "no_session" } };
   }
 
-  private mutationError(error: ApiError): void {
+  private mutationError(failure: ApiError): void {
+    const error = communityErrorCause(failure);
     const denied =
       error.kind === "no_session" ||
       error.kind === "session_expired" ||
@@ -205,7 +206,7 @@ export class CommunityProfileController {
           error.code === "COMMUNITY_NOT_ENROLLED" ||
           error.code === "COMMUNITY_AGE_RESTRICTED"));
     this.updateState({
-      error: humanizeCommunityError(error),
+      error: humanizeCommunityError(failure),
       isSaving: false,
       ...(denied ||
       error.kind === "network_error" ||

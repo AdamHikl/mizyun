@@ -26,6 +26,10 @@ const hooks = vi.hoisted(() => ({
   // after this file's environment is torn down.
   focusCleanups: [] as (() => void)[],
 }));
+vi.mock("@/components/ui/device-clock", () => ({
+  formatDeviceInstant: (date: Date) =>
+    `${date.getHours()}:${String(date.getMinutes()).padStart(2, "0")}`,
+}));
 vi.mock("@/components/ui/native-date-time-picker", () => ({
   NativeDatePicker: "NativeDatePicker",
   NativeTimePicker: "NativeTimePicker",

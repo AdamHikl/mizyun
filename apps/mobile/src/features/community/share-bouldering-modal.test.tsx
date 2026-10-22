@@ -122,6 +122,7 @@ vi.mock("./use-community-profile", () => ({
 vi.mock("./community-client", () => ({
   fetchBoulderingSharePreview: mocks.fetch,
   humanizeCommunityError: () => "Failed",
+  communityErrorCause: (error: unknown) => error,
   unpublishActivity: mocks.revoke,
   publishBoulderingActivity: vi.fn(),
 }));

@@ -6,6 +6,7 @@ import type {
 } from "@mizyun/contracts";
 import type { Result } from "@mizyun/core";
 import {
+  communityErrorCause,
   humanizeCommunityError,
   publishBoulderingActivity,
 } from "./community-client";
@@ -85,6 +86,7 @@ export function humanizeBoulderingShareError(
   error: ApiError,
   fallback: string,
 ): string {
+  error = communityErrorCause(error);
   if (error.kind === "http_error") {
     switch (error.code) {
       case "FEATURE_DISABLED":

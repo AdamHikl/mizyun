@@ -25,6 +25,7 @@ import { apiClient } from "@/composition/api-client";
 import { useTheme } from "@/hooks/use-theme";
 import {
   blockUser,
+  communityErrorCause,
   fetchSharedActivity,
   humanizeCommunityError,
   setUserMuted,
@@ -187,9 +188,10 @@ export function ActivityDetailScreen({
       );
     } else {
       // Neutral unavailable error if 404 or forbidden
+      const cause = communityErrorCause(result.error);
       if (
-        result.error.kind === "http_error" &&
-        (result.error.status === 404 || result.error.status === 403)
+        cause.kind === "http_error" &&
+        (cause.status === 404 || cause.status === 403)
       ) {
         setError("This activity is unavailable.");
       } else {

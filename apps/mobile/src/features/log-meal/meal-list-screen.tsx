@@ -39,6 +39,7 @@ import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { formatDeviceInstant } from "@/components/ui/device-clock";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import {
   BottomTabInset,
@@ -150,10 +151,7 @@ const formatGroupNutrition = (summary: DayGroupSummary): string => {
 };
 
 const formatMealTime = (instant: string): string =>
-  new Date(instant).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  formatDeviceInstant(new Date(instant));
 
 const getEntryCalculationText = (entry: FoodEntry): string | null => {
   if (!entry.details || typeof entry.details !== "object") return null;
