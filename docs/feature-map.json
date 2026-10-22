@@ -358,6 +358,8 @@
         "apps/mobile/src/app/bouldering/session.tsx",
         "apps/mobile/src/features/bouldering/progress-screen.tsx",
         "apps/mobile/src/app/bouldering/progress.tsx",
+        "apps/mobile/src/features/bouldering/grade-sends-screen.tsx",
+        "apps/mobile/src/app/bouldering/grade.tsx",
         "apps/mobile/src/app/log-activity.tsx",
         "apps/mobile/src/features/log-activity/log-activity-screen.tsx",
         "apps/mobile/src/features/log-workout/timed-set-input.ts"

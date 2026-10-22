@@ -639,6 +639,78 @@ describe("bouldering routes", () => {
     ).toBe(400);
   });
 
+  it("lists the sends behind one grade row, owner-only", async () => {
+    const { app } = setup();
+    const first = (await start(app, asA, { gymName: "North Wall" })).json()
+      .session;
+    const sent = await log(app, first.id, {
+      grade: "6A+",
+      result: "sent",
+      attempts: 3,
+      holdColour: "blue",
+      note: "Slab",
+    });
+    await log(app, first.id, { grade: "6A+", result: "not_yet" });
+    await log(app, first.id, { grade: "6B", result: "flash", attempts: 1 });
+    await finish(app, first.id);
+    await tick();
+    const second = (await start(app)).json().session;
+    const flash = await log(app, second.id, {
+      grade: "6a+",
+      result: "flash",
+      attempts: 1,
+    });
+    await finish(app, second.id);
+    // B's same-grade send never appears in A's list.
+    const other = (await start(app, asB)).json().session;
+    await log(app, other.id, { grade: "6A+", result: "sent" }, asB);
+
+    const grade = (query: string, headers = asA) =>
+      app.inject({
+        method: "GET",
+        url: `/v1/bouldering/progress/grade?${query}`,
+        headers,
+      });
+    const res = await grade("window=30d&grade=6A%2B");
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toMatchObject({ window: "30d", grade: "6A+" });
+    expect(
+      body.sends.map((s: { ascent: { id: string } }) => s.ascent.id),
+    ).toEqual([flash.json().ascent.id, sent.json().ascent.id]);
+    expect(body.sends[1]).toMatchObject({
+      activityDate: shiftDate(0),
+      gymName: "North Wall",
+      ascent: { holdColour: "blue", note: "Slab", attempts: 3 },
+    });
+    expect(body.sends[0].gymName).toBeNull();
+    // Matches the pyramid row it opens from.
+    const progress = (
+      await app.inject({
+        method: "GET",
+        url: "/v1/bouldering/progress?window=30d",
+        headers: asA,
+      })
+    ).json();
+    expect(
+      progress.pyramid.find((r: { grade: string }) => r.grade === "6A+"),
+    ).toMatchObject({ sends: body.sends.length, flashes: 1 });
+
+    // Lowercase is normalised; an unencoded "+" (a space) is rejected, not read as 6A.
+    expect((await grade("window=30d&grade=6a%2b")).json().grade).toBe("6A+");
+    expect((await grade("window=30d&grade=6A+")).statusCode).toBe(400);
+    expect((await grade("window=all&grade=7C", asB)).json()).toEqual({
+      window: "all",
+      grade: "7C",
+      sends: [],
+    });
+    expect((await grade("grade=9Z")).statusCode).toBe(400);
+    expect((await grade("window=30d")).statusCode).toBe(400);
+    expect((await grade("grade=6A&window=7d")).statusCode).toBe(400);
+    expect((await grade("grade=6A&extra=1")).statusCode).toBe(400);
+    expect((await grade("grade=6A", {} as typeof asA)).statusCode).toBe(401);
+  });
+
   it("answers 503 for a stored session whose details fail the contract", async () => {
     const { app, workouts } = setup();
     const id = crypto.randomUUID();

@@ -1,4 +1,6 @@
 import type {
+  BoulderAscentRecord,
+  BoulderGradeSendsResponse,
   BoulderProgressResponse,
   BoulderProjectRecord,
 } from "@mizyun/contracts";
@@ -54,5 +56,71 @@ export const progressFixture = (
     },
   ],
   totals: { sessions: 3, sends: 18, flashes: 7 },
+  ...over,
+});
+
+const SESSION_A = "77777777-7777-4777-8777-00000000000a";
+const SESSION_B = "77777777-7777-4777-8777-00000000000b";
+
+export const gradeAscentFixture = (
+  over: Partial<BoulderAscentRecord> = {},
+): BoulderAscentRecord => ({
+  id: "99999999-9999-4999-8999-000000000001",
+  sessionId: SESSION_A,
+  sequence: 1,
+  gradeScale: "font",
+  grade: "6A",
+  gradeRank: 5,
+  result: "sent",
+  attempts: 3,
+  holdColour: "blue",
+  note: null,
+  photoAssetId: null,
+  projectId: null,
+  loggedAt: "2026-10-22T18:00:00.000Z",
+  revision: 1,
+  createdAt: "2026-10-22T18:00:00.000Z",
+  updatedAt: "2026-10-22T18:00:00.000Z",
+  ...over,
+});
+
+/** 6A in the last 90 days: two sends today at North Wall, one older flash. */
+export const gradeSendsFixture = (
+  over: Partial<BoulderGradeSendsResponse> = {},
+): BoulderGradeSendsResponse => ({
+  window: "90d",
+  grade: "6A",
+  sends: [
+    {
+      activityDate: "2026-10-22",
+      gymName: "North Wall",
+      ascent: gradeAscentFixture({
+        photoAssetId: "55555555-5555-4555-8555-555555555555",
+        note: "Slab finish",
+      }),
+    },
+    {
+      activityDate: "2026-10-22",
+      gymName: "North Wall",
+      ascent: gradeAscentFixture({
+        id: "99999999-9999-4999-8999-000000000002",
+        sequence: 4,
+        result: "sent",
+        attempts: null,
+        holdColour: null,
+      }),
+    },
+    {
+      activityDate: "2026-10-08",
+      gymName: null,
+      ascent: gradeAscentFixture({
+        id: "99999999-9999-4999-8999-000000000003",
+        sessionId: SESSION_B,
+        result: "flash",
+        attempts: 1,
+        holdColour: "yellow",
+      }),
+    },
+  ],
   ...over,
 });

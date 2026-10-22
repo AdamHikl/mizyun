@@ -1,8 +1,10 @@
-import { StyleSheet, View } from "react-native";
+import type { ReactNode } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 import type { BoulderProgressResponse } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
-import { Radius, Spacing } from "@/constants/theme";
+import { Icon } from "@/components/ui";
+import { MinTouchTarget, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { pyramidRows } from "./progress";
 
@@ -54,11 +56,55 @@ export function PyramidLegend() {
   );
 }
 
-/** Horizontal bar per grade, hardest at top, a count on every bar. */
+/** A tappable row when it opens a grade; otherwise one labelled summary. */
+function PyramidRow({
+  accessibilityLabel,
+  onPress,
+  children,
+}: {
+  accessibilityLabel: string;
+  onPress?: () => void;
+  children: ReactNode;
+}) {
+  const theme = useTheme();
+  if (!onPress)
+    return (
+      <View
+        style={styles.row}
+        accessible
+        accessibilityLabel={accessibilityLabel}
+      >
+        {children}
+      </View>
+    );
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        styles.selectable,
+        pressed && { backgroundColor: theme.backgroundSelected },
+      ]}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Shows each boulder sent at this grade"
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+/**
+ * Horizontal bar per grade, hardest at top, a count on every bar. With
+ * `onSelectGrade`, the whole row opens that grade's sends.
+ */
 export function GradePyramid({
   pyramid,
+  onSelectGrade,
 }: {
   pyramid: BoulderProgressResponse["pyramid"];
+  onSelectGrade?: (grade: string) => void;
 }) {
   const theme = useTheme();
   const rows = pyramidRows(pyramid);
@@ -67,11 +113,10 @@ export function GradePyramid({
     <View style={styles.list}>
       <PyramidLegend />
       {rows.map((row) => (
-        <View
+        <PyramidRow
           key={row.grade}
-          style={styles.row}
-          accessible
           accessibilityLabel={row.accessibilityLabel}
+          onPress={onSelectGrade ? () => onSelectGrade(row.grade) : undefined}
         >
           <ThemedText type="smallBold" style={styles.grade}>
             {row.grade}
@@ -104,7 +149,10 @@ export function GradePyramid({
           <ThemedText type="small" style={styles.count}>
             {row.countLabel}
           </ThemedText>
-        </View>
+          {onSelectGrade ? (
+            <Icon name="chevronRight" size={14} color="textTertiary" />
+          ) : null}
+        </PyramidRow>
       ))}
     </View>
   );
@@ -129,6 +177,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.two,
     minHeight: 28,
+  },
+  selectable: {
+    minHeight: MinTouchTarget,
+    marginHorizontal: -Spacing.one,
+    paddingHorizontal: Spacing.one,
+    borderRadius: Radius.sm,
   },
   grade: { minWidth: 40 },
   track: { flex: 1, height: 16, justifyContent: "center" },

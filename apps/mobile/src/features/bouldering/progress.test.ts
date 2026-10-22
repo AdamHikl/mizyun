@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { formatBoulderDate } from "./presentation";
 import {
+  gradeSendsSummary,
+  groupGradeSends,
   groupProjects,
   projectAccessibilityLabel,
   projectsSentInSession,
@@ -13,6 +15,7 @@ import {
   tryAgainProjects,
 } from "./progress";
 import {
+  gradeSendsFixture,
   progressFixture,
   projectFixture,
 } from "./progress-fixtures.test-support";
@@ -147,5 +150,24 @@ describe("projects", () => {
       open,
       reopened,
     ]);
+  });
+});
+
+describe("grade drill-down", () => {
+  it("groups sends by session in the server's newest-first order", () => {
+    const groups = groupGradeSends(gradeSendsFixture().sends);
+    expect(groups.map((g) => [g.title, g.sends.length])).toEqual([
+      [`${formatBoulderDate("2026-10-22")} · North Wall`, 2],
+      [formatBoulderDate("2026-10-08"), 1],
+    ]);
+    expect(groups[0]!.sends.map((s) => s.ascent.sequence)).toEqual([1, 4]);
+  });
+
+  it("summarises with the row's own numbers", () => {
+    const { sends } = gradeSendsFixture();
+    expect(gradeSendsSummary(sends, "90d")).toBe(
+      "3 sends in the last 90 days · 1 flash",
+    );
+    expect(gradeSendsSummary(sends.slice(0, 1), "all")).toBe("1 send in all");
   });
 });

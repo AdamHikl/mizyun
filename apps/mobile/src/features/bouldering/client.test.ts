@@ -4,6 +4,7 @@ import type { ApiClient } from "@mizyun/api-client";
 import {
   archiveBoulderProject,
   createBoulderAscent,
+  getBoulderGradeSends,
   getBoulderProgress,
   listBoulderProjects,
   PROJECT_ALREADY_SENT_MESSAGE,
@@ -11,6 +12,7 @@ import {
   toBoulderFailure,
 } from "./client";
 import {
+  gradeSendsFixture,
   progressFixture,
   projectFixture,
 } from "./progress-fixtures.test-support";
@@ -42,6 +44,18 @@ const failing = (status: number, code: string) =>
   }) as any;
 
 describe("bouldering progress and project client", () => {
+  it("requests one grade's sends with the grade URL-encoded", async () => {
+    const client = clientReturning(
+      gradeSendsFixture({ grade: "6A+", window: "30d" }),
+    );
+    const result = await getBoulderGradeSends("6A+", "30d", client);
+    expect(client.request.mock.calls[0]![0]).toMatchObject({
+      method: "GET",
+      path: "/v1/bouldering/progress/grade?window=30d&grade=6A%2B",
+    });
+    expect(result.ok && result.value.sends).toHaveLength(3);
+  });
+
   it("requests the chosen progress window and parses the response", async () => {
     const client = clientReturning(progressFixture({ window: "30d" }));
     const result = await getBoulderProgress("30d", client);

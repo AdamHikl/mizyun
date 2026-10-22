@@ -14,7 +14,11 @@ vi.mock("@/constants/theme", () => ({
   Spacing: { half: 2, one: 4, two: 8, three: 16, four: 24, five: 32 },
 }));
 vi.mock("@/hooks/use-theme", () => ({
-  useTheme: () => ({ primary: "#0A8F63", primaryLight: "#DDF3EA" }),
+  useTheme: () => ({
+    primary: "#0A8F63",
+    primaryLight: "#DDF3EA",
+    backgroundSelected: "#E8ECEA",
+  }),
 }));
 // The swatch lives in the sheet module, which pulls in native photo modules.
 vi.mock("./log-boulder-sheet", () => ({
@@ -70,6 +74,29 @@ describe("GradePyramid", () => {
     // Legend swatch + 6B + 6A (6C+ has no flashes).
     expect(hatches).toHaveLength(3);
     expect(hatches[1].props.children.length).toBeGreaterThan(1);
+  });
+
+  it("opens a grade from anywhere in its row when selectable", () => {
+    const onSelectGrade = vi.fn();
+    const tree = GradePyramid({
+      pyramid: progressFixture().pyramid,
+      onSelectGrade,
+    });
+    const rows = findAll(tree, (n) => n.type === "Pressable");
+    expect(rows.map((r) => r.props.accessibilityRole)).toEqual([
+      "button",
+      "button",
+      "button",
+    ]);
+    expect(rows.map((r) => r.props.accessibilityLabel)).toEqual(
+      labelled(GradePyramid({ pyramid: progressFixture().pyramid })),
+    );
+    rows[1].props.onPress();
+    expect(onSelectGrade).toHaveBeenCalledWith("6B");
+    // Without a handler the rows stay plain, labelled summaries (not "dimmed" buttons).
+    const plain = GradePyramid({ pyramid: progressFixture().pyramid });
+    expect(findAll(plain, (n) => n.type === "Pressable")).toEqual([]);
+    expect(labelled(plain)).toHaveLength(3);
   });
 
   it("renders nothing without sends", () => {

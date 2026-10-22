@@ -1,5 +1,6 @@
 import { fontGradeRank, isFontGrade, type HoldColour } from "@mizyun/core";
 import type {
+  BoulderGradeSendsResponse,
   BoulderProgressResponse,
   BoulderProgressWindowValue,
   BoulderProjectRecord,
@@ -246,3 +247,51 @@ export const tryAgainProjects = (
   const groups = groupProjects(projects);
   return [...groups.open, ...groups.older];
 };
+
+// Grade drill-down: the sends behind one "Sends by grade" row.
+
+type GradeSend = BoulderGradeSendsResponse["sends"][number];
+
+export interface GradeSessionGroup {
+  readonly sessionId: string;
+  /** e.g. "Thu, Oct 22 · North Wall". */
+  readonly title: string;
+  readonly sends: readonly GradeSend[];
+}
+
+/** Keeps the server's newest-first order and groups consecutive sends by session. */
+export const groupGradeSends = (
+  sends: readonly GradeSend[],
+): GradeSessionGroup[] => {
+  const groups: { sessionId: string; title: string; sends: GradeSend[] }[] = [];
+  for (const send of sends) {
+    const last = groups[groups.length - 1];
+    if (last && last.sessionId === send.ascent.sessionId) {
+      last.sends.push(send);
+      continue;
+    }
+    const date = formatBoulderDate(send.activityDate);
+    groups.push({
+      sessionId: send.ascent.sessionId,
+      title: send.gymName ? `${date} · ${send.gymName}` : date,
+      sends: [send],
+    });
+  }
+  return groups;
+};
+
+/** "3 sends in the last 90 days · 2 flashes" (the row's own numbers). */
+export const gradeSendsSummary = (
+  sends: readonly GradeSend[],
+  window: BoulderProgressWindowValue,
+): string => {
+  const flashes = sends.filter((s) => s.ascent.result === "flash").length;
+  const head = `${plural(sends.length, "send", "sends")} ${
+    window === "all" ? "in all" : windowPhrase(window)
+  }`;
+  return flashes > 0
+    ? `${head} · ${plural(flashes, "flash", "flashes")}`
+    : head;
+};
+
+export const gradeScreenTitle = (grade: string): string => `${grade} sends`;

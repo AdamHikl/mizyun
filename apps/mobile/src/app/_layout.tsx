@@ -463,6 +463,10 @@ function TabLayoutContent() {
                 options={{ title: "Bouldering progress" }}
               />
               <Stack.Screen
+                name="bouldering/grade"
+                options={{ title: "Sends" }}
+              />
+              <Stack.Screen
                 name="log-weight"
                 options={{ title: "Log weight", presentation: "modal" }}
               />

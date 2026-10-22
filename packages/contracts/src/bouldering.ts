@@ -385,6 +385,37 @@ export type BoulderProgressResponse = z.infer<
   typeof boulderProgressResponseSchema
 >;
 
+/** The sends behind one "Sends by grade" row. */
+export const boulderGradeSendsQuerySchema = z
+  .object({
+    window: boulderProgressWindowSchema.default("90d"),
+    // No whitespace: an unencoded "6A+" decodes to "6A " and must not read as 6A.
+    grade: z.string().regex(/^\S+$/).pipe(fontGradeSchema),
+  })
+  .strict();
+export type BoulderGradeSendsQuery = z.infer<
+  typeof boulderGradeSendsQuerySchema
+>;
+
+export const boulderGradeSendsResponseSchema = z
+  .object({
+    window: boulderProgressWindowSchema,
+    grade: fontGradeCodeSchema,
+    sends: z.array(
+      z
+        .object({
+          activityDate: activityDateSchema,
+          gymName: z.string().nullable(),
+          ascent: boulderAscentRecordSchema,
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type BoulderGradeSendsResponse = z.infer<
+  typeof boulderGradeSendsResponseSchema
+>;
+
 const gradeRankSchema = z
   .number()
   .int()

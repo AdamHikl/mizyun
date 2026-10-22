@@ -5,6 +5,7 @@ import {
   boulderAscentResponseSchema,
   boulderAscentUpdateSchema,
   boulderFinishResponseSchema,
+  boulderGradeSendsResponseSchema,
   boulderProgressResponseSchema,
   boulderProjectArchiveSchema,
   boulderProjectListResponseSchema,
@@ -20,6 +21,7 @@ import {
   type BoulderAscentResponse,
   type BoulderAscentUpdate,
   type BoulderFinishResponse,
+  type BoulderGradeSendsResponse,
   type BoulderProgressResponse,
   type BoulderProgressWindowValue,
   type BoulderProjectListResponse,
@@ -262,6 +264,21 @@ export async function getBoulderProgress(
       method: "GET",
       path: `/v1/bouldering/progress?window=${window}`,
       schema: boulderProgressResponseSchema,
+    }),
+  );
+}
+
+/** The sends behind one "Sends by grade" row. */
+export async function getBoulderGradeSends(
+  grade: string,
+  window: BoulderProgressWindowValue,
+  client: ApiClient = apiClient,
+): Promise<BoulderResultOf<BoulderGradeSendsResponse>> {
+  return done(
+    await client.request<BoulderGradeSendsResponse>({
+      method: "GET",
+      path: `/v1/bouldering/progress/grade?window=${window}&grade=${encodeURIComponent(grade)}`,
+      schema: boulderGradeSendsResponseSchema,
     }),
   );
 }

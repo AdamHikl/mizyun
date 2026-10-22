@@ -3,6 +3,8 @@ import {
   BOULDER_PROGRESS_SESSION_LIMIT,
   BoulderRepositoryError,
   boulderGradePyramid,
+  boulderGradeSends,
+  fontGradeRank,
   boulderHardestSendTimeline,
   boulderSessionAchievements,
   fontGradeFromRank,
@@ -25,6 +27,8 @@ import {
   boulderAscentResponseSchema,
   boulderAscentUpdateSchema,
   boulderFinishResponseSchema,
+  boulderGradeSendsQuerySchema,
+  boulderGradeSendsResponseSchema,
   boulderProgressQuerySchema,
   boulderProgressResponseSchema,
   boulderProjectArchiveSchema,
@@ -160,7 +164,9 @@ const respond = <T>(schema: ResponseSchema<T>, value: unknown): T => {
 const historyEntry = (
   row: StoredWorkout,
   ascents: readonly StoredBoulderAscent[],
-): BoulderSessionHistoryEntry => {
+): BoulderSessionHistoryEntry & {
+  readonly ascents: readonly StoredBoulderAscent[];
+} => {
   const session = readBoulderSession(row.details);
   if (!session) throw new BoulderRepositoryError("unavailable");
   return {
@@ -513,27 +519,33 @@ export const boulderingRoutes: FastifyPluginAsync<{
     }),
   );
 
+  /** Every session with its ascents, plus "today" for window cutoffs. */
+  const loadProgressHistory = async (request: FastifyRequest) => {
+    const rows = await repo.listAllSessions(owner(request), token(request));
+    const ascents = await repo.listAscents(
+      owner(request),
+      rows.map((row) => row.id),
+      token(request),
+    );
+    const history = rows.map((row) =>
+      historyEntry(
+        row,
+        ascents.filter((a) => a.sessionId === row.id),
+      ),
+    );
+    // "Today" is the current local date in the newest session's recorded
+    // timezone (the climber's most recent known zone), else the UTC date.
+    const newest = rows[0] ? readBoulderSession(rows[0].details) : null;
+    const today = runningDate(new Date(), newest?.recordingTimezone ?? "UTC");
+    return { rows, history, today };
+  };
+
   app.get("/progress", auth, async (request, reply) =>
     handle(request, reply, async () => {
       const parsed = boulderProgressQuerySchema.safeParse(request.query);
       if (!parsed.success) throw new BoulderRepositoryError("invalid");
       const { window } = parsed.data;
-      const rows = await repo.listAllSessions(owner(request), token(request));
-      const ascents = await repo.listAscents(
-        owner(request),
-        rows.map((row) => row.id),
-        token(request),
-      );
-      const history = rows.map((row) =>
-        historyEntry(
-          row,
-          ascents.filter((a) => a.sessionId === row.id),
-        ),
-      );
-      // "Today" is the current local date in the newest session's recorded
-      // timezone (the climber's most recent known zone), else the UTC date.
-      const newest = rows[0] ? readBoulderSession(rows[0].details) : null;
-      const today = runningDate(new Date(), newest?.recordingTimezone ?? "UTC");
+      const { history, today } = await loadProgressHistory(request);
       const cutoff =
         window === "all" ? null : shiftDate(today, -WINDOW_DAYS[window]);
       const inWindow = (date: string) => cutoff === null || date > cutoff;
@@ -562,6 +574,37 @@ export const boulderingRoutes: FastifyPluginAsync<{
           sends: all.filter((a) => a.result !== "not_yet").length,
           flashes: all.filter((a) => a.result === "flash").length,
         },
+      });
+    }),
+  );
+
+  // The boulders behind one "Sends by grade" row (same window and send rule).
+  app.get("/progress/grade", auth, async (request, reply) =>
+    handle(request, reply, async () => {
+      const parsed = boulderGradeSendsQuerySchema.safeParse(request.query);
+      if (!parsed.success) throw new BoulderRepositoryError("invalid");
+      const { window, grade } = parsed.data;
+      const { rows, history, today } = await loadProgressHistory(request);
+      const gyms = new Map(
+        rows.map((row) => [
+          row.id,
+          readBoulderSession(row.details)?.gymName ?? null,
+        ]),
+      );
+      const sends = boulderGradeSends(
+        history,
+        window,
+        today,
+        fontGradeRank(grade),
+      ).map((send) => ({
+        activityDate: send.activityDate,
+        gymName: gyms.get(send.sessionId) ?? null,
+        ascent: ascentWire(send.ascent),
+      }));
+      return respond(boulderGradeSendsResponseSchema, {
+        window,
+        grade,
+        sends,
       });
     }),
   );

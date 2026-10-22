@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -245,7 +245,14 @@ export function BoulderingProgressScreen() {
                       Sends by grade
                     </ThemedText>
                     {progress.pyramid.some((row) => row.sends > 0) ? (
-                      <GradePyramid pyramid={progress.pyramid} />
+                      <GradePyramid
+                        pyramid={progress.pyramid}
+                        onSelectGrade={(grade) =>
+                          router.push(
+                            `/bouldering/grade?grade=${encodeURIComponent(grade)}&window=${progress.window}` as Href,
+                          )
+                        }
+                      />
                     ) : (
                       <EmptyState
                         icon="mobility"

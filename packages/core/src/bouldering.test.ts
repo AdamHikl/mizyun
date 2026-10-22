@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   boulderGradePyramid,
+  boulderGradeSends,
   boulderHardestSendTimeline,
   boulderingShareDetails,
   boulderSessionAchievements,
@@ -261,6 +262,68 @@ describe("boulderGradePyramid", () => {
     const h = [entry("x", "2026-09-16", [ascent("6A", "sent", 2)])];
     expect(boulderGradePyramid(h, "30d", "2026-10-15")).toHaveLength(1); // 29
     expect(boulderGradePyramid(h, "30d", "2026-10-16")).toHaveLength(0); // 30
+  });
+});
+
+describe("boulderGradeSends", () => {
+  it("lists the sends behind a pyramid row, newest session first", () => {
+    const older = entry("old", "2026-10-01", [
+      ascent("6A", "sent", 3),
+      ascent("6A", "not_yet", 2),
+      ascent("6B", "flash"),
+    ]);
+    const newer = entry("new", "2026-10-15", [
+      ascent("6A", "flash"),
+      ascent("6A", "sent", 2),
+    ]);
+    const outside = entry("gone", "2026-07-18", [ascent("6A", "sent", 2)]);
+    const history = [older, outside, newer];
+    const rank = FONT_GRADES.indexOf("6A");
+    const sends = boulderGradeSends(history, "90d", "2026-10-16", rank);
+    expect(sends.map((s) => [s.sessionId, s.ascent.result])).toEqual([
+      ["new", "flash"],
+      ["new", "sent"],
+      ["old", "sent"],
+    ]);
+    // Always agrees with the pyramid row it opens from.
+    const row = boulderGradePyramid(history, "90d", "2026-10-16").find(
+      (r) => r.gradeRank === rank,
+    );
+    expect(sends).toHaveLength(row!.sends);
+    expect(sends.filter((s) => s.ascent.result === "flash")).toHaveLength(
+      row!.flashes,
+    );
+    expect(boulderGradeSends(history, "all", "2026-10-16", rank)).toHaveLength(
+      4,
+    );
+  });
+  it("uses the pyramid's exact window boundary", () => {
+    const rank = FONT_GRADES.indexOf("6A");
+    for (const [date, kept] of [
+      ["2026-07-18", 0], // exactly 90 days back: excluded
+      ["2026-07-19", 1], // 89 days back: included
+    ] as const) {
+      const h = [entry("x", date, [ascent("6A", "sent", 2)])];
+      expect(boulderGradeSends(h, "90d", "2026-10-16", rank)).toHaveLength(
+        kept,
+      );
+      expect(boulderGradePyramid(h, "90d", "2026-10-16")).toHaveLength(kept);
+    }
+  });
+  it("breaks same-day ties by the later start", () => {
+    const h = [
+      entry("am", "2026-10-15", [ascent("6A", "sent", 2)], {
+        startedAt: "2026-10-15T08:00:00.000Z",
+      }),
+      entry("pm", "2026-10-15", [ascent("6A", "sent", 2)], {
+        startedAt: "2026-10-15T18:00:00.000Z",
+      }),
+    ];
+    expect(
+      boulderGradeSends(h, "30d", "2026-10-16", FONT_GRADES.indexOf("6A")).map(
+        (s) => s.sessionId,
+      ),
+    ).toEqual(["pm", "am"]);
   });
 });
 

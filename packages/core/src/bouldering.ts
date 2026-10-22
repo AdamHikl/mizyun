@@ -293,6 +293,53 @@ export const boulderGradePyramid = (
   return out.sort((a, b) => b.gradeRank - a.gradeRank);
 };
 
+export interface BoulderGradeSend<
+  A extends Pick<BoulderAscentCore, "gradeRank" | "result"> = BoulderAscentCore,
+> {
+  readonly sessionId: string;
+  readonly activityDate: string;
+  readonly ascent: A;
+}
+
+/**
+ * The sends behind one pyramid row: same window and send rule as
+ * `boulderGradePyramid`, so the list always matches the row's count.
+ * Newest session first; within a session, in log order.
+ */
+export const boulderGradeSends = <
+  A extends Pick<BoulderAscentCore, "gradeRank" | "result">,
+>(
+  history: readonly (Omit<BoulderSessionHistoryEntry, "ascents"> & {
+    readonly ascents: readonly A[];
+  })[],
+  window: BoulderProgressWindow,
+  today: string,
+  gradeRank: number,
+): BoulderGradeSend<A>[] => {
+  const cutoff =
+    window === "all" ? null : shiftDate(today, -WINDOW_DAYS[window]);
+  return history
+    .filter((entry) => cutoff === null || entry.activityDate > cutoff)
+    .sort(
+      (a, b) =>
+        b.activityDate.localeCompare(a.activityDate) ||
+        b.startedAt.localeCompare(a.startedAt) ||
+        b.sessionId.localeCompare(a.sessionId),
+    )
+    .flatMap((entry) =>
+      entry.ascents
+        .filter(
+          (ascent) =>
+            ascent.gradeRank === gradeRank && isBoulderSend(ascent.result),
+        )
+        .map((ascent) => ({
+          sessionId: entry.sessionId,
+          activityDate: entry.activityDate,
+          ascent,
+        })),
+    );
+};
+
 export interface BoulderTimelineEntry {
   readonly sessionId: string;
   readonly activityDate: string;
