@@ -295,6 +295,38 @@ describe("AnthropicAgentProvider", () => {
     },
   );
 
+  // #309: the same unwrapping applies to the final reply after tool results.
+  it.each([
+    ["a pure JSON envelope", '{"answer": "Squats 4x6, then lunges 3x10."}'],
+    [
+      "a sentence followed by a JSON envelope",
+      'I checked your routines and history.\n{"answer": "Squats 4x6, then lunges 3x10."}',
+    ],
+  ])("unwraps %s after tool results", async (_label, finalText) => {
+    const client = fakeClient([message([text(finalText)])]);
+    const response = await provider(client).respond(
+      request({
+        requestedToolCalls: [
+          { id: "toolu_1", name: "get_available_routines", args: {} },
+        ],
+        toolResults: [
+          {
+            id: "toolu_1",
+            name: "get_available_routines",
+            evidence: {
+              kind: "training",
+              label: "Routines",
+              confirmed: true,
+              freshness: "now",
+              data: { routines: [] },
+            },
+          },
+        ],
+      }),
+    );
+    expect(response.message.text).toBe("Squats 4x6, then lunges 3x10.");
+  });
+
   it("keeps conversational text that merely contains braces", async () => {
     const reply = 'Log it as {"answer": 1} only if you weigh it.';
     const response = await provider(

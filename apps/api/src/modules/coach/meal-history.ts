@@ -3,11 +3,15 @@ import {
   systemClock,
   type Clock,
   type FoodEntryRepository,
+  type ProfileRepository,
   type UserId,
 } from "@mizyun/core";
 
+import { localDayIso, localIsoWithOffset } from "./local-time.js";
+
 export interface MealHistoryDeps {
   readonly foodEntryRepository: FoodEntryRepository;
+  readonly profileRepository: ProfileRepository;
   readonly clock?: Clock;
 }
 
@@ -47,7 +51,7 @@ export const buildGetMealHistoryTool = (
   return {
     name: "get_meal_history",
     description:
-      "Query itemized logged meals and food entries for a specific date (YYYY-MM-DD) or within the last days_back days (1..7). Returns dish names, timestamps, calories, and macronutrients.",
+      "Query itemized logged meals and food entries for a specific date (YYYY-MM-DD) or within the last days_back days (1..7). Dates are the user's calendar days; timestamps are local time with the UTC offset. Returns dish names, timestamps, calories, and macronutrients.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -55,7 +59,7 @@ export const buildGetMealHistoryTool = (
         date: {
           type: "string",
           description:
-            "Target date in YYYY-MM-DD format (e.g. '2026-09-10'). If specified, searches that specific calendar day.",
+            "Target date in YYYY-MM-DD format (e.g. '2026-09-10'). If specified, searches that calendar day in the user's time zone.",
         },
         days_back: {
           type: "integer",
@@ -82,17 +86,26 @@ export const buildGetMealHistoryTool = (
     execute: async ({ principalUserId, args, accessToken, clock }) => {
       const now = resolveClock(deps, clock).now();
       const safeArgs = (args ?? {}) as GetMealHistoryArgs;
+      const { timezone } = await deps.profileRepository.getOrCreate(
+        principalUserId,
+        { now, accessToken },
+      );
 
       let from: Date;
       let to: Date;
+      let localDate: string | null = null;
 
       if (
         typeof safeArgs.date === "string" &&
         DATE_FORMAT_REGEX.test(safeArgs.date) &&
         !Number.isNaN(Date.parse(`${safeArgs.date}T00:00:00.000Z`))
       ) {
-        from = new Date(`${safeArgs.date}T00:00:00.000Z`);
-        to = new Date(`${safeArgs.date}T23:59:59.999Z`);
+        // #316: the user's calendar day. UTC offsets span -12:00..+14:00, so
+        // read a wider UTC window and keep entries on that local day.
+        localDate = safeArgs.date;
+        const dayStart = Date.parse(`${safeArgs.date}T00:00:00.000Z`);
+        from = new Date(dayStart - 14 * 3_600_000);
+        to = new Date(dayStart + 36 * 3_600_000 - 1);
       } else {
         const daysBack = clampDaysBack(safeArgs.days_back);
         from = new Date(now.getTime() - daysBack * 86_400_000);
@@ -106,7 +119,12 @@ export const buildGetMealHistoryTool = (
         accessToken,
       });
 
-      let filtered = entries;
+      let filtered =
+        localDate === null
+          ? entries
+          : entries.filter(
+              (entry) => localDayIso(entry.consumedAt, timezone) === localDate,
+            );
       if (
         typeof safeArgs.search === "string" &&
         safeArgs.search.trim().length > 0
@@ -127,7 +145,7 @@ export const buildGetMealHistoryTool = (
         proteinG: entry.proteinG,
         carbohydrateG: entry.carbohydrateG,
         fatG: entry.fatG,
-        consumedAt: entry.consumedAt.toISOString(),
+        consumedAt: localIsoWithOffset(entry.consumedAt, timezone),
       }));
 
       return {

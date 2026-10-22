@@ -18,6 +18,8 @@ Feature sets are small (5–17 cases), so gaps under about 3 points are ties.
 
 - **Routing on Dev.** Each feature has its own provider key. A key that is unset inherits `AGENT_PROVIDER`, so environments without the new keys behave exactly as before.
 
+  Amended 2026-10-23 (#317): `AGENT_PROVIDER=disabled` switches Coach off (chat, Coach meal-text drafts and Coach meal photos), even when `COACH_PROVIDER` or a Gemini or Anthropic key is set; `/v1/coach/status` then reports `disabled`. `AI_EXTERNAL_ACCESS=false` remains the switch for every AI feature. See `docs/RESEARCH_LOG.md` (2026-10-23).
+
   | Feature                                                              | Key                          | Dev                |
   | -------------------------------------------------------------------- | ---------------------------- | ------------------ |
   | Coach chat                                                           | `COACH_PROVIDER`             | anthropic          |

@@ -82,6 +82,8 @@ export type AiVendor = "gemini" | "anthropic";
  *   without the key it falls back to Gemini (legacy, logged at startup).
  * - `AGENT_PROVIDER=gemini` or `disabled` resolve to `gemini`, which means
  *   "Gemini when a Gemini key is configured, otherwise disabled".
+ * - Coach chat is the exception: `AGENT_PROVIDER=disabled` switches it off
+ *   whatever `COACH_PROVIDER` and the keys say (#317, composed in apps/api).
  *
  * An explicit per-feature key never falls back: config fails to load when
  * its vendor's key is missing. Meal illustrations are not routed; they

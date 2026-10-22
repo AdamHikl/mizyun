@@ -581,7 +581,9 @@ const defaultDependencies = (): AppDependencies => {
       };
   const geminiConfig = config.geminiConfig;
   // Coach uses Anthropic only when routed there (ADR-0069 + per-feature routing).
+  // #317: AGENT_PROVIDER=disabled switches Coach off whatever the keys say.
   const anthropicConfig =
+    config.agentProvider !== "disabled" &&
     config.aiRouting.coach === "anthropic"
       ? (config.anthropicConfig ?? null)
       : null;
@@ -1412,9 +1414,13 @@ export const buildApp = (
   // Coach routed to Anthropic answers with Anthropic only for users whose
   // stored consent disclosed it; everyone else gets Gemini (or the disabled
   // provider when Gemini is not configured). Provenance names the provider
-  // that actually answered.
-  const modelAgent =
-    anthropicCoachAgentProvider !== null
+  // that actually answered. #317: AGENT_PROVIDER=disabled is a Coach kill
+  // switch, so no model agent is built and Coach uses the disabled default.
+  const coachDisabled =
+    !configResult.ok || configResult.value.agentProvider === "disabled";
+  const modelAgent = coachDisabled
+    ? null
+    : anthropicCoachAgentProvider !== null
       ? coachModelAgent(
           consentGatedAgentProvider({
             consented: anthropicCoachAgentProvider,
@@ -1437,6 +1443,29 @@ export const buildApp = (
             }),
           )
         : null;
+
+  // #317: meal-text and photo drafts inside Coach go through Coach routes, so
+  // the kill switch closes them too. Injected test/dev providers still win.
+  const disabledCoachVisionProvider = new DisabledVisionProvider();
+  const resolveCoachVisionProvider = (
+    providerKind?: AiProvider,
+  ): VisionDraftProvider =>
+    coachDisabled &&
+    dependencies.coachControls?.visionProvider === undefined &&
+    dependencies.visionProvider === undefined
+      ? disabledCoachVisionProvider
+      : resolveVisionProvider(providerKind);
+  if (
+    configResult.ok &&
+    coachDisabled &&
+    (configResult.value.geminiConfig !== null ||
+      configResult.value.geminiVisionConfig !== null ||
+      (configResult.value.anthropicConfig ?? null) !== null)
+  ) {
+    app.log.warn(
+      "AGENT_PROVIDER is disabled (the default when unset), so Coach is switched off although an AI key is configured.",
+    );
+  }
 
   const resolveAgent = (_providerKind?: AiProvider): AgentOrchestrator => {
     if (dependencies.agent !== undefined) {
@@ -2029,8 +2058,8 @@ export const buildApp = (
     workoutSetRepository,
     bodyMeasurementRepository,
     limits: coachLimits,
-    nutritionDraftProvider: visionProvider,
-    resolveNutritionDraftProvider: resolveVisionProvider,
+    nutritionDraftProvider: resolveCoachVisionProvider(),
+    resolveNutritionDraftProvider: resolveCoachVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
     memoryStore,
     allowedEmails: aiAllowedEmails,
@@ -2050,8 +2079,8 @@ export const buildApp = (
     betaProRepository,
     aiConsentRepository,
     limits: coachLimits,
-    nutritionDraftProvider: visionProvider,
-    resolveNutritionDraftProvider: resolveVisionProvider,
+    nutritionDraftProvider: resolveCoachVisionProvider(),
+    resolveNutritionDraftProvider: resolveCoachVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
     allowedEmails: aiAllowedEmails,
     ...(dependencies.coachControls?.planTierOverride

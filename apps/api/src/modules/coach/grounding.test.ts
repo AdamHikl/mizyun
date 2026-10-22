@@ -248,6 +248,57 @@ describe("buildCoachGrounding — remaining calories and macro targets", () => {
     ]);
   });
 
+  // #310/#316: "today" is the user's calendar day. 00:30 on 10 Sept in
+  // Bratislava is 22:30 UTC on 9 Sept; 23:30 on 9 Sept local is yesterday.
+  it("counts today's meals by the user's calendar day", async () => {
+    const deps = buildDeps();
+    const now = new Date("2026-09-10T06:00:00.000Z");
+    const base = {
+      userId: USER_ID,
+      proteinG: 10,
+      carbohydrateG: 20,
+      fatG: 5,
+      details: {},
+      source: "manual" as const,
+      confidence: null,
+      confirmedByUser: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await deps.foodEntryRepository.create(
+      USER_ID,
+      {
+        ...base,
+        id: "fe-after-midnight",
+        name: "Toast",
+        caloriesKcal: 200,
+        consumedAt: new Date("2026-09-09T22:30:00.000Z"),
+      },
+      { accessToken: "token" },
+    );
+    await deps.foodEntryRepository.create(
+      USER_ID,
+      {
+        ...base,
+        id: "fe-yesterday",
+        name: "Pasta",
+        caloriesKcal: 700,
+        consumedAt: new Date("2026-09-09T21:30:00.000Z"),
+      },
+      { accessToken: "token" },
+    );
+    const items = await buildCoachGrounding(deps, USER_ID, "token", now);
+    const nutrition = items.find((i) => i.kind === "nutrition")?.data as
+      Record<string, unknown> | undefined;
+    expect(nutrition?.loggedMealsToday).toEqual([
+      expect.objectContaining({
+        name: "Toast",
+        consumedAt: "2026-09-10T00:30:00+02:00",
+      }),
+    ]);
+    expect(nutrition).toMatchObject({ entryCount: 1, caloriesKcal: 200 });
+  });
+
   it("handles day with 0 logged food: remaining equals full target", async () => {
     const deps = buildDeps();
 

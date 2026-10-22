@@ -6,7 +6,6 @@ import {
   runningDate,
   summarizeRuns,
   type RunRepository,
-  summariseFoodEntries,
   summariseWeightTrend,
   type BodyMeasurementRepository,
   type FoodEntryRepository,
@@ -17,6 +16,11 @@ import {
   type WorkoutSetRepository,
 } from "@mizyun/core";
 import type { MemoryStore } from "@mizyun/memory";
+import {
+  localDayIso,
+  localIsoWithOffset,
+  summariseFoodEntriesByLocalDay,
+} from "./local-time.js";
 import { isAvailableRoutine, toRoutineSummary } from "./routines.js";
 
 export interface CoachGroundingDependencies {
@@ -36,29 +40,8 @@ export interface CoachGroundingDependencies {
   readonly memoryStore?: MemoryStore;
 }
 
+// Workout day counts stay on UTC days to match GET /v1/energy/summary.
 const dayIso = (date: Date): string => date.toISOString().slice(0, 10);
-
-/**
- * #310: the model reads times literally, so meal times go out as local wall
- * time with the UTC offset (2026-09-10T12:30:00+02:00), not as UTC.
- */
-const localIsoWithOffset = (date: Date, timeZone: string): string => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-    timeZoneName: "longOffset",
-  }).formatToParts(date);
-  const value = (type: Intl.DateTimeFormatPartTypes): string =>
-    parts.find((part) => part.type === type)?.value ?? "";
-  const offset = value("timeZoneName").replace(/^GMT/, "") || "+00:00";
-  return `${value("year")}-${value("month")}-${value("day")}T${value("hour")}:${value("minute")}:${value("second")}${offset}`;
-};
 
 export const buildCoachGrounding = async (
   dependencies: CoachGroundingDependencies,
@@ -125,13 +108,15 @@ export const buildCoachGrounding = async (
     runningDate(new Date(now.getTime() - 6 * 86_400_000), profile.timezone),
     runTo,
   );
+  // #310/#316: "today" is the user's calendar day, as on Home.
+  const today = localDayIso(now, profile.timezone);
   const todayEntries = foodEntries.filter(
-    (entry) => dayIso(entry.consumedAt) === dayIso(now),
+    (entry) => localDayIso(entry.consumedAt, profile.timezone) === today,
   );
-  const today = dayIso(now);
-  const todayNutrition = summariseFoodEntries(todayEntries, {
+  const todayNutrition = summariseFoodEntriesByLocalDay(todayEntries, {
     from: today,
     to: today,
+    timeZone: profile.timezone,
   })[0];
 
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
@@ -142,10 +127,14 @@ export const buildCoachGrounding = async (
   const recentFoodEntries7Days = foodEntries.filter(
     (entry) => entry.consumedAt >= sevenDaysAgo,
   );
-  const sevenDaysNutrition = summariseFoodEntries(recentFoodEntries7Days, {
-    from: dayIso(sevenDaysAgo),
-    to: today,
-  }).filter((day) => day.entryCount > 0);
+  const sevenDaysNutrition = summariseFoodEntriesByLocalDay(
+    recentFoodEntries7Days,
+    {
+      from: localDayIso(sevenDaysAgo, profile.timezone),
+      to: today,
+      timeZone: profile.timezone,
+    },
+  ).filter((day) => day.entryCount > 0);
 
   const totalCalories7d = sevenDaysNutrition
     .map((day) => day.caloriesKcal)
