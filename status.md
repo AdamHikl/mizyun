@@ -24,7 +24,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **Community join redesign (Oct22, uncommitted):** state-first cards; load vs save error copy; UI+IA architect reviews; 64 tests/tsc PASS; sim checked settings only. Next: join/error states on unenrolled acct, gate. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
+- **Community join redesign (Oct22):** 6045ee7c gatePASS; Dev+Prod health200; Prod iPhone installed 14:32Z. Next: Adam checks Join/error on unenrolled acct. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
 - **#298 evening stretch (Oct18):** 9 PM training-day reminder → 4–6 stretches; Home row; device-only (ADR0072). 2 reviews; gatePASS(3259mobile/1195API+15skips); Dev 35e226f4 health200; iPhone installed 17:59Z. Next: Adam device test.
 - **#307 evening catch-up dupes (Oct19):** per-user queue + pending sweep; reviewed; pushed f02fbf94, on Dev. Next: iPhone one-per-evening.

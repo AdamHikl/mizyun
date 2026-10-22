@@ -1,6 +1,6 @@
 # Community join screen redesign — 2026-10-22
 
-Status: **implemented, automatically verified (focused), not committed, not on Dev.**
+Status: **committed 6045ee7c, `pnpm check` PASS, on Dev and Production, Production app installed on Adam's iPhone. Device acceptance open.**
 
 ## Why
 
@@ -90,3 +90,11 @@ is unchanged.
    The synthetic account is enrolled, and leaving was not authorized.
 2. Dark mode and large Dynamic Type pass.
 3. `pnpm check`, commit, Dev deploy and iPhone acceptance.
+
+## Release (2026-10-22)
+
+- `pnpm check` PASS for input SHA-256 `669486e4…` (an earlier run was stale after an outside file touch; all steps had passed).
+- Commit `6045ee7c2b69f97c98dfe530ffd42589384b5f45` pushed to `main`.
+- `pnpm deploy:dev`: Dev runs 6045ee7c; `/v1/health` 200 at 14:18:51Z; no migrations.
+- `pnpm deploy:production`: driver re-ran gates; Production runs 6045ee7c; `/v1/health` 200 at 14:28:04Z; database up to date.
+- `pnpm mobile:install:ios:production`: Release `com.mizyun.app` built (team LQJNDVBL43), installed and launched on `00008140-001114501A86801C` at 14:32:50Z. Launch is not feature acceptance.
