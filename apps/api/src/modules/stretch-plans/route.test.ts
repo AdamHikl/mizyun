@@ -528,6 +528,38 @@ describe("POST /v1/stretch-plans/refine", () => {
     expect((await post(app, body)).statusCode).toBe(200);
   });
 
+  it("honours a durable minute denial that the in-memory limiter allowed (#301)", async () => {
+    const rateLimiter = new FoodDraftRateLimiter({
+      freePerMinute: 100,
+      freePerDay: 1,
+    });
+    const limits = stubLimits();
+    limits.acquireDraftSlot.mockResolvedValueOnce({
+      allowed: false,
+      reason: "minute",
+      retryAfter: 30,
+    });
+    const refine = vi.fn(async (_request: StretchRefinementRequest) =>
+      candidate(),
+    );
+    const app = makeApp({
+      visionProvider: providerWith(refine),
+      limits,
+      rateLimiter,
+    });
+    const denied = await post(app, body);
+    expect(denied.statusCode).toBe(429);
+    expect(denied.json().error).toMatchObject({
+      code: "RATE_LIMITED",
+      reason: "minute_rate_limit",
+    });
+    expect(refine).not.toHaveBeenCalled();
+    expect(limits.commitDraftTokens).not.toHaveBeenCalled();
+    expect(limits.releaseDraftSlot).not.toHaveBeenCalled();
+    // The in-memory daily slot came back: the one daily draft remains.
+    expect((await post(app, body)).statusCode).toBe(200);
+  });
+
   it("refines end to end with the dev stub provider", async () => {
     const app = makeApp({ visionProvider: new StubVisionProvider() });
     const response = await post(app, body);

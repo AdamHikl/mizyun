@@ -231,10 +231,11 @@ export const foodDraftRoutes: FastifyPluginAsync<
         draftKind,
       );
       if (!res.allowed) {
-        // When options.rateLimiter is provided, it is the primary authority on minute rate limits
-        if (options.rateLimiter && res.reason === "minute") {
-          return { allowed: true };
-        }
+        // Every durable denial stands, including `minute`: the ledger has
+        // released its in-flight slot and reserved no draft, so letting the
+        // request through would skip the durable daily check (#301). Return
+        // the in-memory daily slot taken above so the denial costs nothing.
+        options.rateLimiter?.release(userId, draftKind);
         const isDaily = res.reason === "drafts" || res.reason === "tokens";
         const reason: LimitReasonKind = isDaily
           ? "daily_budget_exhausted"

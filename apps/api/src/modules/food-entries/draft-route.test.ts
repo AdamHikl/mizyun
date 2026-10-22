@@ -57,6 +57,20 @@ const makeApps = (options: {
   return { app, rateLimiter };
 };
 
+// A durable ledger that allows every draft, for tests that exercise the
+// in-memory limiter alone. The default in-memory ledger keeps its own
+// 1/min draft window, which every durable denial now respects (#301).
+const durableLimits = () =>
+  ({
+    acquireDraftSlot: vi.fn().mockResolvedValue({ allowed: true }),
+    commitDraftTokens: vi.fn().mockResolvedValue(undefined),
+    releaseDraftSlot: vi.fn().mockResolvedValue(undefined),
+  }) as unknown as CoachLimitService & {
+    acquireDraftSlot: ReturnType<typeof vi.fn>;
+    commitDraftTokens: ReturnType<typeof vi.fn>;
+    releaseDraftSlot: ReturnType<typeof vi.fn>;
+  };
+
 const ONE_PIXEL_PNG = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49,
   0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06,
@@ -532,6 +546,7 @@ describe("Food draft route — refine (AI-ACT-007)", () => {
     const { app } = makeApps({
       visionProvider: new StubVisionProvider(),
       rateLimiter,
+      limits: durableLimits(),
     });
     const form = buildForm({
       name: "meal.png",
@@ -563,6 +578,7 @@ describe("Food draft route — refine (AI-ACT-007)", () => {
     const { app } = makeApps({
       visionProvider: new StubVisionProvider(),
       rateLimiter,
+      limits: durableLimits(),
     });
     const form = buildForm({
       name: "meal.png",
@@ -759,6 +775,7 @@ describe("Food draft route — rate limit", () => {
     const { app } = makeApps({
       visionProvider: new StubVisionProvider(),
       rateLimiter,
+      limits: durableLimits(),
       resolvePlanTier: () => "free",
     });
     const form = buildForm({
@@ -923,6 +940,70 @@ describe("Food draft route — rate limit", () => {
     expect(res.statusCode).toBe(422);
     expect(stubLimits.releaseDraftSlot).toHaveBeenCalledWith(userId, "photo");
     expect(releasedKind).toBe("photo");
+  });
+});
+
+describe("Food draft route — durable limiter denial (#301)", () => {
+  const postText = (app: ReturnType<typeof buildApp>) =>
+    app.inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { description: "Two eggs and toast" },
+    });
+
+  it("returns the in-memory daily slot when the durable ledger denies", async () => {
+    const rateLimiter = new FoodDraftRateLimiter({
+      freePerMinute: 100,
+      freePerDay: 2,
+    });
+    const limits = durableLimits();
+    limits.acquireDraftSlot.mockResolvedValue({
+      allowed: false,
+      reason: "inflight",
+    });
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      limits,
+      rateLimiter,
+    });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const denied = await postText(app);
+      expect(denied.statusCode).toBe(429);
+      expect(denied.json().error.reason).toBe("concurrent_in_flight");
+    }
+    limits.acquireDraftSlot.mockResolvedValue({ allowed: true });
+    expect((await postText(app)).statusCode).toBe(200);
+  });
+
+  it("honours a durable minute denial that the in-memory limiter allowed", async () => {
+    const rateLimiter = new FoodDraftRateLimiter({
+      freePerMinute: 100,
+      freePerDay: 1,
+    });
+    const limits = durableLimits();
+    limits.acquireDraftSlot.mockResolvedValueOnce({
+      allowed: false,
+      reason: "minute",
+      retryAfter: 30,
+    });
+    const provider = new StubVisionProvider();
+    const generate = vi.spyOn(provider, "generateTextDraft");
+    const { app } = makeApps({ visionProvider: provider, limits, rateLimiter });
+    const denied = await postText(app);
+    expect(denied.statusCode).toBe(429);
+    expect(denied.headers["retry-after"]).toBe("30");
+    expect(denied.json().error).toMatchObject({
+      code: "RATE_LIMITED",
+      reason: "minute_rate_limit",
+      retryAfterSeconds: 30,
+    });
+    expect(generate).not.toHaveBeenCalled();
+    expect(limits.commitDraftTokens).not.toHaveBeenCalled();
+    // The durable ledger made no reservation, so nothing to release there,
+    // and the in-memory daily slot came back: the one daily draft remains.
+    expect(limits.releaseDraftSlot).not.toHaveBeenCalled();
+    expect((await postText(app)).statusCode).toBe(200);
   });
 });
 

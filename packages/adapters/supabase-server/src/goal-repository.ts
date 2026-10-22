@@ -90,7 +90,9 @@ const toInsertRow = (userId: UserId, goal: StoredGoal): Partial<GoalRow> => ({
   target: goal.target,
   starts_on: goal.startsOn,
   target_date: goal.targetDate,
-  ...(goal.reviewDate !== undefined ? { review_date: goal.reviewDate } : {}),
+  // Always written: a cleared review date has no `reviewDate`, and
+  // omitting the column on update would keep the old value (#315).
+  review_date: goal.reviewDate ?? null,
 });
 
 export interface SupabaseGoalRepositoryOptions {

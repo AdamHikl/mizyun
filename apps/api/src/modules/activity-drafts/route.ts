@@ -130,9 +130,10 @@ export const activityDraftRoutes: FastifyPluginAsync<
     }
     if (options.limits) {
       const res = await options.limits.acquireDraftSlot(userId, tier, "text");
-      // The in-memory limiter, when present, owns the per-minute rule.
-      if (!res.allowed && !(options.rateLimiter && res.reason === "minute")) {
-        if (options.rateLimiter) options.rateLimiter.release(userId, "text");
+      // Every durable denial stands, including `minute`: the ledger then
+      // reserved nothing, so proceeding would skip its daily check (#301).
+      if (!res.allowed) {
+        options.rateLimiter?.release(userId, "text");
         return denied(
           res.reason === "drafts" || res.reason === "tokens"
             ? "daily_budget_exhausted"

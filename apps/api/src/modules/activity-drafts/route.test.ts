@@ -297,6 +297,36 @@ describe("POST /v1/activity-drafts/text", () => {
     expect((await post(app, body)).statusCode).toBe(200);
   });
 
+  it("honours a durable minute denial that the in-memory limiter allowed (#301)", async () => {
+    const rateLimiter = new FoodDraftRateLimiter({
+      freePerMinute: 100,
+      freePerDay: 1,
+    });
+    const limits = stubLimits();
+    limits.acquireDraftSlot.mockResolvedValueOnce({
+      allowed: false,
+      reason: "minute",
+      retryAfter: 30,
+    });
+    const generate = vi.fn(async () => candidate);
+    const app = makeApp({
+      visionProvider: providerWith(generate),
+      limits,
+      rateLimiter,
+    });
+    const denied = await post(app, body);
+    expect(denied.statusCode).toBe(429);
+    expect(denied.json().error).toMatchObject({
+      code: "RATE_LIMITED",
+      reason: "minute_rate_limit",
+    });
+    expect(generate).not.toHaveBeenCalled();
+    expect(limits.commitDraftTokens).not.toHaveBeenCalled();
+    expect(limits.releaseDraftSlot).not.toHaveBeenCalled();
+    // The in-memory daily slot came back: the one daily draft remains.
+    expect((await post(app, body)).statusCode).toBe(200);
+  });
+
   it("shares the in-memory limiter with meal text drafts", async () => {
     const rateLimiter = new FoodDraftRateLimiter();
     const app = makeApp({
