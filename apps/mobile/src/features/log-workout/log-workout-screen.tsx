@@ -135,6 +135,7 @@ import {
   formatTimedSet,
   isTimedTrackingMode,
   metersToDisplayDistance,
+  weightLoadableEntries,
 } from "./timed-set-input";
 import { plannedSetTypeForSequence } from "@/features/workouts/planned-set-types";
 
@@ -2216,7 +2217,10 @@ export function LogWorkoutScreen() {
           key={unitSystem}
           visible={plateCalculatorVisible}
           unitSystem={unitSystem}
-          exercises={exerciseEntries}
+          exercises={weightLoadableEntries(
+            exerciseEntries,
+            workspace.exercises,
+          )}
           onUseWeight={(exerciseId, load) =>
             updatePendingInput(exerciseId, { load })
           }

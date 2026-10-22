@@ -66,6 +66,15 @@ export const entryTrackingMode = (
 ): ExerciseTrackingMode =>
   resolveExerciseTrackingMode(trackedRecord(entry, exercises));
 
+/** Entries that take a weight and reps; timed ones cannot use a plate total. */
+export const weightLoadableEntries = <T extends TrackingEntry>(
+  entries: readonly T[],
+  exercises: readonly TrackingExerciseRecord[],
+): T[] =>
+  entries.filter(
+    (entry) => !isTimedTrackingMode(entryTrackingMode(entry, exercises)),
+  );
+
 /** m/yd for swimming, rowing and SkiErg; km/mi for other distances. */
 export const entryDistanceUnit = (
   entry: TrackingEntry,

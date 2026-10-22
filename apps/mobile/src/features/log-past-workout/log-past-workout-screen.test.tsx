@@ -291,6 +291,12 @@ describe("log past workout screen", () => {
     expect(kept.pending.workoutId).toBe(workoutResponse.workout.id);
   });
 
+  it("opens the exercise library for strength exercises only", async () => {
+    const tree = await open();
+    const library = find(tree, (n) => n.type === "ExerciseLibraryModal");
+    expect(library.props.strengthOnly).toBe(true);
+  });
+
   it("adds a saved custom exercise from the library without creating a record", async () => {
     const custom = {
       id: "44444444-4444-4444-8444-444444444444",

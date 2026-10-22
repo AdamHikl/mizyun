@@ -102,7 +102,7 @@ export type WorkoutSetListResponse = z.infer<
  *
  * At least one of the four numeric performance fields
  * (`repetitions`, `loadKg`, `durationSeconds`, `distanceMeters`)
- * must be present. A "set" of nothing has no practical value and
+ * must be present and non-null (null counts as absent). A "set" of nothing has no practical value and
  * is rejected at the wire layer.
  */
 export const workoutSetCreateSchema = z
@@ -120,10 +120,10 @@ export const workoutSetCreateSchema = z
   .strict()
   .refine(
     (create) =>
-      create.repetitions !== undefined ||
-      create.loadKg !== undefined ||
-      create.durationSeconds !== undefined ||
-      create.distanceMeters !== undefined,
+      (create.repetitions ?? null) !== null ||
+      (create.loadKg ?? null) !== null ||
+      (create.durationSeconds ?? null) !== null ||
+      (create.distanceMeters ?? null) !== null,
     {
       message:
         "at least one of repetitions, loadKg, durationSeconds, or distanceMeters must be present",

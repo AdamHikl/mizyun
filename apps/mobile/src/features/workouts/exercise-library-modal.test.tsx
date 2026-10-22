@@ -78,6 +78,9 @@ vi.mock("./custom-exercises-data", () => ({
 vi.mock("@mizyun/core", () => ({
   searchExerciseCatalog: mocks.search,
   EXERCISE_CATALOG: Array(125),
+  getCatalogTrackingMode: (exercise: any) =>
+    exercise.id === "exercise-plank" ? "duration" : "load_reps",
+  isTimedTrackingMode: (mode: string) => mode !== "load_reps",
   customExerciseTrackingMode: (exercise: any) =>
     exercise.metadata?.trackingMode ?? "load_reps",
   searchCustomExercises: (records: any[], query: string) =>
@@ -620,4 +623,53 @@ describe("custom exercises", () => {
     tree = renderWith();
     expect(action(tree, "Edit Sled push")).toBeDefined();
   });
+});
+
+it("hides timed catalog and saved exercises when only strength is allowed", async () => {
+  mocks.search.mockReturnValue([
+    entries[0],
+    { ...entries[1], id: "exercise-plank", name: "Plank" },
+  ]);
+  const saved = (id: string, name: string, metadata: object) => ({
+    id,
+    userId: "user-1",
+    name,
+    instructions: null,
+    metadata,
+    createdAt: "2026-10-19T10:00:00.000Z",
+    updatedAt: "2026-10-19T10:00:00.000Z",
+  });
+  mocks.loadSaved.mockResolvedValue({
+    ok: true,
+    exercises: [
+      saved("s1", "Saved lift", {}),
+      saved("s2", "Saved hold", { trackingMode: "duration" }),
+    ],
+    truncated: false,
+  });
+  const open = async (strengthOnly: boolean) => {
+    const renderWith = () => {
+      hooks.index = 0;
+      hooks.effects = [];
+      return ExerciseLibraryModal({
+        visible: true,
+        onClose: vi.fn(),
+        onSelectExercises: vi.fn(),
+        strengthOnly,
+      });
+    };
+    renderWith();
+    hooks.effects.forEach((effect) => effect());
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    return renderWith();
+  };
+  const strength = await open(true);
+  expect(action(strength, "Quick select Exercise 0")).toBeDefined();
+  expect(action(strength, "Quick select Plank")).toBeUndefined();
+  expect(action(strength, "Quick select Saved lift")).toBeDefined();
+  expect(action(strength, "Quick select Saved hold")).toBeUndefined();
+  expect(text(strength)).toContain("Log activity");
+  const everything = await open(false);
+  expect(action(everything, "Quick select Plank")).toBeDefined();
+  expect(action(everything, "Quick select Saved hold")).toBeDefined();
 });

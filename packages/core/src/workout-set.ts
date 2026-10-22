@@ -159,7 +159,7 @@ const validatePerceivedExertion = (
 
 /**
  * Validate a create body. Rejects:
- *   - empty sets (no performance field present);
+ *   - empty sets (no performance field present; null counts as absent);
  *   - sequence outside `[1, MAX_SEQUENCE]`;
  *   - performance fields outside their bounded ranges.
  */
@@ -220,10 +220,10 @@ export const validateWorkoutSetCreate = (create: {
     };
   }
   if (
-    create.repetitions === undefined &&
-    create.loadKg === undefined &&
-    create.durationSeconds === undefined &&
-    create.distanceMeters === undefined
+    (create.repetitions ?? null) === null &&
+    (create.loadKg ?? null) === null &&
+    (create.durationSeconds ?? null) === null &&
+    (create.distanceMeters ?? null) === null
   ) {
     return { kind: "empty_set" };
   }

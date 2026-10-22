@@ -11,6 +11,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   EXERCISE_CATALOG,
   customExerciseTrackingMode,
+  getCatalogTrackingMode,
+  isTimedTrackingMode,
   searchCustomExercises,
   searchExerciseCatalog,
   type CatalogExercise,
@@ -64,6 +66,8 @@ interface ExerciseLibraryModalProps {
   readonly addOnTap?: boolean;
   /** Saved exercises already in the open workout; they open read-only. */
   readonly inUseExerciseIds?: readonly string[];
+  /** Hide timed and distance activities (weight-and-reps exercises only). */
+  readonly strengthOnly?: boolean;
 }
 
 const PAGE_SIZE = 60;
@@ -92,6 +96,7 @@ export function ExerciseLibraryModal({
   errorMessage,
   addOnTap = false,
   inUseExerciseIds = [],
+  strengthOnly = false,
 }: ExerciseLibraryModalProps) {
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
@@ -242,12 +247,17 @@ export function ExerciseLibraryModal({
   };
 
   const filteredExercises = useMemo(() => {
-    return searchExerciseCatalog({
+    const matches = searchExerciseCatalog({
       query: searchQuery.trim() || undefined,
       movementPattern: selectedPattern === "all" ? undefined : selectedPattern,
       limit: EXERCISE_CATALOG.length,
     });
-  }, [searchQuery, selectedPattern]);
+    return strengthOnly
+      ? matches.filter(
+          (exercise) => !isTimedTrackingMode(getCatalogTrackingMode(exercise)),
+        )
+      : matches;
+  }, [searchQuery, selectedPattern, strengthOnly]);
   const visibleExercises = filteredExercises.slice(0, visibleCount);
   const selectionStateOf = (exercise: LibraryExercise) => {
     const isSelected = addOnTap
@@ -309,13 +319,16 @@ export function ExerciseLibraryModal({
     saved !== null && !saved.truncated && savedError === null && !adding;
   const isInWorkout = (exerciseId: string) =>
     inUseExerciseIds.includes(exerciseId) || addedIds.includes(exerciseId);
-  const customMatches = useMemo(
-    () =>
-      showCustom && saved
-        ? searchCustomExercises(saved.exercises, searchQuery)
-        : [],
-    [saved, searchQuery, showCustom],
-  );
+  const customMatches = useMemo(() => {
+    if (!showCustom || !saved) return [];
+    const matches = searchCustomExercises(saved.exercises, searchQuery);
+    return strengthOnly
+      ? matches.filter(
+          (exercise) =>
+            !isTimedTrackingMode(customExerciseTrackingMode(exercise)),
+        )
+      : matches;
+  }, [saved, searchQuery, showCustom, strengthOnly]);
 
   return (
     <Modal
@@ -483,6 +496,11 @@ export function ExerciseLibraryModal({
               Showing {visibleExercises.length} of {filteredExercises.length}{" "}
               exercises
             </ThemedText>
+            {strengthOnly ? (
+              <ThemedText type="footnote" themeColor="textSecondary">
+                Timed exercises are logged with Log activity.
+              </ThemedText>
+            ) : null}
 
             {filteredExercises.length === 0 ? (
               <ThemedText type="small" themeColor="textSecondary">

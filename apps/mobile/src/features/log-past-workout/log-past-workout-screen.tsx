@@ -771,6 +771,7 @@ export function LogPastWorkoutScreen() {
         errorMessage={libraryError}
         onClose={() => setLibraryVisible(false)}
         onSelectExercises={addExercises}
+        strengthOnly
         inUseExerciseIds={
           draft?.form.exercises.map((exercise) => exercise.exerciseId) ?? []
         }
