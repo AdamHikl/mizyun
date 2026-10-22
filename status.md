@@ -24,6 +24,7 @@
 
 ## Local follow-ups awaiting acceptance
 
+- **Community join redesign (Oct22, uncommitted):** state-first cards; load vs save error copy; UI+IA architect reviews; 64 tests/tsc PASS; sim checked settings only. Next: join/error states on unenrolled acct, gate. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
 - **#298 evening stretch (Oct18):** 9 PM training-day reminder → 4–6 stretches; Home row; device-only (ADR0072). 2 reviews; gatePASS(3259mobile/1195API+15skips); Dev 35e226f4 health200; iPhone installed 17:59Z. Next: Adam device test.
 - **#307 evening catch-up dupes (Oct19):** per-user queue + pending sweep; reviewed; pushed f02fbf94, on Dev. Next: iPhone one-per-evening.
@@ -34,8 +35,7 @@
 - **#295/#297 (Oct18):** photo+chat assistant (ADR0071); 2 reviews; 57815004 gatePASS(3186mobile/1195API+15skips), Dev health200, iPhone installed; Free 10k blocks photo turns. Next: Adam device test. #296;#294.
 - **#290 (Oct17):** lock/resume keeps sets, no false sign-out; 2 reviews/gatePASS; on main. Next: Dev/iPhone lock test; #291.
 - **#288/#299/#304 Log activity:** #288 gatePASS, Dev 47c814e5 ([evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)). #299 ADR0073 Gemini drafts; gatePASS; Dev 4/4 ([evidence](docs/LOG_ACTIVITY_AI_DRAFTS_EVIDENCE_2026-10-19.md)); iPhone 10:23Z. #300/#302 fixed, #301. #304 ADR0074 on-device, Haiku fallback on failure (Oct21), notes removed; Dev. Next: Adam iPhone; #304 latency+gate; #305/#306.
-- **#278 timed workouts (Oct17):** load/reps·duration·distance modes, Log activity (ADR0068). 2 reviews resolved; main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/TIMED_WORKOUTS_EVIDENCE_2026-10-17.md)
-- **#279 past workouts (WO-08, Oct17):** form; resumable save; sets by completed_at. 3 reviews resolved; main/Dev 45f1ccfe. Next: device acceptance. [Evidence](docs/PAST_WORKOUT_LOGGING_EVIDENCE_2026-10-17.md)
+- **#278/#279 timed + past workouts (Oct17):** main/Dev 45f1ccfe; device acceptance open. [Moved entries](docs/archive/status/STATUS_OCT17_WORKOUT_PACKAGES_2026-10-22.md)
 - **#276 bouldering:** BLD-00–06 source 641549ed; gate/db:verify/3 reviews PASS; Dev 45f1ccfe. Next device. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). **Share sheet:** device check open.
 - **#248 ENG-07/08 (Oct15):** goal modes, energy v2, weekly calorie review (migration20261015090000); 3 reviews resolved; pgTAP0045 58ok; gatePASS. Dev deployed; iPhone Dev check next. [ADR0064](docs/adr/0064-rate-based-goal-modes-and-weekly-calorie-review.md)
 - **Community audit (Oct15):** 8b9fc0d5; review/gatePASS; Dev/device open. #265 needs Adam. [Evidence](docs/COMMUNITY_AUDIT_FIXES_2026-10-15.md)

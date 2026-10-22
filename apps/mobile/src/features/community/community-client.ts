@@ -644,6 +644,10 @@ export function isTransientCommunityError(error: ApiError): boolean {
   );
 }
 
+/** A retired request (backgrounding, account switch); safe to retry. */
+export const COMMUNITY_CONTEXT_CHANGED_MESSAGE =
+  "Community information changed. Try again.";
+
 export function humanizeCommunityError(
   error: ApiError,
   fallback = "An unexpected error occurred.",
@@ -651,7 +655,7 @@ export function humanizeCommunityError(
   error = communityErrorCause(error);
   switch (error.kind) {
     case "context_changed":
-      return "Community information changed. Try again.";
+      return COMMUNITY_CONTEXT_CHANGED_MESSAGE;
     case "not_configured":
       return "Community features are currently unavailable.";
     case "no_session":

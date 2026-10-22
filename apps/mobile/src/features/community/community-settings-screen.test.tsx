@@ -52,6 +52,7 @@ vi.mock("expo-router", () => ({
   useFocusEffect: (callback: () => void) => callback(),
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "Text" }));
+vi.mock("expo-symbols", () => ({ SymbolView: "SymbolView" }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/composition/community-admission", () => ({
   COMMUNITY_ENROLLMENT_OPEN: true,
@@ -75,6 +76,7 @@ vi.mock("./use-community-profile", () => ({
   }),
 }));
 import { CommunitySettingsScreen } from "./community-settings-screen";
+import { COMMUNITY_CONTEXT_CHANGED_MESSAGE } from "./community-client";
 
 // Render output and explicit handlers only; native layout acceptance is separate.
 function render(
@@ -110,7 +112,8 @@ function button(tree: any, label: string): any {
     tree,
     (node) =>
       node.type === "Pressable" &&
-      node.props.children?.props?.children === label,
+      (node.props.accessibilityLabel === label ||
+        node.props.children?.props?.children === label),
   );
 }
 beforeEach(() => {
@@ -225,6 +228,28 @@ describe("embedded Community joining", () => {
       expect(mocks.enroll).not.toHaveBeenCalled();
     },
   );
+  it("names an interrupted status check without claiming an unconfirmed change", () => {
+    mocks.state.status = "error";
+    mocks.state.error = COMMUNITY_CONTEXT_CHANGED_MESSAGE;
+    const copy = textContent(render({ embedded: true }));
+    expect(copy).toContain("We could not check your status");
+    expect(copy).toContain("Your status check was interrupted.");
+    expect(copy).not.toContain("Check your status before trying again");
+    expect(copy).not.toContain("Always your choice");
+  });
+  it("asks for a fresh check after an ambiguous join", async () => {
+    mocks.enroll.mockImplementation(async () => {
+      mocks.state.status = "error";
+      mocks.state.error = "Network request failed.";
+      return { ok: false };
+    });
+    button(render({ embedded: true }), "Join Community").props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    const copy = textContent(render({ embedded: true }));
+    expect(copy).toContain("Your changes are not confirmed");
+    expect(copy).toContain("Check your status before trying again");
+  });
   it("keeps the conservative birth-year gate and private exit when ineligible", () => {
     mocks.state.isAdultEligible = false;
     const tree = render({ embedded: true });
