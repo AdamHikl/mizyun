@@ -20,8 +20,12 @@ vi.mock("@/composition/api-client", () => ({
   invalidateSessionReads: vi.fn(),
 }));
 vi.mock("@/features/running/public-data", () => ({ listRuns: vi.fn() }));
+vi.mock("@/features/bouldering/public-data", () => ({
+  listBoulderSessions: vi.fn(),
+}));
 
 import type { ApiClient } from "@mizyun/api-client";
+import { listBoulderSessions } from "@/features/bouldering/public-data";
 import { listRuns } from "@/features/running/public-data";
 import { fetchTodayTraining } from "./today-training-data";
 
@@ -70,11 +74,25 @@ const EXERCISES = "/v1/exercises?limit=200";
 
 const mockedListRuns = vi.mocked(listRuns);
 const noRuns = { ok: true as const, value: { runs: [], nextCursor: null } };
+const mockedBoulders = vi.mocked(listBoulderSessions);
+const boulders = (...completedAt: (string | null)[]) =>
+  ({
+    ok: true,
+    value: {
+      sessions: completedAt.map((at, index) => ({
+        id: `b${index}`,
+        completedAt: at,
+      })),
+      nextCursor: null,
+    },
+  }) as never;
 
 describe("fetchTodayTraining", () => {
   beforeEach(() => {
     mockedListRuns.mockReset();
     mockedListRuns.mockResolvedValue(noRuns as never);
+    mockedBoulders.mockReset();
+    mockedBoulders.mockResolvedValue(boulders());
   });
 
   it("returns null when the workout list cannot be read", async () => {
@@ -115,15 +133,15 @@ describe("fetchTodayTraining", () => {
       trained: true,
       input: {
         exercises: [
-          { name: "Back Squat", setCount: 2 },
-          { name: "Bench Press", setCount: 1 },
+          { name: "Back Squat", setCount: 2, session: "w1" },
+          { name: "Bench Press", setCount: 1, session: "w1" },
         ],
         activities: [],
       },
     });
   });
 
-  it("sums sets across several finished sessions", async () => {
+  it("keeps each finished session's sets apart", async () => {
     const { client } = makeClient({
       [WORKOUTS]: workoutsReply([
         workout("w1", todayAt(9)),
@@ -146,8 +164,99 @@ describe("fetchTodayTraining", () => {
     const result = await fetchTodayTraining(client, now);
 
     expect(result?.input.exercises).toEqual([
-      { name: "Back Squat", setCount: 3 },
+      { name: "Back Squat", setCount: 1, session: "w1" },
+      { name: "Back Squat", setCount: 2, session: "w2" },
     ]);
+  });
+
+  it("marks Log activity entries as timed and passes their catalog id", async () => {
+    const { client } = makeClient({
+      [WORKOUTS]: workoutsReply([
+        workout("w1", todayAt(9)),
+        workout("w2", todayAt(17)),
+      ]),
+      "/v1/workouts/w1/sets": {
+        ok: true,
+        value: { workoutSets: [set("e-paddle", true)] },
+      },
+      "/v1/workouts/w2/sets": {
+        ok: true,
+        value: { workoutSets: [set("e-swim", true)] },
+      },
+      [EXERCISES]: {
+        ok: true,
+        value: {
+          exercises: [
+            {
+              id: "e-paddle",
+              name: "Paddleboarding",
+              metadata: { trackingMode: "duration_distance" },
+            },
+            {
+              id: "e-swim",
+              name: "Swimming",
+              metadata: {
+                catalogId: "exercise-swimming",
+                trackingMode: "duration_distance",
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await fetchTodayTraining(client, now);
+
+    expect(result?.input.exercises).toEqual([
+      { name: "Paddleboarding", setCount: 1, session: "w1", timed: true },
+      {
+        name: "Swimming",
+        setCount: 1,
+        session: "w2",
+        catalogId: "exercise-swimming",
+        timed: true,
+      },
+    ]);
+  });
+
+  it("reports a bouldering session finished today, not one still open or from yesterday", async () => {
+    const { client } = makeClient({ [WORKOUTS]: workoutsReply([]) });
+    mockedBoulders.mockResolvedValue(boulders(null, yesterdayAt(19)));
+    expect(await fetchTodayTraining(client, now)).toEqual({
+      trained: false,
+      input: { exercises: [], activities: [] },
+    });
+
+    mockedBoulders.mockResolvedValue(boulders(null, todayAt(12)));
+    expect(await fetchTodayTraining(client, now)).toEqual({
+      trained: true,
+      input: { exercises: [], activities: ["bouldering"] },
+    });
+    expect(mockedBoulders).toHaveBeenCalledWith(client, { limit: 20 });
+  });
+
+  it("reports unknown when the bouldering read fails and nothing else counts", async () => {
+    const { client } = makeClient({ [WORKOUTS]: workoutsReply([]) });
+    mockedBoulders.mockResolvedValue({
+      ok: false,
+      error: { kind: "offline", message: "offline" },
+    } as never);
+    expect(await fetchTodayTraining(client, now)).toBeNull();
+
+    mockedBoulders.mockRejectedValue(new Error("boom"));
+    expect(await fetchTodayTraining(client, now)).toBeNull();
+  });
+
+  it("treats bouldering that is turned off as no bouldering", async () => {
+    const { client } = makeClient({ [WORKOUTS]: workoutsReply([]) });
+    mockedBoulders.mockResolvedValue({
+      ok: false,
+      error: { kind: "disabled", message: "off" },
+    } as never);
+    expect(await fetchTodayTraining(client, now)).toEqual({
+      trained: false,
+      input: { exercises: [], activities: [] },
+    });
   });
 
   it("ignores yesterday, in-progress and routine template workouts", async () => {
@@ -320,7 +429,7 @@ describe("fetchTodayTraining", () => {
     const result = await fetchTodayTraining(client, now);
 
     expect(result?.input.exercises).toEqual([
-      { name: "Back Squat", setCount: 1 },
+      { name: "Back Squat", setCount: 1, session: "w1" },
     ]);
   });
 

@@ -11,6 +11,7 @@ import {
   STRETCH_MIN_HOLD_SECONDS,
   STRETCH_MUSCLE_VOCABULARY,
   listStretchOptions,
+  stretchPlanCoversEverySource,
   stretchPlanFromChoice,
   unresolvedStretchExerciseNames,
 } from "./evening-stretch";
@@ -531,5 +532,144 @@ describe("AI refinement inputs and validation", () => {
         picks: [null, null, null] as never,
       }),
     ).toBeNull();
+  });
+});
+
+describe("per-source stretch coverage", () => {
+  const sessionEx = (name: string, setCount: number, session: string) => ({
+    ...ex(name, setCount),
+    session,
+  });
+
+  it("stretches a climb after a big push session", () => {
+    const plan = buildEveningStretchSession({
+      exercises: [
+        sessionEx("Dumbbell bench press", 4, "a"),
+        sessionEx("Dumbbell shoulder press", 4, "a"),
+        sessionEx("Chest Dips", 3, "a"),
+        sessionEx("Cable Fly", 4, "a"),
+        sessionEx("Cable Rope Overhead Triceps Extension", 3, "a"),
+        sessionEx("Cable Pallof Press", 4, "a"),
+        sessionEx("Cable Crunch", 3, "a"),
+      ],
+      activities: ["bouldering"],
+    });
+    const wanted = (muscle: string) =>
+      muscle === "forearms" || muscle === "lats";
+    expect(plan.steps.some((step) => step.targetMuscles.some(wanted))).toBe(
+      true,
+    );
+    expect(plan.focusMuscles.some(wanted)).toBe(true);
+    expect(plan.focusMuscles.length).toBeLessThanOrEqual(4);
+  });
+
+  it("covers a small second workout after a heavy legs workout", () => {
+    const plan = buildEveningStretchSession({
+      exercises: [
+        sessionEx("Barbell Back Squat", 8, "a"),
+        sessionEx("Banded Romanian Deadlift", 8, "a"),
+        sessionEx("Barbell Bench Press", 2, "b"),
+      ],
+      activities: [],
+    });
+    const upper = new Set(["chest", "front shoulders", "triceps"]);
+    expect(
+      plan.steps.some((step) => step.targetMuscles.some((m) => upper.has(m))),
+    ).toBe(true);
+    expect(plan.focusMuscles.some((m) => upper.has(m))).toBe(true);
+    expect(
+      plan.steps.some((step) =>
+        step.targetMuscles.some(
+          (m) => m === "quadriceps" || m === "hamstrings",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      plan.focusMuscles.some(
+        (m) => m === "quadriceps" || m === "hamstrings" || m === "glutes",
+      ),
+    ).toBe(true);
+  });
+
+  it("gives an unresolved timed activity a full-body load", () => {
+    const timed = buildEveningStretchSession({
+      exercises: [{ name: "Paddleboarding", setCount: 1, timed: true }],
+      activities: [],
+    });
+    expect(timed.basis).toBe("today");
+    expect([...targets(timed)]).toEqual(
+      expect.arrayContaining(["hamstrings", "hip flexors", "chest"]),
+    );
+    const untimed = buildEveningStretchSession({
+      exercises: [{ name: "Paddleboarding", setCount: 1 }],
+      activities: [],
+    });
+    expect(untimed.basis).toBe("general");
+    expect(untimed.focusMuscles).toEqual([]);
+  });
+
+  it("does not double a repeated timed activity within one source", () => {
+    const once = buildEveningStretchSession({
+      exercises: [{ name: "Paddleboarding", setCount: 1, timed: true }],
+      activities: [],
+    });
+    const twice = buildEveningStretchSession({
+      exercises: [
+        { name: "Paddleboarding", setCount: 1, timed: true },
+        { name: " paddleboarding ", setCount: 1, timed: true },
+      ],
+      activities: [],
+    });
+    expect(twice).toEqual(once);
+  });
+});
+
+describe("stretchPlanCoversEverySource", () => {
+  const push = [
+    { name: "Dumbbell bench press", setCount: 4, session: "a" },
+    { name: "Cable Fly", setCount: 4, session: "a" },
+  ];
+  const input = { exercises: push, activities: ["bouldering" as const] };
+
+  it("accepts the deterministic plan and rejects one that drops a source", () => {
+    const plan = buildEveningStretchSession(input);
+    expect(stretchPlanCoversEverySource(input, plan)).toBe(true);
+    const chestOnly = {
+      steps: plan.steps.filter(
+        (step) =>
+          !step.targetMuscles.some((muscle) =>
+            [
+              "forearms",
+              "lats",
+              "rear shoulders",
+              "front shoulders",
+              "hip flexors",
+            ].includes(muscle),
+          ),
+      ),
+    };
+    expect(stretchPlanCoversEverySource(input, chestOnly)).toBe(false);
+  });
+
+  it("always accepts a single-source plan", () => {
+    expect(
+      stretchPlanCoversEverySource(
+        { exercises: push, activities: [] },
+        { steps: [] },
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("single-source focus order", () => {
+  it("keeps the plain ranking when the top muscle has no stretch", () => {
+    const input = {
+      exercises: [{ name: "Pike shoulder press", setCount: 3 }],
+      activities: [],
+    };
+    // Front shoulders are worked most but have no bodyweight stretch.
+    expect(buildEveningStretchSession(input).focusMuscles[0]).toBe(
+      "front shoulders",
+    );
   });
 });

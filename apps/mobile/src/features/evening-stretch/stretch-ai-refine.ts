@@ -6,6 +6,7 @@ import {
   type StretchRefineResponse,
 } from "@mizyun/contracts";
 import {
+  stretchPlanCoversEverySource,
   stretchPlanFromChoice,
   type StretchSessionInput,
   type StretchSessionPlan,
@@ -73,20 +74,27 @@ const readCache = async (
   }
 };
 
-/** Rebuild a stored or received plan on the device; null when invalid. */
+/**
+ * Rebuild a stored or received plan on the device; null when invalid or
+ * when it leaves out one of today's sessions (the deterministic plan never
+ * does), so a bigger workout cannot crowd out a climb or an activity.
+ */
 const toPlan = (
   input: StretchSessionInput,
   plan: StretchRefinedPlan | null,
-): StretchSessionPlan | null =>
-  plan === null
-    ? null
-    : stretchPlanFromChoice(input, {
-        picks: plan.steps.map((step) => ({
-          id: step.exerciseId,
-          holdSeconds: step.holdSeconds,
-        })),
-        focusMuscles: plan.focusMuscles,
-      });
+): StretchSessionPlan | null => {
+  if (plan === null) return null;
+  const rebuilt = stretchPlanFromChoice(input, {
+    picks: plan.steps.map((step) => ({
+      id: step.exerciseId,
+      holdSeconds: step.holdSeconds,
+    })),
+    focusMuscles: plan.focusMuscles,
+  });
+  return rebuilt !== null && stretchPlanCoversEverySource(input, rebuilt)
+    ? rebuilt
+    : null;
+};
 
 /** Today's cached tailored plan for this training, without a network call. */
 export const peekTailoredStretchPlan = async (
@@ -128,17 +136,73 @@ export const requestTailoredStretchPlan = async (
   return result.ok ? result.value.plan : null;
 };
 
+// One load per account, day and training at a time: the reminder-time
+// preparation and the stretch screen may ask together. Loads for one
+// account run one after another so the attempt count is never raced.
+const inFlight = new Map<string, Promise<StretchSessionPlan | null>>();
+const accountQueue = new Map<string, Promise<unknown>>();
+
+/** Re-checked before the request and before caching its answer. */
+export type StretchAiAllowed = () => boolean | Promise<boolean>;
+const always: StretchAiAllowed = () => true;
+const isAllowed = async (allowed: StretchAiAllowed): Promise<boolean> => {
+  try {
+    return await allowed();
+  } catch {
+    return false;
+  }
+};
+
 /**
  * The tailored plan for today's training: from the cache when present,
  * otherwise one server call (counted against the daily attempts). Null
- * means "keep the deterministic plan".
+ * means "keep the deterministic plan". Concurrent calls for the same
+ * training share one load.
  */
-export const loadTailoredStretchPlan = async (
+export const loadTailoredStretchPlan = (
   userId: string,
   input: StretchSessionInput,
   localDate: string,
   client: ApiClient,
   store: StretchAiStore = SecureStore,
+  allowed: StretchAiAllowed = always,
+): Promise<StretchSessionPlan | null> => {
+  const key = JSON.stringify([
+    userId,
+    localDate,
+    stretchTrainingFingerprint(input),
+  ]);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const previous = accountQueue.get(userId) ?? Promise.resolve();
+  const load = previous
+    .catch(() => {})
+    .then(() =>
+      loadTailoredStretchPlanOnce(
+        userId,
+        input,
+        localDate,
+        client,
+        store,
+        allowed,
+      ),
+    )
+    .finally(() => {
+      inFlight.delete(key);
+      if (accountQueue.get(userId) === load) accountQueue.delete(userId);
+    });
+  inFlight.set(key, load);
+  accountQueue.set(userId, load);
+  return load;
+};
+
+const loadTailoredStretchPlanOnce = async (
+  userId: string,
+  input: StretchSessionInput,
+  localDate: string,
+  client: ApiClient,
+  store: StretchAiStore,
+  allowed: StretchAiAllowed,
 ): Promise<StretchSessionPlan | null> => {
   if (input.exercises.length === 0 && input.activities.length === 0) {
     return null;
@@ -151,6 +215,7 @@ export const loadTailoredStretchPlan = async (
   }
   const attempts = today?.attempts ?? 0;
   if (attempts >= MAX_STRETCH_AI_ATTEMPTS_PER_DAY) return null;
+  if (!(await isAllowed(allowed))) return null;
   // Count the attempt before the call so a crash cannot repeat it freely.
   await store
     .setItemAsync(
@@ -158,8 +223,10 @@ export const loadTailoredStretchPlan = async (
       JSON.stringify({
         date: localDate,
         attempts: attempts + 1,
-        fingerprint: today?.fingerprint ?? null,
-        plan: today?.plan ?? null,
+        // The earlier plan was for other training; never restore it after a
+        // revocation cleared the cache during the consent check.
+        fingerprint: null,
+        plan: null,
       } satisfies StretchAiCache),
     )
     .catch(() => {});
@@ -168,6 +235,8 @@ export const loadTailoredStretchPlan = async (
   );
   const plan = toPlan(input, received);
   if (plan === null || received === null) return null;
+  // Consent revoked or account switched while waiting: keep nothing.
+  if (!(await isAllowed(allowed))) return null;
   await store
     .setItemAsync(
       keyFor(userId),

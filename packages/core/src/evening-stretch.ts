@@ -23,6 +23,13 @@ export interface StretchSessionExerciseInput {
   readonly catalogId?: string;
   /** Completed sets (>= 0); timed activities count as their set count. */
   readonly setCount: number;
+  /**
+   * Id of the workout this exercise came from. Exercises without it share
+   * one implicit source.
+   */
+  readonly session?: string;
+  /** A timed activity logged as one set (e.g. "Log activity"). */
+  readonly timed?: boolean;
 }
 
 export interface StretchSessionInput {
@@ -88,6 +95,17 @@ export const GENERAL_STRETCH_IDS: readonly string[] = [
   "exercise-puppy-pose",
   "childs-pose",
   "exercise-standing-calf-stretch",
+];
+
+/** Per-muscle load of an unresolved, untagged timed activity. */
+const GENERAL_TIMED_LOAD = 2;
+const GENERAL_TIMED_MUSCLES: readonly string[] = [
+  "hamstrings",
+  "hip flexors",
+  "chest",
+  "lats",
+  "lower back",
+  "calves",
 ];
 
 const ACTIVITY_LOADS: Readonly<
@@ -258,18 +276,37 @@ export const unresolvedStretchExerciseNames = (
   return names;
 };
 
-const computeMuscleLoads = (
+const compareEntries = (
+  a: readonly [string, number],
+  b: readonly [string, number],
+): number => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+
+/** Add the loads of some exercises and activities to `loads`. */
+const accumulateLoads = (
   input: StretchSessionInput,
-): readonly (readonly [string, number])[] => {
-  const loads = new Map<string, number>();
-  for (const item of input.exercises ?? []) {
+  exercises: readonly StretchSessionExerciseInput[],
+  activities: readonly StretchActivity[],
+  loads: Map<string, number>,
+): void => {
+  // A timed activity counts once per source, however often it is logged.
+  const seenTimed = new Set<string>();
+  for (const item of exercises) {
     if (!item) continue;
     const exercise = resolveExercise(item);
     if (!exercise) {
       // A custom exercise counts only through its muscle tags.
       const sets = effectiveSets(item.setCount);
-      for (const muscle of tagsFor(input, item.name)) {
+      const tags = tagsFor(input, item.name);
+      for (const muscle of tags) {
         addMappedLoad(loads, muscle, sets);
+      }
+      if (tags.length === 0 && item.timed === true) {
+        const key = `${item.session ?? ""}\u0000${normalizeExerciseName(item.name)}`;
+        if (seenTimed.has(key)) continue;
+        seenTimed.add(key);
+        for (const muscle of GENERAL_TIMED_MUSCLES) {
+          addMappedLoad(loads, muscle, GENERAL_TIMED_LOAD);
+        }
       }
       continue;
     }
@@ -283,7 +320,7 @@ const computeMuscleLoads = (
     }
   }
   const seenActivities = new Set<StretchActivity>();
-  for (const activity of input.activities ?? []) {
+  for (const activity of activities) {
     // A repeated entry (two runs) does not double the fixed load.
     if (seenActivities.has(activity)) continue;
     seenActivities.add(activity);
@@ -293,9 +330,83 @@ const computeMuscleLoads = (
       addMappedLoad(loads, muscle, amount);
     }
   }
-  return [...loads.entries()]
+};
+
+/** Stretchable muscles of a load map, most-worked first. */
+const rankLoads = (
+  loads: ReadonlyMap<string, number>,
+): readonly (readonly [string, number])[] =>
+  [...loads.entries()]
     .filter(([muscle]) => STRETCHABLE_MUSCLES.has(muscle))
-    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    .sort(compareEntries);
+
+const computeMuscleLoads = (
+  input: StretchSessionInput,
+): readonly (readonly [string, number])[] => {
+  const loads = new Map<string, number>();
+  accumulateLoads(input, input.exercises ?? [], input.activities ?? [], loads);
+  return rankLoads(loads);
+};
+
+interface StretchSource {
+  readonly key: string;
+  readonly ranked: readonly (readonly [string, number])[];
+  readonly total: number;
+}
+
+/**
+ * Each distinct workout (`session`, plus the implicit no-session one) and
+ * each distinct activity, with its own stretchable muscle loads. Sources
+ * that load no stretchable muscle are left out.
+ */
+const computeSources = (input: StretchSessionInput): StretchSource[] => {
+  const bySession = new Map<string, StretchSessionExerciseInput[]>();
+  for (const item of input.exercises ?? []) {
+    if (!item) continue;
+    const key = `s:${item.session ?? ""}`;
+    const group = bySession.get(key);
+    if (group) group.push(item);
+    else bySession.set(key, [item]);
+  }
+  const groups: [string, StretchSessionExerciseInput[], StretchActivity[]][] = [
+    ...bySession.entries(),
+  ].map(([key, items]) => [key, items, []]);
+  for (const activity of new Set(input.activities ?? [])) {
+    groups.push([`a:${activity}`, [], [activity]]);
+  }
+  const sources: StretchSource[] = [];
+  for (const [key, items, activities] of groups) {
+    const loads = new Map<string, number>();
+    accumulateLoads(input, items, activities, loads);
+    const ranked = rankLoads(loads);
+    if (ranked.length === 0) continue;
+    sources.push({
+      key,
+      ranked,
+      total: ranked.reduce((sum, [, amount]) => sum + amount, 0),
+    });
+  }
+  return sources.sort(
+    (a, b) => b.total - a.total || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  );
+};
+
+/**
+ * Whether a plan (e.g. an AI-chosen one) stretches one of the two
+ * most-worked muscles of every source of today's training, so a bigger session cannot crowd out a
+ * smaller one. Plans for a single source always pass.
+ */
+export const stretchPlanCoversEverySource = (
+  input: StretchSessionInput,
+  plan: Pick<StretchSessionPlan, "steps">,
+): boolean => {
+  const sources = computeSources(input ?? { exercises: [], activities: [] });
+  if (sources.length <= 1) return true;
+  const stretched = new Set(plan.steps.flatMap((step) => step.targetMuscles));
+  // The same bar as the planner: one of the source's top two muscles.
+  return sources.every((source) =>
+    source.ranked.slice(0, 2).some(([muscle]) => stretched.has(muscle)),
+  );
 };
 
 const clampMaxSteps = (value: number | undefined): number => {
@@ -486,8 +597,30 @@ export const buildEveningStretchSession = (
     chosenIds.add(exercise.id);
   };
 
-  // One stretch per worked muscle, most-worked first.
   const covered = new Set<string>();
+
+  // A small source (a climb, a second workout, a timed activity) must not be
+  // crowded out by a bigger one: give each source without a stretch for its
+  // top two muscles one for its most-worked muscle that has a stretch.
+  const sources = computeSources(input);
+  if (sources.length > 1) {
+    for (const source of sources) {
+      if (chosen.length >= maxSteps) break;
+      const topTwo = new Set(source.ranked.slice(0, 2).map(([m]) => m));
+      if (chosen.some((c) => c.primaryMuscles.some((m) => topTwo.has(m)))) {
+        continue;
+      }
+      for (const [muscle] of source.ranked) {
+        const best = bestFor(muscle);
+        if (!best) continue;
+        choose(best);
+        for (const primary of best.primaryMuscles) covered.add(primary);
+        break;
+      }
+    }
+  }
+
+  // One stretch per worked muscle, most-worked first.
   for (const muscle of rankedMuscles) {
     if (chosen.length >= maxSteps) break;
     if (covered.has(muscle)) continue;
@@ -516,8 +649,26 @@ export const buildEveningStretchSession = (
   const steps = chosen.map(toStep);
   if (steps.length === 0) return generalPlan(maxSteps);
 
+  // Each source's most-worked muscle that a chosen stretch targets first
+  // (global rank order), then the ranking.
+  // A single source keeps the plain ranking.
+  const stretched = new Set(chosen.flatMap((c) => c.primaryMuscles));
+  const sourceTops = new Set(
+    sources.length > 1
+      ? sources.map(
+          (source) =>
+            (source.ranked.find(([muscle]) => stretched.has(muscle)) ??
+              source.ranked[0]!)[0],
+        )
+      : [],
+  );
+  const focusMuscles = [
+    ...rankedMuscles.filter((muscle) => sourceTops.has(muscle)),
+    ...rankedMuscles.filter((muscle) => !sourceTops.has(muscle)),
+  ].slice(0, MAX_FOCUS_MUSCLES);
+
   return {
-    focusMuscles: rankedMuscles.slice(0, MAX_FOCUS_MUSCLES),
+    focusMuscles,
     basis: "today",
     steps,
     totalSeconds: totalSecondsOf(steps),

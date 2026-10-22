@@ -4,6 +4,7 @@ import {
   type StretchSessionPlan,
 } from "@mizyun/core";
 import { Stack, router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,12 +21,16 @@ import {
 import { apiClient } from "@/composition/api-client";
 import { isStretchAiEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
+import { loadAiConsent } from "@/features/coach/ai-consent";
 import { useAiConsentController } from "@/features/coach/ai-consent-controller";
 import {
   isoLocalDate,
   markEveningStretchDone,
 } from "./evening-stretch-reminder";
-import { loadTailoredStretchPlan } from "./stretch-ai-refine";
+import {
+  loadTailoredStretchPlan,
+  peekTailoredStretchPlan,
+} from "./stretch-ai-refine";
 import {
   applyTailoredPlan,
   shouldTailorStretch,
@@ -42,8 +47,14 @@ import {
   type StretchProgress,
 } from "./stretch-progress";
 import { fetchTodayTraining, type TodayTraining } from "./today-training-data";
+import { mayTailorStretch } from "./tonight-stretch";
 
 type Loaded = LoadedStretch;
+
+const aiPorts = {
+  variantEnabled: isStretchAiEnabled,
+  consent: (userId: string) => loadAiConsent(userId, SecureStore),
+};
 
 const capitalize = (text: string): string =>
   text.length === 0 ? text : text[0]!.toUpperCase() + text.slice(1);
@@ -76,27 +87,47 @@ export function EveningStretchScreen() {
 
   useEffect(() => {
     let active = true;
+    setLoaded({ status: "loading" });
+    setTraining(null);
     void fetchTodayTraining()
       .catch(() => null)
-      .then((read) => {
+      .then(async (read) => {
+        // Tonight's plan prepared at reminder time (or on an earlier open)
+        // is shown as is, without tailoring it again, while the account
+        // may still use AI stretches.
+        const prepared =
+          read?.trained &&
+          userId !== null &&
+          (await mayTailorStretch(userId, aiPorts))
+            ? await peekTailoredStretchPlan(
+                userId,
+                read.input,
+                isoLocalDate(new Date()),
+              ).catch(() => null)
+            : null;
         if (!active) return;
         setTraining(read);
         setLoaded({
           status: "ready",
-          plan: buildEveningStretchSession(
-            read?.input ?? { exercises: [], activities: [] },
-          ),
+          plan:
+            prepared ??
+            buildEveningStretchSession(
+              read?.input ?? { exercises: [], activities: [] },
+            ),
           fallback: read === null,
-          tailored: false,
+          tailored: prepared !== null,
         });
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [userId]);
 
+  const untailored = loaded.status === "ready" && !loaded.tailored;
   useEffect(() => {
-    if (!tailor || userId === null || training === null) return;
+    if (!tailor || !untailored || userId === null || training === null) {
+      return;
+    }
     let active = true;
     setTailoring(true);
     void loadTailoredStretchPlan(
@@ -104,6 +135,8 @@ export function EveningStretchScreen() {
       training.input,
       isoLocalDate(new Date()),
       apiClient,
+      SecureStore,
+      async () => active && (await mayTailorStretch(userId, aiPorts)),
     )
       .catch(() => null)
       .then((plan) => {
@@ -117,7 +150,7 @@ export function EveningStretchScreen() {
       active = false;
       setTailoring(false);
     };
-  }, [tailor, userId, training]);
+  }, [tailor, untailored, userId, training]);
 
   const steps = useMemo(
     () => (loaded.status === "ready" ? loaded.plan.steps : []),

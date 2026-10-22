@@ -27,7 +27,7 @@
 - **Home flash (Oct22):** reads retired on leaving the app no longer show "Couldn't update"; test; gatePASS. Next: iPhone.
 - **Community join redesign (Oct22):** 6045ee7c Dev+Prod; fix: non-members saw a status error (cache-wrapped 404), @undefined; Opus review ship; #320. Next: Adam Join/leave on Prod iPhone. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
-- **#298 evening stretch (Oct18):** 9 PM training-day reminder → 4–6 stretches; Home row; device-only (ADR0072). 2 reviews; gatePASS(3259mobile/1195API+15skips); Dev 35e226f4 health200; iPhone installed 17:59Z. Next: Adam device test.
+- **#298 evening stretch (Oct22):** bouldering/Log activity counted; per-session stretches; plan at 21:00. 2 reviews/isolated gatePASS(3524mobile/1328API+15skips). Next: Dev, iPhone. [Handoff](docs/EVENING_STRETCH_COVERAGE_2026-10-22.md)
 - **#307 evening catch-up dupes (Oct19):** per-user queue + pending sweep; reviewed; f02fbf94 on Dev. Next: iPhone one-per-evening.
 - **#313 Claude multi-photo (Oct20):** flattened `{meals}` schema; reviewed; live 2-photo 7/7; f02fbf94 on Dev.
 - **#314 goal target date (Oct20):** optional/editable in Goal settings; no invented 90-day date; Home warning links there. Contract nullable, no migration; 2 reviews. Old builds reject null. Shared gatePASS(3452mobile/1226API+15skips); committed Oct20 merge with #303/#308, Dev. Next: iPhone.

@@ -179,6 +179,114 @@ describe("loadTailoredStretchPlan", () => {
     expect(store.values.size).toBe(0);
   });
 
+  it("shares one server call when the same training is loaded twice at once", async () => {
+    const store = memoryStore();
+    const api = client(ok(refined));
+
+    const [first, second] = await Promise.all([
+      loadTailoredStretchPlan(USER, input, TODAY, api.client, store),
+      loadTailoredStretchPlan(USER, input, TODAY, api.client, store),
+    ]);
+
+    expect(api.request).toHaveBeenCalledTimes(1);
+    expect(first).toEqual(second);
+    expect(JSON.parse(store.values.values().next().value!).attempts).toBe(1);
+    // Once settled, a later load reads the cache without another call.
+    await loadTailoredStretchPlan(USER, input, TODAY, api.client, store);
+    expect(api.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends nothing when the account may not use AI any more", async () => {
+    const store = memoryStore();
+    const api = client(ok(refined));
+
+    const plan = await loadTailoredStretchPlan(
+      USER,
+      input,
+      TODAY,
+      api.client,
+      store,
+      async () => false,
+    );
+
+    expect(plan).toBeNull();
+    expect(api.request).not.toHaveBeenCalled();
+    expect(store.values.size).toBe(0);
+  });
+
+  it("keeps no answer that arrives after consent was revoked", async () => {
+    const store = memoryStore();
+    const api = client(ok(refined));
+    let allowed = true;
+    api.request.mockImplementation(async () => {
+      allowed = false;
+      return ok(refined);
+    });
+
+    const plan = await loadTailoredStretchPlan(
+      USER,
+      input,
+      TODAY,
+      api.client,
+      store,
+      () => allowed,
+    );
+
+    expect(plan).toBeNull();
+    expect(await peekTailoredStretchPlan(USER, input, TODAY, store)).toBeNull();
+  });
+
+  it("rejects a plan that leaves out one of today's sessions", async () => {
+    const climb: StretchSessionInput = {
+      exercises: [
+        { name: "Chest Dips", setCount: 4, session: "push" },
+        { name: "Cable Fly", setCount: 4, session: "push" },
+      ],
+      activities: ["bouldering"],
+    };
+    const chestOnly = listStretchOptions()
+      .filter(
+        (option) =>
+          !option.primaryMuscles.some((muscle) =>
+            ["forearms", "lats"].includes(muscle),
+          ),
+      )
+      .slice(0, 4)
+      .map((option) => ({ exerciseId: option.id, holdSeconds: 30 }));
+    const api = client(ok({ focusMuscles: ["chest"], steps: chestOnly }));
+
+    expect(
+      await loadTailoredStretchPlan(
+        USER,
+        climb,
+        TODAY,
+        api.client,
+        memoryStore(),
+      ),
+    ).toBeNull();
+  });
+
+  it("counts attempts one load at a time for different training", async () => {
+    const store = memoryStore();
+    const api = client(ok(refined));
+    const other: StretchSessionInput = {
+      exercises: [{ name: "Chest Dips", setCount: 5 }],
+      activities: [],
+    };
+    const third: StretchSessionInput = {
+      exercises: [{ name: "Cable Fly", setCount: 5 }],
+      activities: [],
+    };
+
+    await Promise.all([
+      loadTailoredStretchPlan(USER, input, TODAY, api.client, store),
+      loadTailoredStretchPlan(USER, other, TODAY, api.client, store),
+      loadTailoredStretchPlan(USER, third, TODAY, api.client, store),
+    ]);
+
+    expect(api.request).toHaveBeenCalledTimes(MAX_STRETCH_AI_ATTEMPTS_PER_DAY);
+  });
+
   it("fingerprints training regardless of order", () => {
     expect(stretchTrainingFingerprint(input)).toBe(
       stretchTrainingFingerprint({
