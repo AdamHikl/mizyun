@@ -82,8 +82,9 @@ export type AiVendor = "gemini" | "anthropic";
  *   without the key it falls back to Gemini (legacy, logged at startup).
  * - `AGENT_PROVIDER=gemini` or `disabled` resolve to `gemini`, which means
  *   "Gemini when a Gemini key is configured, otherwise disabled".
- * - Coach chat is the exception: `AGENT_PROVIDER=disabled` switches it off
- *   whatever `COACH_PROVIDER` and the keys say (#317, composed in apps/api).
+ * - Coach is the exception: an explicit `AGENT_PROVIDER=disabled` switches it
+ *   off whatever `COACH_PROVIDER` and the keys say (`coachKillSwitch`, #317).
+ *   Leaving `AGENT_PROVIDER` unset does not.
  *
  * An explicit per-feature key never falls back: config fails to load when
  * its vendor's key is missing. Meal illustrations are not routed; they
@@ -136,6 +137,12 @@ export interface ServerConfig {
   readonly supabase: AuthConfigurationStatus;
   readonly supabaseConfig: ServerSupabaseConfiguration | null;
   readonly agentProvider: "disabled" | "gemini" | "anthropic";
+  /**
+   * #317: true only when `AGENT_PROVIDER=disabled` is set explicitly. It
+   * switches Coach off; an unset `AGENT_PROVIDER` (parsed as `disabled`)
+   * keeps Coach on its routed provider.
+   */
+  readonly coachKillSwitch: boolean;
   /** Resolved per-feature vendor routing; see `ServerAiRouting`. */
   readonly aiRouting: ServerAiRouting;
   readonly visionProvider: "disabled" | "stub";
@@ -807,6 +814,7 @@ export const loadServerConfig = (
     supabase,
     supabaseConfig,
     agentProvider: value.agentProvider,
+    coachKillSwitch: raw.agentProvider === "disabled",
     aiRouting,
     visionProvider: value.visionProvider,
     geminiConfig,

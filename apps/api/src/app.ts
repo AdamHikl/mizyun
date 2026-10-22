@@ -570,6 +570,7 @@ const defaultDependencies = (): AppDependencies => {
         supabase: { configured: false, provider: "supabase", reason: "" },
         supabaseConfig: null,
         agentProvider: "disabled",
+        coachKillSwitch: false,
         aiRouting: GEMINI_ONLY_ROUTING,
         visionProvider: "disabled",
         geminiConfig: null,
@@ -581,10 +582,10 @@ const defaultDependencies = (): AppDependencies => {
       };
   const geminiConfig = config.geminiConfig;
   // Coach uses Anthropic only when routed there (ADR-0069 + per-feature routing).
-  // #317: AGENT_PROVIDER=disabled switches Coach off whatever the keys say.
+  // #317: an explicit AGENT_PROVIDER=disabled switches Coach off whatever the
+  // keys say; leaving it unset does not.
   const anthropicConfig =
-    config.agentProvider !== "disabled" &&
-    config.aiRouting.coach === "anthropic"
+    !config.coachKillSwitch && config.aiRouting.coach === "anthropic"
       ? (config.anthropicConfig ?? null)
       : null;
   const emailSender: EmailSender =
@@ -1414,10 +1415,10 @@ export const buildApp = (
   // Coach routed to Anthropic answers with Anthropic only for users whose
   // stored consent disclosed it; everyone else gets Gemini (or the disabled
   // provider when Gemini is not configured). Provenance names the provider
-  // that actually answered. #317: AGENT_PROVIDER=disabled is a Coach kill
-  // switch, so no model agent is built and Coach uses the disabled default.
-  const coachDisabled =
-    !configResult.ok || configResult.value.agentProvider === "disabled";
+  // that actually answered. #317: an explicit AGENT_PROVIDER=disabled is a
+  // Coach kill switch, so no model agent is built and Coach uses the disabled
+  // default. An unset AGENT_PROVIDER keeps Coach on its routed provider.
+  const coachDisabled = !configResult.ok || configResult.value.coachKillSwitch;
   const modelAgent = coachDisabled
     ? null
     : anthropicCoachAgentProvider !== null
@@ -1463,7 +1464,7 @@ export const buildApp = (
       (configResult.value.anthropicConfig ?? null) !== null)
   ) {
     app.log.warn(
-      "AGENT_PROVIDER is disabled (the default when unset), so Coach is switched off although an AI key is configured.",
+      "AGENT_PROVIDER=disabled is set explicitly, so Coach is switched off although an AI key is configured.",
     );
   }
 

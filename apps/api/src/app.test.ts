@@ -446,6 +446,30 @@ describe("AI vendor selection (ADR-0069)", () => {
     });
   });
 
+  // #317: the kill switch needs an explicit value; AGENT_PROVIDER parses as
+  // "disabled" when unset, and that must keep serving Coach.
+  it.each([
+    ["unset", ""],
+    ["gemini", "gemini"],
+  ])(
+    "keeps Coach on Gemini when AGENT_PROVIDER is %s with a Gemini key",
+    async (_label, agentProvider) => {
+      stubAiEnv({
+        AGENT_PROVIDER: agentProvider,
+        AI_EXTERNAL_ACCESS: "true",
+        GEMINI_API_KEY: "test-gemini-key-12345",
+      });
+      await expect(coachStatus()).resolves.toMatchObject({
+        ready: true,
+        provider: "gemini",
+      });
+      await expect(coachStatus(false)).resolves.toMatchObject({
+        ready: true,
+        provider: "gemini",
+      });
+    },
+  );
+
   it("reports Coach disabled when AGENT_PROVIDER=disabled overrides COACH_PROVIDER", async () => {
     stubAiEnv({
       AGENT_PROVIDER: "disabled",
@@ -753,6 +777,19 @@ describe("Consent-gated AI routing (Production, 2026-10-21)", () => {
         spies.anthropic.text.mock.calls.length,
     ).toBe(1);
     expect(result.text.statusCode).toBe(200);
+  });
+
+  it("serves Coach turns and Coach meal drafts when AGENT_PROVIDER is unset", async () => {
+    stubEnv({ AGENT_PROVIDER: "" });
+    const spies = spyVendors();
+    const result = await exercise("current");
+
+    expect(result.status.json()).toMatchObject({ provider: "anthropic" });
+    expect(result.coach.statusCode).toBe(200);
+    expect(result.coach.json().assistantMessage.provider).toBe("anthropic");
+    expect(result.coachMeal.statusCode).toBe(200);
+    expect(spies.anthropic.coach).toHaveBeenCalled();
+    expect(spies.anthropic.text).toHaveBeenCalledTimes(2);
   });
 
   it("drafts no Coach meal photo when AGENT_PROVIDER=disabled", async () => {
