@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   appState: "active",
   read: vi.fn(),
   prefetch: vi.fn(),
+  keep: vi.fn(),
+  records: {} as Record<string, { assetId: string | null }>,
   effects: [] as (() => void | (() => void))[],
 }));
 vi.mock("react", async (original) => ({
@@ -29,6 +31,13 @@ vi.mock("@/features/auth/auth-context", () => ({
       ? { user: { id: mocks.owner }, accessToken: mocks.token }
       : null,
   }),
+}));
+vi.mock("./meal-photo-download", () => ({
+  keepMealBackupOnDevice: mocks.keep,
+}));
+vi.mock("@/features/private-photos/local-photo-library", () => ({
+  localPhotoRecord: (_owner: string, _kind: string, key: string) =>
+    mocks.records[key] ?? null,
 }));
 vi.mock("./meal-photo-retention", () => ({
   fetchMealPhoto: mocks.read,
@@ -77,21 +86,44 @@ beforeEach(() => {
     value: { photo: photo(entryId.replace("meal", "asset")) },
   }));
   mocks.prefetch.mockResolvedValue(true);
+  mocks.records = {};
 });
 
-it("signs and downloads only meals with photos and remembers them for rows", async () => {
+it("signs and saves only backed-up meals to the device and remembers them for rows", async () => {
   await run();
   expect(mocks.read.mock.calls.map(([id]) => id)).toEqual(["meal-a", "meal-c"]);
   expect(
     rememberedPhoto(mealPhotoScope("owner-a", "token-a", "meal-a"), "asset-a")
       ?.signedUrl,
   ).toBe("https://private.example/asset-a");
-  expect(mocks.prefetch).toHaveBeenCalledWith(
-    "https://private.example/asset-a",
-    { cachePolicy: "memory", headers: { "Cache-Control": "no-store" } },
+  expect(mocks.keep).toHaveBeenCalledWith(
+    "owner-a",
+    "meal-a",
+    expect.objectContaining({
+      assetId: "asset-a",
+      signedUrl: "https://private.example/asset-a",
+    }),
   );
+  expect(mocks.keep).toHaveBeenCalledTimes(2);
+  expect(mocks.prefetch).not.toHaveBeenCalled();
   await run();
   expect(mocks.read).toHaveBeenCalledTimes(2);
+});
+
+it("skips entries whose device copy already matches the backup asset", async () => {
+  mocks.records = { "meal-a": { assetId: "asset-a" } };
+  await run();
+  expect(mocks.read.mock.calls.map(([id]) => id)).toEqual(["meal-c"]);
+  expect(mocks.keep).toHaveBeenCalledTimes(1);
+});
+
+it("re-reads an entry whose device copy is from a different asset or device-only", async () => {
+  mocks.records = {
+    "meal-a": { assetId: "asset-old" },
+    "meal-c": { assetId: null },
+  };
+  await run();
+  expect(mocks.read.mock.calls.map(([id]) => id)).toEqual(["meal-a", "meal-c"]);
 });
 
 it("skips prefetching after a denied capability (for any token), without a session, retention or foreground", async () => {
@@ -128,7 +160,7 @@ it("does not remember a read that settles after memory was forgotten", async () 
   expect(
     rememberedPhoto(mealPhotoScope("owner-a", "token-a", "meal-a")),
   ).toBeNull();
-  expect(mocks.prefetch).not.toHaveBeenCalled();
+  expect(mocks.keep).not.toHaveBeenCalled();
 });
 
 it("does not remember or download a rejected read", async () => {
@@ -137,7 +169,7 @@ it("does not remember or download a rejected read", async () => {
   expect(
     rememberedPhoto(mealPhotoScope("owner-a", "token-a", "meal-a")),
   ).toBeNull();
-  expect(mocks.prefetch).not.toHaveBeenCalled();
+  expect(mocks.keep).not.toHaveBeenCalled();
 });
 
 it("a late read for a previous token cannot evict the refreshed token's photos", async () => {

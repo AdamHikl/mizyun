@@ -364,3 +364,4 @@ export {
 
 export * from "./recipe-request-ledger";
 export { SupabaseRecurringMealSuggestionRepository } from "./recurring-meal-suggestion-repository.js";
+export { SupabasePhotoBackupRepository } from "./photo-backup-repository.js";

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   remove: vi.fn(),
   discard: vi.fn(),
+  keep: vi.fn(),
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -64,6 +65,9 @@ vi.mock("./meal-photo-retention", () => ({
   uploadMealPhotoRetry: mocks.upload,
   deleteMealPhoto: mocks.remove,
   removeMealPhotoRetry: mocks.discard,
+}));
+vi.mock("./meal-photo-download", () => ({
+  keepMealBackupOnDevice: mocks.keep,
 }));
 import { PrivateMealPhoto } from "./private-meal-photo";
 import { forgetMealVisualMemory } from "./meal-photo-memory";
@@ -131,6 +135,8 @@ it("uses a 60pt private tile and opens a larger preview with memory-only caching
   expect(tile.props.style).toEqual({ width: 60, height: 60 });
   const image = byLabel("Meal photo");
   expect(image.props.cachePolicy).toBe("memory");
+  // The first successful read also saves the photo on this phone (ADR-0079).
+  expect(mocks.keep).toHaveBeenCalledWith("owner-a", "meal-a", photo);
   tile.props.onPress();
   const preview = byLabel("Meal photo preview");
   expect(preview.props.cachePolicy).toBe("memory");

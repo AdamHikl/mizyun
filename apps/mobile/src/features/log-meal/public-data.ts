@@ -37,3 +37,8 @@ export type {
 
 export { loadMealCompletionReceipt } from "../logging-draft-storage";
 export type { MealCompletionReceipt } from "../logging-draft-storage";
+
+export {
+  backUpLocalMealPhoto,
+  ensureMealPhotoOnDevice,
+} from "./meal-photo-retention";

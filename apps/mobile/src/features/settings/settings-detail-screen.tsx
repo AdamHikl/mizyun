@@ -42,6 +42,7 @@ import { CoachPreferencesCard } from "./coach-preferences-card";
 import { AiUsageCard } from "./ai-usage-card";
 import { MemoryControlsCard } from "./memory-controls-card";
 import { AnalyticsCard } from "./analytics-card";
+import { PhotoBackupCard } from "./photo-backup-card";
 import { AccountDataCard } from "./account-data-card";
 import { PasswordSecurityCard } from "./password-security-card";
 import { PrincipalCard } from "./principal-card";
@@ -217,6 +218,9 @@ export function SettingsDetailScreen({
 
       case "analytics":
         return <AnalyticsCard />;
+
+      case "photo-backup":
+        return <PhotoBackupCard userId={session?.user.id} />;
 
       case "account-data":
         return <AccountDataCard disabled={state.kind === "disabled"} />;

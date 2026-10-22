@@ -87,11 +87,11 @@ import { normalizeMealPhoto } from "./meal-photo";
 import {
   mealPhotoRetentionEnabled,
   persistMealPhotoSource,
-  persistMealPhotoRetry,
-  removeMealPhotoRetry,
-  uploadMealPhotoRetry,
+  keepMealPhotoOnDevice,
+  backUpLocalMealPhoto,
   discardOwnedMealPhoto,
 } from "./meal-photo-retention";
+import { loadPhotoBackupEnabled } from "@/features/private-photos/photo-backup-preference";
 import { useMealVisualCapability } from "./meal-visual-capability";
 import { rankMealQuickAdd, type MealQuickAddReason } from "@mizyun/core";
 import { fetchFoodHistory } from "./meal-lifecycle-data";
@@ -230,7 +230,8 @@ export function LogMealScreen() {
     userId,
     session?.accessToken,
   );
-  const canKeepMealPhoto = retainPhotos && mealVisualCapability.enabled;
+  // Keeping a photo on this phone is free; only its backup needs Pro (ADR-0079).
+  const canKeepMealPhoto = retainPhotos;
   const currentPhotoRetention = useRef(canKeepMealPhoto);
   currentPhotoRetention.current = canKeepMealPhoto;
   const mealOwner = useRef(userId);
@@ -577,16 +578,12 @@ export function LogMealScreen() {
       attachedPhotos.length > 1 &&
       !attachedPhotos.some((photo) => photo.uri === selectedPhotoUri)
     ) {
-      const retainingAllowed = await mealVisualCapability.refresh();
-      if (abandonIfOwnerChanged()) return;
-      if (retainingAllowed && photoRetentionCurrent()) {
-        isSubmittingRef.current = false;
-        setSubmitting(false);
-        setError(
-          "Choose which photo to keep with this meal, or turn off Keep photo with meal.",
-        );
-        return;
-      }
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      setError(
+        "Choose which photo to keep with this meal, or turn off Keep photo with meal.",
+      );
+      return;
     }
     if (invalidMealDate) {
       isSubmittingRef.current = false;
@@ -822,48 +819,27 @@ export function LogMealScreen() {
         owner &&
         photoRetentionCurrent()
       ) {
-        const retainingAllowed = await mealVisualCapability.refresh();
+        // The photo is kept on this phone; a server copy is made only when
+        // Back up photos is on and Pro is confirmed (ADR-0079).
+        const kept = await keepMealPhotoOnDevice(owner, result.id, chosen.uri);
         if (abandonIfOwnerChanged()) return;
-        if (retainingAllowed && photoRetentionCurrent()) {
-          const pending = {
-            uri: chosen.uri,
-            width: 0,
-            height: 0,
-            clientOperationId: opId,
-          };
-          const durable = await persistMealPhotoRetry(
-            owner,
-            result.id,
-            pending,
+        if (!kept) {
+          isSubmittingRef.current = false;
+          setSubmitting(false);
+          setError(
+            "Meal saved. The photo couldn't be kept on this phone. Retry Save to finish attaching the photo.",
           );
-          if (!photoRetentionCurrent()) {
-            await removeMealPhotoRetry(owner, result.id).catch(() => false);
-            if (abandonIfOwnerChanged()) return;
-          } else {
-            if (abandonIfOwnerChanged()) return;
-            if (!durable) {
-              isSubmittingRef.current = false;
-              setSubmitting(false);
-              setError(
-                "Meal saved. Photo retry could not be saved on this device. Retry Save to finish attaching the photo.",
-              );
-              return;
-            }
-            // Failed uploads keep a retry only while current Pro authority can be confirmed.
-            const uploaded = await uploadMealPhotoRetry(
-              owner,
-              result.id,
-              photoRetentionCurrent,
-            );
-            const stillAllowed =
-              uploaded ||
-              (photoRetentionCurrent() &&
-                (await mealVisualCapability.refresh()));
-            if (!stillAllowed || !photoRetentionCurrent())
-              await removeMealPhotoRetry(owner, result.id).catch(() => false);
-            if (abandonIfOwnerChanged()) return;
-          }
+          return;
         }
+        if (
+          (await loadPhotoBackupEnabled(owner)) &&
+          photoRetentionCurrent() &&
+          (await mealVisualCapability.refresh()) &&
+          photoRetentionCurrent()
+        )
+          // A failed upload is retried by the background backup sync.
+          await backUpLocalMealPhoto(owner, result.id, photoRetentionCurrent);
+        if (abandonIfOwnerChanged()) return;
       }
       const queued = pendingPhotoDrafts[0];
       if (queued) {
@@ -1807,8 +1783,8 @@ export function LogMealScreen() {
                       Keep photo with meal
                     </ThemedText>
                     <ThemedText type="footnote" themeColor="textSecondary">
-                      One compressed photo. You can remove it later. A failed
-                      upload can be retried from Meals.
+                      One compressed photo, kept on this phone. You can remove
+                      it later. Backed up only when Back up photos is on (Pro).
                     </ThemedText>
                   </View>
                 </Pressable>

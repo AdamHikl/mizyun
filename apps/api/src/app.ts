@@ -49,6 +49,10 @@ import type { BoulderingRepository } from "@mizyun/core";
 import { SupabaseBoulderingRepository } from "@mizyun/adapter-supabase-server";
 import { InMemoryBoulderingRepository } from "./bouldering-repository.js";
 import { boulderingRoutes } from "./modules/bouldering/routes.js";
+import type { PhotoBackupRepository } from "@mizyun/core";
+import { SupabasePhotoBackupRepository } from "@mizyun/adapter-supabase-server";
+import { InMemoryPhotoBackupRepository } from "./photo-backup-repository.js";
+import { photoBackupRoutes } from "./modules/photo-backups/routes.js";
 import {
   boulderingEnabled,
   stretchAiEnabled,
@@ -410,6 +414,7 @@ export interface AppDependencies {
   readonly boulderingRepository?: BoulderingRepository;
   /** Overrides `MIZYUN_BOULDERING_ENABLED` (tests). */
   readonly boulderingEnabled?: boolean;
+  readonly photoBackupRepository?: PhotoBackupRepository;
   /** Overrides `stretchAiEnabled(process.env)` (tests). */
   readonly stretchAiEnabled?: boolean;
   readonly workoutSetRepository?: WorkoutSetRepository;
@@ -1695,6 +1700,26 @@ export const buildApp = (
     prefix: "/v1/bouldering",
     repository: boulderingRepository,
     enabled: dependencies.boulderingEnabled ?? boulderingEnabled(process.env),
+    photoErasure: {
+      mediaAssetRepository,
+      mediaStorage,
+      bucketId: MEDIA_BUCKET_ID,
+    },
+  });
+  void app.register(photoBackupRoutes, {
+    prefix: "/v1",
+    repository:
+      dependencies.photoBackupRepository ??
+      (sp
+        ? new SupabasePhotoBackupRepository({ clientFor: sp.clientFor })
+        : new InMemoryPhotoBackupRepository({
+            foodEntries: foodEntryRepository,
+            bouldering: boulderingRepository,
+            media: mediaAssetRepository,
+          })),
+    // Listed whenever a server copy can exist and be erased; the meal-photo
+    // feature flag gates upload/read, not erasure (DELETE stays available).
+    mealPhotosAvailable: mealPhotoService !== null,
   });
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",

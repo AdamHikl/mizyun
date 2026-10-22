@@ -789,123 +789,93 @@ export const copyFoodEntryWith = async (
   const isCurrent = options.isCurrent ?? (() => true);
   const owner = options.expectedUserId ?? entry.userId;
   let retention: typeof import("./meal-photo-retention") | undefined;
-  let photo: import("./meal-photo-retention").RetainedMealPhoto | undefined;
-  // Home persists the nutrition operation before dispatch. Keep photo bytes under
-  // that same immutable identity until the returned target ID can own its retry.
-  const stagingId = options.payload?.clientOperationId
-    ? `copy-${options.payload.clientOperationId}`
-    : null;
-  let staged = false;
-  if (entry.photoAssetId) {
-    try {
+  // The copy takes the source meal's photo from this device, downloading a
+  // backed-up photo first (ADR-0079). The source copy stays on the device, so
+  // a replay after a crash copies it again and needs no staged bytes.
+  let sourcePhotoUri: string | null = null;
+  // Home persists its operation before dispatch, so the meal may already exist:
+  // a photo failure must not block that idempotent replay from finishing.
+  const replayable = Boolean(options.payload?.clientOperationId);
+  let photoSkipped = false;
+  try {
+    const library =
+      await import("@/features/private-photos/local-photo-library");
+    if (entry.photoAssetId || library.localPhotoUri(owner, "meal", entry.id)) {
       retention = await import("./meal-photo-retention");
       if (retention.mealPhotoRetentionEnabled()) {
-        photo = stagingId
-          ? ((await retention.loadMealPhotoRetry(owner, stagingId)) ??
-            undefined)
-          : undefined;
-        staged = Boolean(photo);
-        if (!photo) {
-          photo = await retention.prepareCopiedMealPhoto(
-            owner,
-            entry.id,
-            isCurrent,
-            client,
-          );
-          if (stagingId) {
-            staged = await retention.persistMealPhotoRetry(
-              owner,
-              stagingId,
-              photo,
-            );
-            if (!staged)
-              throw new Error("Cannot preserve photo copy recovery.");
-          }
-        }
+        sourcePhotoUri = await retention.ensureMealPhotoOnDevice(
+          owner,
+          entry.id,
+          isCurrent,
+          client,
+          entry.photoAssetId,
+        );
+        if (!sourcePhotoUri) throw new Error("Meal photo copy unavailable.");
       }
-    } catch {
-      if (photo && !staged) retention?.discardOwnedMealPhoto(owner, photo.uri);
+    }
+  } catch {
+    if (!replayable)
       return {
         ok: false,
         message: "That meal’s photo could not be copied. Try again.",
       };
-    }
+    sourcePhotoUri = null;
+    photoSkipped = true;
   }
-  let persisted = false;
-  try {
-    if (!isCurrent())
-      return { ok: false, message: "That meal could not be copied." };
-    const result = await client.request<FoodEntryResponse>({
-      method: "POST",
-      path: "/v1/food-entries",
-      expectedUserId: owner,
-      isCurrent,
-      body: parsed.data,
-      schema: foodEntryResponseSchema,
-    });
-    if (!result.ok)
-      return {
-        ok: false,
-        message: humanizeApiError(result.error, "Copy that meal"),
-      };
-    if (photo && retention) {
-      // Nutrition is already authoritative: attachment failure must never invite another meal POST.
-      try {
-        // An idempotent nutrition replay can return an already completed attachment.
-        if (result.value.foodEntry.photoAssetId) {
-          // Keep the operation record until Home acknowledges nutrition durably.
-          // Ready server photos need no local bytes, including on another replay.
-          retention.discardOwnedMealPhoto(owner, photo.uri);
-          return { ok: true };
-        }
-        const pending = await retention.loadMealPhotoRetry(
-          owner,
-          result.value.foodEntry.id,
-        );
-        if (pending) {
-          if (pending.uri !== photo.uri)
-            retention.discardOwnedMealPhoto(owner, photo.uri);
-          photo = pending;
-          persisted = true;
-        } else {
-          persisted = await retention.persistMealPhotoRetry(
-            owner,
-            result.value.foodEntry.id,
-            photo,
-          );
-        }
-        if (!persisted)
-          return {
-            ok: true,
-            message: "Meal copied, but its photo could not be saved.",
-          };
-        if (
-          !(await retention.uploadMealPhotoRetry(
-            owner,
-            result.value.foodEntry.id,
-            isCurrent,
-            client,
-          ))
-        )
-          return {
-            ok: true,
-            message:
-              "Meal copied. Photo upload pending; use Retry photo on the copied meal.",
-          };
-      } catch {
+  if (!isCurrent())
+    return { ok: false, message: "That meal could not be copied." };
+  const result = await client.request<FoodEntryResponse>({
+    method: "POST",
+    path: "/v1/food-entries",
+    expectedUserId: owner,
+    isCurrent,
+    body: parsed.data,
+    schema: foodEntryResponseSchema,
+  });
+  if (!result.ok)
+    return {
+      ok: false,
+      message: humanizeApiError(result.error, "Copy that meal"),
+    };
+  if (sourcePhotoUri && retention) {
+    // Nutrition is already authoritative: a photo failure never invites another meal POST.
+    try {
+      const copyId = result.value.foodEntry.id;
+      const { saveLocalPhoto } =
+        await import("@/features/private-photos/local-photo-library");
+      const saved = await saveLocalPhoto(
+        owner,
+        "meal",
+        copyId,
+        sourcePhotoUri,
+        {
+          assetId: result.value.foodEntry.photoAssetId ?? null,
+          maxBytes: retention.MAX_RETAINED_MEAL_PHOTO_BYTES,
+        },
+      );
+      if (!saved)
         return {
           ok: true,
-          message: persisted
-            ? "Meal copied. Photo upload pending; use Retry photo on the copied meal."
-            : "Meal copied, but its photo could not be saved.",
+          message: "Meal copied, but its photo could not be saved.",
         };
-      }
+      const { loadPhotoBackupEnabled } =
+        await import("@/features/private-photos/photo-backup-preference");
+      // A failed backup is retried by the background backup sync.
+      if (
+        !result.value.foodEntry.photoAssetId &&
+        (await loadPhotoBackupEnabled(owner))
+      )
+        await retention.backUpLocalMealPhoto(owner, copyId, isCurrent, client);
+    } catch {
+      return {
+        ok: true,
+        message: "Meal copied, but its photo could not be saved.",
+      };
     }
-    return { ok: true };
-  } finally {
-    if (photo && !persisted && !staged)
-      retention?.discardOwnedMealPhoto(owner, photo.uri);
   }
+  return photoSkipped
+    ? { ok: true, message: "Meal copied, but its photo could not be saved." }
+    : { ok: true };
 };
 
 /** Clear recovery metadata only after Home's durable completion marker owns the outcome. */

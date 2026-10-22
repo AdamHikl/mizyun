@@ -14,12 +14,14 @@ import {
   fetchMealPhoto,
   mealPhotoRetentionEnabled,
 } from "./meal-photo-retention";
+import { keepMealBackupOnDevice } from "./meal-photo-download";
+import { localPhotoRecord } from "@/features/private-photos/local-photo-library";
 
 const MAX_PREFETCHED_PHOTOS = 24;
 
 /**
- * Signs and downloads the newest meal thumbnails into memory as soon as the
- * list arrives, in parallel with the visuals capability check, so rows can
+ * Signs and downloads the newest backed-up meal thumbnails that this device
+ * lacks into its local photo library (ADR-0079) as soon as the list arrives, in parallel with the visuals capability check, so rows can
  * show the photo on their first render. The server still enforces Pro access
  * on every read, and nothing here renders a photo by itself.
  */
@@ -41,6 +43,8 @@ export function usePrefetchMealPhotos(entries: ReadonlyArray<FoodEntry>) {
     for (const target of targets.split(",")) {
       const [entryId, assetId] = target.split("|") as [string, string];
       const scope = mealPhotoScope(owner, token, entryId);
+      if (localPhotoRecord(owner, "meal", entryId)?.assetId === assetId)
+        continue;
       if (rememberedPhoto(scope, assetId)) continue;
       void sharedPhotoRead(scope, () => fetchMealPhoto(entryId))
         .then((response) => {
@@ -48,15 +52,8 @@ export function usePrefetchMealPhotos(entries: ReadonlyArray<FoodEntry>) {
           if (!photo || started !== mealPhotoMemoryGeneration()) return;
           rememberPhoto(scope, photo, started);
           if (!active) return;
-          // Loaded lazily so data-only importers stay free of native image code.
-          void import("expo-image")
-            .then(({ Image }) =>
-              Image.prefetch(photo.signedUrl, {
-                cachePolicy: "memory",
-                headers: { "Cache-Control": "no-store" },
-              }),
-            )
-            .catch(() => false);
+          // Saved to the device once; later launches read the phone's copy.
+          keepMealBackupOnDevice(owner, entryId, photo);
         })
         .catch(() => {});
     }

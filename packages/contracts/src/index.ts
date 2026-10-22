@@ -921,3 +921,5 @@ export * from "./meal-recipe-assistant";
 export * from "./recurring-meal-suggestion";
 
 export * from "./client-compat";
+
+export * from "./photo-backup";

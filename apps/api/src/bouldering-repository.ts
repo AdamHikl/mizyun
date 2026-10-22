@@ -421,6 +421,16 @@ export class InMemoryBoulderingRepository implements BoulderingRepository {
       .slice(0, BOULDER_PROGRESS_SESSION_LIMIT);
   }
 
+  async getAscent(
+    userId: UserId,
+    id: string,
+    options: Token,
+  ): Promise<StoredBoulderAscent | null> {
+    void options.accessToken;
+    const row = this.ascents.get(id);
+    return row && row.userId === userId ? row : null;
+  }
+
   async listAscents(
     userId: UserId,
     sessionIds: readonly string[],

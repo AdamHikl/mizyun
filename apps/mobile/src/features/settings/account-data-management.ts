@@ -63,6 +63,8 @@ import {
 } from "../log-meal/food-day-completion";
 import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
+import { clearLocalPhotos } from "../private-photos/local-photo-library";
+import { photoBackupKeyFor } from "../private-photos/photo-backup-preference";
 import { routineSuggestionKeyFor } from "../workouts/workout-routine-suggestion-store";
 import { healthStepsPreferenceKey } from "../health-steps/health-steps-key";
 import {
@@ -357,6 +359,15 @@ export const clearLocalUserData = async (
       .catch(() => {
         photoCleanupFailed = true;
       }),
+    // Device-only photos (ADR-0079) have no server copy left to erase, so
+    // they are cleared even when the retry cleanup above fails.
+    Promise.resolve()
+      .then(() => {
+        if (!clearLocalPhotos(userId)) photoCleanupFailed = true;
+      })
+      .catch(() => {
+        photoCleanupFailed = true;
+      }),
     ...draftKinds.map((kind) =>
       eraseLoggingDraftForDeletedAccount(userId, kind, options.draftStore),
     ),
@@ -420,6 +431,9 @@ export const clearLocalUserData = async (
       }),
     Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(workoutPreferencesKeyFor(userId)),
+    ),
+    Promise.resolve().then(() =>
+      workoutStore.deleteItemAsync(photoBackupKeyFor(userId)),
     ),
     Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(healthStepsPreferenceKey(userId)),

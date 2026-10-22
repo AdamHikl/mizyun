@@ -7,10 +7,10 @@ const mocks = vi.hoisted(() => ({
   normalize: vi.fn(),
   retention: false,
   sourceCopy: vi.fn(),
-  photoPersist: vi.fn(),
-  photoUpload: vi.fn(),
+  keepOnDevice: vi.fn(),
+  backUp: vi.fn(),
+  backupEnabled: vi.fn(),
   photoDiscard: vi.fn(),
-  photoRemoveRetry: vi.fn(),
   visuals: true,
   visualRefresh: vi.fn(),
   pro: true,
@@ -226,12 +226,12 @@ beforeEach(async () => {
   mocks.retention = false;
   mocks.visuals = true;
   mocks.visualRefresh.mockResolvedValue(true);
-  mocks.photoRemoveRetry.mockResolvedValue(true);
   mocks.sourceCopy.mockImplementation(async (assetOwner, asset) => ({
     uri: `owned-${asset.uri}`,
   }));
-  mocks.photoPersist.mockResolvedValue(true);
-  mocks.photoUpload.mockResolvedValue(false);
+  mocks.keepOnDevice.mockResolvedValue(true);
+  mocks.backUp.mockResolvedValue(true);
+  mocks.backupEnabled.mockResolvedValue(false);
   mocks.owner = "synthetic-user";
   mocks.token = "synthetic-token";
   mocks.picker.mockResolvedValue({
@@ -1092,13 +1092,15 @@ it("does not send the previous account's form if ownership changes during draft 
 vi.mock("./meal-photo-retention", () => ({
   mealPhotoRetentionEnabled: () => mocks.retention,
   persistMealPhotoSource: mocks.sourceCopy,
-  persistMealPhotoRetry: mocks.photoPersist,
-  uploadMealPhotoRetry: mocks.photoUpload,
-  removeMealPhotoRetry: mocks.photoRemoveRetry,
+  keepMealPhotoOnDevice: mocks.keepOnDevice,
+  backUpLocalMealPhoto: mocks.backUp,
   discardOwnedMealPhoto: mocks.photoDiscard,
 }));
+vi.mock("@/features/private-photos/photo-backup-preference", () => ({
+  loadPhotoBackupEnabled: mocks.backupEnabled,
+}));
 
-it("saves a manual meal independently of a failed photo upload and leaves a durable retry", async () => {
+it("saves a manual meal and keeps its photo on this phone without any upload while Back up photos is off", async () => {
   mocks.retention = true;
   mocks.picker.mockResolvedValueOnce({
     canceled: false,
@@ -1113,12 +1115,14 @@ it("saves a manual meal independently of a failed photo upload and leaves a dura
   render();
   await submit();
   expect(mocks.photoDraft).not.toHaveBeenCalled();
-  expect(mocks.photoPersist).toHaveBeenCalledWith(
+  expect(mocks.keepOnDevice).toHaveBeenCalledWith(
     "synthetic-user",
     "saved-meal",
-    expect.objectContaining({ uri: "owned-manual-photo" }),
+    "owned-manual-photo",
   );
-  expect(mocks.photoUpload).toHaveBeenCalled();
+  expect(mocks.backupEnabled).toHaveBeenCalledWith("synthetic-user");
+  expect(mocks.backUp).not.toHaveBeenCalled();
+  expect(mocks.visualRefresh).not.toHaveBeenCalled();
   expect(router.back).toHaveBeenCalled();
 });
 it("requires an explicit photo for each queued meal and keeps choices after the first save", async () => {
@@ -1149,7 +1153,7 @@ it("requires an explicit photo for each queued meal and keeps choices after the 
   ).props.onPress();
   render();
   await submit();
-  expect(mocks.photoPersist.mock.calls[0][2].uri).toBe("owned-synthetic-two");
+  expect(mocks.keepOnDevice.mock.calls[0][2]).toBe("owned-synthetic-two");
   expect(byId("meal-name-input").props.value).toBe("Second meal");
   await submit();
   expect(mocks.submit).toHaveBeenCalledTimes(1);
@@ -1159,7 +1163,7 @@ it("requires an explicit photo for each queued meal and keeps choices after the 
   ).props.onPress();
   render();
   await submit();
-  expect(mocks.photoPersist.mock.calls[1][2].uri).toBe("owned-synthetic-three");
+  expect(mocks.keepOnDevice.mock.calls[1][2]).toBe("owned-synthetic-three");
 });
 it("drops late source-copy completion after Clear", async () => {
   mocks.retention = true;
@@ -1209,91 +1213,160 @@ async function attachPhotoForRetention(photos = ["manual-photo"]) {
   render();
 }
 
-it("keeps Free photo nutrition analysis and meal saving without retained-photo controls or retry", async () => {
+it("keeps the photo on this phone for a Free account without Pro checks, uploads or retries", async () => {
   mocks.visuals = false;
   mocks.pro = false;
   mocks.refresh.mockResolvedValue(false);
+  mocks.visualRefresh.mockResolvedValue(false);
   mocks.photoDraft.mockResolvedValueOnce({
     ok: true,
     draft: syntheticPhotoDraft,
   });
   mocks.submit.mockResolvedValueOnce({ ok: true, id: "free-meal" });
   await attachPhotoForRetention();
-  expect(byId("keep-meal-photo-toggle")).toBeFalsy();
+  // Keeping a photo is free; only its backup needs Pro (ADR-0079).
+  expect(byId("keep-meal-photo-toggle")).toBeTruthy();
   byId("process-meal-photo-button").props.onPress();
   await flush();
   render();
   expect(mocks.photoDraft).toHaveBeenCalledTimes(1);
   await submit();
   expect(mocks.submit).toHaveBeenCalledTimes(1);
-  expect(mocks.visualRefresh).not.toHaveBeenCalled();
-  expect(mocks.photoPersist).not.toHaveBeenCalled();
-  expect(mocks.photoUpload).not.toHaveBeenCalled();
+  expect(mocks.keepOnDevice).toHaveBeenCalledWith(
+    "synthetic-user",
+    "free-meal",
+    "owned-manual-photo",
+  );
+  expect(mocks.backUp).not.toHaveBeenCalled();
   expect(router.back).toHaveBeenCalled();
 });
 
-it("does not require a keep-photo choice after a fresh Pro downgrade and still saves the meal", async () => {
+it("does not refresh Pro for the multi-photo choice and still requires choosing which photo to keep", async () => {
   await attachPhotoForRetention(["one", "two"]);
+  mocks.visualRefresh.mockResolvedValue(false);
+  await submit();
+  expect(mocks.visualRefresh).not.toHaveBeenCalled();
+  expect(mocks.submit).not.toHaveBeenCalled();
   expect(
     find(
       render(),
       (node) =>
-        node.props?.accessibilityLabel === "Keep photo 1 with this meal",
+        node.props?.tone === "error" &&
+        typeof node.props.children === "string" &&
+        node.props.children.startsWith("Choose which photo to keep"),
     ),
   ).toBeTruthy();
-  mocks.visualRefresh.mockResolvedValue(false);
-  mocks.submit.mockResolvedValueOnce({ ok: true, id: "downgraded-meal" });
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "chosen-meal" });
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Keep photo 2 with this meal",
+  ).props.onPress();
+  render();
+  await submit();
+  expect(mocks.keepOnDevice).toHaveBeenCalledWith(
+    "synthetic-user",
+    "chosen-meal",
+    "owned-two",
+  );
+});
+
+it("uploads the device copy and records it only when Back up photos is on and Pro is freshly confirmed", async () => {
+  await attachPhotoForRetention();
+  mocks.backupEnabled.mockResolvedValue(true);
+  mocks.visualRefresh.mockResolvedValue(true);
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "backed-up-meal" });
   await submit();
   expect(mocks.visualRefresh).toHaveBeenCalledTimes(1);
-  expect(mocks.submit).toHaveBeenCalledTimes(1);
-  expect(mocks.photoPersist).not.toHaveBeenCalled();
+  expect(mocks.backUp).toHaveBeenCalledTimes(1);
+  expect(mocks.backUp.mock.calls[0]!.slice(0, 2)).toEqual([
+    "synthetic-user",
+    "backed-up-meal",
+  ]);
+  expect(mocks.backUp.mock.calls[0]![2]()).toBe(true);
   expect(router.back).toHaveBeenCalled();
 });
 
-it("saves a meal when fresh retained-photo authority is denied after submission", async () => {
+it("saves the meal and keeps the device photo when backup is on but Pro is denied after submission", async () => {
   await attachPhotoForRetention();
+  mocks.backupEnabled.mockResolvedValue(true);
   mocks.visualRefresh.mockResolvedValue(false);
-  mocks.submit.mockResolvedValueOnce({ ok: true, id: "saved-no-photo" });
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "saved-no-backup" });
   await submit();
   expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(mocks.keepOnDevice).toHaveBeenCalledTimes(1);
   expect(mocks.visualRefresh).toHaveBeenCalledTimes(1);
-  expect(mocks.photoPersist).not.toHaveBeenCalled();
-  expect(mocks.photoUpload).not.toHaveBeenCalled();
+  expect(mocks.backUp).not.toHaveBeenCalled();
   expect(router.back).toHaveBeenCalled();
 });
 
-it("removes the retained retry and completes the meal after a downgrade during retry persistence", async () => {
+it("does not check Pro or upload when Back up photos is off, however Pro stands", async () => {
   await attachPhotoForRetention();
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "device-only-meal" });
+  await submit();
+  expect(mocks.visualRefresh).not.toHaveBeenCalled();
+  expect(mocks.backUp).not.toHaveBeenCalled();
+});
+
+it("does not surface a failed backup upload and never leaves a retry", async () => {
+  await attachPhotoForRetention();
+  mocks.backupEnabled.mockResolvedValue(true);
+  mocks.backUp.mockResolvedValue(false);
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "backup-fails" });
+  await submit();
+  expect(mocks.backUp).toHaveBeenCalledTimes(1);
+  expect(find(render(), (node) => node.props?.tone === "error")).toBeFalsy();
+  expect(router.back).toHaveBeenCalled();
+});
+
+it("saves the meal but stops with a retry message when the photo cannot be kept on this phone", async () => {
+  await attachPhotoForRetention();
+  mocks.backupEnabled.mockResolvedValue(true);
+  mocks.keepOnDevice.mockResolvedValue(false);
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "kept-failed-meal" });
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(
+    find(
+      render(),
+      (node) =>
+        node.props?.tone === "error" &&
+        node.props.children ===
+          "Meal saved. The photo couldn't be kept on this phone. Retry Save to finish attaching the photo.",
+    ),
+  ).toBeTruthy();
+  expect(mocks.backUp).not.toHaveBeenCalled();
+  expect(router.back).not.toHaveBeenCalled();
+  expect(byId("submit-meal-button").props.disabled).toBe(false);
+});
+
+it("abandons the photo backup and navigation when the account changes while the photo is kept on the device", async () => {
+  await attachPhotoForRetention();
+  mocks.backupEnabled.mockResolvedValue(true);
   let finish!: (value: boolean) => void;
-  mocks.photoPersist.mockImplementationOnce(
+  mocks.keepOnDevice.mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finish = resolve;
       }),
   );
-  mocks.submit.mockResolvedValueOnce({
-    ok: true,
-    id: "saved-during-downgrade",
-  });
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "owner-change-meal" });
   byId("submit-meal-button").props.onPress();
   await flush();
-  expect(mocks.photoPersist).toHaveBeenCalledTimes(1);
-  mocks.visuals = false;
+  expect(mocks.keepOnDevice).toHaveBeenCalledTimes(1);
+  mocks.owner = "other-user";
+  mocks.token = "other-token";
   render();
   finish(true);
   await flush();
-  expect(mocks.photoUpload).not.toHaveBeenCalled();
-  expect(mocks.photoRemoveRetry).toHaveBeenCalledWith(
-    "synthetic-user",
-    "saved-during-downgrade",
-  );
-  expect(router.back).toHaveBeenCalled();
+  expect(mocks.backUp).not.toHaveBeenCalled();
+  expect(router.back).not.toHaveBeenCalled();
 });
 
-it("invalidates retained-photo upload on a token change and removes its local retry", async () => {
+it("invalidates the backup upload's current fence on a token change and still treats the meal as saved", async () => {
   await attachPhotoForRetention();
+  mocks.backupEnabled.mockResolvedValue(true);
   let finish!: (value: boolean) => void;
-  mocks.photoUpload.mockImplementationOnce(
+  mocks.backUp.mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finish = resolve;
@@ -1305,32 +1378,14 @@ it("invalidates retained-photo upload on a token change and removes its local re
   });
   byId("submit-meal-button").props.onPress();
   await flush();
-  const isCurrent = mocks.photoUpload.mock.calls[0]![2];
+  const isCurrent = mocks.backUp.mock.calls[0]![2];
   expect(isCurrent()).toBe(true);
   mocks.token = "rotated-token";
   render();
   expect(isCurrent()).toBe(false);
   finish(false);
   await flush();
-  expect(mocks.photoRemoveRetry).toHaveBeenCalledWith(
-    "synthetic-user",
-    "saved-during-token-change",
-  );
   expect(router.back).not.toHaveBeenCalled();
-});
-
-it("drops a failed upload's retry when Pro can no longer be freshly confirmed", async () => {
-  await attachPhotoForRetention();
-  mocks.visualRefresh.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-  mocks.submit.mockResolvedValueOnce({ ok: true, id: "saved-failed-upload" });
-  await submit();
-  expect(mocks.photoUpload).toHaveBeenCalledTimes(1);
-  expect(mocks.photoRemoveRetry).toHaveBeenCalledWith(
-    "synthetic-user",
-    "saved-failed-upload",
-  );
-  expect(mocks.visualRefresh).toHaveBeenCalledTimes(2);
-  expect(router.back).toHaveBeenCalled();
 });
 
 it("recovers the exact frozen request after a lost response, edits and a restart over 24 hours later", async () => {

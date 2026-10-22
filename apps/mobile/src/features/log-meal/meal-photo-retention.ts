@@ -3,6 +3,7 @@ import {
   mealPhotoResponseSchema,
   mealPhotoReadResponseSchema,
   type MealPhotoReadResponse,
+  type MealPhotoResponse,
 } from "@mizyun/contracts";
 import Constants from "expo-constants";
 import type { ApiClient } from "@mizyun/api-client";
@@ -14,6 +15,14 @@ import {
 } from "@/features/logging-draft-storage";
 import { createOperationId, isValidOperationId } from "./meal-form";
 import type { MealPhotoAssetInput } from "./meal-photo";
+import {
+  downloadLocalPhoto,
+  localPhotoRecord,
+  localPhotoUri,
+  recordLocalPhotoBackup,
+  saveLocalPhoto,
+} from "@/features/private-photos/local-photo-library";
+import { loadPhotoBackupEnabled } from "@/features/private-photos/photo-backup-preference";
 
 /** On only when the build sets `extra.enableMealPhotos` (Dev, and Production since 2026-10-21). */
 export const mealPhotoRetentionEnabled = () =>
@@ -343,9 +352,17 @@ export const uploadMealPhotoRetry = async (
       file.size > MAX_RETAINED_MEAL_PHOTO_BYTES
     )
       return false;
+    // With Back up photos off, a pending photo is kept on this device only (ADR-0079).
+    if (!(await loadPhotoBackupEnabled(owner))) {
+      const saved = await saveLocalPhoto(owner, "meal", entryId, photo.uri, {
+        maxBytes: MAX_RETAINED_MEAL_PHOTO_BYTES,
+      });
+      if (!saved || !isCurrent()) return false;
+      return removeMealPhotoRetry(owner, entryId);
+    }
     const imageBase64 = await file.base64();
     if (!isCurrent()) return false;
-    const result = await client.request({
+    const result = await client.request<MealPhotoResponse>({
       expectedUserId: owner,
       isCurrent,
       method: "POST",
@@ -360,7 +377,84 @@ export const uploadMealPhotoRetry = async (
       schema: mealPhotoResponseSchema,
     });
     if (!isCurrent() || !result.ok) return false;
+    // Keep the uploaded thumbnail on this device before the retry discards it.
+    await saveLocalPhoto(owner, "meal", entryId, photo.uri, {
+      assetId: result.value.photo.assetId,
+      maxBytes: MAX_RETAINED_MEAL_PHOTO_BYTES,
+    });
     return removeMealPhotoRetry(owner, entryId);
+  } catch {
+    return false;
+  }
+};
+
+/** Keeps a reduced, metadata-free copy of a saved meal's photo on this device (ADR-0079). */
+export const keepMealPhotoOnDevice = async (
+  owner: string,
+  entryId: string,
+  sourceUri: string,
+): Promise<boolean> => {
+  let prepared: RetainedMealPhoto;
+  try {
+    prepared = await prepareRetainedMealPhoto(owner, { uri: sourceUri });
+  } catch {
+    return false;
+  }
+  try {
+    const saved = await saveLocalPhoto(owner, "meal", entryId, prepared.uri, {
+      maxBytes: MAX_RETAINED_MEAL_PHOTO_BYTES,
+    });
+    return saved !== null;
+  } catch {
+    return false;
+  } finally {
+    discardOwnedMealPhoto(owner, prepared.uri);
+  }
+};
+
+/**
+ * Uploads a meal's device copy as its server backup and records the asset.
+ * Callers check the Back up photos setting and Pro first; the server enforces Pro.
+ */
+export const backUpLocalMealPhoto = async (
+  owner: string,
+  entryId: string,
+  isCurrent: () => boolean,
+  client: ApiClient = apiClient,
+): Promise<boolean> => {
+  if (retiredOwners.has(owner) || !mealPhotoRetentionEnabled() || !isCurrent())
+    return false;
+  const uri = localPhotoUri(owner, "meal", entryId);
+  if (!uri) return false;
+  try {
+    const { ImageManipulator } = await import("expo-image-manipulator");
+    const decoded = await ImageManipulator.manipulate(uri).renderAsync();
+    const file = new File(uri);
+    if (file.size <= 0 || file.size > MAX_RETAINED_MEAL_PHOTO_BYTES)
+      return false;
+    const imageBase64 = await file.base64();
+    if (!isCurrent()) return false;
+    const result = await client.request<MealPhotoResponse>({
+      expectedUserId: owner,
+      isCurrent,
+      method: "POST",
+      path: `/v1/food-entries/${encodeURIComponent(entryId)}/photo`,
+      body: {
+        clientOperationId: createOperationId(),
+        imageBase64,
+        mimeType: "image/jpeg",
+        width: decoded.width,
+        height: decoded.height,
+      },
+      schema: mealPhotoResponseSchema,
+    });
+    if (!isCurrent() || !result.ok) return false;
+    return recordLocalPhotoBackup(
+      owner,
+      "meal",
+      entryId,
+      result.value.photo.assetId,
+    );
   } catch {
     return false;
   }
@@ -376,3 +470,43 @@ export const deleteMealPhoto = (entryId: string) =>
     method: "DELETE",
     path: `/v1/food-entries/${encodeURIComponent(entryId)}/photo`,
   });
+
+/**
+ * This device's copy of a meal photo, downloading the backup when the phone
+ * lacks it. With `backupAssetId`, a copy recorded for a different backup is
+ * stale and the backup is downloaded over it; a device-only copy is kept.
+ */
+export const ensureMealPhotoOnDevice = async (
+  owner: string,
+  entryId: string,
+  isCurrent: () => boolean,
+  client: ApiClient = apiClient,
+  backupAssetId?: string | null,
+): Promise<string | null> => {
+  const existing = localPhotoUri(owner, "meal", entryId);
+  const recorded = existing
+    ? localPhotoRecord(owner, "meal", entryId)?.assetId
+    : null;
+  if (existing && (!backupAssetId || !recorded || recorded === backupAssetId))
+    return existing;
+  if (retiredOwners.has(owner) || !mealPhotoRetentionEnabled() || !isCurrent())
+    return null;
+  const result = await client.request<MealPhotoReadResponse>({
+    method: "GET",
+    path: `/v1/food-entries/${encodeURIComponent(entryId)}/photo`,
+    expectedUserId: owner,
+    isCurrent,
+    schema: mealPhotoReadResponseSchema,
+  });
+  if (!result.ok || !result.value.photo || !isCurrent()) return null;
+  return downloadLocalPhoto(
+    owner,
+    "meal",
+    entryId,
+    result.value.photo.signedUrl,
+    {
+      assetId: result.value.photo.assetId,
+      maxBytes: MAX_RETAINED_MEAL_PHOTO_BYTES,
+    },
+  );
+};

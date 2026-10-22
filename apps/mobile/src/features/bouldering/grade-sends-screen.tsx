@@ -37,7 +37,14 @@ import { apiClient } from "@/composition/api-client";
 import { isBoulderingEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { useLocalPhotoVersion } from "@/features/private-photos/local-photo-library";
 import { signBoulderPhoto } from "./boulder-photo";
+import {
+  boulderPhotoSource,
+  keepBoulderBackupOnDevice,
+  needsSignedBoulderPhoto,
+  type BoulderPhotoSource,
+} from "./boulder-photo-display";
 import { getBoulderGradeSends, type BoulderFailure } from "./client";
 import { HoldColourSwatch } from "./log-boulder-sheet";
 import {
@@ -75,6 +82,8 @@ export function BoulderGradeSendsScreen({
   const userId = auth?.user.id ?? "";
   const ownerRef = useRef(userId);
   ownerRef.current = userId;
+  // Re-renders when a device photo is saved, downloaded or removed.
+  useLocalPhotoVersion();
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [photosSigning, setPhotosSigning] = useState(false);
@@ -118,6 +127,7 @@ export function BoulderGradeSendsScreen({
       return;
     }
     const { client: c, isCurrent: isOwner } = client();
+    const owner = ownerRef.current;
     // Only the newest load may update the screen (focus, refresh and retry overlap).
     const request = ++latestLoad.current;
     const isCurrent = () => isOwner() && request === latestLoad.current;
@@ -133,14 +143,19 @@ export function BoulderGradeSendsScreen({
       return;
     }
     setStatus({ kind: "ready", value: result.value });
-    // Thumbnails are best effort; a row without a URL shows a photo icon.
+    // Device copies first (ADR-0079); only unmatched server photos are
+    // signed (best effort; a row without either shows a photo icon) and then
+    // kept on the device for later views.
     setPhotosSigning(true);
     for (const send of result.value.sends) {
-      const assetId = send.ascent.photoAssetId;
-      if (!assetId || photoUrlsRef.current[assetId]) continue;
-      const url = await signBoulderPhoto(c, assetId);
+      const { id: ascentId, photoAssetId: assetId } = send.ascent;
+      if (!needsSignedBoulderPhoto(owner, ascentId, assetId)) continue;
+      const known = photoUrlsRef.current[assetId];
+      const url = known ?? (await signBoulderPhoto(c, assetId));
       if (!isCurrent()) return;
-      if (url) setPhotoUrls((current) => ({ ...current, [assetId]: url }));
+      if (!url) continue;
+      if (!known) setPhotoUrls((current) => ({ ...current, [assetId]: url }));
+      keepBoulderBackupOnDevice(owner, ascentId, assetId, url);
     }
     setPhotosSigning(false);
   }, [client, grade, window]);
@@ -151,8 +166,13 @@ export function BoulderGradeSendsScreen({
     }, [load]),
   );
 
-  const urlFor = (send: GradeSend) =>
-    send.ascent.photoAssetId ? photoUrls[send.ascent.photoAssetId] : undefined;
+  const photoFor = (send: GradeSend): BoulderPhotoSource | null =>
+    boulderPhotoSource(
+      userId,
+      send.ascent.id,
+      send.ascent.photoAssetId,
+      photoUrls,
+    );
 
   return (
     <ThemedView style={styles.page}>
@@ -246,7 +266,7 @@ export function BoulderGradeSendsScreen({
                       <SendRow
                         key={send.ascent.id}
                         send={send}
-                        photoUrl={urlFor(send)}
+                        photo={photoFor(send)}
                         onPress={() => setSelected(send)}
                       />
                     ))}
@@ -260,7 +280,7 @@ export function BoulderGradeSendsScreen({
       {selected ? (
         <SendDetails
           send={selected}
-          photoUrl={urlFor(selected)}
+          photo={photoFor(selected)}
           photoLoading={photosSigning}
           onClose={() => setSelected(null)}
           onOpenSession={() => {
@@ -279,11 +299,11 @@ export function BoulderGradeSendsScreen({
 
 function SendRow({
   send,
-  photoUrl,
+  photo,
   onPress,
 }: {
   send: GradeSend;
-  photoUrl?: string;
+  photo: BoulderPhotoSource | null;
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -324,16 +344,17 @@ function SendRow({
           </ThemedText>
         ) : null}
       </View>
-      {ascent.photoAssetId ? (
-        photoUrl ? (
-          <Image
-            source={{ uri: photoUrl }}
-            style={styles.thumb}
-            accessibilityLabel="Boulder photo"
-          />
-        ) : (
-          <Icon name="photo" size={20} color="textTertiary" />
-        )
+      {photo ? (
+        <Image
+          key={photo.uri}
+          recyclingKey={photo.uri}
+          source={{ uri: photo.uri }}
+          cachePolicy={photo.cachePolicy}
+          style={styles.thumb}
+          accessibilityLabel="Boulder photo"
+        />
+      ) : ascent.photoAssetId ? (
+        <Icon name="photo" size={20} color="textTertiary" />
       ) : null}
       <Icon name="chevronRight" size={14} color="textTertiary" />
     </Pressable>
@@ -342,13 +363,13 @@ function SendRow({
 
 function SendDetails({
   send,
-  photoUrl,
+  photo,
   photoLoading,
   onClose,
   onOpenSession,
 }: {
   send: GradeSend;
-  photoUrl?: string;
+  photo: BoulderPhotoSource | null;
   photoLoading: boolean;
   onClose: () => void;
   onOpenSession: () => void;
@@ -377,33 +398,31 @@ function SendDetails({
             />
           </View>
           <ScrollView contentContainerStyle={styles.content}>
-            {ascent.photoAssetId ? (
-              photoUrl ? (
-                <Image
-                  source={{ uri: photoUrl }}
-                  style={[
-                    styles.photo,
-                    { backgroundColor: theme.backgroundElement },
-                  ]}
-                  contentFit="contain"
-                  accessibilityLabel={`Photo of the ${ascent.grade} boulder`}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.photo,
-                    styles.photoPending,
-                    { backgroundColor: theme.backgroundElement },
-                  ]}
-                >
-                  <Icon name="photo" size={28} color="textTertiary" />
-                  <ThemedText type="footnote" themeColor="textSecondary">
-                    {photoLoading
-                      ? "Loading photo…"
-                      : "Photo couldn't be loaded"}
-                  </ThemedText>
-                </View>
-              )
+            {photo ? (
+              <Image
+                key={photo.uri}
+                source={{ uri: photo.uri }}
+                cachePolicy={photo.cachePolicy}
+                style={[
+                  styles.photo,
+                  { backgroundColor: theme.backgroundElement },
+                ]}
+                contentFit="contain"
+                accessibilityLabel={`Photo of the ${ascent.grade} boulder`}
+              />
+            ) : ascent.photoAssetId ? (
+              <View
+                style={[
+                  styles.photo,
+                  styles.photoPending,
+                  { backgroundColor: theme.backgroundElement },
+                ]}
+              >
+                <Icon name="photo" size={28} color="textTertiary" />
+                <ThemedText type="footnote" themeColor="textSecondary">
+                  {photoLoading ? "Loading photo…" : "Photo couldn't be loaded"}
+                </ThemedText>
+              </View>
             ) : null}
             <Card>
               <Detail label="Result">

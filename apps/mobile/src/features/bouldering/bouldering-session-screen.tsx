@@ -66,6 +66,18 @@ import {
   type PreparedBoulderPhoto,
 } from "./boulder-photo";
 import {
+  boulderPhotoSource,
+  forgetBoulderPhoto,
+  keepBoulderBackupOnDevice,
+  needsSignedBoulderPhoto,
+  reconcileBoulderBackupRecord,
+  type BoulderPhotoSource,
+} from "./boulder-photo-display";
+import {
+  localPhotoUri,
+  useLocalPhotoVersion,
+} from "@/features/private-photos/local-photo-library";
+import {
   blankBoulderForm,
   boulderCreateBody,
   boulderUpdateBody,
@@ -172,6 +184,8 @@ export function BoulderingSessionScreen({
 
   const ownerRef = useRef(userId);
   ownerRef.current = userId;
+  // Re-renders rows when a device photo is saved, downloaded or removed.
+  useLocalPhotoVersion();
   const [status, setStatus] = useState<ScreenStatus>({ kind: "loading" });
   const [record, setRecord] = useState<BoulderSessionRecord | null>(null);
   const [ascents, setAscents] = useState<BoulderAscentRecord[]>([]);
@@ -310,13 +324,16 @@ export function BoulderingSessionScreen({
 
   const signPhotos = useCallback(
     async (rows: readonly BoulderAscentRecord[], isCurrent: () => boolean) => {
-      const missing = rows
-        .map((a) => a.photoAssetId)
-        .filter((id): id is string => !!id);
-      for (const assetId of missing) {
+      // Device copies first (ADR-0079); only unmatched server photos are signed.
+      const owner = ownerRef.current;
+      for (const ascent of rows) {
+        const assetId = ascent.photoAssetId;
+        if (!needsSignedBoulderPhoto(owner, ascent.id, assetId)) continue;
         const url = await signBoulderPhoto(client(isCurrent), assetId);
         if (!isCurrent()) return;
-        if (url) setPhotoUrls((current) => ({ ...current, [assetId]: url }));
+        if (!url) continue;
+        setPhotoUrls((current) => ({ ...current, [assetId]: url }));
+        keepBoulderBackupOnDevice(owner, ascent.id, assetId, url);
       }
     },
     [client],
@@ -374,6 +391,16 @@ export function BoulderingSessionScreen({
           let attached = false;
           for (const synced of outcome.synced) {
             changed = true;
+            if (synced.ascent) {
+              const syncedId = synced.ascent.id;
+              reconcileBoulderBackupRecord(
+                ownerRef.current,
+                synced.ascent,
+                outcome.remaining.some(
+                  (c) => c.kind !== "create" && c.ascentId === syncedId,
+                ),
+              );
+            }
             const opId = commandOperationId(synced.command);
             const photo = waitingPhotos.current.get(opId);
             waitingPhotos.current.delete(opId);
@@ -387,8 +414,12 @@ export function BoulderingSessionScreen({
               isCurrent,
             });
             if (!isCurrent()) return;
+            // Any queued edit (link or unlink) needs another flush round.
             if (result.kind === "queued") attached = true;
-            else {
+            else if (result.kind === "kept_on_device") {
+              attached = synced.ascent.photoAssetId !== null;
+              if (result.backupPending) setNotices(addBackupNotice);
+            } else {
               const ascentId = synced.ascent.id;
               setPhotoRetry((current) => ({ ...current, [ascentId]: photo }));
             }
@@ -670,6 +701,10 @@ export function BoulderingSessionScreen({
     );
     if (!isCurrent()) return enqueueFailureMessage("account");
     if (!write.ok) return enqueueFailureMessage(write.reason);
+    if (sheet.mode === "edit" && photo.kind === "remove") {
+      // The edit unlinks any server backup; the device copy goes now.
+      forgetBoulderPhoto(ownerRef.current, sheet.ascent.id);
+    }
     if (photo.kind === "new")
       waitingPhotos.current.set(operationId, photo.photo);
     // Only now, after the durable write, does the row show as saved.
@@ -680,9 +715,12 @@ export function BoulderingSessionScreen({
   };
 
   const confirmDelete = (ascent: BoulderAscentRecord) => {
+    const hasPhoto =
+      ascent.photoAssetId !== null ||
+      localPhotoUri(ownerRef.current, "boulder", ascent.id) !== null;
     Alert.alert(
       "Delete boulder?",
-      `This removes the ${ascent.grade} boulder${ascent.photoAssetId ? " and its photo" : ""}.`,
+      `This removes the ${ascent.grade} boulder${hasPhoto ? " and its photo" : ""}.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -710,6 +748,7 @@ export function BoulderingSessionScreen({
               );
               return;
             }
+            forgetBoulderPhoto(ownerRef.current, ascent.id);
             setSheet(null);
             await loadLocal(isCurrent);
             void sync(isCurrent, ascent.sessionId);
@@ -732,12 +771,15 @@ export function BoulderingSessionScreen({
       isCurrent,
     });
     if (!isCurrent()) return;
-    if (result.kind === "queued") {
+    if (result.kind === "queued" || result.kind === "kept_on_device") {
       setPhotoRetry((current) => {
         const next = { ...current };
         delete next[ascent.id];
         return next;
       });
+      if (result.kind === "kept_on_device" && result.backupPending)
+        setNotices(addBackupNotice);
+      await loadLocal(isCurrent);
       await sync(isCurrent, ascent.sessionId);
     } else Alert.alert("Photo not added", result.message);
   };
@@ -834,9 +876,11 @@ export function BoulderingSessionScreen({
                 isCurrent,
               );
             const c = client(isCurrent);
-            for (const ascent of ascents)
+            for (const ascent of ascents) {
               if (ascent.photoAssetId)
                 void deleteBoulderPhoto(c, ascent.photoAssetId);
+              forgetBoulderPhoto(ownerRef.current, ascent.id);
+            }
             if (active) workoutContext?.setActiveBouldering(null);
             router.back();
           },
@@ -1141,8 +1185,15 @@ export function BoulderingSessionScreen({
                 <BoulderRowView
                   key={row.key}
                   row={row}
-                  photoUrl={
-                    row.photoAssetId ? photoUrls[row.photoAssetId] : undefined
+                  photo={
+                    row.ascent
+                      ? boulderPhotoSource(
+                          userId,
+                          row.ascent.id,
+                          row.photoAssetId,
+                          photoUrls,
+                        )
+                      : null
                   }
                   photoFailed={!!(row.ascent && photoRetry[row.ascent.id])}
                   onPress={() => openRow(row)}
@@ -1222,7 +1273,9 @@ export function BoulderingSessionScreen({
               : null
           }
           hasExistingPhoto={
-            sheet.mode === "edit" && sheet.ascent.photoAssetId !== null
+            sheet.mode === "edit" &&
+            (sheet.ascent.photoAssetId !== null ||
+              localPhotoUri(userId, "boulder", sheet.ascent.id) !== null)
           }
           onClose={() => setSheet(null)}
           onSave={save}
@@ -1239,13 +1292,13 @@ export function BoulderingSessionScreen({
 
 function BoulderRowView({
   row,
-  photoUrl,
+  photo,
   photoFailed,
   onPress,
   onRetryPhoto,
 }: {
   row: BoulderRow;
-  photoUrl?: string;
+  photo: BoulderPhotoSource | null;
   photoFailed: boolean;
   onPress: () => void;
   onRetryPhoto?: () => void;
@@ -1324,22 +1377,23 @@ function BoulderRowView({
             </View>
           ) : null}
         </View>
-        {row.photoAssetId ? (
-          photoUrl ? (
-            <Image
-              source={{ uri: photoUrl }}
-              style={styles.thumb}
-              accessibilityLabel="Boulder photo"
-            />
-          ) : (
-            <Icon name="photo" size={20} color="textTertiary" />
-          )
+        {photo ? (
+          <Image
+            key={photo.uri}
+            recyclingKey={photo.uri}
+            source={{ uri: photo.uri }}
+            cachePolicy={photo.cachePolicy}
+            style={styles.thumb}
+            accessibilityLabel="Boulder photo"
+          />
+        ) : row.photoAssetId ? (
+          <Icon name="photo" size={20} color="textTertiary" />
         ) : null}
       </Pressable>
       {photoFailed && onRetryPhoto ? (
         <View style={styles.retryRow}>
           <ThemedText type="footnote" themeColor="warning" style={styles.grow}>
-            Photo not uploaded. The boulder is saved.
+            Photo not kept. The boulder is saved.
           </ThemedText>
           <Button
             label="Retry photo"
@@ -1352,6 +1406,13 @@ function BoulderRowView({
     </View>
   );
 }
+
+const BACKUP_PENDING_NOTICE =
+  "Photo saved on this device. Its backup will be tried again later.";
+const addBackupNotice = (current: string[]) =>
+  current.includes(BACKUP_PENDING_NOTICE)
+    ? current
+    : [...current, BACKUP_PENDING_NOTICE];
 
 /** Projects shown before "Show all" in the active session. */
 const VISIBLE_PROJECTS = 3;

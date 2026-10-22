@@ -27,6 +27,7 @@ import { AnalyticsConsentReminderBridge } from "@/composition/analytics-consent-
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { HealthExportSessionBridge } from "@/composition/health-export-session-bridge";
 import { RecipeSessionPruneBridge } from "@/features/meal-recipes";
+import { PhotoBackupBridge } from "@/features/private-photos";
 import { StartupDataBridge } from "@/composition/startup-data-bridge";
 import { MealNotificationRouter } from "@/features/log-meal/meal-notification-router";
 import { WEEKLY_REVIEW_ROUTE } from "@/features/weekly-review/weekly-review-notification";
@@ -399,6 +400,7 @@ function TabLayoutContent() {
           <StartupDataBridge />
           <RecipeSessionPruneBridge />
           <HealthExportSessionBridge />
+          <PhotoBackupBridge />
           <PushRegistrationBridge />
           <CommunityNotificationBridge />
           <CoachNotificationBridge />

@@ -17,12 +17,14 @@ import {
   type BoulderSessionCursor,
   type BoulderSessionHistoryEntry,
   type BoulderingRepository,
+  type MediaAssetRepository,
   type StoredBoulderAscent,
   type StoredWorkout,
 } from "@mizyun/core";
 import {
   boulderActiveSessionResponseSchema,
   boulderAscentCreateSchema,
+  boulderAscentPhotoLinkSchema,
   boulderAscentRecordSchema,
   boulderAscentResponseSchema,
   boulderAscentUpdateSchema,
@@ -48,6 +50,7 @@ import {
   type BoulderSessionRecord,
 } from "@mizyun/contracts";
 import { sendApiError, type ApiErrorCode } from "../../errors.js";
+import type { MediaStorage } from "../../media-storage.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO =
@@ -259,19 +262,38 @@ const failure = (
   }
 };
 
+/** Private media used to erase a boulder's backed-up photo. */
+export interface BoulderPhotoErasure {
+  readonly mediaAssetRepository: Pick<
+    MediaAssetRepository,
+    "getById" | "softDelete"
+  >;
+  readonly mediaStorage: Pick<MediaStorage, "remove">;
+  readonly bucketId: string;
+}
+
+/** Revision races retried before the photo removal reports a conflict. */
+const PHOTO_CLEAR_ATTEMPTS = 3;
+
 export const boulderingRoutes: FastifyPluginAsync<{
   repository: BoulderingRepository;
-  /** `MIZYUN_BOULDERING_ENABLED`; off answers every route with FEATURE_DISABLED. */
+  /**
+   * `MIZYUN_BOULDERING_ENABLED`; off answers every route with
+   * FEATURE_DISABLED except photo erasure, which stays available.
+   */
   enabled: boolean;
-}> = async (app, { repository: repo, enabled }) => {
+  /** Absent only in narrow tests; photo erasure then answers 503. */
+  photoErasure?: BoulderPhotoErasure;
+}> = async (app, { repository: repo, enabled, photoErasure }) => {
   const auth = { preHandler: app.authenticate };
   const handle = async <T>(
     request: FastifyRequest,
     reply: FastifyReply,
     action: () => Promise<T>,
+    options: { readonly ignoreFeatureFlag?: boolean } = {},
   ): Promise<T | void> => {
     try {
-      if (!enabled) throw new FeatureDisabled();
+      if (!enabled && !options.ignoreFeatureFlag) throw new FeatureDisabled();
       return await action();
     } catch (error) {
       if (error instanceof FeatureDisabled) {
@@ -473,6 +495,149 @@ export const boulderingRoutes: FastifyPluginAsync<{
       await repo.removeAscent(owner(request), id, token(request));
       return respond(boulderRemovedResponseSchema, { removed: true });
     }),
+  );
+
+  /** Erase one owner `workout` asset: bytes first, then its metadata. */
+  const eraseWorkoutPhoto = async (
+    request: FastifyRequest,
+    erasure: BoulderPhotoErasure,
+    assetId: string,
+  ): Promise<void> => {
+    const asset = await erasure.mediaAssetRepository.getById(
+      assetId,
+      token(request),
+    );
+    if (
+      asset === null ||
+      asset.userId !== owner(request) ||
+      asset.purpose !== "workout"
+    )
+      return;
+    await erasure.mediaStorage.remove(
+      erasure.bucketId,
+      asset.objectPath,
+      token(request),
+    );
+    if (asset.deletedAt === null)
+      await erasure.mediaAssetRepository.softDelete(
+        asset.id,
+        new Date(),
+        token(request),
+      );
+  };
+
+  /**
+   * Point an owner boulder at `photoAssetId` (or none) through the existing
+   * revisioned update path, keeping every other field. The erase of the
+   * previous photo runs first on every attempt, so a failure leaves the old
+   * link in place and a retry repeats only idempotent steps. Revision races
+   * re-read and retry a bounded number of times.
+   */
+  const relinkPhoto = async (
+    request: FastifyRequest,
+    erasure: BoulderPhotoErasure,
+    id: string,
+    photoAssetId: string | null,
+  ): Promise<StoredBoulderAscent> => {
+    const userId = owner(request);
+    for (let attempt = 1; ; attempt += 1) {
+      const ascent = await repo.getAscent(userId, id, token(request));
+      if (!ascent) throw new BoulderRepositoryError("not_found");
+      if (ascent.photoAssetId === photoAssetId) return ascent;
+      if (ascent.photoAssetId !== null)
+        await eraseWorkoutPhoto(request, erasure, ascent.photoAssetId);
+      try {
+        return await repo.updateAscent(
+          userId,
+          id,
+          {
+            clientOperationId: crypto.randomUUID(),
+            expectedRevision: ascent.revision,
+            grade: ascent.grade,
+            result: ascent.result,
+            attempts: ascent.attempts,
+            holdColour: ascent.holdColour,
+            note: ascent.note,
+            photoAssetId,
+          },
+          token(request),
+        );
+      } catch (error) {
+        if (
+          error instanceof BoulderRepositoryError &&
+          error.kind === "conflict" &&
+          attempt < PHOTO_CLEAR_ATTEMPTS
+        )
+          continue;
+        throw error;
+      }
+    }
+  };
+
+  // PUT /v1/bouldering/ascents/:id/photo — back up a photo after the fact:
+  // link an owned, live `workout` asset to an owner boulder. Replacing a
+  // different photo erases the previous asset (bytes, then metadata) before
+  // the link changes. Re-linking the same asset is a no-op. Not Pro-gated and
+  // not behind the feature flag (backup and erasure of existing boulders).
+  app.put("/ascents/:id/photo", auth, async (request, reply) =>
+    handle(
+      request,
+      reply,
+      async () => {
+        const id = idParam(request);
+        const parsed = boulderAscentPhotoLinkSchema.safeParse(request.body);
+        if (!parsed.success) throw new BoulderRepositoryError("invalid");
+        if (!photoErasure) throw new BoulderRepositoryError("unavailable");
+        const assetId = parsed.data.assetId.toLowerCase();
+        if (!(await repo.getAscent(owner(request), id, token(request))))
+          throw new BoulderRepositoryError("not_found");
+        const asset = await photoErasure.mediaAssetRepository.getById(
+          assetId,
+          token(request),
+        );
+        if (
+          asset === null ||
+          asset.userId !== owner(request) ||
+          asset.deletedAt !== null
+        )
+          throw new BoulderRepositoryError("not_found");
+        if (asset.purpose !== "workout") {
+          await sendApiError(
+            reply,
+            request,
+            422,
+            "VALIDATION_ERROR",
+            "Only a workout photo can be linked to a boulder.",
+          );
+          return;
+        }
+        const ascent = await relinkPhoto(request, photoErasure, id, asset.id);
+        return respond(boulderAscentResponseSchema, {
+          ascent: ascentWire(ascent),
+        });
+      },
+      { ignoreFeatureFlag: true },
+    ),
+  );
+
+  // DELETE /v1/bouldering/ascents/:id/photo — erase the server copy of an
+  // owner boulder's photo and unlink it. Order matches DELETE /v1/media/:id:
+  // bytes first, then the asset's soft delete, then the ascent link, so a
+  // failure at any step leaves the link in place and a retry repeats the
+  // idempotent steps. 204 also when there is no photo. Not Pro-gated and not
+  // behind the feature flag.
+  app.delete("/ascents/:id/photo", auth, async (request, reply) =>
+    handle(
+      request,
+      reply,
+      async () => {
+        const id = idParam(request);
+        if (!photoErasure) throw new BoulderRepositoryError("unavailable");
+        await relinkPhoto(request, photoErasure, id, null);
+        void reply.code(204).send();
+      },
+      { ignoreFeatureFlag: true },
+    ),
   );
 
   app.get("/projects", auth, async (request, reply) =>

@@ -615,36 +615,45 @@
     {
       "id": "body-media",
       "title": "Body Measurements & Private Media",
-      "summary": "Weight and circumference tracking, user-scoped private media uploads, EXIF-stripped progress photos, and timeline comparison. Log weight shows the last value as a hint with an explicit Same-as-last control, and an opt-in weigh-in reminder uses neutral lock-screen copy with sign-out/deletion cleanup (#256).",
+      "summary": "Weight and circumference tracking, user-scoped private media uploads, EXIF-stripped progress photos, and timeline comparison. Log weight shows the last value as a hint with an explicit Same-as-last control, and an opt-in weigh-in reminder uses neutral lock-screen copy with sign-out/deletion cleanup (#256). Meal and boulder photos are local-first: kept in a per-account device library and shown from there, with an optional Back up photos setting, background backfill and backup removal (ADR-0079).",
       "aliases": [
         "body",
         "media",
         "photos",
         "progress photos",
         "weight tracking",
-        "measurements"
+        "measurements",
+        "photo backup",
+        "back up photos",
+        "local photos"
       ],
       "entryPoints": [
         "apps/api/src/modules/body-measurements/routes.ts",
-        "apps/api/src/modules/media/routes.ts"
+        "apps/api/src/modules/media/routes.ts",
+        "apps/api/src/modules/photo-backups/routes.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/body-measurements",
         "apps/api/src/modules/media",
         "apps/mobile/src/features/progress-photos",
-        "apps/mobile/src/features/log-weight"
+        "apps/mobile/src/features/log-weight",
+        "apps/api/src/modules/photo-backups",
+        "apps/mobile/src/features/private-photos"
       ],
       "contracts": [
         "packages/contracts/src/body-measurement.ts",
-        "packages/contracts/src/media-asset.ts"
+        "packages/contracts/src/media-asset.ts",
+        "packages/contracts/src/photo-backup.ts"
       ],
       "domainPort": [
         "packages/core/src/body-measurement.ts",
-        "packages/core/src/media-asset.ts"
+        "packages/core/src/media-asset.ts",
+        "packages/core/src/photo-backup.ts"
       ],
       "api": [
         "apps/api/src/modules/body-measurements/routes.ts",
-        "apps/api/src/modules/media/routes.ts"
+        "apps/api/src/modules/media/routes.ts",
+        "apps/api/src/modules/photo-backups/routes.ts"
       ],
       "ui": [
         "apps/mobile/src/features/progress-photos/progress-photo-data.ts",
@@ -653,12 +662,16 @@
         "apps/mobile/src/features/log-weight/body-history-data.ts",
         "apps/mobile/src/features/log-weight/log-weight-screen.tsx",
         "apps/mobile/src/features/log-weight/weigh-in-reminders.ts",
-        "apps/mobile/src/features/settings/weigh-in-reminder-card.tsx"
+        "apps/mobile/src/features/settings/weigh-in-reminder-card.tsx",
+        "apps/mobile/src/features/private-photos/local-photo-library.ts",
+        "apps/mobile/src/features/private-photos/photo-backup-sync.ts",
+        "apps/mobile/src/features/settings/photo-backup-card.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/body-measurement-repository.ts",
         "packages/adapters/supabase-server/src/media-asset-repository.ts",
-        "packages/adapters/supabase-server/src/media-storage.ts"
+        "packages/adapters/supabase-server/src/media-storage.ts",
+        "packages/adapters/supabase-server/src/photo-backup-repository.ts"
       ],
       "dataTables": ["body_measurements", "media_assets"],
       "migrationPaths": [
@@ -675,7 +688,10 @@
         "packages/contracts/src/body-measurement.test.ts",
         "supabase/tests/database/0037_body_measurement_retry_identity.test.sql",
         "apps/mobile/src/features/log-weight/weigh-in-reminders.test.ts",
-        "apps/mobile/src/composition/weigh-in-reminder-runtime.test.ts"
+        "apps/mobile/src/composition/weigh-in-reminder-runtime.test.ts",
+        "apps/api/src/modules/photo-backups/routes.test.ts",
+        "apps/mobile/src/features/private-photos/local-photo-library.test.ts",
+        "apps/mobile/src/features/private-photos/photo-backup-sync.test.ts"
       ],
       "relations": [
         {

@@ -22,6 +22,7 @@ export type SettingsDetailKey =
   | "ai-usage"
   | "memory"
   | "analytics"
+  | "photo-backup"
   | "account-data"
   | "security"
   | "identity"
@@ -106,6 +107,11 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
   },
   analytics: {
     title: "Help improve Mizyun",
+    categoryId: "privacy-data",
+    validAnchors: [],
+  },
+  "photo-backup": {
+    title: "Back up photos",
     categoryId: "privacy-data",
     validAnchors: [],
   },

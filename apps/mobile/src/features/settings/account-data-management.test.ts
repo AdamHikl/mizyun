@@ -23,6 +23,10 @@ vi.mock("../meal-recipes/public-data", async (original) => ({
   clearRecipeIngredientData: vi.fn().mockResolvedValue(undefined),
 }));
 import { clearAllMealPhotoRetries } from "../log-meal/public-data";
+vi.mock("../private-photos/local-photo-library", () => ({
+  clearLocalPhotos: vi.fn().mockReturnValue(true),
+}));
+import { clearLocalPhotos } from "../private-photos/local-photo-library";
 vi.mock("../dashboard/public-data", () => ({
   clearQuickMealRepeat: vi.fn().mockResolvedValue(undefined),
 }));
@@ -912,6 +916,17 @@ it("account deletion purges private meal photos for the exact user", async () =>
     "deleted-photo-owner",
     draftStore,
   );
+  expect(clearLocalPhotos).toHaveBeenCalledWith("deleted-photo-owner");
+});
+
+it("reports incomplete cleanup when device photos cannot be removed", async () => {
+  vi.mocked(clearLocalPhotos).mockReturnValueOnce(false);
+  await expect(
+    clearLocalUserData("00000000-0000-4000-8000-000000000002", {
+      clearHealthExports: async () => undefined,
+      listExportFiles: () => [],
+    }),
+  ).rejects.toThrow("Local meal photo cleanup is incomplete.");
 });
 
 describe("local meal photo cleanup failure", () => {
@@ -934,6 +949,10 @@ describe("local meal photo cleanup failure", () => {
           ],
         }),
       ).rejects.toThrow("Local meal photo cleanup is incomplete.");
+      // Device photos (ADR-0079) are removed even when retry cleanup fails.
+      expect(clearLocalPhotos).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+      );
       expect(healthCleanup).toHaveBeenCalledOnce();
       expect(deleteExport).toHaveBeenCalledOnce();
     },

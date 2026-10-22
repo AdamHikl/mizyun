@@ -16,6 +16,24 @@ const mocks = vi.hoisted(() => ({
   indexFailure: false,
   clearFailure: false,
   delayedWrite: null as null | (() => Promise<void>),
+  saveLocal: vi.fn(),
+  backupEnabled: true,
+  localRecord: vi.fn((): { assetId: string | null } | null => null),
+  downloadLocal: vi.fn(),
+  localUri: vi.fn(),
+  recordBackup: vi.fn(),
+}));
+const ASSET = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ENTRY = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+vi.mock("@/features/private-photos/local-photo-library", () => ({
+  saveLocalPhoto: mocks.saveLocal,
+  downloadLocalPhoto: mocks.downloadLocal,
+  localPhotoUri: mocks.localUri,
+  localPhotoRecord: mocks.localRecord,
+  recordLocalPhotoBackup: mocks.recordBackup,
+}));
+vi.mock("@/features/private-photos/photo-backup-preference", () => ({
+  loadPhotoBackupEnabled: async () => mocks.backupEnabled,
 }));
 vi.mock("@/composition/app-variant", () => ({
   getAppVariant: () => mocks.variant,
@@ -129,6 +147,9 @@ vi.mock("@/features/logging-draft-storage", () => ({
   },
 }));
 import {
+  backUpLocalMealPhoto,
+  ensureMealPhotoOnDevice,
+  keepMealPhotoOnDevice,
   clearAllMealPhotoRetries,
   discardOwnedMealPhoto,
   loadMealPhotoRetry,
@@ -165,6 +186,12 @@ beforeEach(() => {
     return file;
   });
   mocks.request.mockResolvedValue({ ok: false });
+  mocks.saveLocal.mockReset().mockResolvedValue("file:///documents/local.jpg");
+  mocks.downloadLocal
+    .mockReset()
+    .mockResolvedValue("file:///documents/downloaded.jpg");
+  mocks.localUri.mockReset().mockReturnValue(null);
+  mocks.recordBackup.mockReset().mockReturnValue(true);
   mocks.normalize.mockImplementation(async () => {
     const file = new File("file:///cache/normalized.jpg");
     mocks.files.set(file.uri, 500_000);
@@ -359,9 +386,20 @@ it("survives restart/source removal and lost upload responses with one stable op
   const pending = await loadMealPhotoRetry("owner-a", "meal-a");
   expect(pending?.width).toBe(320);
   expect(mocks.files.has(pending!.uri)).toBe(true);
-  mocks.request.mockResolvedValueOnce({ ok: true });
+  mocks.request.mockResolvedValueOnce({
+    ok: true,
+    value: { photo: { assetId: ASSET } },
+  });
   expect(await uploadMealPhotoRetry("owner-a", "meal-a", () => true)).toBe(
     true,
+  );
+  // The uploaded thumbnail is also kept on this phone with its backup asset.
+  expect(mocks.saveLocal).toHaveBeenCalledWith(
+    "owner-a",
+    "meal",
+    "meal-a",
+    pending!.uri,
+    expect.objectContaining({ assetId: ASSET }),
   );
   const bodies = mocks.request.mock.calls.map(([request]) => request.body);
   expect(bodies[0]).toEqual(bodies[1]);
@@ -580,4 +618,200 @@ it("moves staging metadata to the destination retry without deleting its shared 
   expect(mocks.files.get(photo.uri)).toBe(100);
   await removeMealPhotoRetry("owner-a", "target");
   expect(mocks.files.has(photo.uri)).toBe(false);
+});
+
+it("keeps the retry and the device untouched when a legacy upload is rejected", async () => {
+  const photo = { ...descriptor(), width: 200, height: 100 };
+  mocks.files.set(photo.uri, 100);
+  await persistMealPhotoRetry("owner-a", "target", photo);
+  mocks.request.mockResolvedValueOnce({ ok: false });
+  expect(await uploadMealPhotoRetry("owner-a", "target", () => true)).toBe(
+    false,
+  );
+  expect(mocks.saveLocal).not.toHaveBeenCalled();
+  expect(await loadMealPhotoRetry("owner-a", "target")).toEqual(photo);
+});
+
+it("keeps a reduced thumbnail on the device under the new entry id and cleans the temporary file", async () => {
+  mocks.files.set("file:///cache/chosen.jpg", 800_000);
+  expect(
+    await keepMealPhotoOnDevice("owner-a", ENTRY, "file:///cache/chosen.jpg"),
+  ).toBe(true);
+  expect(mocks.saveLocal).toHaveBeenCalledTimes(1);
+  const [owner, kind, key, uri, options] = mocks.saveLocal.mock.calls[0]!;
+  expect([owner, kind, key]).toEqual(["owner-a", "meal", ENTRY]);
+  expect(uri).not.toBe("file:///cache/chosen.jpg");
+  expect(options.assetId).toBeUndefined();
+  expect(mocks.request).not.toHaveBeenCalled();
+});
+
+it("reports a device-save failure without throwing", async () => {
+  mocks.files.set("file:///cache/chosen.jpg", 800_000);
+  mocks.saveLocal.mockResolvedValueOnce(null);
+  expect(
+    await keepMealPhotoOnDevice("owner-a", ENTRY, "file:///cache/chosen.jpg"),
+  ).toBe(false);
+});
+
+it("returns false when the chosen photo cannot be prepared", async () => {
+  mocks.save.mockRejectedValueOnce(new Error("decode failed"));
+  mocks.files.set("file:///cache/chosen.jpg", 800_000);
+  expect(
+    await keepMealPhotoOnDevice("owner-a", ENTRY, "file:///cache/chosen.jpg"),
+  ).toBe(false);
+  expect(mocks.saveLocal).not.toHaveBeenCalled();
+});
+
+it("uploads the device copy and records the returned backup asset", async () => {
+  mocks.files.set("file:///documents/local.jpg", 50_000);
+  mocks.localUri.mockReturnValue("file:///documents/local.jpg");
+  mocks.request.mockResolvedValueOnce({
+    ok: true,
+    value: { photo: { assetId: ASSET } },
+  });
+  const valid = () => true;
+  expect(await backUpLocalMealPhoto("owner-a", ENTRY, valid)).toBe(true);
+  expect(mocks.request).toHaveBeenCalledWith(
+    expect.objectContaining({
+      method: "POST",
+      path: `/v1/food-entries/${ENTRY}/photo`,
+      expectedUserId: "owner-a",
+      isCurrent: valid,
+      body: expect.objectContaining({
+        imageBase64: "safe-jpeg-pixels",
+        mimeType: "image/jpeg",
+      }),
+    }),
+  );
+  expect(mocks.recordBackup).toHaveBeenCalledWith(
+    "owner-a",
+    "meal",
+    ENTRY,
+    ASSET,
+  );
+});
+
+it("does not upload without a device copy, when retired, disabled or no longer current, and does not record failed uploads", async () => {
+  expect(await backUpLocalMealPhoto("owner-a", ENTRY, () => true)).toBe(false);
+  mocks.files.set("file:///documents/local.jpg", 50_000);
+  mocks.localUri.mockReturnValue("file:///documents/local.jpg");
+  expect(await backUpLocalMealPhoto("owner-a", ENTRY, () => false)).toBe(false);
+  mocks.enabled = false;
+  expect(await backUpLocalMealPhoto("owner-a", ENTRY, () => true)).toBe(false);
+  mocks.enabled = true;
+  mocks.request.mockResolvedValueOnce({ ok: false });
+  expect(await backUpLocalMealPhoto("owner-a", ENTRY, () => true)).toBe(false);
+  expect(mocks.recordBackup).not.toHaveBeenCalled();
+});
+
+it("returns the device copy without any network request when the phone already has it", async () => {
+  mocks.localUri.mockReturnValue("file:///documents/local.jpg");
+  expect(await ensureMealPhotoOnDevice("owner-a", ENTRY, () => true)).toBe(
+    "file:///documents/local.jpg",
+  );
+  expect(mocks.request).not.toHaveBeenCalled();
+});
+
+it("downloads a backed-up photo onto the device when the phone lacks it", async () => {
+  mocks.request.mockResolvedValueOnce({
+    ok: true,
+    value: {
+      photo: { assetId: ASSET, signedUrl: "https://private.example/p" },
+    },
+  });
+  expect(await ensureMealPhotoOnDevice("owner-a", ENTRY, () => true)).toBe(
+    "file:///documents/downloaded.jpg",
+  );
+  expect(mocks.downloadLocal).toHaveBeenCalledWith(
+    "owner-a",
+    "meal",
+    ENTRY,
+    "https://private.example/p",
+    expect.objectContaining({ assetId: ASSET }),
+  );
+});
+
+it("returns null when the backup cannot be read or the scope changed", async () => {
+  mocks.request.mockResolvedValueOnce({ ok: false });
+  expect(
+    await ensureMealPhotoOnDevice("owner-a", ENTRY, () => true),
+  ).toBeNull();
+  mocks.request.mockResolvedValueOnce({ ok: true, value: { photo: null } });
+  expect(
+    await ensureMealPhotoOnDevice("owner-a", ENTRY, () => true),
+  ).toBeNull();
+  mocks.request.mockResolvedValueOnce({
+    ok: true,
+    value: { photo: { assetId: ASSET, signedUrl: "https://x" } },
+  });
+  expect(
+    await ensureMealPhotoOnDevice("owner-a", ENTRY, () => false),
+  ).toBeNull();
+  expect(mocks.downloadLocal).not.toHaveBeenCalled();
+});
+
+it("keeps a legacy pending photo on the device without uploading while Back up photos is off", async () => {
+  const photo = { ...descriptor(), width: 200, height: 100 };
+  mocks.files.set(photo.uri, 100);
+  await persistMealPhotoRetry("owner-a", "target", photo);
+  mocks.backupEnabled = false;
+  mocks.saveLocal.mockResolvedValueOnce("file:///documents/kept.jpg");
+  try {
+    expect(await uploadMealPhotoRetry("owner-a", "target", () => true)).toBe(
+      true,
+    );
+  } finally {
+    mocks.backupEnabled = true;
+  }
+  expect(mocks.request).not.toHaveBeenCalled();
+  expect(mocks.saveLocal).toHaveBeenCalledWith(
+    "owner-a",
+    "meal",
+    "target",
+    photo.uri,
+    expect.not.objectContaining({ assetId: expect.anything() }),
+  );
+  expect(await loadMealPhotoRetry("owner-a", "target")).toBeNull();
+});
+
+it("downloads a newer backup over a stale device copy but keeps a device-only copy", async () => {
+  const NEWER = "33333333-3333-4333-8333-333333333333";
+  mocks.request.mockReset();
+  mocks.localUri.mockReturnValue("file:///documents/old.jpg");
+  mocks.localRecord.mockReturnValueOnce({ assetId: ASSET });
+  mocks.request.mockResolvedValueOnce({
+    ok: true,
+    value: {
+      photo: { assetId: NEWER, signedUrl: "https://private.example/n" },
+    },
+  });
+  expect(
+    await ensureMealPhotoOnDevice(
+      "owner-a",
+      ENTRY,
+      () => true,
+      undefined,
+      NEWER,
+    ),
+  ).toBe("file:///documents/downloaded.jpg");
+  expect(mocks.downloadLocal).toHaveBeenCalledWith(
+    "owner-a",
+    "meal",
+    ENTRY,
+    "https://private.example/n",
+    expect.objectContaining({ assetId: NEWER }),
+  );
+  mocks.request.mockClear();
+  mocks.localRecord.mockReturnValueOnce({ assetId: null });
+  expect(
+    await ensureMealPhotoOnDevice(
+      "owner-a",
+      ENTRY,
+      () => true,
+      undefined,
+      NEWER,
+    ),
+  ).toBe("file:///documents/old.jpg");
+  expect(mocks.request).not.toHaveBeenCalled();
+  mocks.localUri.mockReset();
 });

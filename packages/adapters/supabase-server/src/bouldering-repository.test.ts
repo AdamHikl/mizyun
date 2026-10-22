@@ -292,3 +292,68 @@ describe("SupabaseBoulderingRepository projects", () => {
     ).rejects.toMatchObject({ kind: "not_found" });
   });
 });
+
+describe("SupabaseBoulderingRepository.getAscent", () => {
+  const withRows = (result: { data: unknown; error: unknown }) => {
+    const calls: unknown[][] = [];
+    const builder: Record<string, unknown> = {};
+    for (const name of ["select", "eq", "limit"])
+      builder[name] = (...args: unknown[]) => {
+        calls.push([name, ...args]);
+        return builder;
+      };
+    builder.then = (resolve: (r: unknown) => void) => resolve(result);
+    const from = vi.fn(() => builder);
+    const tokens: string[] = [];
+    return {
+      calls,
+      from,
+      tokens,
+      repo: new SupabaseBoulderingRepository((token) => {
+        tokens.push(token);
+        return { from } as unknown as RepositorySupabaseClient;
+      }),
+    };
+  };
+
+  it("reads one owner ascent with the caller token", async () => {
+    const fake = withRows({ data: [ascentRow(user)], error: null });
+    const ascent = await fake.repo.getAscent(user, ascentRow(user).id, {
+      accessToken: "owner",
+    });
+    expect(ascent).toMatchObject({
+      id: ascentRow(user).id,
+      sessionId: session,
+    });
+    expect(fake.tokens).toEqual(["owner"]);
+    expect(fake.from).toHaveBeenCalledWith("boulder_ascents");
+    expect(fake.calls).toEqual([
+      ["select", "*"],
+      ["eq", "user_id", user],
+      ["eq", "id", ascentRow(user).id],
+      ["limit", 1],
+    ]);
+  });
+
+  it("returns null when absent and fails closed on foreign rows or errors", async () => {
+    await expect(
+      withRows({ data: [], error: null }).repo.getAscent(user, session, {
+        accessToken: "owner",
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      withRows({ data: [ascentRow(other)], error: null }).repo.getAscent(
+        user,
+        session,
+        { accessToken: "owner" },
+      ),
+    ).rejects.toMatchObject({ kind: "not_found" });
+    await expect(
+      withRows({ data: null, error: { message: "x" } }).repo.getAscent(
+        user,
+        session,
+        { accessToken: "owner" },
+      ),
+    ).rejects.toThrow("Bouldering ascents unavailable");
+  });
+});

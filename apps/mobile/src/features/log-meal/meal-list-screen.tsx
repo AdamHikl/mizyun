@@ -1,3 +1,4 @@
+import { removeLocalPhoto } from "@/features/private-photos/local-photo-library";
 import {
   removeMealPhotoRetry,
   mealPhotoRetentionEnabled,
@@ -739,6 +740,8 @@ export function MealListScreen() {
       }
       if (owner && mealPhotoRetentionEnabled())
         await removeMealPhotoRetry(owner, entryId);
+      // The server removed any backup with the meal; drop this device's copy too.
+      if (owner) removeLocalPhoto(owner, "meal", entryId);
       await refreshAfterMutation();
     },
     [refreshAfterMutation, session?.user.id],

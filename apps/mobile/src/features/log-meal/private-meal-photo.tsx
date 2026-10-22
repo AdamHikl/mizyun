@@ -20,6 +20,7 @@ import {
   rememberedPhoto,
   sharedPhotoRead,
 } from "./meal-photo-memory";
+import { keepMealBackupOnDevice } from "./meal-photo-download";
 
 /** Signed URLs exist only in this account/request generation and never reach a disk cache. */
 export function PrivateMealPhoto({
@@ -107,8 +108,10 @@ export function PrivateMealPhoto({
     if (!response?.ok)
       response = await (force ? read() : sharedPhotoRead(scope, read));
     if (!valid()) return;
-    if (response.ok)
+    if (response.ok) {
       rememberPhoto(scope, response.value.photo, memoryGeneration);
+      keepMealBackupOnDevice(owner, entryId, response.value.photo);
+    }
     setState({
       scope,
       photo: response.ok ? response.value.photo : null,

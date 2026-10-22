@@ -140,6 +140,12 @@ export interface BoulderingRepository {
     userId: UserId,
     options: Token,
   ): Promise<readonly StoredWorkout[]>;
+  /** One owner boulder, or null when it is unknown or another user's. */
+  getAscent(
+    userId: UserId,
+    id: string,
+    options: Token,
+  ): Promise<StoredBoulderAscent | null>;
   /** Boulders for the given sessions, ordered by session then sequence. */
   listAscents(
     userId: UserId,

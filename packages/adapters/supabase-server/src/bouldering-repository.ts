@@ -279,6 +279,25 @@ export class SupabaseBoulderingRepository implements BoulderingRepository {
     );
   }
 
+  async getAscent(
+    userId: UserId,
+    id: string,
+    options: { accessToken: string },
+  ): Promise<StoredBoulderAscent | null> {
+    const { data, error } = await this.clientFor(options.accessToken)
+      .from<BoulderAscentRow>("boulder_ascents")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("id", id)
+      .limit(1);
+    if (error || !Array.isArray(data))
+      throw new RepositoryError("Bouldering ascents unavailable");
+    const row = data[0];
+    if (!row) return null;
+    if (row.user_id !== userId) throw new BoulderRepositoryError("not_found");
+    return boulderAscentFromRow(row);
+  }
+
   async listAscents(
     userId: UserId,
     sessionIds: readonly string[],
