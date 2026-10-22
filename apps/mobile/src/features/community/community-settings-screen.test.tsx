@@ -262,6 +262,13 @@ describe("embedded Community joining", () => {
     expect(mocks.replace).toHaveBeenCalledWith("/(tabs)");
     expect(mocks.enroll).not.toHaveBeenCalled();
   });
+  it("names no placeholder handle after leaving from an unknown status", () => {
+    mocks.state.isWithdrawn = true;
+    mocks.state.profile = null;
+    const copy = textContent(render({ embedded: true }));
+    expect(copy).toContain("Your handle stays reserved to your account.");
+    expect(copy).not.toContain("undefined");
+  });
   it("reserves a withdrawn handle and requires fresh consent without recovering history", () => {
     mocks.state.isWithdrawn = true;
     mocks.state.profile = {

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
+import type { AuthSession } from "@mizyun/identity";
 import { CommunityProfileController } from "./use-community-profile";
+import { CommunityReadCache } from "./state/read-cache";
 
 describe("CommunityProfileController", () => {
   const mockNow = () => new Date("2026-09-29T12:00:00Z");
@@ -56,6 +58,48 @@ describe("CommunityProfileController", () => {
     const state = controller.getState();
     expect(state.status).toBe("ready");
     expect(state.profile).toBeNull();
+    expect(state.isEnrolled).toBe(false);
+    expect(state.error).toBeNull();
+  });
+
+  it("treats not-enrolled as unenrolled after the read cache retires the failed read", async () => {
+    // The read cache clears itself on a failed read and reports the server
+    // error as the cause of a retired read; a withdrawn account hit this on
+    // every Community tab visit.
+    const raw = {
+      request: vi.fn().mockResolvedValue({
+        ok: false,
+        error: {
+          kind: "http_error",
+          status: 404,
+          code: "COMMUNITY_NOT_ENROLLED",
+          message: "Not enrolled",
+        },
+      }),
+      status: () => ({ configured: true, baseUrl: "https://x.invalid" }),
+    } as unknown as ApiClient;
+    const cache = new CommunityReadCache(
+      raw,
+      async () =>
+        ({
+          user: { id: "alice" },
+          accessToken: "alice-token",
+        }) as AuthSession,
+    );
+    cache.setPrincipal("alice");
+    cache.setForeground(true);
+    const controller = new CommunityProfileController({
+      client: cache,
+      principalKey: "alice",
+      birthYear: 1995,
+      now: mockNow,
+      autoLoad: false,
+    });
+
+    await controller.load();
+    const state = controller.getState();
+    cache.dispose();
+    expect(state.status).toBe("ready");
     expect(state.isEnrolled).toBe(false);
     expect(state.error).toBeNull();
   });

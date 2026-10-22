@@ -19,6 +19,7 @@ import { isAdultEligibleForCommunity, type Result } from "@mizyun/core";
 import {
   checkHandleAvailability,
   enrollCommunityProfile,
+  communityErrorCause,
   fetchCommunityProfile,
   humanizeCommunityError,
   updateCommunityProfile,
@@ -261,10 +262,13 @@ export class CommunityProfileController {
       return;
     }
 
-    // Only the explicit absence response establishes an unenrolled state.
+    // Only the explicit absence response establishes an unenrolled state. The
+    // read cache retires its own failed read and keeps the response as the
+    // cause; this load's revision check above already rejects a stale one.
+    const cause = communityErrorCause(result.error);
     if (
-      result.error.kind === "http_error" &&
-      result.error.code === "COMMUNITY_NOT_ENROLLED"
+      cause.kind === "http_error" &&
+      cause.code === "COMMUNITY_NOT_ENROLLED"
     ) {
       this.updateState({
         status: "ready",

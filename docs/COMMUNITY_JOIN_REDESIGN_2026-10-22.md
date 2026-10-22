@@ -98,3 +98,15 @@ is unchanged.
 - `pnpm deploy:dev`: Dev runs 6045ee7c; `/v1/health` 200 at 14:18:51Z; no migrations.
 - `pnpm deploy:production`: driver re-ran gates; Production runs 6045ee7c; `/v1/health` 200 at 14:28:04Z; database up to date.
 - `pnpm mobile:install:ios:production`: Release `com.mizyun.app` built (team LQJNDVBL43), installed and launched on `00008140-001114501A86801C` at 14:32:50Z. Launch is not feature acceptance.
+
+## Follow-up fix: non-members always saw the error state (2026-10-22)
+
+Adam reported on the Production iPhone that the Community tab showed "We could not check your status" ("You must join Mizyun Friends…"). He had to press Leave to reach "Join again", the screen showed "@undefined", and switching tabs brought the error back.
+
+- **Cause.** `GET /v1/community/profile` correctly returns 404 `COMMUNITY_NOT_ENROLLED` for a non-member or withdrawn account. `CommunityReadCache` retires its own failed read (`clear()` bumps the revision) and returns `{ kind: "context_changed", cause }`, as pinned by `read-cache.test.ts`. `CommunityProfileController.load()` checked the outer error code and fell into the error state. This predates the redesign; the first screenshot's "Community information changed" had the same source.
+- **Fix.** `load()` now unwraps with `communityErrorCause` before the not-enrolled check. Its revision and principal guards still reject stale or wrong-account results. The withdrawn notice falls back to "Your handle" when the profile is unknown.
+- **Regressions.**
+  - `use-community-profile.test.ts` runs a real `CommunityReadCache` over a 404. It failed before the fix with status `error`.
+  - The screen test checks that no `undefined` handle appears.
+  - Community suites pass: 721 tests.
+- **Review.** An independent Opus reviewer returned **ship**, with no blockers. Three display-only callers with the same pattern are tracked in #320.

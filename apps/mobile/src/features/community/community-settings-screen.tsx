@@ -366,7 +366,7 @@ function SettingsContent({
             {state.isWithdrawn && (
               <Notice
                 title="A fresh start"
-                message={`@${state.profile?.handle} stays reserved to your account. Returning needs a fresh adult declaration and rules consent. Previous follows, cards and invitations do not return.`}
+                message={`${state.profile?.handle ? `@${state.profile.handle}` : "Your handle"} stays reserved to your account. Returning needs a fresh adult declaration and rules consent. Previous follows, cards and invitations do not return.`}
               />
             )}
             {!editing && (
