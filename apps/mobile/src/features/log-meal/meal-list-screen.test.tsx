@@ -234,7 +234,8 @@ beforeEach(() => {
   hooks.effects = [];
   hooks.index = 0;
   hooks.focus = null;
-  mocks.fetch.mockReset();
+  // Default to a complete empty result so an unscripted extra read never resolves undefined.
+  mocks.fetch.mockReset().mockResolvedValue(response([]));
   mocks.snapshot.mockReset().mockReturnValue(null);
   mocks.refresh.mockReset();
   mocks.day.mockReset();

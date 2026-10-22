@@ -246,7 +246,12 @@ beforeEach(async () => {
   mocks.load.mockResolvedValue({ ...draft });
   mocks.persist.mockResolvedValue(true);
   mocks.clear.mockResolvedValue(true);
-  mocks.history.mockResolvedValue({ entries: [] });
+  mocks.history.mockResolvedValue({
+    groups: [],
+    entries: [],
+    nextCursor: null,
+    message: null,
+  });
   mocks.refresh.mockResolvedValue(true);
   mocks.submit.mockResolvedValue({ ok: true });
   mocks.reminders.mockResolvedValue(undefined);
