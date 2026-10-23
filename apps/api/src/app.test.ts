@@ -429,6 +429,62 @@ describe("AI vendor selection (ADR-0069)", () => {
     );
   });
 
+  // #317: before the fix a Gemini key served Coach regardless.
+  it("reports Coach disabled when AGENT_PROVIDER=disabled with a Gemini key", async () => {
+    stubAiEnv({
+      AGENT_PROVIDER: "disabled",
+      AI_EXTERNAL_ACCESS: "true",
+      GEMINI_API_KEY: "test-gemini-key-12345",
+    });
+    await expect(coachStatus()).resolves.toMatchObject({
+      ready: false,
+      provider: "disabled",
+    });
+    await expect(coachStatus(false)).resolves.toMatchObject({
+      ready: false,
+      provider: "disabled",
+    });
+  });
+
+  // #317: the kill switch needs an explicit value; AGENT_PROVIDER parses as
+  // "disabled" when unset, and that must keep serving Coach.
+  it.each([
+    ["unset", ""],
+    ["gemini", "gemini"],
+  ])(
+    "keeps Coach on Gemini when AGENT_PROVIDER is %s with a Gemini key",
+    async (_label, agentProvider) => {
+      stubAiEnv({
+        AGENT_PROVIDER: agentProvider,
+        AI_EXTERNAL_ACCESS: "true",
+        GEMINI_API_KEY: "test-gemini-key-12345",
+      });
+      await expect(coachStatus()).resolves.toMatchObject({
+        ready: true,
+        provider: "gemini",
+      });
+      await expect(coachStatus(false)).resolves.toMatchObject({
+        ready: true,
+        provider: "gemini",
+      });
+    },
+  );
+
+  it("reports Coach disabled when AGENT_PROVIDER=disabled overrides COACH_PROVIDER", async () => {
+    stubAiEnv({
+      AGENT_PROVIDER: "disabled",
+      AI_EXTERNAL_ACCESS: "true",
+      GEMINI_API_KEY: "test-gemini-key-12345",
+      ANTHROPIC_API_KEY: "test-anthropic-key-12345",
+      ANTHROPIC_DEV_TESTING: "true",
+      COACH_PROVIDER: "anthropic",
+    });
+    await expect(coachStatus()).resolves.toMatchObject({
+      ready: false,
+      provider: "disabled",
+    });
+  });
+
   it("reports Claude as not ready while external AI access is off", async () => {
     stubAiEnv({
       AGENT_PROVIDER: "anthropic",
@@ -468,16 +524,17 @@ describe("Consent-gated AI routing (Production, 2026-10-21)", () => {
     COOKING_ASSISTANT_PROVIDER: "gemini",
     STRETCH_PLAN_PROVIDER: "anthropic",
   };
-  const stubEnv = () => {
+  const stubEnv = (overrides: Record<string, string> = {}) => {
+    const env = { ...productionEnv, ...overrides };
     for (const key of [
       "ANTHROPIC_DEV_TESTING",
       "GEMINI_VISION_API_KEY",
       "VISION_PROVIDER",
       "SUPABASE_URL",
       "SUPABASE_PUBLISHABLE_KEY",
-      ...Object.keys(productionEnv),
+      ...Object.keys(env),
     ]) {
-      vi.stubEnv(key, productionEnv[key] ?? "");
+      vi.stubEnv(key, env[key] ?? "");
     }
   };
   const users = {
@@ -694,6 +751,93 @@ describe("Consent-gated AI routing (Production, 2026-10-21)", () => {
     for (const spy of Object.values(geminiOthers)) {
       expect(spy).not.toHaveBeenCalled();
     }
+  });
+
+  // #317: AGENT_PROVIDER=disabled is a Coach kill switch even with Gemini and
+  // Anthropic keys and COACH_PROVIDER set.
+  it("serves no Coach model turn when AGENT_PROVIDER=disabled", async () => {
+    stubEnv({ AGENT_PROVIDER: "disabled" });
+    const spies = spyVendors();
+    const result = await exercise("current");
+
+    expect(result.status.json()).toMatchObject({
+      ready: false,
+      provider: "disabled",
+    });
+    expect(result.coach.statusCode).toBe(503);
+    expect(result.coach.json().error?.code).toBe("AI_UNAVAILABLE");
+    expect(spies.gemini.coach).not.toHaveBeenCalled();
+    expect(spies.anthropic.coach).not.toHaveBeenCalled();
+    // A meal-logging Coach message would draft through the vision provider;
+    // the only text draft left is the non-Coach /v1/food-entries/draft/text.
+    expect(result.coachMeal.statusCode).toBe(503);
+    expect(result.coachMeal.json().error?.code).toBe("AI_CONFIGURATION_ERROR");
+    expect(
+      spies.gemini.text.mock.calls.length +
+        spies.anthropic.text.mock.calls.length,
+    ).toBe(1);
+    expect(result.text.statusCode).toBe(200);
+  });
+
+  it("serves Coach turns and Coach meal drafts when AGENT_PROVIDER is unset", async () => {
+    stubEnv({ AGENT_PROVIDER: "" });
+    const spies = spyVendors();
+    const result = await exercise("current");
+
+    expect(result.status.json()).toMatchObject({ provider: "anthropic" });
+    expect(result.coach.statusCode).toBe(200);
+    expect(result.coach.json().assistantMessage.provider).toBe("anthropic");
+    expect(result.coachMeal.statusCode).toBe(200);
+    expect(spies.anthropic.coach).toHaveBeenCalled();
+    expect(spies.anthropic.text).toHaveBeenCalledTimes(2);
+  });
+
+  it("drafts no Coach meal photo when AGENT_PROVIDER=disabled", async () => {
+    stubEnv({ AGENT_PROVIDER: "disabled" });
+    const photoSpies = [GeminiVisionProvider, AnthropicVisionProvider].map(
+      (provider) =>
+        vi.spyOn(provider.prototype, "generateDraft").mockImplementation(() => {
+          throw new VisionProviderError("unavailable", "test stop", false);
+        }),
+    );
+    const app = buildApp({
+      tokenVerifier: verifier,
+      aiConsentRepository: await consents(),
+    });
+    apps.push(app);
+    const conversation = await app.inject({
+      method: "POST",
+      url: "/v1/coach/conversations",
+      headers: {
+        authorization: "Bearer current",
+        "content-type": "application/json",
+      },
+      payload: { title: "Meal photo" },
+    });
+    const conversationId = conversation.json().conversation.id as string;
+    const boundary = "----MizyunKillSwitch";
+    const body = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="meal.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`,
+      ),
+      Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const photo = await app.inject({
+      method: "POST",
+      url: `/v1/coach/conversations/${conversationId}/nutrition-photo`,
+      headers: {
+        authorization: "Bearer current",
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+        "content-length": String(body.length),
+        "idempotency-key": "kill-switch-photo",
+      },
+      payload: body,
+    });
+
+    expect(photo.statusCode).toBe(503);
+    expect(photo.json().error?.code).toBe("AI_CONFIGURATION_ERROR");
+    for (const spy of photoSpies) expect(spy).not.toHaveBeenCalled();
   });
 
   it("reports Gemini Coach status to a caller without a consent context", async () => {

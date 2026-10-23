@@ -2,12 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { StoredFoodEntry, UserId } from "@mizyun/core";
 
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { buildGetMealHistoryTool } from "./meal-history.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const otherUserId = "00000000-0000-4000-8000-000000000002" as UserId;
 const FIXED_NOW = new Date("2026-09-10T12:00:00.000Z");
 const clock = { now: () => FIXED_NOW };
+const profileRepository = (defaultTimezone = "UTC") =>
+  new InMemoryProfileRepository({
+    defaultTimezone,
+    defaultUnitSystem: "metric",
+    clock,
+  });
 
 const createEntry = (
   uid: UserId,
@@ -38,9 +45,56 @@ const createEntry = (
 });
 
 describe("CoachTools — get_meal_history", () => {
+  // #310/#316: a date is the user's calendar day and times are local wall
+  // time with the offset. 00:30 on 10 Sept in Bratislava is 22:30 UTC on 9 Sept.
+  it("searches the user's calendar day and gives local times", async () => {
+    const foodEntryRepository = new InMemoryFoodEntryRepository();
+    const tool = buildGetMealHistoryTool({
+      foodEntryRepository,
+      profileRepository: profileRepository("Europe/Bratislava"),
+      clock,
+    });
+    for (const [id, consumedAt] of [
+      ["late-on-the-9th", "2026-09-09T21:30:00.000Z"],
+      ["just-after-midnight", "2026-09-09T22:30:00.000Z"],
+      ["late-on-the-10th", "2026-09-10T21:30:00.000Z"],
+      ["early-on-the-11th", "2026-09-10T22:30:00.000Z"],
+    ] as const) {
+      await foodEntryRepository.create(
+        userId,
+        createEntry(userId, { id, name: id, consumedAt: new Date(consumedAt) }),
+        { accessToken: "token" },
+      );
+    }
+
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: { date: "2026-09-10" },
+      accessToken: "token",
+      clock,
+    });
+
+    const data = evidence.data as {
+      meals: Array<{ id: string; consumedAt: string }>;
+    };
+    expect(
+      data.meals.map(({ id, consumedAt }) => ({ id, consumedAt })),
+    ).toEqual(
+      expect.arrayContaining([
+        { id: "just-after-midnight", consumedAt: "2026-09-10T00:30:00+02:00" },
+        { id: "late-on-the-10th", consumedAt: "2026-09-10T23:30:00+02:00" },
+      ]),
+    );
+    expect(data.meals).toHaveLength(2);
+  });
+
   it("returns today's meals on default call with no args", async () => {
     const foodEntryRepository = new InMemoryFoodEntryRepository();
-    const tool = buildGetMealHistoryTool({ foodEntryRepository, clock });
+    const tool = buildGetMealHistoryTool({
+      foodEntryRepository,
+      profileRepository: profileRepository(),
+      clock,
+    });
 
     await foodEntryRepository.create(
       userId,
@@ -91,7 +145,7 @@ describe("CoachTools — get_meal_history", () => {
           proteinG: 25,
           carbohydrateG: 40,
           fatG: 5,
-          consumedAt: "2026-09-10T08:30:00.000Z",
+          consumedAt: "2026-09-10T08:30:00+00:00",
         },
       ],
     });
@@ -99,7 +153,11 @@ describe("CoachTools — get_meal_history", () => {
 
   it("filters meals by specific date (YYYY-MM-DD)", async () => {
     const foodEntryRepository = new InMemoryFoodEntryRepository();
-    const tool = buildGetMealHistoryTool({ foodEntryRepository, clock });
+    const tool = buildGetMealHistoryTool({
+      foodEntryRepository,
+      profileRepository: profileRepository(),
+      clock,
+    });
 
     await foodEntryRepository.create(
       userId,
@@ -138,7 +196,7 @@ describe("CoachTools — get_meal_history", () => {
         {
           id: "meal-target-date",
           name: "Protein Pancakes",
-          consumedAt: "2026-09-08T14:15:00.000Z",
+          consumedAt: "2026-09-08T14:15:00+00:00",
         },
       ],
     });
@@ -146,7 +204,11 @@ describe("CoachTools — get_meal_history", () => {
 
   it("case-insensitively filters by food name query", async () => {
     const foodEntryRepository = new InMemoryFoodEntryRepository();
-    const tool = buildGetMealHistoryTool({ foodEntryRepository, clock });
+    const tool = buildGetMealHistoryTool({
+      foodEntryRepository,
+      profileRepository: profileRepository(),
+      clock,
+    });
 
     await foodEntryRepository.create(
       userId,
@@ -205,7 +267,11 @@ describe("CoachTools — get_meal_history", () => {
 
   it("enforces tenant isolation and never returns entries from other users", async () => {
     const foodEntryRepository = new InMemoryFoodEntryRepository();
-    const tool = buildGetMealHistoryTool({ foodEntryRepository, clock });
+    const tool = buildGetMealHistoryTool({
+      foodEntryRepository,
+      profileRepository: profileRepository(),
+      clock,
+    });
 
     await foodEntryRepository.create(
       userId,
@@ -246,7 +312,11 @@ describe("CoachTools — get_meal_history", () => {
 
   it("limits results to specified limit with proper clamping", async () => {
     const foodEntryRepository = new InMemoryFoodEntryRepository();
-    const tool = buildGetMealHistoryTool({ foodEntryRepository, clock });
+    const tool = buildGetMealHistoryTool({
+      foodEntryRepository,
+      profileRepository: profileRepository(),
+      clock,
+    });
 
     for (let i = 1; i <= 5; i++) {
       await foodEntryRepository.create(
@@ -282,7 +352,11 @@ describe("CoachTools — get_meal_history", () => {
 
   it("handles undefined args safely without throwing", async () => {
     const foodEntryRepository = new InMemoryFoodEntryRepository();
-    const tool = buildGetMealHistoryTool({ foodEntryRepository, clock });
+    const tool = buildGetMealHistoryTool({
+      foodEntryRepository,
+      profileRepository: profileRepository(),
+      clock,
+    });
 
     const result = await tool.execute({
       principalUserId: userId,

@@ -675,6 +675,73 @@ describe("CoachTools — get_recent_food_entries", () => {
   });
 });
 
+describe("CoachTools — get_recent_food_entries time zone (#316)", () => {
+  // 00:30 on 23 July in Bratislava (+02:00) is 22:30 UTC on 22 July.
+  it("groups meals by the user's calendar day, not the UTC day", async () => {
+    const deps = buildDeps();
+    deps.foodEntryRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-0000000000f2",
+      userId,
+      consumedAt: new Date("2026-07-22T22:30:00Z"),
+      name: "Late snack",
+      caloriesKcal: 250,
+      proteinG: 10,
+      carbohydrateG: 30,
+      fatG: 8,
+      confirmedByUser: true,
+      source: "manual",
+      details: {},
+      confidence: null,
+      createdAt: new Date("2026-07-22T22:30:00Z"),
+      updatedAt: new Date("2026-07-22T22:30:00Z"),
+    });
+    deps.foodEntryRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-0000000000f3",
+      userId,
+      consumedAt: new Date("2026-07-22T21:30:00Z"),
+      name: "Dinner",
+      caloriesKcal: 600,
+      proteinG: 40,
+      carbohydrateG: 50,
+      fatG: 20,
+      confirmedByUser: true,
+      source: "manual",
+      details: {},
+      confidence: null,
+      createdAt: new Date("2026-07-22T21:30:00Z"),
+      updatedAt: new Date("2026-07-22T21:30:00Z"),
+    });
+    const tool = buildGetRecentFoodEntriesTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: { days_back: 7 },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    const data = evidence.data as {
+      daily: Array<{ day: string; entryCount: number; caloriesKcal: number }>;
+      today: { day: string; entryCount: number; caloriesKcal: number } | null;
+    };
+    expect(data.daily).toEqual([
+      expect.objectContaining({
+        day: "2026-07-22",
+        entryCount: 1,
+        caloriesKcal: 600,
+      }),
+      expect.objectContaining({
+        day: "2026-07-23",
+        entryCount: 1,
+        caloriesKcal: 250,
+      }),
+    ]);
+    expect(data.today).toMatchObject({
+      day: "2026-07-23",
+      entryCount: 1,
+      caloriesKcal: 250,
+    });
+  });
+});
+
 describe("CoachTools — defence in depth", () => {
   it("runs the principal's userId regardless of what the model passes as args", async () => {
     const deps = buildDeps();

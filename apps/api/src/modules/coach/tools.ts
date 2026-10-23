@@ -31,7 +31,6 @@ import {
   computeEnergy,
   findCatalogExercise,
   searchExerciseCatalog,
-  summariseFoodEntries,
   summariseWeightTrend,
   systemClock,
   EQUIPMENT_OPTIONS,
@@ -63,6 +62,7 @@ import {
 } from "@mizyun/contracts";
 import { isAvailableRoutine, toRoutineSummary } from "./routines.js";
 import { buildGetMealHistoryTool } from "./meal-history.js";
+import { localDayIso, summariseFoodEntriesByLocalDay } from "./local-time.js";
 import { buildGetExerciseHistoryTool } from "./exercise-history.js";
 
 export { buildGetMealHistoryTool } from "./meal-history.js";
@@ -91,18 +91,6 @@ const extractDaysBack = (args: unknown): number => {
 };
 
 const dayIso = (date: Date): string => date.toISOString().slice(0, 10);
-
-const localDayIso = (date: Date, timeZone: string): string => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const value = (type: Intl.DateTimeFormatPartTypes): string =>
-    parts.find((part) => part.type === type)?.value ?? "";
-  return `${value("year")}-${value("month")}-${value("day")}`;
-};
 
 const freshnessOf = (now: Date): string => now.toISOString();
 
@@ -319,12 +307,11 @@ export const buildDailyActionPlanForUser = async (
     limit: 500,
     accessToken,
   });
-  const summary = summariseFoodEntries(
-    entries.filter(
-      (entry) => localDayIso(entry.consumedAt, profile.timezone) === today,
-    ),
-    { from: today, to: today },
-  )[0];
+  const summary = summariseFoodEntriesByLocalDay(entries, {
+    from: today,
+    to: today,
+    timeZone: profile.timezone,
+  })[0];
   const daily = buildDailyActionPlan({
     plan: coachingPlan,
     date: today,
@@ -770,12 +757,18 @@ export const buildGetRecentFoodEntriesTool = (
       const daysBack = extractDaysBack(args);
       const now = resolveClock(deps, clock).now();
       const from = new Date(now.getTime() - daysBack * 86_400_000);
-      const entries = await deps.foodEntryRepository.list(principalUserId, {
-        from,
-        to: now,
-        limit: 500,
-        accessToken,
-      });
+      const [profile, entries] = await Promise.all([
+        deps.profileRepository.getOrCreate(principalUserId, {
+          now,
+          accessToken,
+        }),
+        deps.foodEntryRepository.list(principalUserId, {
+          from,
+          to: now,
+          limit: 500,
+          accessToken,
+        }),
+      ]);
       const dailyMap = new Map<
         string,
         {
@@ -787,7 +780,8 @@ export const buildGetRecentFoodEntriesTool = (
         }
       >();
       for (const entry of entries) {
-        const key = dayIso(entry.consumedAt);
+        // #316: the user's calendar day, matching Home's daily totals.
+        const key = localDayIso(entry.consumedAt, profile.timezone);
         const existing = dailyMap.get(key) ?? {
           entryCount: 0,
           caloriesKcal: 0,
@@ -805,9 +799,13 @@ export const buildGetRecentFoodEntriesTool = (
         if (entry.fatG !== null) existing.fatG += entry.fatG;
         dailyMap.set(key, existing);
       }
-      const today = dayIso(now);
+      const today = localDayIso(now, profile.timezone);
       const todaysSummary =
-        summariseFoodEntries(entries, { from: today, to: today })[0] ?? null;
+        summariseFoodEntriesByLocalDay(entries, {
+          from: today,
+          to: today,
+          timeZone: profile.timezone,
+        })[0] ?? null;
       const daily = [...dailyMap.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([day, totals]) => ({ day, ...totals }));

@@ -365,6 +365,38 @@ describe("loadServerConfig — closed-world", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.agentProvider).toBe("disabled");
+    expect(result.value.coachKillSwitch).toBe(false);
+  });
+
+  // #317: a near-miss spelling cannot slip past the kill switch; config fails
+  // to load, and the API then serves no Coach model.
+  it.each(["Disabled", " disabled"])(
+    "rejects AGENT_PROVIDER=%j instead of treating it as unset",
+    (value) => {
+      const result = loadServerConfig({
+        env: { ...baseSnapshot, [SERVER_ENV_KEYS.agentProvider]: value },
+      });
+      expect(result.ok).toBe(false);
+    },
+  );
+
+  // #317: only an explicit AGENT_PROVIDER=disabled is a Coach kill switch.
+  it.each([
+    ["disabled", true],
+    ["gemini", false],
+    ["anthropic", false],
+  ] as const)("sets coachKillSwitch for AGENT_PROVIDER=%s", (value, kill) => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: value,
+        [SERVER_ENV_KEYS.geminiApiKey]: "test-gemini-key-12345",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.coachKillSwitch).toBe(kill);
   });
 
   it("rejects an unrecognised AGENT_PROVIDER with kind:malformed", () => {
