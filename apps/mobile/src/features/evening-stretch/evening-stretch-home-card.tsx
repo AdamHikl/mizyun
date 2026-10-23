@@ -49,6 +49,22 @@ export const nextStretchSubtitle = (
 };
 
 /**
+ * The last subtitle for one account and local day, in memory only, so a
+ * return to Today shows it in the first frame while the card refreshes.
+ */
+let lastShown: {
+  readonly key: string;
+  readonly subtitle: string | null;
+} | null = null;
+const shownKey = (userId: string): string =>
+  `${userId}:${isoLocalDate(new Date())}`;
+
+/** Test seam: forget the remembered subtitle. */
+export const resetEveningStretchHomeCardMemory = (): void => {
+  lastShown = null;
+};
+
+/**
  * Home shortcut to tonight's stretch on training days (#298). Hidden on rest
  * days, once tonight's stretch is done, or when the reminder is turned off.
  * Each focus also refreshes tonight's notification without prompting. It
@@ -62,12 +78,11 @@ export function EveningStretchHomeCard({
 }) {
   const { session } = useAuth();
   const accessToken = session?.accessToken ?? null;
-  // Owned by account so a retained subtitle never crosses a sign-in switch.
-  const [shown, setShown] = useState<{
-    readonly userId: string;
-    readonly subtitle: string | null;
-  } | null>(null);
-  const subtitle = shown?.userId === userId ? shown.subtitle : null;
+  // Owned by account and day so a retained subtitle never crosses a sign-in
+  // switch or midnight.
+  const [shown, setShown] = useState(lastShown);
+  const key = shownKey(userId);
+  const subtitle = shown?.key === key ? shown.subtitle : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -91,15 +106,20 @@ export function EveningStretchHomeCard({
             ).catch(() => null)
           : null;
         if (!active || current !== run) return;
-        setShown((previous) => ({
-          userId,
-          subtitle: nextStretchSubtitle(
-            previous?.userId === userId ? previous.subtitle : null,
-            settings,
-            training,
-            tailored,
-          ),
-        }));
+        setShown((previous) => {
+          const key = shownKey(userId);
+          const next = {
+            key,
+            subtitle: nextStretchSubtitle(
+              previous?.key === key ? previous.subtitle : null,
+              settings,
+              training,
+              tailored,
+            ),
+          };
+          lastShown = next;
+          return next;
+        });
       };
       void load();
       let foreground = AppState.currentState === "active";

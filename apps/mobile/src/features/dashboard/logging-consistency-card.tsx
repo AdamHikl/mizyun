@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { AppState, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import {
   computeLoggingConsistency,
@@ -9,6 +9,7 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { Card, Icon } from "@/components/ui";
 import { Spacing } from "@/constants/theme";
+import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { loadLoggingHistory } from "./logging-consistency-data";
 import {
@@ -20,9 +21,21 @@ import {
   type LoggingConsistencyPresentation,
 } from "./logging-consistency-presentation";
 
+/** What a load found: nothing to show, an unreadable history, or a result. */
+export type LoggingConsistencyResolution =
+  | { readonly kind: "hidden" }
+  | { readonly kind: "unknown" }
+  | {
+      readonly kind: "shown";
+      readonly day: string;
+      readonly value: LoggingConsistency;
+    };
+
 /**
- * Resolve what the card should show: null (render nothing) when the card is
- * hidden, the history is unknown, or the user has no logging history yet.
+ * Resolve what the card should show. Hidden on purpose (turned off, or no
+ * logging history yet) is distinct from unknown (the history read failed,
+ * which at launch happens while reads are retired), so callers keep what is
+ * shown on unknown instead of hiding the row.
  */
 export async function resolveLoggingConsistencyCard(
   userId: string,
@@ -33,18 +46,46 @@ export async function resolveLoggingConsistencyCard(
     loadPreferences: loadLoggingConsistencyPreferences,
     loadHistory: loadLoggingHistory,
   },
-): Promise<LoggingConsistency | null> {
+): Promise<LoggingConsistencyResolution> {
   const preferences: LoggingConsistencyPreferences =
     await ports.loadPreferences(userId);
-  if (preferences.hidden) return null;
+  if (preferences.hidden) return { kind: "hidden" };
   const history = await ports.loadHistory();
-  if (history === null || history.loggedDates.length === 0) return null;
-  return computeLoggingConsistency({
+  if (history === null) return { kind: "unknown" };
+  if (history.loggedDates.length === 0) return { kind: "hidden" };
+  const value = computeLoggingConsistency({
     loggedDates: history.loggedDates,
     today: history.today,
     weeklyGoal: preferences.weeklyGoal,
   });
+  return value === null
+    ? { kind: "hidden" }
+    : { kind: "shown", day: history.today, value };
 }
+
+// Last shown result, in memory only (health-derived, never persisted). Keyed by
+// account and local day so another user or tomorrow never sees it.
+let remembered: {
+  readonly userId: string;
+  readonly day: string;
+  readonly value: LoggingConsistency;
+} | null = null;
+
+const localDay = (now: Date): string =>
+  [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+
+const recall = (userId: string): LoggingConsistency | null => {
+  const entry = remembered;
+  return entry !== null &&
+    entry.userId === userId &&
+    entry.day === localDay(new Date())
+    ? entry.value
+    : null;
+};
 
 export function LoggingConsistencyCard({
   userId,
@@ -54,25 +95,50 @@ export function LoggingConsistencyCard({
   /** Changes when today's logging changes so the card reloads in place. */
   readonly refreshKey?: number;
 }) {
+  const { session } = useAuth();
+  const accessToken = session?.accessToken ?? null;
   const [state, setState] = useState<{
     readonly userId: string;
     readonly value: LoggingConsistency;
-  } | null>(null);
+  } | null>(() => {
+    const value = recall(userId);
+    return value === null ? null : { userId, value };
+  });
 
+  // Reloads on focus, refreshKey, session token change and foreground return.
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void resolveLoggingConsistencyCard(userId)
-        .then((value) => {
-          if (active) setState(value === null ? null : { userId, value });
-        })
-        .catch(() => {
-          if (active) setState(null);
-        });
+      let run = 0;
+      const load = () => {
+        const current = ++run;
+        void resolveLoggingConsistencyCard(userId)
+          .then((result) => {
+            if (!active || current !== run) return;
+            if (result.kind === "unknown") return;
+            if (result.kind === "hidden") {
+              remembered = null;
+              setState(null);
+              return;
+            }
+            remembered = { userId, day: result.day, value: result.value };
+            setState({ userId, value: result.value });
+          })
+          // A failed load keeps whatever is already shown.
+          .catch(() => {});
+      };
+      load();
+      let foreground = AppState.currentState === "active";
+      const subscription = AppState.addEventListener("change", (next) => {
+        const wasForeground = foreground;
+        foreground = next === "active";
+        if (foreground && !wasForeground) load();
+      });
       return () => {
         active = false;
+        subscription.remove();
       };
-    }, [userId, refreshKey]),
+    }, [userId, refreshKey, accessToken]),
   );
 
   if (state === null || state.userId !== userId) return null;

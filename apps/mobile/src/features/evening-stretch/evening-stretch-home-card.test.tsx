@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   index: 0,
   focus: null as null | (() => void | (() => void)),
   appState: "unknown",
+  today: "2026-10-20",
   listeners: new Set<(next: string) => void>(),
   session: { user: { id: "user-a" }, accessToken: "token-1" } as {
     user: { id: string };
@@ -60,7 +61,7 @@ vi.mock("./evening-stretch-reminder", () => ({
   EVENING_STRETCH_ROUTE: "/evening-stretch",
   isEveningStretchDoneToday: (settings: { completedDate: string | null }) =>
     settings.completedDate === "today",
-  isoLocalDate: () => "2026-10-20",
+  isoLocalDate: () => state.today,
   loadEveningStretch: mocks.loadEveningStretch,
 }));
 vi.mock("./stretch-ai-refine", () => ({
@@ -78,6 +79,7 @@ import { buildEveningStretchSession } from "@mizyun/core";
 import {
   EveningStretchHomeCard,
   nextStretchSubtitle,
+  resetEveningStretchHomeCardMemory,
 } from "./evening-stretch-home-card";
 
 const settings = {
@@ -107,7 +109,9 @@ beforeEach(() => {
   state.slots = [];
   state.focus = null;
   state.appState = "unknown";
+  state.today = "2026-10-20";
   state.listeners.clear();
+  resetEveningStretchHomeCardMemory();
   state.session = { user: { id: "user-a" }, accessToken: "token-1" };
   mocks.fetchTodayTraining.mockReset();
   mocks.loadEveningStretch.mockReset().mockResolvedValue(settings);
@@ -207,5 +211,38 @@ describe("EveningStretchHomeCard", () => {
     state.focus!();
     await settle();
     expect(render("user-b")).toBeNull();
+  });
+
+  it("shows the last subtitle in the first frame when Today mounts again", async () => {
+    mocks.fetchTodayTraining.mockResolvedValueOnce(trained);
+    state.appState = "active";
+    render();
+    state.focus!();
+    await settle();
+    const subtitle = render()?.props.children.props.subtitle;
+    expect(subtitle).toMatch(/about/);
+
+    // Leaving Today unmounts the card; the next mount starts with new state.
+    state.slots = [];
+    mocks.fetchTodayTraining.mockReturnValueOnce(new Promise(() => {}));
+    expect(render()?.props.children.props.subtitle).toBe(subtitle);
+    state.focus!();
+    await settle();
+    expect(render()?.props.children.props.subtitle).toBe(subtitle);
+  });
+
+  it("does not carry the remembered subtitle to another account or day", async () => {
+    mocks.fetchTodayTraining.mockResolvedValueOnce(trained);
+    state.appState = "active";
+    render();
+    state.focus!();
+    await settle();
+    expect(render()).not.toBeNull();
+
+    state.slots = [];
+    expect(render("user-b")).toBeNull();
+    state.slots = [];
+    state.today = "2026-10-21";
+    expect(render()).toBeNull();
   });
 });

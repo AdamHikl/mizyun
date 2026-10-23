@@ -1164,10 +1164,10 @@ export function DashboardScreen() {
             />
           ) : null}
 
+          {/* Follows today's displayed meals, so a background refresh or a
+              failed update keeps it beside the retained totals. */}
           {mealCopiedScope === `${ownerKey}:${isoLocalDate(new Date())}` ||
-          ((metrics.macros?.entryCount ?? 0) > 0 &&
-            !metrics.sectionStatus.nutritionToday.loading &&
-            !metrics.sectionStatus.nutritionToday.hasError) ? (
+          (metrics.macros?.entryCount ?? 0) > 0 ? (
             <View style={styles.savedLine}>
               <Icon name="checkCircle" size={16} color="success" />
               <ThemedText

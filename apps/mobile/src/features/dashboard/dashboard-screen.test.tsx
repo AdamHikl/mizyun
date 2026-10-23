@@ -856,6 +856,24 @@ describe("dashboard cached display and refresh status", () => {
     expect(nutrition(render()).props.caloriesToday).toBe(1400);
   });
 
+  it("keeps First meal saved through a background refresh and a failed update", async () => {
+    render();
+    focus();
+    await settle();
+    expect(text(render())).toContain("First meal saved!");
+    const pending = deferred<any>();
+    mocks.daily.mockReturnValueOnce(pending.promise);
+    mocks.appState!("background");
+    mocks.appState!("active");
+    await settle();
+    expect(nutrition(render()).props.loading).toBe(true);
+    expect(text(render())).toContain("First meal saved!");
+    pending.resolve(serverFailure);
+    await settle();
+    expect(text(render())).toMatch(/couldn.t update/i);
+    expect(text(render())).toContain("First meal saved!");
+  });
+
   it("treats reads cancelled by leaving the app as a cancelled refresh, not a failure", async () => {
     mocks.daily.mockResolvedValueOnce(
       success({ ...summary, caloriesKcal: 1400 }),
