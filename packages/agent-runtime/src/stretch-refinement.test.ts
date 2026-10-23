@@ -41,6 +41,7 @@ const request: StretchRefinementRequest = {
   deterministic: {
     focusMuscles: deterministic.focusMuscles,
     stepIds: deterministic.steps.map((step) => step.exerciseId),
+    requiredMuscles: ["calves", "hamstrings"],
   },
   options,
   muscleVocabulary: vocabulary,
@@ -71,6 +72,7 @@ describe("stretch refinement prompt", () => {
       focusMuscles: request.deterministic.focusMuscles,
       stretchIds: request.deterministic.stepIds,
     });
+    expect(data.requiredMuscles).toEqual(["calves", "hamstrings"]);
     expect(data.stretchOptions).toContainEqual([
       first!.id,
       first!.name,

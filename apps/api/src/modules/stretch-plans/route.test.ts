@@ -13,6 +13,7 @@ import {
   buildEveningStretchSession,
   listStretchOptions,
   STRETCH_MUSCLE_VOCABULARY,
+  stretchRequiredMuscles,
 } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 
@@ -196,6 +197,10 @@ describe("POST /v1/stretch-plans/refine", () => {
       deterministic: {
         focusMuscles: baseline.focusMuscles,
         stepIds: baselineIds,
+        requiredMuscles: stretchRequiredMuscles({
+          exercises: body.exercises,
+          activities: ["running"],
+        }),
       },
       muscleVocabulary: STRETCH_MUSCLE_VOCABULARY,
     });
@@ -232,6 +237,7 @@ describe("POST /v1/stretch-plans/refine", () => {
     expect(refine.mock.calls[0]![0].unresolvedNames).toEqual([custom]);
     const { plan } = response.json();
     expect(plan.focusMuscles).toEqual(["calves"]);
+    // Tags never make a muscle required, so the picks stand as chosen.
     expect(
       plan.steps.map((step: { holdSeconds: number }) => step.holdSeconds),
     ).toEqual([45, 20, 33]);

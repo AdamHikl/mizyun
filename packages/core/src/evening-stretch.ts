@@ -461,6 +461,79 @@ const allowedStretches = (
   );
 };
 
+/**
+ * The beginner-first stretch for `muscle` (as a primary muscle) that also
+ * reaches the most of today's worked muscles; ties keep catalog order.
+ */
+const bestStretchFor = (
+  muscle: string,
+  candidates: readonly CatalogExercise[],
+  excludedIds: ReadonlySet<string>,
+  workedMuscles: readonly string[],
+): CatalogExercise | null => {
+  const worked = new Set(workedMuscles);
+  const coverage = (exercise: CatalogExercise): number =>
+    new Set(
+      [...exercise.primaryMuscles, ...exercise.secondaryMuscles].filter(
+        (target) => worked.has(target),
+      ),
+    ).size;
+  let best: CatalogExercise | null = null;
+  let bestKey: readonly [number, number] | null = null;
+  for (const exercise of candidates) {
+    if (excludedIds.has(exercise.id)) continue;
+    if (!exercise.primaryMuscles.includes(muscle)) continue;
+    const key = [levelRank(exercise), -coverage(exercise)] as const;
+    if (
+      bestKey === null ||
+      key[0] < bestKey[0] ||
+      (key[0] === bestKey[0] && key[1] < bestKey[1])
+    ) {
+      best = exercise;
+      bestKey = key;
+    }
+  }
+  return best;
+};
+
+/**
+ * Required muscles: the three most-worked that a stretch can reach, each
+ * with at least a quarter of the top load. Redirected muscles (biceps) are
+ * split between their targets, so a half-load bar would drop a curl day's
+ * biceps.
+ */
+const MAX_REQUIRED_MUSCLES = 3;
+const REQUIRED_LOAD_SHARE = 0.25;
+
+/**
+ * Today's most-worked muscles that every plan must stretch (as a primary
+ * muscle). Biceps count through their remap (chest, front shoulders).
+ * Model muscle tags are ignored: the device validates without them and
+ * must reach the same set as the server. Empty for the general set.
+ */
+export const stretchRequiredMuscles = (
+  input: StretchSessionInput,
+): readonly string[] => {
+  const ranked = computeMuscleLoads({
+    exercises: input?.exercises ?? [],
+    activities: input?.activities ?? [],
+  });
+  const top = ranked[0]?.[1] ?? 0;
+  if (top <= 0) return [];
+  const reachable = new Set(
+    allowedStretches(input?.availableEquipment).flatMap(
+      (exercise) => exercise.primaryMuscles,
+    ),
+  );
+  return ranked
+    .filter(
+      ([muscle, amount]) =>
+        amount >= top * REQUIRED_LOAD_SHARE && reachable.has(muscle),
+    )
+    .slice(0, MAX_REQUIRED_MUSCLES)
+    .map(([muscle]) => muscle);
+};
+
 export interface StretchOption {
   readonly id: string;
   readonly name: string;
@@ -492,12 +565,62 @@ export interface StretchChoice {
 }
 
 /**
+ * Add the deterministic stretch for each required muscle no step stretches,
+ * in place. Returns the muscles added for, or null when the plan cannot stay
+ * within six stretches.
+ */
+const addRequiredStretches = (
+  input: StretchSessionInput,
+  steps: StretchStep[],
+  seen: Set<string>,
+): string[] | null => {
+  const required = stretchRequiredMuscles(input);
+  const candidates = allowedStretches(input?.availableEquipment);
+  const worked = computeMuscleLoads(input).map(([muscle]) => muscle);
+  const added: string[] = [];
+  for (const muscle of required) {
+    if (steps.some((step) => step.targetMuscles.includes(muscle))) continue;
+    const exercise = bestStretchFor(muscle, candidates, seen, worked);
+    if (!exercise) continue;
+    if (steps.length >= STRETCH_MAX_REFINED_STEPS) {
+      // Drop the last pick whose muscles the other picks already stretch,
+      // never one that is the only stretch for a required muscle.
+      let redundant = -1;
+      for (
+        let index = steps.length - 1;
+        index >= 0 && redundant === -1;
+        index--
+      ) {
+        const coveredElsewhere = steps[index]!.targetMuscles.every((target) =>
+          steps.some(
+            (other, otherIndex) =>
+              otherIndex !== index && other.targetMuscles.includes(target),
+          ),
+        );
+        if (coveredElsewhere) redundant = index;
+      }
+      if (redundant === -1) return null;
+      steps.splice(redundant, 1);
+    }
+    steps.push(toStep(exercise));
+    seen.add(exercise.id);
+    added.push(muscle);
+  }
+  return added;
+};
+
+/**
  * Turn a chosen list of stretches (from a model, or echoed back by the
  * server) into a plan, or null when it breaks any rule: 3–6 distinct
  * allowed catalog stretches. Holds are rounded and clamped to 20–45 s;
  * focus muscles outside the stretchable vocabulary are dropped and, when
  * none remain, the deterministic ranking is used. Instructions always come
  * from the catalog.
+ *
+ * A choice that leaves out one of `stretchRequiredMuscles` gets the
+ * deterministic stretch for it (30 s), replacing a pick whose muscles other
+ * picks already stretch when the plan would exceed six; null when it still
+ * cannot fit.
  */
 export const stretchPlanFromChoice = (
   input: StretchSessionInput,
@@ -536,6 +659,8 @@ export const stretchPlanFromChoice = (
       ),
     });
   }
+  const added = addRequiredStretches(input, steps, seen);
+  if (added === null) return null;
   const chosenFocus = [
     ...new Set(
       (Array.isArray(choice.focusMuscles) ? choice.focusMuscles : []).filter(
@@ -545,9 +670,24 @@ export const stretchPlanFromChoice = (
     ),
   ].slice(0, MAX_FOCUS_MUSCLES);
   const deterministic = buildEveningStretchSession(input);
+  // An added stretch's muscle is named, so the header matches the list;
+  // known muscles are ordered by today's load.
+  const rank = computeMuscleLoads(input).map(([muscle]) => muscle);
+  const order = (muscle: string): number => {
+    const index = rank.indexOf(muscle);
+    return index === -1 ? rank.length : index;
+  };
+  const focusMuscles =
+    chosenFocus.length > 0
+      ? [
+          ...new Set([
+            ...chosenFocus.slice(0, MAX_FOCUS_MUSCLES - added.length),
+            ...added,
+          ]),
+        ].sort((a, b) => order(a) - order(b))
+      : deterministic.focusMuscles;
   return {
-    focusMuscles:
-      chosenFocus.length > 0 ? chosenFocus : deterministic.focusMuscles,
+    focusMuscles,
     basis: "today",
     steps,
     totalSeconds: totalSecondsOf(steps),
@@ -564,34 +704,11 @@ export const buildEveningStretchSession = (
 
   const candidates = allowedStretches(input.availableEquipment);
   const rankedMuscles = ranked.map(([muscle]) => muscle);
-  const rankedSet = new Set(rankedMuscles);
-  const coverage = (exercise: CatalogExercise): number =>
-    new Set(
-      [...exercise.primaryMuscles, ...exercise.secondaryMuscles].filter(
-        (muscle) => rankedSet.has(muscle),
-      ),
-    ).size;
 
   const chosen: CatalogExercise[] = [];
   const chosenIds = new Set<string>();
-  const bestFor = (muscle: string): CatalogExercise | null => {
-    let best: CatalogExercise | null = null;
-    let bestKey: readonly [number, number] | null = null;
-    for (const exercise of candidates) {
-      if (chosenIds.has(exercise.id)) continue;
-      if (!exercise.primaryMuscles.includes(muscle)) continue;
-      const key = [levelRank(exercise), -coverage(exercise)] as const;
-      if (
-        bestKey === null ||
-        key[0] < bestKey[0] ||
-        (key[0] === bestKey[0] && key[1] < bestKey[1])
-      ) {
-        best = exercise;
-        bestKey = key;
-      }
-    }
-    return best;
-  };
+  const bestFor = (muscle: string): CatalogExercise | null =>
+    bestStretchFor(muscle, candidates, chosenIds, rankedMuscles);
   const choose = (exercise: CatalogExercise) => {
     chosen.push(exercise);
     chosenIds.add(exercise.id);

@@ -10,7 +10,7 @@ import type { StretchActivity, StretchOption, UserId } from "@mizyun/core";
  * `stretchPlanFromChoice`.
  */
 
-export const STRETCH_REFINE_PROMPT_VERSION = "stretch-refine-v2";
+export const STRETCH_REFINE_PROMPT_VERSION = "stretch-refine-v3";
 /**
  * Budget estimate when a provider reports no token usage. A typical call
  * sends ~9,400 characters (policy ~2,300; 58 bodyweight options, the
@@ -40,6 +40,8 @@ export interface StretchRefinementRequest {
   readonly deterministic: {
     readonly focusMuscles: readonly string[];
     readonly stepIds: readonly string[];
+    /** Muscles every plan must stretch (`stretchRequiredMuscles`). */
+    readonly requiredMuscles?: readonly string[];
   };
   readonly options: readonly StretchOption[];
   readonly muscleVocabulary: readonly string[];
@@ -72,7 +74,8 @@ export const stretchRefinementSystemPolicy = (): string =>
     "Return only the JSON object with every field present. Never write instructions, explanations, notes or any other free text in any field.",
     "picks: choose 4 to 6 stretches (never fewer than 3 or more than 6), ONLY by an id from stretchOptions, each id at most once. Choose the stretches that best stretch the muscles worked hardest today, weighting each exercise by its set count and by how it loads muscles: presses load the front shoulders, triceps and chest; lateral raises load the side and rear shoulders; flyes and dips load the chest; rows and pulldowns load the lats, rear shoulders and biceps; curls load the biceps and forearms; squats, lunges and leg presses load the quadriceps, glutes and adductors; deadlifts, hip hinges and leg curls load the hamstrings, glutes and lower back; running loads the calves, hamstrings, quadriceps and hip flexors; bouldering loads the forearms, lats, biceps and shoulders.",
     "Every entry in activities, and every separate kind of training today (for example a timed activity such as swimming next to a strength workout), must get at least one stretch for a muscle it loads, even when another session had many more sets. A big session must never crowd out a smaller one.",
-    "Prefer beginner-level stretches. Never pick two near-identical stretches for the same muscle. Order the picks from the largest muscle group to the smallest.",
+    "requiredMuscles must each get a stretch that lists the muscle as a primary muscle; a plan missing one is completed with a fixed stretch. The biceps have no stretch of their own: the chest and front-shoulder entries in requiredMuscles stand for them after curls, rows and pulldowns, and a chest stretch done with a straight arm (such as the doorway chest stretch) also stretches the biceps.",
+    "Give every worked muscle one stretch before any muscle gets a second: never pick two stretches whose primary muscles mostly overlap (for example two overhead lat stretches such as Child's Pose and Puppy Pose) while a required muscle has none. Prefer beginner-level stretches. Order the picks from the largest muscle group to the smallest.",
     "holdSeconds: a whole number from 20 to 45 seconds, per side when the stretch is done on both sides. Use about 30 by default and longer holds for the most-worked muscles.",
     "focusMuscles: up to 4 muscles, most-worked first, using only names from muscleVocabulary.",
     "muscleTags: only for names listed in unresolvedNames, each with the muscles that exercise mainly works, using only names from muscleVocabulary. Use an empty muscles array when unsure. Return an empty muscleTags array when unresolvedNames is empty.",
@@ -105,6 +108,7 @@ export const stretchRefinementUserPrompt = (
         focusMuscles: request.deterministic.focusMuscles,
         stretchIds: request.deterministic.stepIds,
       },
+      requiredMuscles: request.deterministic.requiredMuscles ?? [],
       muscleVocabulary: request.muscleVocabulary,
       stretchOptions: request.options.map((option) => [
         option.id,

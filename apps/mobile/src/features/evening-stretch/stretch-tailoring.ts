@@ -20,6 +20,12 @@ export const shouldTailorStretch = (state: {
   state.userId !== null &&
   state.trained === true;
 
+/**
+ * Longest the list is held back for a tailored plan; after it the
+ * deterministic plan is shown and a late tailored plan still replaces it.
+ */
+export const TAILOR_WAIT_MS = 15_000;
+
 export type LoadedStretch =
   | { readonly status: "loading" }
   | {
@@ -29,7 +35,18 @@ export type LoadedStretch =
       readonly fallback: boolean;
       /** True once an AI-tailored plan replaced the deterministic one. */
       readonly tailored: boolean;
+      /**
+       * True while the list is held back for a tailored plan, so the
+       * deterministic list is never shown and then swapped.
+       */
+      readonly awaitingTailor: boolean;
     };
+
+/** Show the deterministic plan (tailoring failed, timed out or is not allowed). */
+export const stopAwaitingTailor = (loaded: LoadedStretch): LoadedStretch =>
+  loaded.status === "ready" && loaded.awaitingTailor
+    ? { ...loaded, awaitingTailor: false }
+    : loaded;
 
 /** A tailored plan replaces the list only before the session starts. */
 export const applyTailoredPlan = (
@@ -38,5 +55,5 @@ export const applyTailoredPlan = (
   plan: StretchSessionPlan | null,
 ): LoadedStretch =>
   plan !== null && phase === "overview" && loaded.status === "ready"
-    ? { ...loaded, plan, tailored: true }
-    : loaded;
+    ? { ...loaded, plan, tailored: true, awaitingTailor: false }
+    : stopAwaitingTailor(loaded);

@@ -4,6 +4,7 @@ import { buildEveningStretchSession } from "@mizyun/core";
 import {
   applyTailoredPlan,
   shouldTailorStretch,
+  stopAwaitingTailor,
   type LoadedStretch,
 } from "./stretch-tailoring";
 
@@ -46,7 +47,11 @@ describe("applyTailoredPlan", () => {
     plan: deterministic,
     fallback: false,
     tailored: false,
+    awaitingTailor: false,
   };
+  // Adam's report (2026-10-23): a list shown while tailoring, then swapped,
+  // reads as a stale session. The list is held back until tailoring settles.
+  const waiting: LoadedStretch = { ...ready, awaitingTailor: true };
 
   it("swaps the list before the session starts", () => {
     expect(applyTailoredPlan("overview", ready, tailored)).toEqual({
@@ -65,5 +70,24 @@ describe("applyTailoredPlan", () => {
     expect(applyTailoredPlan("overview", ready, null)).toBe(ready);
     const loading: LoadedStretch = { status: "loading" };
     expect(applyTailoredPlan("overview", loading, tailored)).toBe(loading);
+  });
+
+  it("ends the wait with the tailored plan", () => {
+    expect(applyTailoredPlan("overview", waiting, tailored)).toEqual({
+      ...ready,
+      plan: tailored,
+      tailored: true,
+    });
+  });
+
+  it("ends the wait with the deterministic plan when tailoring fails", () => {
+    expect(applyTailoredPlan("overview", waiting, null)).toEqual(ready);
+  });
+
+  it("ends the wait on timeout or when tailoring is not allowed", () => {
+    expect(stopAwaitingTailor(waiting)).toEqual(ready);
+    expect(stopAwaitingTailor(ready)).toBe(ready);
+    const loading: LoadedStretch = { status: "loading" };
+    expect(stopAwaitingTailor(loading)).toBe(loading);
   });
 });

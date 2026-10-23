@@ -13,6 +13,7 @@ import {
   listStretchOptions,
   stretchPlanCoversEverySource,
   stretchPlanFromChoice,
+  stretchRequiredMuscles,
   unresolvedStretchExerciseNames,
 } from "./evening-stretch";
 
@@ -480,7 +481,8 @@ describe("AI refinement inputs and validation", () => {
       ],
       focusMuscles: ["chest", "bogus", "chest", "triceps"],
     });
-    expect(plan?.steps.map((step) => step.holdSeconds)).toEqual([
+    // Stretches added for uncovered required muscles follow the picks.
+    expect(plan?.steps.slice(0, 3).map((step) => step.holdSeconds)).toEqual([
       STRETCH_MIN_HOLD_SECONDS,
       STRETCH_MAX_HOLD_SECONDS,
       33,
@@ -671,5 +673,137 @@ describe("single-source focus order", () => {
     expect(buildEveningStretchSession(input).focusMuscles[0]).toBe(
       "front shoulders",
     );
+  });
+});
+
+describe("required-muscle coverage of a chosen plan", () => {
+  // Adam's pull day (2026-10-23 device report): the model chose two lat
+  // stretches, a rear-shoulder and a wrist stretch, and nothing for 4 sets
+  // of curls plus the biceps work of every row and pulldown.
+  const pullDay: StretchSessionInput = {
+    exercises: [
+      ex("Lat Pulldown", 4),
+      ex("Seated cable row", 3),
+      ex("Bench-supported single-arm dumbbell row", 2),
+      ex("Dumbbell Lateral Raise", 3),
+      ex("Incline Dumbbell Curl", 2),
+      ex("Incline Hammer Curl", 2),
+      ex("Straight-Arm Pulldown", 3),
+    ],
+    activities: [],
+  };
+  const reported = [
+    "childs-pose",
+    "exercise-puppy-pose",
+    "exercise-cross-body-shoulder-stretch",
+    "exercise-kneeling-wrist-stretch",
+  ];
+  const pick = (ids: readonly string[], holdSeconds = 35) =>
+    ids.map((id) => ({ id, holdSeconds }));
+
+  it("requires the top reachable muscles, biceps through the chest", () => {
+    expect(stretchRequiredMuscles(pullDay)).toEqual([
+      "rear shoulders",
+      "lats",
+      "chest",
+    ]);
+    expect(stretchRequiredMuscles({ exercises: [], activities: [] })).toEqual(
+      [],
+    );
+  });
+
+  it("adds the deterministic stretch for a muscle the model left out", () => {
+    const plan = stretchPlanFromChoice(pullDay, {
+      picks: pick(reported),
+      focusMuscles: ["lats", "rear shoulders"],
+    });
+    expect(plan?.steps.map((step) => step.exerciseId)).toEqual([
+      ...reported,
+      "exercise-doorway-chest-stretch",
+    ]);
+    expect(plan?.steps[4]?.holdSeconds).toBe(STRETCH_HOLD_SECONDS);
+    expect(plan?.focusMuscles).toEqual(["rear shoulders", "lats", "chest"]);
+  });
+
+  it("is stable when the repaired plan is validated again on the device", () => {
+    const first = stretchPlanFromChoice(pullDay, {
+      picks: pick(reported),
+      focusMuscles: ["lats", "rear shoulders"],
+    })!;
+    const again = stretchPlanFromChoice(pullDay, {
+      picks: first.steps.map((step) => ({
+        id: step.exerciseId,
+        holdSeconds: step.holdSeconds,
+      })),
+      focusMuscles: first.focusMuscles,
+    });
+    expect(again).toEqual(first);
+  });
+
+  it("leaves the deterministic plan unchanged", () => {
+    for (const day of [pullDay, legDay]) {
+      const deterministic = buildEveningStretchSession(day);
+      const echoed = stretchPlanFromChoice(day, {
+        picks: deterministic.steps.map((step) => ({
+          id: step.exerciseId,
+          holdSeconds: step.holdSeconds,
+        })),
+        focusMuscles: deterministic.focusMuscles,
+      });
+      expect(echoed?.steps.map((step) => step.exerciseId)).toEqual(
+        deterministic.steps.map((step) => step.exerciseId),
+      );
+    }
+  });
+
+  it("replaces a redundant pick when six are already chosen", () => {
+    const six = [
+      ...reported,
+      "exercise-thread-the-needle",
+      "exercise-overhead-triceps-stretch",
+    ];
+    const plan = stretchPlanFromChoice(pullDay, { picks: pick(six) });
+    const ids = plan?.steps.map((step) => step.exerciseId);
+    // Cross-Body Shoulder Stretch (rear shoulders) is the last pick whose
+    // muscles another pick (Puppy Pose) also stretches.
+    expect(ids).toEqual([
+      "childs-pose",
+      "exercise-puppy-pose",
+      "exercise-kneeling-wrist-stretch",
+      "exercise-thread-the-needle",
+      "exercise-overhead-triceps-stretch",
+      "exercise-doorway-chest-stretch",
+    ]);
+  });
+
+  it("rejects six picks that miss a required muscle with none redundant", () => {
+    const six = [
+      "exercise-puppy-pose",
+      "exercise-kneeling-wrist-stretch",
+      "exercise-overhead-triceps-stretch",
+      "exercise-standing-calf-stretch",
+      "exercise-seated-forward-fold",
+      "exercise-kneeling-hip-flexor-stretch",
+    ];
+    expect(stretchPlanFromChoice(pullDay, { picks: pick(six) })).toBeNull();
+    // The same picks with room to spare get the chest stretch instead.
+    expect(
+      stretchPlanFromChoice(pullDay, {
+        picks: pick(six.slice(0, 5)),
+      })?.steps.at(-1)?.exerciseId,
+    ).toBe("exercise-doorway-chest-stretch");
+  });
+
+  it("ignores model muscle tags, so server and device require the same", () => {
+    const withCustom: StretchSessionInput = {
+      ...pullDay,
+      exercises: [...pullDay.exercises, ex("KB complex", 12)],
+    };
+    expect(
+      stretchRequiredMuscles({
+        ...withCustom,
+        muscleTags: { "KB complex": ["hamstrings", "glutes", "lower back"] },
+      }),
+    ).toEqual(stretchRequiredMuscles(withCustom));
   });
 });

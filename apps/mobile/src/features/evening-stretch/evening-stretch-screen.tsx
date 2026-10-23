@@ -32,8 +32,10 @@ import {
   peekTailoredStretchPlan,
 } from "./stretch-ai-refine";
 import {
+  TAILOR_WAIT_MS,
   applyTailoredPlan,
   shouldTailorStretch,
+  stopAwaitingTailor,
   type LoadedStretch,
 } from "./stretch-tailoring";
 import {
@@ -73,7 +75,11 @@ export function EveningStretchScreen() {
   const phaseRef = useRef(progress.phase);
   phaseRef.current = progress.phase;
   // Only accounts that already gave AI consent are tailored; nobody is prompted.
-  const { consentGranted, confirmedAdult } = useAiConsentController({
+  const {
+    status: consentStatus,
+    consentGranted,
+    confirmedAdult,
+  } = useAiConsentController({
     userId,
     apiClient,
   });
@@ -95,16 +101,17 @@ export function EveningStretchScreen() {
         // Tonight's plan prepared at reminder time (or on an earlier open)
         // is shown as is, without tailoring it again, while the account
         // may still use AI stretches.
-        const prepared =
-          read?.trained &&
+        const mayTailor =
+          read?.trained === true &&
           userId !== null &&
-          (await mayTailorStretch(userId, aiPorts))
-            ? await peekTailoredStretchPlan(
-                userId,
-                read.input,
-                isoLocalDate(new Date()),
-              ).catch(() => null)
-            : null;
+          (await mayTailorStretch(userId, aiPorts));
+        const prepared = mayTailor
+          ? await peekTailoredStretchPlan(
+              userId,
+              read.input,
+              isoLocalDate(new Date()),
+            ).catch(() => null)
+          : null;
         if (!active) return;
         setTraining(read);
         setLoaded({
@@ -116,6 +123,8 @@ export function EveningStretchScreen() {
             ),
           fallback: read === null,
           tailored: prepared !== null,
+          // A plan to be tailored is not listed until tailoring settles.
+          awaitingTailor: mayTailor && prepared === null,
         });
       });
     return () => {
@@ -152,6 +161,22 @@ export function EveningStretchScreen() {
     };
   }, [tailor, untailored, userId, training]);
 
+  const awaitingTailor = loaded.status === "ready" && loaded.awaitingTailor;
+  useEffect(() => {
+    if (!awaitingTailor) return;
+    const timer = setTimeout(
+      () => setLoaded((current) => stopAwaitingTailor(current)),
+      TAILOR_WAIT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [awaitingTailor]);
+  // Server consent decided against tailoring: show the plan now.
+  useEffect(() => {
+    if (awaitingTailor && consentStatus !== "loading" && !tailor) {
+      setLoaded((current) => stopAwaitingTailor(current));
+    }
+  }, [awaitingTailor, consentStatus, tailor]);
+
   const steps = useMemo(
     () => (loaded.status === "ready" ? loaded.plan.steps : []),
     [loaded],
@@ -184,6 +209,17 @@ export function EveningStretchScreen() {
           <View style={styles.inner}>
             {loaded.status === "loading" ? (
               <ActivityIndicator accessibilityLabel="Building your stretch" />
+            ) : loaded.awaitingTailor ? (
+              <View style={styles.header}>
+                <ActivityIndicator accessibilityLabel="Tailoring this stretch to today's training" />
+                <ThemedText
+                  type="footnote"
+                  themeColor="textSecondary"
+                  accessibilityLiveRegion="polite"
+                >
+                  Tailoring to today's training…
+                </ThemedText>
+              </View>
             ) : progress.phase === "overview" ? (
               <Overview
                 plan={loaded.plan}
@@ -263,8 +299,9 @@ function Overview({
             type="footnote"
             themeColor="textSecondary"
             accessibilityLiveRegion="polite"
+            accessibilityLabel="Tailoring this stretch to today's training"
           >
-            Tailoring with AI…
+            Tailoring to today's training…
           </ThemedText>
         ) : null}
       </View>

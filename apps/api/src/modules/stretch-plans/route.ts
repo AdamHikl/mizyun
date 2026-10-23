@@ -22,6 +22,7 @@ import {
   listStretchOptions,
   STRETCH_MUSCLE_VOCABULARY,
   stretchPlanFromChoice,
+  stretchRequiredMuscles,
   unresolvedStretchExerciseNames,
   type AccountRepository,
   type AiConsentRepository,
@@ -298,6 +299,7 @@ export const stretchPlanRoutes: FastifyPluginAsync<
             deterministic: {
               focusMuscles: deterministic.focusMuscles,
               stepIds: deterministic.steps.map((step) => step.exerciseId),
+              requiredMuscles: stretchRequiredMuscles(input),
             },
             options: listStretchOptions(),
             muscleVocabulary: STRETCH_MUSCLE_VOCABULARY,

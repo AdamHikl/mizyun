@@ -22,3 +22,16 @@ The evening stretch (ADR-0072) picks catalog stretches from muscle loads compute
 - Exercise names are user text sent to the provider. The prompt JSON-encodes them as data and the output schema has no free text, so an injected name can at most influence which listed stretch ids are chosen.
 - Model quality is not proven by mocked provider tests; `docs/BEFORE_TESTING.md` gates for live evaluation remain open. Holds and choices are advisory and the screen keeps its general-guidance notice.
 - A provider outage, budget exhaustion or offline device silently keeps the deterministic plan.
+
+## 2026-10-23 amendment — required-muscle coverage (Adam's device report)
+
+On a pull day (pulldowns, rows, lateral raises and 4 sets of curls) the model picked Child's Pose and Puppy Pose (both lats), a rear-shoulder and a wrist stretch, and nothing for the biceps. Nothing obliged a refined plan to cover the most-worked muscles.
+
+- `stretchRequiredMuscles` in `packages/core` names up to three of today's most-worked muscles, each with at least a quarter of the top load, that an allowed stretch can reach as a primary muscle. Biceps count through their remap (chest, front shoulders), which splits their load, so a half-load bar would have dropped them.
+- `stretchPlanFromChoice` (server and device) completes a choice that misses one: it appends the deterministic stretch for that muscle at 30 s and names the muscle in the focus. At six stretches it first drops the last pick whose muscles other picks already stretch; when none is redundant the choice is rejected and the deterministic plan is kept. Re-validating a completed plan on the device is a no-op.
+- The prompt (`stretch-refine-v3`) receives `requiredMuscles`, explains that chest/front-shoulder entries stand for the biceps, and asks for one stretch per worked muscle before any second stretch for the same muscle.
+- Required muscles ignore model muscle tags, so the server (which has the tags), the prompt and the device (which does not) reach the same set and the device's re-validation of a completed plan changes nothing. Custom exercises still shape the focus and the deterministic baseline, but never make a muscle required.
+
+## 2026-10-23 amendment — no list until tailoring settles (Adam's device report)
+
+Showing the deterministic list first and swapping it for the tailored one read as a stale session ("it shows yesterday's stretch session while the AI tailors"). When the account may tailor and today's tailored plan is not cached yet, the screen now shows only "Tailoring to today's training…" until the tailored plan arrives, the request fails, server consent rules tailoring out, or 15 s pass (`TAILOR_WAIT_MS`). After that it shows the deterministic plan, and a late tailored plan still replaces it before the session starts. A cached tailored plan is shown at once as before. This replaces "the screen always renders the deterministic plan immediately" above for tailoring accounts. Whether the first list Adam saw was really an earlier day's plan was not reproduced. The helper found that `SessionReadCache` can answer `fetchTodayTraining` from a snapshot up to 48 h old, which is tracked separately.

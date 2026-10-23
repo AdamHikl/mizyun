@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("expo-secure-store", () => ({}));
 
 import type { ApiClient } from "@mizyun/api-client";
-import { listStretchOptions, type StretchSessionInput } from "@mizyun/core";
+import {
+  listStretchOptions,
+  stretchRequiredMuscles,
+  type StretchSessionInput,
+} from "@mizyun/core";
 
 import {
   MAX_STRETCH_AI_ATTEMPTS_PER_DAY,
@@ -68,9 +72,24 @@ describe("loadTailoredStretchPlan", () => {
   it("returns the server plan rebuilt from the catalog and caches it", async () => {
     const { request, client: api } = client(ok(refined));
     const plan = await loadTailoredStretchPlan(USER, input, TODAY, api, store);
-    expect(plan?.steps.map((step) => step.exerciseId)).toEqual(ids.slice(0, 4));
-    expect(plan?.steps.every((step) => step.holdSeconds === 35)).toBe(true);
-    expect(plan?.focusMuscles).toEqual(["chest", "front shoulders"]);
+    // The device completes a plan that misses a required muscle, as the
+    // server does, so a stretch for each follows the four picks.
+    const required = stretchRequiredMuscles(input);
+    expect(plan?.steps.slice(0, 4).map((step) => step.exerciseId)).toEqual(
+      ids.slice(0, 4),
+    );
+    expect(
+      plan?.steps.slice(0, 4).every((step) => step.holdSeconds === 35),
+    ).toBe(true);
+    for (const muscle of required) {
+      expect(
+        plan?.steps.some((step) => step.targetMuscles.includes(muscle)),
+      ).toBe(true);
+    }
+    expect(plan?.focusMuscles.slice(0, 2)).toEqual([
+      "chest",
+      "front shoulders",
+    ]);
     expect(request).toHaveBeenCalledTimes(1);
     const body = (request.mock.calls[0] as unknown as [{ body: unknown }])[0]
       .body;
@@ -239,8 +258,10 @@ describe("loadTailoredStretchPlan", () => {
   it("rejects a plan that leaves out one of today's sessions", async () => {
     const climb: StretchSessionInput = {
       exercises: [
-        { name: "Chest Dips", setCount: 4, session: "push" },
-        { name: "Cable Fly", setCount: 4, session: "push" },
+        // Heavy enough that the climb's muscles are not required overall,
+        // so only the per-source rule catches the missing climb stretch.
+        { name: "Chest Dips", setCount: 10, session: "push" },
+        { name: "Cable Fly", setCount: 10, session: "push" },
       ],
       activities: ["bouldering"],
     };
