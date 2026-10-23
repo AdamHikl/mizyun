@@ -24,8 +24,8 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **Overnight fixes (Oct23):** #316/#310/#317/#284/#285/#286/#315/#301/#320/#318/#245 main 3645bb76 unpushed; gatePASS(3614mobile/1365API); #317: check Hetzner env has no explicit AGENT_PROVIDER=disabled. Next: push/Dev/iPhone. [Handoff](docs/OVERNIGHT_FIXES_2026-10-23.md)
-- **#321 local-first photos (Oct22, ADR0079):** photos on device, optional backup; reviewed; gatePASS; main unpushed; push/Dev/device open. #322/#323. [Handoff](docs/LOCAL_FIRST_PHOTOS_2026-10-22.md)
+- **Overnight fixes (Oct23):** #316/#310/#317/#284/#285/#286/#315/#301/#320/#318/#245 Dev 8823fa47 08:20Z health200 (env AGENT_PROVIDER=gemini, Coach on); gatePASS(3614mobile/1365API). iPhone Release installed 08:21Z; launch blocked (locked). Next: Adam device checks. [Handoff](docs/OVERNIGHT_FIXES_2026-10-23.md)
+- **#321 local-first photos (Oct22, ADR0079):** photos on device, optional backup; reviewed; gatePASS; Dev 8823fa47; device open. #322/#323. [Handoff](docs/LOCAL_FIRST_PHOTOS_2026-10-22.md)
 - **Home flash (Oct22):** reads retired on leaving the app no longer show "Couldn't update"; test; gatePASS. Next: iPhone.
 - **Community join redesign (Oct22):** 6045ee7c Dev+Prod; fix: non-members saw a status error (cache-wrapped 404), @undefined; Opus review ship; #320. Next: Adam Join/leave on Prod iPhone. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
