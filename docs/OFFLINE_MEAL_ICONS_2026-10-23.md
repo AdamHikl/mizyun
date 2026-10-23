@@ -47,3 +47,7 @@ An independent Opus review found 1 blocker and 2 should-fix items. The blocker a
 
 - Not committed, deployed or installed.
 - Device check: open Meals online once, then turn on airplane mode. Icons should stay on Meals, including after a force-quit and relaunch. A downgraded test account should lose its icons as soon as it is online.
+
+## Device acceptance
+
+Adam reported on 2026-10-23 that all listed device checks passed on the Dev iPhone (00008140-001114501A86801C): Dev backend `20806d8d`, app `6e86ea3c`. Production is not released.

@@ -70,3 +70,7 @@ Before this change, personal `/v1/` JSON had no cache headers:
   - Home's latest weight equals the first row of weight history;
   - a goals edit on another device shows within 30 minutes or on pull-to-refresh.
 - The meal-visuals 20 s check is unchanged and needs an ADR-0053 decision from Adam.
+
+## Device acceptance
+
+Adam reported on 2026-10-23 that all listed device checks passed on the Dev iPhone (00008140-001114501A86801C): Dev backend `20806d8d`, app `6e86ea3c`. Production is not released.

@@ -68,3 +68,7 @@ Not committed, deployed or device-accepted. Next, on a Dev iPhone:
 - account switch and sign-out;
 - offline relaunch;
 - consent grant, then Home energy.
+
+## Device acceptance
+
+Adam reported on 2026-10-23 that all listed device checks passed on the Dev iPhone (00008140-001114501A86801C): Dev backend `20806d8d`, app `6e86ea3c`. Production is not released.
