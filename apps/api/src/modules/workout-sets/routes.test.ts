@@ -271,6 +271,41 @@ describe("POST /v1/workouts/:workoutId/sets", () => {
     expect(response.statusCode).toBe(422);
   });
 
+  it("rejects a body whose performance fields are all null with a 422", async () => {
+    const { app, workoutRepository, exerciseRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedWorkout(workoutRepository);
+    seedExercise(exerciseRepository);
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${WORKOUT_ID}/sets`,
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        exerciseId: EXERCISE_ID,
+        repetitions: null,
+        loadKg: null,
+        durationSeconds: null,
+        distanceMeters: null,
+      },
+    });
+    expect(response.statusCode).toBe(422);
+    const empty = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${WORKOUT_ID}/sets`,
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { exerciseId: EXERCISE_ID },
+    });
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(response.json().error.message).toBe(empty.json().error.message);
+  });
+
   it("rejects an exercise the user does not own with a 422", async () => {
     const { app, workoutRepository, exerciseRepository } = build(
       tokenVerifierFor({ userId: userA }),

@@ -262,7 +262,7 @@ export function PlateCalculatorModal({
               </ThemedText>
               {exercises.length === 0 ? (
                 <ThemedText type="footnote" themeColor="textSecondary">
-                  Add an exercise to copy this weight into a set.
+                  Add a weight-and-reps exercise to copy this weight into a set.
                 </ThemedText>
               ) : (
                 <ListGroup>

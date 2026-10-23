@@ -155,7 +155,9 @@ describe("plate calculator", () => {
       unitSystem: "metric",
       exercises: [],
     });
-    expect(text(tree)).toContain("Add an exercise to copy this weight");
+    expect(text(tree)).toContain(
+      "Add a weight-and-reps exercise to copy this weight",
+    );
     expect(all(tree, (n) => n.type === "ListRow")).toHaveLength(0);
   });
 });

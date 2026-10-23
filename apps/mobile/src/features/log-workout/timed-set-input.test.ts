@@ -4,6 +4,7 @@ import {
   entryDistanceUnit,
   entryTrackingMode,
   formatTimedSet,
+  weightLoadableEntries,
 } from "./timed-set-input";
 
 describe("timed set input", () => {
@@ -17,6 +18,20 @@ describe("timed set input", () => {
         { id: "x", name: "My swim", metadata: { trackingMode: "duration" } },
       ]),
     ).toBe("duration");
+  });
+
+  it("keeps only weight-and-reps entries for the plate calculator", () => {
+    const entries = [
+      { id: "a", name: "Bench Press" },
+      { id: "b", name: "Swimming" },
+      { id: "c", name: "My hold" },
+    ];
+    const saved = [
+      { id: "c", name: "My hold", metadata: { trackingMode: "duration" } },
+    ];
+    expect(weightLoadableEntries(entries, saved).map((e) => e.id)).toEqual([
+      "a",
+    ]);
   });
 
   it("converts yards to metres and rejects bad values", () => {

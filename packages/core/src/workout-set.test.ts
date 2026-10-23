@@ -56,6 +56,20 @@ describe("validateWorkoutSetCreate", () => {
     expect(validateWorkoutSetCreate({})).toEqual({ kind: "empty_set" });
   });
 
+  it("treats null performance fields as absent", () => {
+    expect(
+      validateWorkoutSetCreate({
+        repetitions: null,
+        loadKg: null,
+        durationSeconds: null,
+        distanceMeters: null,
+      }),
+    ).toEqual({ kind: "empty_set" });
+    expect(
+      validateWorkoutSetCreate({ repetitions: null, durationSeconds: 30 }),
+    ).toBeNull();
+  });
+
   it("rejects a negative repetition", () => {
     expect(validateWorkoutSetCreate({ repetitions: -1 })).toEqual({
       kind: "repetitions_out_of_range",

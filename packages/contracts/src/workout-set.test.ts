@@ -25,6 +25,32 @@ describe("exercise recent-set queries", () => {
   });
 });
 
+describe("workoutSetCreateSchema performance-field rule", () => {
+  const exerciseId = "00000000-0000-4000-8000-000000000004";
+
+  it("rejects a body whose performance fields are all null", () => {
+    expect(
+      workoutSetCreateSchema.safeParse({
+        exerciseId,
+        repetitions: null,
+        loadKg: null,
+        durationSeconds: null,
+        distanceMeters: null,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts one non-null performance field beside nulls", () => {
+    expect(
+      workoutSetCreateSchema.safeParse({
+        exerciseId,
+        repetitions: null,
+        durationSeconds: 45,
+      }).success,
+    ).toBe(true);
+  });
+});
+
 describe("workout set types wire contracts", () => {
   it("accepts valid set types in workoutSetTypeSchema", () => {
     expect(workoutSetTypeSchema.parse("normal")).toBe("normal");
