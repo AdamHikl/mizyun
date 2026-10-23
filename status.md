@@ -1,6 +1,6 @@
 # Mizyun status
 
-> Updated 2026-10-22 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-23 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
@@ -24,7 +24,8 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#321 local-first photos (Oct22, ADR0079):** meal+boulder photos kept on device, Back up photos (off; meal backup Pro), /v1/photo-backups + boulder photo link/unlink; 2 Opus reviews resolved; gatePASS(3605mobile/1348API+15skips), committed on main, unpushed; push/Dev/device open. #322/#323. [Handoff](docs/LOCAL_FIRST_PHOTOS_2026-10-22.md)
+- **Overnight fixes (Oct23):** #316/#310/#317/#284/#285/#286/#315/#301/#320/#318/#245 main 3645bb76 unpushed; gatePASS(3614mobile/1365API); #317: check Hetzner env has no explicit AGENT_PROVIDER=disabled. Next: push/Dev/iPhone. [Handoff](docs/OVERNIGHT_FIXES_2026-10-23.md)
+- **#321 local-first photos (Oct22, ADR0079):** photos on device, optional backup; reviewed; gatePASS; main unpushed; push/Dev/device open. #322/#323. [Handoff](docs/LOCAL_FIRST_PHOTOS_2026-10-22.md)
 - **Home flash (Oct22):** reads retired on leaving the app no longer show "Couldn't update"; test; gatePASS. Next: iPhone.
 - **Community join redesign (Oct22):** 6045ee7c Dev+Prod; fix: non-members saw a status error (cache-wrapped 404), @undefined; Opus review ship; #320. Next: Adam Join/leave on Prod iPhone. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
