@@ -667,7 +667,10 @@ export function EditMealScreen() {
               <MealVisual
                 entryId={entry.id}
                 name={entry.name}
-                enabled={mealVisualCapability.enabled}
+                // Editing needs the server: no offline-grace icons here.
+                enabled={
+                  mealVisualCapability.enabled && !mealVisualCapability.offline
+                }
                 hasPhoto={Boolean(entry.photoAssetId)}
                 photoAssetId={entry.photoAssetId}
                 editable

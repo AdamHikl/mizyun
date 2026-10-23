@@ -65,6 +65,7 @@ import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
 import { clearLocalPhotos } from "../private-photos/local-photo-library";
 import { photoBackupKeyFor } from "../private-photos/photo-backup-preference";
+import { mealVisualsGrantKeyFor } from "../log-meal/meal-visuals-offline-grant";
 import { routineSuggestionKeyFor } from "../workouts/workout-routine-suggestion-store";
 import { healthStepsPreferenceKey } from "../health-steps/health-steps-key";
 import {
@@ -434,6 +435,9 @@ export const clearLocalUserData = async (
     ),
     Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(photoBackupKeyFor(userId)),
+    ),
+    Promise.resolve().then(() =>
+      workoutStore.deleteItemAsync(mealVisualsGrantKeyFor(userId)),
     ),
     Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(healthStepsPreferenceKey(userId)),

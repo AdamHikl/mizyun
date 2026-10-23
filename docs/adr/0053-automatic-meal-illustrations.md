@@ -21,3 +21,16 @@ Common Pro meals get a food-specific visual without a per-meal provider request.
 Previously issued signed photo URLs remain valid for their existing short lifetime (at most five minutes); downgrade prevents new feature URLs and reads. Stored media is preserved for owner export/erasure rather than deleted on downgrade. Free transient photo nutrition analysis is separate from retained meal visual display.
 
 Sources and implementation consequences are recorded in [research](../RESEARCH_LOG.md). Current exact verification and remaining gates belong in [evidence](../AUTOMATIC_MEAL_ILLUSTRATIONS_EVIDENCE_2026-10-09.md).
+
+## Amendment — offline display of bundled icons (2026-10-23)
+
+Adam reported that in airplane mode meal photos showed but the bundled meal icons did not. The capability check treated "server unreachable" exactly like a denial. Adam decided on 2026-10-23 to separate the two:
+
+- When the capability check cannot reach the server (transport failure, a sign-in token refresh that cannot reach Auth, or the 10-second timeout), bundled catalog icons keep showing for up to 48 hours after the last server confirmation for that account on this device. The 48 hours matches the maximum age of other saved display data.
+- The confirmation time is kept per account in SecureStore (`mizyun.meal-visuals.last-grant.<userId>`), so a cold offline launch works. It is removed with the account's local data.
+- Any server answer still closes the lease immediately, including errors and the kill switch. An explicit denial (`mealVisuals: false`, 401, 402 or 403, or an expired session) also deletes the saved confirmation.
+- Grace display is bundled icons only: no signed photo reads, no illustration generation, nothing on the edit screen, and it never counts as a Pro confirmation for saving or backing up photos. A device confirmation from the last 48 hours shows icons at once on a cold offline launch while the check runs; a server answer that arrives first wins.
+- A captive portal or other non-JSON reply counts as a server answer (lease closes), not as unreachable.
+- The 30-second lease, 20-second revalidation and account/token scoping are unchanged. Saved photos, signed URLs and private generation remain enforced by the server.
+
+Accepted risk: an account that loses Pro while it cannot reach the server can keep seeing bundled icons for up to 48 hours. Implementation and verification: [offline icons handoff](../OFFLINE_MEAL_ICONS_2026-10-23.md).

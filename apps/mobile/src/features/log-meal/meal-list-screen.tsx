@@ -1294,6 +1294,7 @@ export function MealListScreen() {
                 const rowProps = (entry: FoodEntry) => ({
                   entry,
                   mealVisualsEnabled: mealVisualCapability.enabled,
+                  mealVisualsOffline: mealVisualCapability.offline,
                   showAdvanced: advancedCapability.enabled && showAdvanced,
                   visibleAdvancedFields,
                   isGrouping: isGroupingThisDay,
@@ -1833,6 +1834,7 @@ function MacroLine(props: {
 function MealEntryRow(props: {
   readonly entry: FoodEntry;
   readonly mealVisualsEnabled: boolean;
+  readonly mealVisualsOffline?: boolean;
   readonly showAdvanced: boolean;
   readonly visibleAdvancedFields: ReadonlyArray<string>;
   readonly isGrouping: boolean;
@@ -1852,6 +1854,7 @@ function MealEntryRow(props: {
   const {
     entry,
     mealVisualsEnabled,
+    mealVisualsOffline,
     showAdvanced,
     visibleAdvancedFields,
     isGrouping,
@@ -1942,6 +1945,7 @@ function MealEntryRow(props: {
         entryId={entry.id}
         name={entry.name}
         enabled={mealVisualsEnabled}
+        offline={mealVisualsOffline}
         hasPhoto={Boolean(entry.photoAssetId)}
         photoAssetId={entry.photoAssetId}
         editable

@@ -15,6 +15,7 @@ import { LocalMealPhoto } from "./local-meal-photo";
  */
 export function MealVisual({
   enabled,
+  offline = false,
   entryId,
   name,
   hasPhoto,
@@ -22,6 +23,8 @@ export function MealVisual({
   editable = false,
 }: {
   readonly enabled: boolean;
+  /** Display allowed by the offline grace: bundled icons, no server reads. */
+  readonly offline?: boolean;
   readonly entryId: string;
   readonly name: string;
   readonly hasPhoto: boolean;
@@ -63,6 +66,17 @@ export function MealVisual({
         onPhotoRemoved={() => setRemovedScope(scope)}
       />
     ) : null;
+  // Offline grace (ADR-0053 amendment): only bundled icons, never a signed
+  // photo read or an illustration generation request. Photo controls need
+  // the server, so they return with the next server confirmation.
+  if (offline)
+    return (
+      <AutomaticMealIllustration
+        entryId={entryId}
+        name={name}
+        allowGeneration={false}
+      />
+    );
   return (
     <PrivateMealPhoto
       entryId={entryId}

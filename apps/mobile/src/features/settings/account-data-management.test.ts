@@ -606,6 +606,8 @@ describe("account-data-management", () => {
       [`mizyun.workout-preferences.${userId}`, '{"defaultRestSeconds":90}'],
       [`mizyun.health-steps.enabled.${userId}`, "1"],
       [`mizyun.workout-routine-suggestion.${userId}`, "[]"],
+      // Last meal visuals confirmation kept for offline icons (ADR-0053).
+      [`mizyun.meal-visuals.last-grant.${userId}`, "1793000000000"],
     ]);
     const workoutPreferencesStore = {
       getItemAsync: async (k: string) => workoutPrefMap.get(k) ?? null,

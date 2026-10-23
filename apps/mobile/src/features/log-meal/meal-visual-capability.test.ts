@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   slots: [] as any[],
@@ -9,6 +9,16 @@ const state = vi.hoisted(() => ({
   appState: "active",
   app: null as any,
   request: vi.fn(),
+  secure: new Map<string, string>(),
+}));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: async (key: string) => state.secure.get(key) ?? null,
+  setItemAsync: async (key: string, value: string) => {
+    state.secure.set(key, value);
+  },
+  deleteItemAsync: async (key: string) => {
+    state.secure.delete(key);
+  },
 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -65,6 +75,10 @@ vi.mock("@/composition/api-client", () => ({
 }));
 import { useMealVisualCapability } from "./meal-visual-capability";
 import { forgetMealVisualMemory } from "./meal-photo-memory";
+import {
+  mealVisualsGrantKeyFor,
+  resetMealVisualsGrantMemory,
+} from "./meal-visuals-offline-grant";
 
 const allowed = { ok: true, value: { mealVisuals: true } };
 const denied = { ok: true, value: { mealVisuals: false } };
@@ -105,7 +119,14 @@ beforeEach(() => {
   state.appState = "active";
   state.request.mockResolvedValue(allowed);
   forgetMealVisualMemory();
+  state.secure.clear();
+  resetMealVisualsGrantMemory();
 });
+/** No earlier server confirmation on this device (fresh install). */
+function noDeviceConfirmation() {
+  state.secure.clear();
+  resetMealVisualsGrantMemory();
+}
 afterEach(() => {
   state.cleanup?.();
   vi.useRealTimers();
@@ -193,6 +214,7 @@ it("revalidates while focused and retires an expired lease even when the next re
   render();
   await flush();
   expect(render().enabled).toBe(true);
+  noDeviceConfirmation();
   state.request.mockImplementation(() => new Promise(() => {}));
   await vi.advanceTimersByTimeAsync(20_000);
   expect(state.request).toHaveBeenCalledTimes(2);
@@ -203,6 +225,7 @@ it("revalidates while focused and retires an expired lease even when the next re
 it("times out a manual fresh refresh and fails closed without waiting for the transport", async () => {
   render();
   await flush();
+  noDeviceConfirmation();
   state.request.mockImplementation(() => new Promise(() => {}));
   const refresh = render().refresh();
   await vi.advanceTimersByTimeAsync(10_000);
@@ -274,4 +297,146 @@ it("does not reuse a confirmation for another token, after expiry or after it is
   forgetMealVisualMemory();
   focus();
   expect(render().enabled).toBe(false);
+});
+
+describe("offline grace for bundled icons (ADR-0053 amendment)", () => {
+  const offline = { ok: false, error: { kind: "network_error" } };
+  const key = mealVisualsGrantKeyFor("owner-a");
+  it("keeps icons when the check cannot reach the server after a recent confirmation", async () => {
+    render();
+    await flush();
+    expect(state.secure.get(key)).toBeDefined();
+    state.request.mockResolvedValue(offline);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(render().enabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(render().enabled).toBe(true);
+  });
+  it("shows icons on a cold offline launch from the confirmation saved on the device", async () => {
+    state.secure.set(key, String(Date.now() - 47 * 60 * 60_000));
+    state.request.mockResolvedValue(offline);
+    render();
+    await flush();
+    expect(render().enabled).toBe(true);
+  });
+  it("treats a check that times out as unreachable", async () => {
+    state.secure.set(key, String(Date.now() - 60_000));
+    state.request.mockImplementation(() => new Promise(() => {}));
+    render();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(render().enabled).toBe(true);
+  });
+  it.each([
+    ["older than 48 hours", String(Date.now() - 48 * 60 * 60_000 - 1)],
+    ["in the future", String(Date.now() + 60_000)],
+    ["unreadable", "not-a-time"],
+  ])("does not use a saved confirmation that is %s", async (_, value) => {
+    vi.setSystemTime(Date.now());
+    state.secure.set(key, value);
+    state.request.mockResolvedValue(offline);
+    render();
+    await flush();
+    expect(render().enabled).toBe(false);
+  });
+  it("does not use another account's confirmation", async () => {
+    state.secure.set(mealVisualsGrantKeyFor("owner-b"), String(Date.now()));
+    state.request.mockResolvedValue(offline);
+    render();
+    await flush();
+    expect(render().enabled).toBe(false);
+  });
+  it("a server denial hides icons now and ends offline display", async () => {
+    render();
+    await flush();
+    state.request.mockResolvedValue(denied);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(render().enabled).toBe(false);
+    expect(state.secure.has(key)).toBe(false);
+    state.request.mockResolvedValue(offline);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(render().enabled).toBe(false);
+  });
+  it.each([403, 401])(
+    "an HTTP %i also ends offline display",
+    async (status) => {
+      render();
+      await flush();
+      state.request.mockResolvedValue({
+        ok: false,
+        error: { kind: "http_error", status },
+      });
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(render().enabled).toBe(false);
+      expect(state.secure.has(key)).toBe(false);
+    },
+  );
+  it("a server error closes the lease but keeps the confirmation for offline use", async () => {
+    render();
+    await flush();
+    state.request.mockResolvedValue({
+      ok: false,
+      error: { kind: "http_error", status: 503 },
+    });
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(render().enabled).toBe(false);
+    expect(state.secure.has(key)).toBe(true);
+  });
+  it("marks grace display as offline and never reports it as a Pro confirmation", async () => {
+    render();
+    await flush();
+    expect(render().offline).toBe(false);
+    state.request.mockResolvedValue(offline);
+    expect(await render().refresh()).toBe(false);
+    expect(render().enabled).toBe(true);
+    expect(render().offline).toBe(true);
+  });
+  it("treats a sign-in refresh that cannot reach Auth as unreachable", async () => {
+    render();
+    await flush();
+    const retryable = Object.assign(new Error("Network request failed"), {
+      name: "AuthRetryableFetchError",
+    });
+    state.request.mockRejectedValue(
+      Object.assign(new Error("Network request failed"), {
+        name: "IdentityError",
+        cause: retryable,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(render().enabled).toBe(true);
+    // Any other thrown error still fails closed.
+    state.request.mockRejectedValue(new Error("synthetic bug"));
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(render().enabled).toBe(false);
+  });
+  it("shows icons at once on a cold offline launch instead of after the timeout", async () => {
+    state.secure.set(key, String(Date.now() - 60_000));
+    state.request.mockImplementation(() => new Promise(() => {}));
+    render();
+    await flush();
+    expect(render().enabled).toBe(true);
+    expect(render().offline).toBe(true);
+  });
+  it("a slow device read never reopens a lease a server answer closed", async () => {
+    state.secure.set(key, String(Date.now() - 60_000));
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const secure = await import("expo-secure-store");
+    const original = secure.getItemAsync;
+    vi.spyOn(secure, "getItemAsync").mockImplementationOnce(async (k) => {
+      await gate;
+      return original(k);
+    });
+    state.request.mockResolvedValue({
+      ok: false,
+      error: { kind: "http_error", status: 503 },
+    });
+    render();
+    await flush();
+    release();
+    await flush();
+    expect(render().enabled).toBe(false);
+  });
 });

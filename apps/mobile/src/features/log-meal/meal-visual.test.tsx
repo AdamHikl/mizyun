@@ -155,3 +155,30 @@ it("never shows a device copy without a signed-in owner", () => {
   });
   expect(element.type).toBe("Photo");
 });
+
+it("shows only the bundled icon under the offline grace (ADR-0053 amendment)", () => {
+  // The meal list renders editable rows with a server photo.
+  const icon: any = MealVisual({
+    enabled: true,
+    offline: true,
+    entryId: "meal-a",
+    name: "Toast",
+    hasPhoto: true,
+    editable: true,
+  });
+  expect(icon.type).toBe("Illustration");
+  expect(icon.props.allowGeneration).toBe(false);
+  // This phone's copy still wins.
+  state.localUri = "file:///meal-a.jpg";
+  expect(
+    (
+      MealVisual({
+        enabled: true,
+        offline: true,
+        entryId: "meal-a",
+        name: "Toast",
+        hasPhoto: true,
+      }) as any
+    ).type,
+  ).toBe("LocalPhoto");
+});
