@@ -46,14 +46,9 @@ import {
 } from "./shared-bouldering-details";
 import { scopeCommunityClient } from "./scoped-client";
 import { useAuth } from "@/features/auth/auth-context";
-import {
-  COMMUNITY_READ_LIFETIME_MS,
-  getCommunityReadEpoch,
-} from "./state/read-cache";
 import { formatSharedDay } from "./feed/formatters";
 
-const RELOAD_MESSAGE =
-  "Reload the session preview to check your current Community access.";
+const RELOAD_MESSAGE = "Reload the session preview to continue.";
 
 export interface ShareBoulderingModalProps {
   readonly visible: boolean;
@@ -162,11 +157,12 @@ export function ShareBoulderingModal({
   const [previewState, setPreview] = useState<BoulderingSharePreviewDto | null>(
     null,
   );
+  // The preview is the owner's own session, so it has no display deadline
+  // (Adam, 2026-10-23). It still retires on background, account or token
+  // change, and the server rechecks Community access when publishing.
   const previewAuthority = useRef<{
     principal: string | null;
     token: string | null;
-    epoch: number;
-    expiresAt: number;
   } | null>(null);
   const preview =
     previewState?.sessionId === sessionId &&
@@ -174,8 +170,6 @@ export function ShareBoulderingModal({
       previewState.existingActivity?.id === existingActivityId) &&
     previewAuthority.current?.principal === principalKey &&
     previewAuthority.current.token === accessToken &&
-    previewAuthority.current.epoch === getCommunityReadEpoch() &&
-    Date.now() < previewAuthority.current.expiresAt &&
     foreground.current
       ? previewState
       : null;
@@ -183,7 +177,6 @@ export function ShareBoulderingModal({
 
   useEffect(() => {
     let active = true;
-    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
     selectionRevision.current += 1;
     publicationOperation.current = null;
     previewAuthority.current = null;
@@ -195,23 +188,7 @@ export function ShareBoulderingModal({
     if (!visible || !sessionId || !principalKey || !foreground.current) return;
     setLoading(true);
     const load = async () => {
-      const expiresAt = Date.now() + COMMUNITY_READ_LIFETIME_MS;
-      const epoch = getCommunityReadEpoch();
       const revision = selectionRevision.current;
-      expiryTimer = setTimeout(
-        () => {
-          if (!active) return;
-          selectionRevision.current += 1;
-          publicationOperation.current = null;
-          previewAuthority.current = null;
-          setPreview(null);
-          setLoading(false);
-          setSubmitting(false);
-          inFlight.current = false;
-          setError(RELOAD_MESSAGE);
-        },
-        Math.max(0, expiresAt - Date.now()),
-      );
       const res = await fetchBoulderingSharePreview(scopedClient, sessionId);
       if (
         !active ||
@@ -222,10 +199,6 @@ export function ShareBoulderingModal({
       )
         return;
       setLoading(false);
-      if (Date.now() >= expiresAt || epoch !== getCommunityReadEpoch()) {
-        setError(RELOAD_MESSAGE);
-        return;
-      }
       if (!res.ok) {
         setError(
           humanizeBoulderingShareError(
@@ -244,8 +217,6 @@ export function ShareBoulderingModal({
         previewAuthority.current = {
           principal: principalKey,
           token: accessToken,
-          epoch,
-          expiresAt,
         };
         const existing = res.value.existingActivity;
         setPreview(res.value);
@@ -267,7 +238,6 @@ export function ShareBoulderingModal({
     });
     return () => {
       active = false;
-      if (expiryTimer !== null) clearTimeout(expiryTimer);
       selectionRevision.current += 1;
     };
   }, [
@@ -293,9 +263,7 @@ export function ShareBoulderingModal({
     );
   };
 
-  const previewIsFresh = () =>
-    previewAuthority.current?.epoch === getCommunityReadEpoch() &&
-    Date.now() < (previewAuthority.current?.expiresAt ?? 0);
+  const previewIsFresh = () => previewAuthority.current !== null;
 
   const effectiveActivityId =
     preview?.existingActivity?.id ?? existingActivityId;

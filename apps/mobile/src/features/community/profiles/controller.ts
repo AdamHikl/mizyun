@@ -10,6 +10,9 @@ import { randomUUID } from "expo-crypto";
 import { scopeCommunityClient } from "../scoped-client";
 import {
   COMMUNITY_READ_LIFETIME_MS,
+  COMMUNITY_READ_RENEWAL_RETRY_MS,
+  canRetryCommunityRenewal,
+  communityRenewalDelay,
   getCommunityReadEpoch,
   getCommunityReadDeadline,
   invalidateCommunityReads,
@@ -24,6 +27,7 @@ import {
   blockUser,
   setUserMuted,
   humanizeCommunityError,
+  isCommunityAccessDenial,
 } from "../community-client";
 
 export type ProfileAction =
@@ -65,6 +69,7 @@ export class ProfileViewController {
   private revision = 0;
   private active = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private renewTimer: ReturnType<typeof setTimeout> | undefined;
   private deadline = 0;
   private epoch = -1;
   private pages = 1;
@@ -114,23 +119,38 @@ export class ProfileViewController {
     this.active = false;
     this.revision++;
     clearTimeout(this.timer);
+    clearTimeout(this.renewTimer);
     this.deadline = 0;
     this.state = EMPTY;
     for (const listener of this.listeners) listener();
   }
-  async load(more = false): Promise<void> {
+  /**
+   * `silent` renews a settled read shortly before its deadline: it keeps the
+   * displayed profile, never bumps the revision or touches the expiry timer, and
+   * swaps in a fresh result only on success. Failures other than an explicit
+   * denial leave the original deadline to retire the content.
+   */
+  async load(more = false, silent = false): Promise<void> {
     if (
       !this.active ||
       !this.isAlive() ||
       this.state.pending ||
-      (more && !this.state.nextCursor)
+      (more && !this.state.nextCursor) ||
+      (silent &&
+        (this.state.loading ||
+          !this.state.profile ||
+          this.deadline <= Date.now()))
     )
       return;
-    const pages = more ? this.pages + 1 : 1;
-    const revision = ++this.revision;
+    if (!silent) clearTimeout(this.renewTimer);
+    const pages = silent ? this.pages : more ? this.pages + 1 : 1;
+    const revision = silent ? this.revision : ++this.revision;
+    const denied = (error: ApiError) => isCommunityAccessDenial(error);
+    const original = this.deadline;
     let epoch = getCommunityReadEpoch();
     let deadline = Date.now() + COMMUNITY_READ_LIFETIME_MS;
     const armLoadingDeadline = () => {
+      if (silent) return;
       clearTimeout(this.timer);
       this.timer = setTimeout(
         () => {
@@ -155,19 +175,20 @@ export class ProfileViewController {
       );
       armLoadingDeadline();
     };
-    clearTimeout(this.timer);
+    if (!silent) clearTimeout(this.timer);
     const current = () =>
       this.active &&
       this.isAlive() &&
       revision === this.revision &&
       epoch === getCommunityReadEpoch() &&
-      Date.now() < deadline;
+      Date.now() < deadline &&
+      (!silent || Date.now() < original);
     const client = scopeCommunityClient(this.raw, this.principal, current);
-    this.update({ ...EMPTY, loading: true });
+    if (!silent) this.update({ ...EMPTY, loading: true });
     armLoadingDeadline();
     const response = await fetchCommunityProfileView(client, this.target);
     if (!current()) {
-      if (this.active && revision === this.revision) {
+      if (!silent && this.active && revision === this.revision) {
         clearTimeout(this.timer);
         this.update({
           ...EMPTY,
@@ -179,7 +200,9 @@ export class ProfileViewController {
       return;
     }
     if (!response.ok) {
+      if (silent && !denied(response.error)) return;
       clearTimeout(this.timer);
+      if (silent) this.deadline = 0;
       this.update({
         ...EMPTY,
         error: humanizeCommunityError(response.error, "Profile unavailable."),
@@ -190,6 +213,7 @@ export class ProfileViewController {
     let profile = response.value;
     // The API client parses this schema in production; mocks cannot imply a complete graph.
     if (!profile.relationshipContext) {
+      if (silent) return;
       clearTimeout(this.timer);
       this.update({
         ...EMPTY,
@@ -210,7 +234,8 @@ export class ProfileViewController {
         // before showing it, without restarting the original authority deadline.
         if (!this.active || !this.isAlive() || revision !== this.revision)
           return;
-        if (Date.now() >= deadline) {
+        if (Date.now() >= deadline || (silent && Date.now() >= original)) {
+          if (silent) return;
           clearTimeout(this.timer);
           this.deadline = 0;
           this.update({
@@ -222,7 +247,7 @@ export class ProfileViewController {
         epoch = getCommunityReadEpoch();
         const fresh = await fetchCommunityProfileView(client, this.target);
         if (!current() || !fresh.ok || !fresh.value.relationshipContext) {
-          if (this.active && revision === this.revision)
+          if (!silent && this.active && revision === this.revision)
             this.update({
               ...EMPTY,
               error: "Profile access changed. Try again.",
@@ -255,7 +280,7 @@ export class ProfileViewController {
           { limit: 20, ...(cursor ? { cursor } : {}) },
         );
         if (!current()) {
-          if (this.active && revision === this.revision)
+          if (!silent && this.active && revision === this.revision)
             this.update({
               ...EMPTY,
               error: "Profile access changed. Try again.",
@@ -263,6 +288,7 @@ export class ProfileViewController {
           return;
         }
         if (!result.ok) {
+          if (silent && !denied(result.error)) return;
           activityError = humanizeCommunityError(
             result.error,
             "Shared activities unavailable.",
@@ -280,6 +306,7 @@ export class ProfileViewController {
         if (!cursor) break;
       }
     if (!current()) {
+      if (silent) return;
       clearTimeout(this.timer);
       this.update({ ...EMPTY, error: "Profile access needs checking again." });
       return;
@@ -296,6 +323,7 @@ export class ProfileViewController {
       loading: false,
     });
     clearTimeout(this.timer);
+    this.scheduleRenewal(revision, deadline, communityRenewalDelay(deadline));
     this.timer = setTimeout(
       () => {
         if (this.active && revision === this.revision) {
@@ -312,6 +340,32 @@ export class ProfileViewController {
     );
     if (typeof this.timer === "object")
       (this.timer as { unref?: () => void }).unref?.();
+  }
+  /**
+   * Renew the settled read due at `deadline`. A renewal that did not apply
+   * (a write or loading preempted it, or a transient failure) is retried until
+   * the original deadline; a denial sets the deadline to 0 and stops retries.
+   */
+  private scheduleRenewal(revision: number, deadline: number, delay: number) {
+    clearTimeout(this.renewTimer);
+    this.renewTimer = setTimeout(() => {
+      const current = () =>
+        this.active &&
+        this.isAlive() &&
+        revision === this.revision &&
+        this.deadline === deadline;
+      if (!current()) return;
+      void this.load(false, true).then(() => {
+        if (current() && canRetryCommunityRenewal(deadline))
+          this.scheduleRenewal(
+            revision,
+            deadline,
+            COMMUNITY_READ_RENEWAL_RETRY_MS,
+          );
+      });
+    }, delay);
+    if (typeof this.renewTimer === "object")
+      (this.renewTimer as { unref?: () => void }).unref?.();
   }
   async act(
     action: ProfileAction,
@@ -341,6 +395,7 @@ export class ProfileViewController {
       this.active && this.isAlive() && revision === this.revision;
     const client = scopeCommunityClient(this.raw, this.principal, current);
     clearTimeout(this.timer);
+    clearTimeout(this.renewTimer);
     this.deadline = 0;
     this.update({ ...EMPTY, pending: true });
     let result: Result<unknown, ApiError>;

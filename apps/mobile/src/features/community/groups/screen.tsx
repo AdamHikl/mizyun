@@ -24,9 +24,17 @@ import { CommunityPage, CommunityIdentityLink } from "../ui";
 import { scopeCommunityClient } from "../scoped-client";
 import { ReportModal } from "../safety/report-modal";
 import { createGroupMutationIntentStore } from "./mutation-intent";
-import { fetchFollowing, humanizeCommunityError } from "../community-client";
+import {
+  fetchFollowing,
+  humanizeCommunityError,
+  isCommunityAccessDenial,
+} from "../community-client";
 import { groupAction } from "./client";
 import {
+  COMMUNITY_READ_LIFETIME_MS,
+  COMMUNITY_READ_RENEWAL_RETRY_MS,
+  canRetryCommunityRenewal,
+  communityRenewalDelay,
   getCommunityReadDeadline,
   invalidateCommunityReads,
 } from "../state/read-cache";
@@ -57,6 +65,7 @@ function Content({ principal }: { principal: string | null }) {
   const router = useRouter();
   const lifetime = useRef({ active: true, focused: false, revision: 0 });
   const protectedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const protectedRevision = useRef(0);
   const [result, setResult] = useState<CommunityGroupResult | null>(null);
   const [groups, setGroups] = useState<CommunityGroupResult["groups"]>([]);
@@ -64,6 +73,8 @@ function Content({ principal }: { principal: string | null }) {
   const selectedRef = useRef<string | null>(null);
   selectedRef.current = selected;
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
   const [message, setMessage] = useState<string | null>(null);
   const [task, setTask] = useState<"list" | "create" | "join">("list");
   const [panel, setPanel] = useState<
@@ -86,6 +97,8 @@ function Content({ principal }: { principal: string | null }) {
   const discardProtected = useCallback(() => {
     if (protectedTimer.current !== null) clearTimeout(protectedTimer.current);
     protectedTimer.current = null;
+    if (renewTimer.current !== null) clearTimeout(renewTimer.current);
+    renewTimer.current = null;
     protectedRevision.current++;
     setResult(null);
     setGroups([]);
@@ -104,91 +117,169 @@ function Content({ principal }: { principal: string | null }) {
     },
     [discardProtected],
   );
-  const load = useCallback(async () => {
-    if (!principal || !lifetime.current.focused) {
-      setBusy(false);
-      return;
-    }
-    const revision = ++lifetime.current.revision;
-    let expiresAt = Date.now() + 10_000;
-    const valid = () =>
-      lifetime.current.active &&
-      lifetime.current.focused &&
-      lifetime.current.revision === revision &&
-      Date.now() < expiresAt;
-    setBusy(true);
-    discardProtected();
-    const expire = () => {
-      discardProtected();
-      setBusy(false);
-      setMessage("Refresh to check your current group access.");
-    };
-    const armTimer = () => {
-      if (protectedTimer.current !== null) clearTimeout(protectedTimer.current);
-      protectedTimer.current = setTimeout(
-        expire,
-        Math.max(0, expiresAt - Date.now()),
-      );
-    };
-    const consumeDeadline = (value: unknown) => {
-      expiresAt = Math.min(
-        expiresAt,
-        getCommunityReadDeadline(value) ?? expiresAt,
-      );
-      armTimer();
-      if (!valid()) {
-        expire();
-        return false;
+  const loadRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
+  /** Deadline of the displayed read; renewal retries stop before it. */
+  const displayDeadline = useRef(0);
+  // `silent` renews the displayed read: no clearing, loading state or draft reset.
+  // Nothing is applied or re-armed until every response arrived; failure, lateness
+  // or any other load/action/discard leaves the original expiry timer to retire it.
+  const load = useCallback(
+    async (silent = false) => {
+      if (!principal || !lifetime.current.focused) {
+        if (!silent) setBusy(false);
+        return;
       }
-      return true;
-    };
-    armTimer();
-    const client = scopeCommunityClient(apiClient, principal, valid);
-    const [list, inbox] = await Promise.all([
-      groupAction(client, { operation: "list" }),
-      groupAction(client, { operation: "inbox" }),
-    ]);
-    if (!valid()) return;
-    if (!list.ok) {
-      setMessage(humanizeCommunityError(list.error));
-      setBusy(false);
-      return;
-    }
-    if (!consumeDeadline(list.value)) return;
-    if (inbox.ok && !consumeDeadline(inbox.value)) return;
-    setGroups(list.value.groups);
-    if (inbox.ok) setEvents(inbox.value.events);
-    const group = list.value.groups.find(
-      (item) => item.id === selectedRef.current,
-    );
-    if (group) {
-      setResult({ ...list.value, group });
-      setRules(group.rules);
-    }
-    if (group?.state === "member") {
-      const [read, following] = await Promise.all([
-        groupAction(client, { operation: "read", groupId: group.id }),
-        group.role !== "member"
-          ? fetchFollowing(client, { limit: 50 })
-          : Promise.resolve(null),
+      const revision = silent
+        ? lifetime.current.revision
+        : ++lifetime.current.revision;
+      const capturedProtected = protectedRevision.current;
+      // A preempted or transiently failed renewal is retried until the
+      // displayed read's deadline; a denial retires the content at once.
+      const retry = () => {
+        if (
+          !silent ||
+          !lifetime.current.active ||
+          !lifetime.current.focused ||
+          lifetime.current.revision !== revision ||
+          protectedRevision.current !== capturedProtected ||
+          !canRetryCommunityRenewal(displayDeadline.current)
+        )
+          return;
+        if (renewTimer.current !== null) clearTimeout(renewTimer.current);
+        renewTimer.current = setTimeout(
+          () => void loadRef.current(true),
+          COMMUNITY_READ_RENEWAL_RETRY_MS,
+        );
+      };
+      const deny = (error: Parameters<typeof humanizeCommunityError>[0]) => {
+        if (
+          lifetime.current.revision !== revision ||
+          protectedRevision.current !== capturedProtected
+        )
+          return;
+        if (!isCommunityAccessDenial(error)) return retry();
+        discardProtected();
+        setMessage(humanizeCommunityError(error));
+      };
+      if (silent && busyRef.current) return retry();
+      let expiresAt = Date.now() + COMMUNITY_READ_LIFETIME_MS;
+      const valid = () =>
+        lifetime.current.active &&
+        lifetime.current.focused &&
+        lifetime.current.revision === revision &&
+        (!silent || protectedRevision.current === capturedProtected) &&
+        Date.now() < expiresAt;
+      const staged: (() => void)[] = [];
+      const put = (apply: () => void) =>
+        silent ? staged.push(apply) : apply();
+      if (!silent) {
+        setBusy(true);
+        discardProtected();
+      }
+      const expire = () => {
+        discardProtected();
+        setBusy(false);
+        setMessage("Refresh to check your current group access.");
+      };
+      const armTimer = () => {
+        if (protectedTimer.current !== null)
+          clearTimeout(protectedTimer.current);
+        protectedTimer.current = setTimeout(
+          expire,
+          Math.max(0, expiresAt - Date.now()),
+        );
+      };
+      const armRenewal = () => {
+        displayDeadline.current = expiresAt;
+        if (renewTimer.current !== null) clearTimeout(renewTimer.current);
+        renewTimer.current = setTimeout(
+          () => void loadRef.current(true),
+          communityRenewalDelay(expiresAt),
+        );
+      };
+      const consumeDeadline = (value: unknown) => {
+        expiresAt = Math.min(
+          expiresAt,
+          getCommunityReadDeadline(value) ?? expiresAt,
+        );
+        if (silent) return valid();
+        armTimer();
+        if (!valid()) {
+          expire();
+          return false;
+        }
+        return true;
+      };
+      if (!silent) armTimer();
+      const client = scopeCommunityClient(apiClient, principal, valid);
+      const [list, inbox] = await Promise.all([
+        groupAction(client, { operation: "list" }),
+        groupAction(client, { operation: "inbox" }),
       ]);
-      if (!valid()) return;
-      if (read.ok) {
-        if (!consumeDeadline(read.value)) return;
-        if (following?.ok && !consumeDeadline(following.value)) return;
-        setResult(read.value);
-        setRules(read.value.group?.rules ?? group.rules);
-        if (following?.ok)
-          setFriends(
-            following.value.items.filter((item) => item.status === "approved"),
-          );
-      } else {
-        setResult(null);
-        setMessage(humanizeCommunityError(read.error));
+      if (!valid()) return retry();
+      if (!list.ok) {
+        if (silent) return deny(list.error);
+        setMessage(humanizeCommunityError(list.error));
+        setBusy(false);
+        return;
       }
-    }
-    setBusy(false);
-  }, [principal, discardProtected]);
+      if (!consumeDeadline(list.value)) return retry();
+      // A renewal replaces every protected field or none: a failed part would
+      // otherwise keep its old value alive under the new deadline.
+      if (silent && !inbox.ok) return deny(inbox.error);
+      if (inbox.ok && !consumeDeadline(inbox.value)) return retry();
+      put(() => setGroups(list.value.groups));
+      if (inbox.ok) put(() => setEvents(inbox.value.events));
+      const group = list.value.groups.find(
+        (item) => item.id === selectedRef.current,
+      );
+      if (group) {
+        put(() => setResult({ ...list.value, group }));
+        if (!silent) setRules(group.rules);
+      } else if (silent) put(() => setResult(null));
+      if (group?.state === "member") {
+        const [read, following] = await Promise.all([
+          groupAction(client, { operation: "read", groupId: group.id }),
+          group.role !== "member"
+            ? fetchFollowing(client, { limit: 50 })
+            : Promise.resolve(null),
+        ]);
+        if (!valid()) return retry();
+        if (silent && following && !following.ok) return deny(following.error);
+        if (read.ok) {
+          if (!consumeDeadline(read.value)) return retry();
+          if (following?.ok && !consumeDeadline(following.value))
+            return retry();
+          put(() => setResult(read.value));
+          if (!silent) setRules(read.value.group?.rules ?? group.rules);
+          if (following?.ok)
+            put(() =>
+              setFriends(
+                following.value.items.filter(
+                  (item) => item.status === "approved",
+                ),
+              ),
+            );
+          else if (silent) put(() => setFriends([]));
+        } else {
+          if (silent) return deny(read.error);
+          setResult(null);
+          setMessage(humanizeCommunityError(read.error));
+          setBusy(false);
+          return;
+        }
+      }
+      if (silent && group?.state !== "member") put(() => setFriends([]));
+      if (silent) {
+        if (!valid()) return retry();
+        armTimer();
+        staged.forEach((apply) => apply());
+      } else setBusy(false);
+      armRenewal();
+    },
+    [principal, discardProtected],
+  );
+  loadRef.current = load;
   useFocusEffect(
     useCallback(() => {
       lifetime.current.active = true;
@@ -255,6 +346,7 @@ function Content({ principal }: { principal: string | null }) {
       lifetime.current.focused &&
       lifetime.current.revision === revision &&
       protectedRevision.current === capturedProtectedRevision;
+    busyRef.current = true;
     setBusy(true);
     setMessage(null);
     const response = await groupAction(
@@ -271,7 +363,7 @@ function Content({ principal }: { principal: string | null }) {
     if (request.operation === "create" || request.operation === "post")
       intents.current.complete(request.operation);
     const invitationCode = response.value.inviteCode;
-    const invitationDeadline = Date.now() + 10_000;
+    const invitationDeadline = Date.now() + COMMUNITY_READ_LIFETIME_MS;
     if (response.value.group) {
       selectedRef.current = response.value.group.id;
       setSelected(response.value.group.id);

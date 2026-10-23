@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { COMMENT_AUTHORITY_LIFETIME_MS } from "./controller";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   uuid: vi.fn(),
@@ -152,6 +153,21 @@ async function start() {
   await flush();
   return render();
 }
+// The audience changed: the renewed read no longer contains the reply target.
+function changeComment() {
+  mocks.request.mockImplementation(async (options) => ({
+    ok: true,
+    value: options.path.endsWith("candidates")
+      ? { items: [author] }
+      : {
+          items: [{ ...item, version: 2 }],
+          nextCursor: null,
+          enabled: true,
+          canManage: false,
+          allowMentions: false,
+        },
+  }));
+}
 function write(text = "My unfinished encouragement") {
   input(render()).props.onChangeText(text);
   control(render(), audience).props.onPress();
@@ -190,7 +206,7 @@ describe("comments composer authority expiry", () => {
   it("preserves own new writing and consent across idle rechecks, clearing it on background", async () => {
     await start();
     write();
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(COMMENT_AUTHORITY_LIFETIME_MS);
     render();
     const tree = render();
     expect(input(tree).props.value).toBe("My unfinished encouragement");
@@ -217,7 +233,7 @@ describe("comments composer authority expiry", () => {
         .map(([options]) => options)
         .filter((options) => options.method === "POST");
     const first = writes()[0].body;
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(COMMENT_AUTHORITY_LIFETIME_MS);
     render();
     render();
     expect(writes()).toHaveLength(1);
@@ -271,7 +287,7 @@ describe("comments composer authority expiry", () => {
         .map(([options]) => options)
         .filter((options) => options.method === "POST");
     expect(writes()[0].body.id).toBe(item.id);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(COMMENT_AUTHORITY_LIFETIME_MS);
     render();
     render();
     finish({ ok: true, value: { id: item.id, version: 2 } });
@@ -294,7 +310,8 @@ describe("comments composer authority expiry", () => {
     control(render(), "Mention Friend").props.onPress();
     control(render(), audience).props.onPress();
     render();
-    await vi.advanceTimersByTimeAsync(10_000);
+    changeComment();
+    await vi.advanceTimersByTimeAsync(COMMENT_AUTHORITY_LIFETIME_MS);
     render();
     const tree = render();
     expect(input(tree).props.value).toBe("My reply draft");
@@ -317,7 +334,8 @@ describe("comments composer authority expiry", () => {
     render();
     input(render()).props.onChangeText("My reply draft");
     render();
-    await vi.advanceTimersByTimeAsync(10_000);
+    changeComment();
+    await vi.advanceTimersByTimeAsync(COMMENT_AUTHORITY_LIFETIME_MS);
     render();
     let tree = render();
     expect(texts(tree)).toContain("Your reply was paused");

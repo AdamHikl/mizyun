@@ -1,5 +1,9 @@
 import { CommunityIdentityLink } from "../ui";
 import {
+  COMMUNITY_READ_LIFETIME_MS,
+  COMMUNITY_READ_RENEWAL_RETRY_MS,
+  canRetryCommunityRenewal,
+  communityRenewalDelay,
   getCommunityReadDeadline,
   invalidateCommunityReads,
 } from "../state/read-cache";
@@ -35,6 +39,7 @@ import {
   importRoutineShare,
   unshareRoutine,
 } from "./client";
+import { isCommunityAccessDenial } from "../community-client";
 
 export function CommunityRoutinesScreen() {
   const { session } = useAuth();
@@ -51,6 +56,8 @@ function RoutinesContent({ principal }: { principal: string | null }) {
   const freshRead = useRef(0);
   const freshLoading = useRef(false);
   const expiry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renewal = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPage = useRef<{ mine: boolean; cursor?: string } | null>(null);
   const active = useRef(false);
   const actionLock = useRef<symbol | null>(null);
   const privateRead = useRef(0);
@@ -80,6 +87,9 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     freshRead.current++;
     if (expiry.current !== null) clearTimeout(expiry.current);
     expiry.current = null;
+    if (renewal.current !== null) clearTimeout(renewal.current);
+    renewal.current = null;
+    lastPage.current = null;
     freshLoading.current = false;
     epoch.current++;
     active.current = false;
@@ -100,32 +110,97 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     setCursor(null);
     setBusy(false);
   }, []);
+  /** Deadline of the displayed shared page; renewal retries stop before it. */
+  const displayDeadline = useRef(0);
+  const retireFor = useCallback(
+    (read: number) => () => {
+      if (freshRead.current !== read) return;
+      freshRead.current++;
+      if (expiry.current !== null) clearTimeout(expiry.current);
+      expiry.current = null;
+      if (renewal.current !== null) clearTimeout(renewal.current);
+      renewal.current = null;
+      setShares([]);
+      setReport(null);
+      setCursor(null);
+      if (freshLoading.current) {
+        freshLoading.current = false;
+        setBusy(false);
+      }
+      setNotice("Refresh shared routines to check current access.");
+    },
+    [],
+  );
+  // Silent renewal: re-read the displayed page without clearing it or showing a
+  // loading state. Only a fresh successful response, applied before the original
+  // deadline, replaces the page and re-arms timers; otherwise the old timer retires it.
+  const renew = useCallback(async () => {
+    const last = lastPage.current;
+    const read = freshRead.current;
+    // A preempted or transiently failed renewal is retried until the deadline.
+    const retry = () => {
+      if (
+        !active.current ||
+        freshRead.current !== read ||
+        !canRetryCommunityRenewal(displayDeadline.current)
+      )
+        return;
+      if (renewal.current !== null) clearTimeout(renewal.current);
+      renewal.current = setTimeout(
+        () => void renewRef.current(),
+        COMMUNITY_READ_RENEWAL_RETRY_MS,
+      );
+    };
+    if (!last || !active.current) return;
+    if (actionLock.current) return retry();
+    const current = epoch.current;
+    let deadline = Date.now() + COMMUNITY_READ_LIFETIME_MS;
+    const page = await listRoutineShares(client, last.mine, last.cursor).catch(
+      () => ({ ok: false as const, error: null }),
+    );
+    if (current !== epoch.current || !active.current) return;
+    if (freshRead.current !== read) return;
+    if (!page.ok) {
+      if (page.error && isCommunityAccessDenial(page.error)) retireFor(read)();
+      else retry();
+      return;
+    }
+    if (actionLock.current) return retry();
+    deadline = Math.min(
+      deadline,
+      getCommunityReadDeadline(page.value) ?? deadline,
+    );
+    if (Date.now() >= deadline) return;
+    const next = ++freshRead.current;
+    displayDeadline.current = deadline;
+    if (expiry.current !== null) clearTimeout(expiry.current);
+    expiry.current = setTimeout(retireFor(next), deadline - Date.now());
+    if (renewal.current !== null) clearTimeout(renewal.current);
+    renewal.current = setTimeout(
+      () => void renewRef.current(),
+      communityRenewalDelay(deadline),
+    );
+    setShares(page.value.items);
+    setCursor(page.value.nextCursor);
+  }, [client, retireFor]);
+  const renewRef = useRef(renew);
+  renewRef.current = renew;
   const load = useCallback(
     async (append = false, mine = mineOnly, refreshPrivate = false) => {
       const current = ++epoch.current;
       const read = ++freshRead.current;
       freshLoading.current = true;
-      let deadline = Date.now() + 10_000;
+      let deadline = Date.now() + COMMUNITY_READ_LIFETIME_MS;
       if (expiry.current !== null) clearTimeout(expiry.current);
+      if (renewal.current !== null) clearTimeout(renewal.current);
+      renewal.current = null;
+      lastPage.current = null;
       // Hide the old authorization result before starting another request.
       setShares([]);
       setReport(null);
       setPreview(null);
-      const retire = () => {
-        if (freshRead.current !== read) return;
-        freshRead.current++;
-        if (expiry.current !== null) clearTimeout(expiry.current);
-        expiry.current = null;
-        setShares([]);
-        setReport(null);
-        setCursor(null);
-        if (freshLoading.current) {
-          freshLoading.current = false;
-          setBusy(false);
-        }
-        setNotice("Refresh shared routines to check current access.");
-      };
-      expiry.current = setTimeout(retire, 10_000);
+      const retire = retireFor(read);
+      expiry.current = setTimeout(retire, COMMUNITY_READ_LIFETIME_MS);
       setBusy(true);
       setError(null);
       const pageRequest = listRoutineShares(
@@ -198,8 +273,17 @@ function RoutinesContent({ principal }: { principal: string | null }) {
       );
       setShares(page.value.items);
       setCursor(page.value.nextCursor);
+      lastPage.current = {
+        mine,
+        ...(append && cursor ? { cursor } : {}),
+      };
+      displayDeadline.current = deadline;
+      renewal.current = setTimeout(
+        () => void renewRef.current(),
+        communityRenewalDelay(deadline),
+      );
     },
-    [client, cursor, mineOnly],
+    [client, cursor, mineOnly, retireFor],
   );
   // Do not use cursor-dependent load as a focus effect dependency.
   const initialLoad = useRef(load);

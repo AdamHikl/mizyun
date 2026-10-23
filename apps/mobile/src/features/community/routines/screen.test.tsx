@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  COMMUNITY_READ_LIFETIME_MS as LIFETIME,
+  COMMUNITY_READ_RENEWAL_LEAD_MS as LEAD,
+} from "../state/read-cache";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   deadline: vi.fn(),
@@ -125,7 +129,8 @@ vi.mock("@/features/community", () => ({
   ReportModal: "ReportModal",
   scopeCommunityClient: (client: unknown) => client,
 }));
-vi.mock("../state/read-cache", () => ({
+vi.mock("../state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/read-cache")>()),
   getCommunityReadDeadline: mocks.deadline,
   invalidateCommunityReads: mocks.invalidate,
 }));
@@ -248,6 +253,41 @@ describe("protected routine snapshot freshness", () => {
     vi.advanceTimersByTime(1_000);
     expect(text()).not.toContain(item.snapshot.title);
   });
+  it("silently renews the shared page before its deadline without a gap or notice", async () => {
+    render();
+    await flush();
+    const calls = mocks.request.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    await flush();
+    expect(mocks.request.mock.calls.length).toBe(calls + 1);
+    expect(mocks.request.mock.calls[calls][0].method).toBe("GET");
+    expect(text()).toContain(item.snapshot.title);
+    await vi.advanceTimersByTimeAsync(LEAD + 1_000);
+    await flush();
+    expect(text()).toContain(item.snapshot.title);
+    expect(text()).not.toContain("Refresh shared routines");
+  });
+  it("retires at the original deadline when the renewal fails or hangs", async () => {
+    render();
+    await flush();
+    mocks.request.mockResolvedValue({
+      ok: false,
+      error: { kind: "network_error", cause: null },
+    });
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+    await flush();
+    expect(text()).toContain(item.snapshot.title);
+    // The failed renewal was retried while the page stayed visible.
+    expect(mocks.request.mock.calls.length).toBeGreaterThan(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(text()).not.toContain(item.snapshot.title);
+    expect(text()).toContain("Refresh shared routines");
+    mocks.request.mockImplementation(() => new Promise(() => {}));
+    button(render(), "Refresh routines").props.onPress();
+    await vi.advanceTimersByTimeAsync(LIFETIME);
+    expect(text()).toContain("Refresh shared routines");
+  });
   it("expires authored exercise snapshots while the route remains foregrounded", async () => {
     render();
     await flush();
@@ -258,7 +298,7 @@ describe("protected routine snapshot freshness", () => {
     button(render(), `${item.snapshot.title} · @friend`).props.onPress();
     expect(text()).toContain("Bounded exercise");
     expect(text()).not.toContain("Private source routine");
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     expect(text()).not.toContain(item.snapshot.title);
     expect(text()).not.toContain("Bounded exercise");
     button(render(), "Share a private routine").props.onPress();
@@ -267,7 +307,7 @@ describe("protected routine snapshot freshness", () => {
   it("clears an expired-access notice after a successful fresh empty read", async () => {
     render();
     await flush();
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     expect(text()).toContain(
       "Refresh shared routines to check current access.",
     );
@@ -289,7 +329,7 @@ describe("protected routine snapshot freshness", () => {
   it("clears old snapshots before refresh and refuses stalled responses after expiry", async () => {
     render();
     await flush();
-    vi.advanceTimersByTime(9_000);
+    vi.advanceTimersByTime(LIFETIME - 1_000);
     let release!: (value: any) => void;
     mocks.request.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -299,7 +339,7 @@ describe("protected routine snapshot freshness", () => {
     button(render(), "Refresh routines").props.onPress();
     expect(text()).not.toContain(item.snapshot.title);
     expect(text()).not.toContain("Private source routine");
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     release({ ok: true, value: { items: [item], nextCursor: null } });
     await flush();
     expect(text()).not.toContain(item.snapshot.title);
@@ -337,7 +377,7 @@ describe("protected routine snapshot freshness", () => {
     button(render(), "Preview exact shared targets").props.onPress();
     await flush();
     expect(text()).toContain("Owner preview targets");
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     expect(text()).not.toContain(item.snapshot.title);
     expect(text()).toContain("Owner preview targets");
     expect(
@@ -380,7 +420,7 @@ describe("protected routine snapshot freshness", () => {
         mocks.appState!("inactive");
         mocks.appState!("active");
         await flush();
-      } else vi.advanceTimersByTime(10_000);
+      } else vi.advanceTimersByTime(LIFETIME);
       confirm();
       await flush();
       expect(

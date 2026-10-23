@@ -36,11 +36,18 @@ import {
 import { isBoulderingEnabled } from "@/composition/app-variant";
 import { ReportModal } from "../safety/report-modal";
 import { scopeCommunityClient } from "../scoped-client";
+const CHALLENGE_READS = new Set(["list", "get", "listMine", "getMine"]);
+/** Pure reads renew before their deadline; joins, contributions and other writes never do. */
+export const renewableChallengeRead = (body: Record<string, unknown>) =>
+  CHALLENGE_READS.has(String(body.operation));
+
 function CommunityChallengesScreenContent() {
   const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const state = useExpansionCommand(
     "/v1/community/challenges",
     communityChallengeResponseSchema,
+    "POST",
+    renewableChallengeRead,
   );
   const t = useTheme();
   const [creating, setCreating] = useState(false);

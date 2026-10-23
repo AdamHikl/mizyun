@@ -9,7 +9,28 @@ import {
   setCommunityDisplayPrincipal,
 } from "./display-snapshot";
 
-export const COMMUNITY_READ_LIFETIME_MS = 10_000;
+export const COMMUNITY_READ_LIFETIME_MS = 60_000;
+/**
+ * Screens renew a read this long before its deadline, so a fresh response
+ * replaces the old one without an error or blank gap. The original deadline is
+ * never extended: a renewal that fails or is late still retires the content.
+ */
+export const COMMUNITY_READ_RENEWAL_LEAD_MS = 5_000;
+
+/** Milliseconds until a screen should start renewing a read due at `deadline`. */
+export function communityRenewalDelay(deadline: number): number {
+  return Math.max(0, deadline - COMMUNITY_READ_RENEWAL_LEAD_MS - Date.now());
+}
+/** A renewal that failed transiently or was preempted is retried after this. */
+export const COMMUNITY_READ_RENEWAL_RETRY_MS = 500;
+
+/**
+ * Whether a renewal retry can still start before the read due at `deadline`
+ * retires. Retries never extend the deadline.
+ */
+export function canRetryCommunityRenewal(deadline: number): boolean {
+  return Date.now() + COMMUNITY_READ_RENEWAL_RETRY_MS < deadline;
+}
 const MAX_ENTRIES = 32;
 const MAX_ENTRY_BYTES = 128_000;
 const deadlines = new WeakMap<object, number>();
@@ -407,7 +428,8 @@ export class CommunityReadCache implements ApiClient {
     if (
       cached &&
       cached.epoch === navigationEpoch &&
-      cached.expiresAt > Date.now() &&
+      // A record inside the renewal window cannot answer a renewal read.
+      cached.expiresAt > Date.now() + COMMUNITY_READ_RENEWAL_LEAD_MS &&
       cached.schema === options.schema
     ) {
       const parsed = options.schema!.safeParse(cached.value);
@@ -425,7 +447,7 @@ export class CommunityReadCache implements ApiClient {
     if (
       !pending ||
       pending.revision !== revision ||
-      pending.expiresAt <= Date.now() ||
+      pending.expiresAt <= Date.now() + COMMUNITY_READ_RENEWAL_LEAD_MS ||
       pending.schema !== options.schema
     ) {
       const scopes = new Set([valid]);

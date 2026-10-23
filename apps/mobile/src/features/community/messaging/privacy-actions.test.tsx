@@ -95,6 +95,7 @@ vi.mock("../expansions", () => ({
 import {
   CommunityMessagingScreen,
   CommunityConversationScreen,
+  renewableMessagingRead,
 } from "./screen";
 import { CommunityBroaderDiscoveryScreen } from "../broader-discovery/screen";
 
@@ -627,5 +628,28 @@ describe("Messages list hierarchy and read states", () => {
       "No conversations available",
     );
     expect(button(tree, "New message").props.disabled).toBe(false);
+  });
+});
+describe("Messages silent renewal opt-in", () => {
+  it("renews only pure reads, never sends, edits, deletes or preference changes", () => {
+    const peerId = mocks.peer;
+    for (const body of [
+      { operation: "threads" },
+      { operation: "latest", peerId },
+      { operation: "contacts" },
+      { operation: "list", peerId },
+      { operation: "listMine" },
+      { operation: "preferences" },
+    ])
+      expect(renewableMessagingRead(body)).toBe(true);
+    for (const body of [
+      { operation: "send", peerId, text: "hi" },
+      { operation: "edit", id: "x", text: "hi" },
+      { operation: "delete", id: "x" },
+      { operation: "preferences", enabled: true },
+      { operation: "preferences", muted: false },
+      { operation: "search", prefix: "a" },
+    ])
+      expect(renewableMessagingRead(body)).toBe(false);
   });
 });

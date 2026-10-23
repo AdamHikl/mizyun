@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
+import {
+  COMMUNITY_READ_LIFETIME_MS as LIFETIME,
+  COMMUNITY_READ_RENEWAL_LEAD_MS as LEAD,
+} from "../state/read-cache";
 import { RelationshipsController } from "./controller";
 const row = {
   relationshipId: "edge-1",
@@ -325,7 +329,7 @@ describe("owner relationship controller", () => {
     expect(controller.captureIntent()()).toBe(true);
     controller.pause();
   });
-  it("expires relationship action authority at ten seconds before accepting a stale confirmation", async () => {
+  it("expires relationship action authority at its lifetime before accepting a stale confirmation", async () => {
     vi.useFakeTimers();
     const request = vi
       .fn()
@@ -338,11 +342,92 @@ describe("owner relationship controller", () => {
     await controller.load();
     const current = controller.captureIntent();
     expect(current()).toBe(true);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(current()).toBe(false);
     expect(controller.getState().rows).toEqual([]);
     await controller.act("approve", row);
+    // Failed silent renewals are retried, but no mutation is ever sent.
+    expect(request.mock.calls.length).toBeGreaterThan(2);
+    expect(
+      request.mock.calls.filter(
+        ([options]) => options.method && options.method !== "GET",
+      ),
+    ).toEqual([]);
+    controller.pause();
+    vi.useRealTimers();
+  });
+  it("renews silently before the deadline: rows stay, no loading or error", async () => {
+    vi.useFakeTimers();
+    const request = vi
+      .fn()
+      .mockResolvedValue({ ok: true, value: { items: [row] } });
+    const { controller } = setup(request);
+    const states: { rows: unknown[]; loading: boolean; error: unknown }[] = [];
+    await controller.load();
+    controller.subscribe(() => states.push(controller.getState() as never));
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
     expect(request).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(LEAD + 500);
+    expect(controller.getState().rows).toHaveLength(1);
+    expect(controller.getState().error).toBeNull();
+    expect(controller.captureIntent()()).toBe(true);
+    expect(
+      states.every(
+        (state) => state.rows.length === 1 && !state.loading && !state.error,
+      ),
+    ).toBe(true);
+    await vi.advanceTimersByTimeAsync(LIFETIME - 2 * LEAD - 500);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(controller.getState().rows).toHaveLength(1);
+    controller.pause();
+    vi.useRealTimers();
+  });
+  it("retires rows at the original deadline when the renewal fails or hangs", async () => {
+    vi.useFakeTimers();
+    for (const hang of [false, true]) {
+      const request = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, value: { items: [row] } })
+        .mockImplementation(() =>
+          hang
+            ? new Promise(() => {})
+            : Promise.resolve({
+                ok: false,
+                error: { kind: "network_error", cause: null },
+              }),
+        );
+      const { controller } = setup(request);
+      await controller.load();
+      await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+      expect(controller.getState().rows).toHaveLength(1);
+      expect(controller.getState().error).toBeNull();
+      // A failed renewal is retried while the rows stay visible.
+      if (!hang) expect(request.mock.calls.length).toBeGreaterThan(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(controller.getState().rows).toEqual([]);
+      controller.pause();
+    }
+    vi.useRealTimers();
+  });
+  it("clears rows at once when the renewal is explicitly denied", async () => {
+    vi.useFakeTimers();
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: { items: [row] } })
+      .mockResolvedValue({
+        ok: false,
+        error: {
+          kind: "http_error",
+          status: 403,
+          code: "FORBIDDEN",
+          message: "",
+        },
+      });
+    const { controller } = setup(request);
+    await controller.load();
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(controller.getState().rows).toEqual([]);
+    expect(controller.getState().error).toBeTruthy();
     controller.pause();
     vi.useRealTimers();
   });
@@ -489,7 +574,7 @@ describe("owner relationship controller", () => {
       cursor: null,
       pending: true,
     });
-    await vi.advanceTimersByTimeAsync(11_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME + 1_000);
     expect(controller.getState().rows).toEqual([]);
     expect(controller.captureIntent()()).toBe(false);
     finish({ ok: true, value: { id: "receipt" } });
@@ -527,7 +612,7 @@ describe("owner relationship controller", () => {
       cursor: null,
       pending: true,
     });
-    await vi.advanceTimersByTimeAsync(11_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME + 1_000);
     expect(controller.getState().rows).toEqual([]);
     expect(controller.captureIntent()()).toBe(false);
     finish({ ok: false, error: { kind: "network_error", cause: null } });
@@ -540,21 +625,29 @@ describe("owner relationship controller", () => {
   it("hides an earlier page while paging and never restores either page after the inherited deadline", async () => {
     vi.useFakeTimers();
     let finish!: (value: unknown) => void;
+    let paging = false;
     const request = vi
       .fn()
       .mockResolvedValueOnce({
         ok: true,
         value: { items: [row], nextCursor: "next" },
       })
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            finish = resolve;
-          }),
+      // Silent renewals fail (and are retried); the rows stay until the
+      // original deadline. Only the explicit page read hangs.
+      .mockImplementation(() =>
+        paging
+          ? new Promise((resolve) => {
+              finish = resolve;
+            })
+          : Promise.resolve({
+              ok: false,
+              error: { kind: "network_error", cause: null },
+            }),
       );
     const { controller } = setup(request);
     await controller.load();
-    await vi.advanceTimersByTimeAsync(9_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1_000);
+    paging = true;
     const work = controller.load("incoming", true);
     expect(controller.getState()).toMatchObject({
       rows: [],

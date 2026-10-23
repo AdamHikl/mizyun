@@ -1,5 +1,9 @@
 import { CommunityIdentityLink } from "../ui";
 import {
+  COMMUNITY_READ_LIFETIME_MS,
+  COMMUNITY_READ_RENEWAL_RETRY_MS,
+  canRetryCommunityRenewal,
+  communityRenewalDelay,
   getCommunityReadDeadline,
   invalidateCommunityReads,
 } from "../state/read-cache";
@@ -31,6 +35,7 @@ import {
   uploadCommunityMedia,
   removeCommunityMedia,
 } from "./client";
+import { isCommunityAccessDenial } from "../community-client";
 export function CommunityMediaScreen() {
   const { session } = useAuth();
   return (
@@ -50,6 +55,10 @@ function MediaContent({ principal }: { principal: string | null }) {
   const freshRead = useRef(0);
   const freshLoading = useRef(false);
   const expiry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renewal = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRead = useRef<{ mode: "feed" | "mine"; cursor?: string } | null>(
+    null,
+  );
   const client = useMemo(
     () => scopeCommunityClient(apiClient, principal, () => active.current),
     [principal],
@@ -65,6 +74,8 @@ function MediaContent({ principal }: { principal: string | null }) {
   const [altText, setAltText] = useState("");
   const [rights, setRights] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -73,6 +84,9 @@ function MediaContent({ principal }: { principal: string | null }) {
     freshRead.current++;
     if (expiry.current !== null) clearTimeout(expiry.current);
     expiry.current = null;
+    if (renewal.current !== null) clearTimeout(renewal.current);
+    renewal.current = null;
+    lastRead.current = null;
     freshLoading.current = false;
     active.current = false;
     actionLock.current = null;
@@ -88,32 +102,135 @@ function MediaContent({ principal }: { principal: string | null }) {
     setNotice(null);
     setError(null);
   }, []);
+  const retireFor = useCallback(
+    (read: number) => () => {
+      if (freshRead.current !== read) return;
+      freshRead.current++;
+      if (expiry.current !== null) clearTimeout(expiry.current);
+      expiry.current = null;
+      if (renewal.current !== null) clearTimeout(renewal.current);
+      renewal.current = null;
+      setItems([]);
+      setImages({});
+      setReport(null);
+      setCursor(null);
+      if (freshLoading.current) {
+        freshLoading.current = false;
+        setBusy(false);
+      }
+      setError("Refresh images to check current access.");
+    },
+    [],
+  );
+  /** Deadline of the displayed page; renewal retries stop before it. */
+  const displayDeadline = useRef(0);
+  // Silent renewal: re-read the displayed page and its bytes without clearing it,
+  // showing a loading state or touching drafts. Only a complete fresh response,
+  // applied before the original deadline, swaps in and re-arms timers; otherwise
+  // the original expiry timer retires the page.
+  const renew = useCallback(async () => {
+    const last = lastRead.current;
+    const read = freshRead.current;
+    // A preempted or transiently failed renewal is retried until the deadline.
+    const retry = () => {
+      if (
+        !active.current ||
+        freshRead.current !== read ||
+        !canRetryCommunityRenewal(displayDeadline.current)
+      )
+        return;
+      if (renewal.current !== null) clearTimeout(renewal.current);
+      renewal.current = setTimeout(
+        () => void renewRef.current(),
+        COMMUNITY_READ_RENEWAL_RETRY_MS,
+      );
+    };
+    if (!last || !active.current) return;
+    if (actionLock.current || busyRef.current) return retry();
+    const current = epoch.current;
+    let deadline = Date.now() + COMMUNITY_READ_LIFETIME_MS;
+    const stale = () =>
+      current !== epoch.current ||
+      freshRead.current !== read ||
+      !active.current ||
+      actionLock.current !== null ||
+      busyRef.current ||
+      Date.now() >= deadline;
+    const result = await fetchCommunityMedia(
+      client,
+      last.mode,
+      last.cursor,
+    ).catch(() => ({ ok: false as const, error: null }));
+    if (!result.ok) {
+      if (current !== epoch.current || freshRead.current !== read) return;
+      if (result.error && isCommunityAccessDenial(result.error))
+        retireFor(read)();
+      else retry();
+      return;
+    }
+    deadline = Math.min(
+      deadline,
+      getCommunityReadDeadline(result.value) ?? deadline,
+    );
+    if (stale()) return retry();
+    const visible = result.value.items.filter(
+      (item) => item.state === "approved" || item.state === "pending",
+    );
+    const nextImages: Record<string, string> = {};
+    for (let offset = 0; offset < visible.length; offset += 2) {
+      let failed = false;
+      let denied = false;
+      await Promise.all(
+        visible.slice(offset, offset + 2).map(async (item) => {
+          const response = await fetchCommunityMediaContent(
+            client,
+            item.id,
+          ).catch(() => ({ ok: false as const, error: null }));
+          if (response.ok)
+            nextImages[item.id] =
+              `data:image/jpeg;base64,${response.value.base64}`;
+          else {
+            failed = true;
+            if (response.error && isCommunityAccessDenial(response.error))
+              denied = true;
+          }
+        }),
+      );
+      if (current !== epoch.current || freshRead.current !== read) return;
+      // Image access withdrawn: retire at once, as a fresh load would.
+      if (denied) return retireFor(read)();
+      if (stale() || failed) return retry();
+    }
+    const next = ++freshRead.current;
+    displayDeadline.current = deadline;
+    if (expiry.current !== null) clearTimeout(expiry.current);
+    expiry.current = setTimeout(retireFor(next), deadline - Date.now());
+    if (renewal.current !== null) clearTimeout(renewal.current);
+    renewal.current = setTimeout(
+      () => void renewRef.current(),
+      communityRenewalDelay(deadline),
+    );
+    setItems(result.value.items);
+    setCursor(result.value.nextCursor);
+    setImages(nextImages);
+  }, [client, retireFor]);
+  const renewRef = useRef(renew);
+  renewRef.current = renew;
   const load = useCallback(
     async (nextMode = mode, append = false) => {
       const current = ++epoch.current;
       const read = ++freshRead.current;
       freshLoading.current = true;
-      let deadline = Date.now() + 10_000;
+      let deadline = Date.now() + COMMUNITY_READ_LIFETIME_MS;
       if (expiry.current !== null) clearTimeout(expiry.current);
+      if (renewal.current !== null) clearTimeout(renewal.current);
+      renewal.current = null;
+      lastRead.current = null;
       // Expiry is tied to the authorization request start, including byte reads.
       setItems([]);
       setReport(null);
-      const retire = () => {
-        if (freshRead.current !== read) return;
-        freshRead.current++;
-        if (expiry.current !== null) clearTimeout(expiry.current);
-        expiry.current = null;
-        setItems([]);
-        setImages({});
-        setReport(null);
-        setCursor(null);
-        if (freshLoading.current) {
-          freshLoading.current = false;
-          setBusy(false);
-        }
-        setError("Refresh images to check current access.");
-      };
-      expiry.current = setTimeout(retire, 10_000);
+      const retire = retireFor(read);
+      expiry.current = setTimeout(retire, COMMUNITY_READ_LIFETIME_MS);
       setBusy(true);
       setError(null);
       setImages({});
@@ -187,8 +304,17 @@ function MediaContent({ principal }: { principal: string | null }) {
       setImages(nextImages);
       freshLoading.current = false;
       setBusy(false);
+      lastRead.current = {
+        mode: nextMode,
+        ...(append && cursor ? { cursor } : {}),
+      };
+      displayDeadline.current = deadline;
+      renewal.current = setTimeout(
+        () => void renewRef.current(),
+        communityRenewalDelay(deadline),
+      );
     },
-    [client, cursor, mode],
+    [client, cursor, mode, retireFor],
   );
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -238,6 +364,10 @@ function MediaContent({ principal }: { principal: string | null }) {
       actionLock.current = null;
       setBusy(false);
       if (!result.ok) {
+        // The cleared list must not be refilled by a pending renewal.
+        lastRead.current = null;
+        if (renewal.current !== null) clearTimeout(renewal.current);
+        renewal.current = null;
         setItems([]);
         setImages({});
         setError(
@@ -258,6 +388,9 @@ function MediaContent({ principal }: { principal: string | null }) {
       ) {
         actionLock.current = null;
         setBusy(false);
+        lastRead.current = null;
+        if (renewal.current !== null) clearTimeout(renewal.current);
+        renewal.current = null;
         setItems([]);
         setImages({});
         setError("Unable to finish image action. Refresh and try again.");

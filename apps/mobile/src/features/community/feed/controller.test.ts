@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
 import type { AuthSession } from "@mizyun/identity";
-import { CommunityReadCache, getCommunityReadEpoch } from "../state/read-cache";
+import {
+  COMMUNITY_READ_LIFETIME_MS,
+  CommunityReadCache,
+  getCommunityReadEpoch,
+} from "../state/read-cache";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { FeedController, INITIAL_FEED_STATE } from "./controller";
 import { ReactionBarController } from "../reactions/reaction-bar-controller";
@@ -666,7 +670,8 @@ describe("FeedController", () => {
     const { controller } = setup(request);
     await controller.load();
     const more = controller.loadMore();
-    expect(controller.getState().items).toEqual([]);
+    // Already-shown cards stay during the recheck (#265); the result replaces them.
+    expect(controller.getState().items).toEqual([mockItem1]);
     await more;
     expect(controller.getState().items).toEqual([mockItem2, mockItem3]);
     expect(request).toHaveBeenLastCalledWith(
@@ -674,6 +679,32 @@ describe("FeedController", () => {
         path: "/v1/community/feed?limit=20&cursor=new",
       }),
     );
+  });
+});
+
+describe("FeedController load-more failures (#265)", () => {
+  it("keeps the shown cards on a network failure and retires them on denial", async () => {
+    const page = { ok: true, value: { items: [mockItem1], nextCursor: "c2" } };
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(page)
+      .mockResolvedValueOnce({ ok: false, error: { kind: "network_error" } })
+      .mockResolvedValueOnce(page)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { kind: "http_error", status: 403, code: "X", message: "x" },
+      });
+    const { controller } = setup(request);
+    await controller.load();
+    await controller.loadMore();
+    expect(controller.getState()).toMatchObject({
+      items: [mockItem1],
+      status: "idle",
+      hasMore: true,
+    });
+    expect(controller.getState().error).toBeTruthy();
+    await controller.loadMore();
+    expect(controller.getState()).toMatchObject({ items: [], status: "error" });
   });
 });
 
@@ -716,7 +747,9 @@ describe("FeedController retained navigation with real read cache", () => {
       try {
         await controller.load();
         if (cause === "expiry")
-          vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_001);
+          vi.spyOn(Date, "now").mockReturnValue(
+            Date.now() + COMMUNITY_READ_LIFETIME_MS + 1,
+          );
         if (cause === "write") cache.clear();
         if (cause === "background") cache.setForeground(false);
         if (cause === "principal") cache.setPrincipal("other");
@@ -748,11 +781,11 @@ describe("FeedController retained navigation with real read cache", () => {
       expect(controller.getSnapshot().items).toEqual([mockItem1, mockItem2]);
       controller.suspend();
       controller.resume();
-      clock = 10_999;
+      clock = 1_000 + COMMUNITY_READ_LIFETIME_MS - 1;
       expect(controller.canRetainForNavigation()).toBe(true);
       controller.suspend();
       controller.resume();
-      clock = 11_000;
+      clock = 1_000 + COMMUNITY_READ_LIFETIME_MS;
       expect(controller.canRetainForNavigation()).toBe(false);
       expect(request).toHaveBeenCalledTimes(2);
     } finally {

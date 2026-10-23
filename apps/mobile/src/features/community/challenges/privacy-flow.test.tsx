@@ -499,3 +499,20 @@ describe("challenge privacy during growth freezes", () => {
     });
   });
 });
+
+describe("challenge renewal (#265)", () => {
+  it("renews only pure reads, never joins, contributions or removals", async () => {
+    const { renewableChallengeRead } = await import("./screen");
+    for (const operation of ["list", "get", "listMine", "getMine"])
+      expect(renewableChallengeRead({ operation })).toBe(true);
+    for (const operation of [
+      "create",
+      "join",
+      "contribute",
+      "removeContribution",
+      "leave",
+      "cancel",
+    ])
+      expect(renewableChallengeRead({ operation })).toBe(false);
+  });
+});

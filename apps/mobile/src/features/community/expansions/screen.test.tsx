@@ -24,7 +24,10 @@ vi.mock("./use-expansion-command", () => ({
     run: mocks.run,
   }),
 }));
-vi.mock("../state/read-cache", () => ({ invalidateCommunityReads: vi.fn() }));
+vi.mock("../state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/read-cache")>()),
+  invalidateCommunityReads: vi.fn(),
+}));
 import { CommunityExpansionsScreen } from "./screen";
 function rows(): any[] {
   const outer = CommunityExpansionsScreen();

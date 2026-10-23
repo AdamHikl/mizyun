@@ -71,7 +71,8 @@ vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "black" }) }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("../community-presentation", () => ({ CommunityIntro: "Intro" }));
 vi.mock("../safety/report-modal", () => ({ ReportModal: "Report" }));
-vi.mock("../state/read-cache", () => ({
+vi.mock("../state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/read-cache")>()),
   getCommunityReadDeadline: (value: object) => mocks.deadlines.get(value),
   invalidateCommunityReads: mocks.invalidate,
 }));
@@ -81,6 +82,10 @@ vi.mock("../community-client", async (original) => ({
   fetchFollowing: async () => ({ ok: true, value: { items: [] } }),
 }));
 import { GroupsScreen } from "./screen";
+import {
+  COMMUNITY_READ_LIFETIME_MS as LIFETIME,
+  COMMUNITY_READ_RENEWAL_LEAD_MS as LEAD,
+} from "../state/read-cache";
 function render(): any {
   hooks.index = 0;
   const outer = GroupsScreen();
@@ -163,19 +168,81 @@ describe("bounded private-group rendering", () => {
     control(render(), "Cancel group task").props.onPress();
     expect(nodes(render()).some((node) => node.type === "Input")).toBe(false);
   });
-  it("expires group and post data without replaying commands", async () => {
+  async function openGroup() {
     render();
     await settle();
     control(render(), "Private title · Member").props.onPress();
     render();
     await settle();
     expect(text(render())).toContain("Shared text");
+  }
+  it("silently renews before the deadline: no gap, error or draft reset", async () => {
+    await openGroup();
     const calls = mocks.action.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(10000);
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    await settle();
+    expect(mocks.action.mock.calls.length).toBeGreaterThan(calls);
+    await vi.advanceTimersByTimeAsync(LEAD + 1_000);
+    expect(text(render())).toContain("Shared text");
+    expect(text(render())).not.toContain("Refresh to check");
+    for (const [, request] of mocks.action.mock.calls)
+      expect(["list", "inbox", "read"]).toContain(request.operation);
+  });
+  it("retires at the original deadline when the renewal fails, without replaying commands", async () => {
+    await openGroup();
+    const calls = mocks.action.mock.calls.length;
+    mocks.action.mockResolvedValue({ ok: false, error: { kind: "network" } });
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(text(render())).not.toContain("Shared text");
     expect(text(render())).not.toContain("Private title");
     expect(text(render())).toContain("Refresh to check");
-    expect(mocks.action).toHaveBeenCalledTimes(calls);
+    const later = mocks.action.mock.calls.slice(calls);
+    for (const [, request] of later)
+      expect(["list", "inbox", "read"]).toContain(request.operation);
+  });
+  it("retires at the original deadline when the renewal hangs", async () => {
+    await openGroup();
+    mocks.action.mockImplementation(() => new Promise(() => {}));
+    await vi.advanceTimersByTimeAsync(LIFETIME);
+    expect(text(render())).not.toContain("Shared text");
+    expect(text(render())).not.toContain("Private title");
+    expect(text(render())).toContain("Refresh to check");
+  });
+  it("does not keep old updates alive when an inbox renewal fails with 503 while the list renews", async () => {
+    const event = { id: "event-1", kind: "invitation" };
+    const original = mocks.action.getMockImplementation()!;
+    let inboxDown = false;
+    mocks.action.mockImplementation(async (client, request) => {
+      if (request.operation === "inbox")
+        return inboxDown
+          ? {
+              ok: false,
+              error: {
+                kind: "http_error",
+                status: 503,
+                code: "UNAVAILABLE",
+                message: "",
+              },
+            }
+          : {
+              ok: true,
+              value: { groups: [], posts: [], members: [], events: [event] },
+            };
+      return original(client, request);
+    });
+    render();
+    await settle();
+    expect(text(render())).toContain("You have a private group invitation.");
+    inboxDown = true;
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+    await settle();
+    // Old content may stay only under the original deadline.
+    expect(text(render())).toContain("You have a private group invitation.");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await settle();
+    expect(text(render())).not.toContain("private group invitation");
+    expect(text(render())).not.toContain("Private title");
+    expect(text(render())).toContain("Refresh to check");
   });
   it("starts the owner's rules editor with saved rules and keeps overview forms out of the detail", async () => {
     const original = mocks.action.getMockImplementation()!;
@@ -225,7 +292,7 @@ describe("bounded private-group rendering", () => {
     control(render(), "Create a private group").props.onPress();
     await settle();
     const count = mocks.action.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     finish({ ok: true, value: { group } });
     await settle();
     expect(mocks.action).toHaveBeenCalledTimes(count);
@@ -289,7 +356,9 @@ describe("bounded private-group rendering", () => {
       const response = await original(client, request);
       mocks.deadlines.set(
         response.value,
-        request.operation === "inbox" ? 9_000 : 10_000,
+        request.operation === "inbox"
+          ? 5_000 + LIFETIME - 1_000
+          : 5_000 + LIFETIME,
       );
       return response;
     });
@@ -299,7 +368,7 @@ describe("bounded private-group rendering", () => {
     render();
     await settle();
     expect(text(render())).toContain("Shared text");
-    await vi.advanceTimersByTimeAsync(4_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1_000);
     expect(text(render())).not.toContain("Shared text");
     expect(control(render(), "Refresh groups").props.disabled).toBe(false);
     control(render(), "Refresh groups").props.onPress();
@@ -323,7 +392,7 @@ describe("bounded private-group rendering", () => {
     control(render(), "Private title · Member").props.onPress();
     render();
     await settle();
-    await vi.advanceTimersByTimeAsync(10000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     resolve({
       ok: true,
       value: { group, posts: [{ body: "Late shared text" }] },

@@ -3,7 +3,11 @@ import {
   communityFeedResponseSchema,
   communityProfileDtoSchema,
 } from "@mizyun/contracts";
-import { CommunityReadCache, setCommunityReadPrincipal } from "./read-cache";
+import {
+  COMMUNITY_READ_LIFETIME_MS,
+  CommunityReadCache,
+  setCommunityReadPrincipal,
+} from "./read-cache";
 import {
   clearCommunityDisplaySnapshot,
   readCommunityDisplaySnapshot,
@@ -183,7 +187,7 @@ describe("Community display snapshot", () => {
     ["no_session", { ok: false, error: { kind: "no_session" } }],
   ])("clears when membership revalidation returns %s", async (_, outcome) => {
     await warm();
-    vi.advanceTimersByTime(10_001);
+    vi.advanceTimersByTime(COMMUNITY_READ_LIFETIME_MS + 1);
     raw.mockResolvedValueOnce(outcome);
     await profileRead();
     expect(readCommunityDisplaySnapshot(A, 1990)).toBeUndefined();
@@ -237,7 +241,7 @@ describe("Community display snapshot", () => {
     ],
   ])("keeps the snapshot after a %s failure", async (_, outcome) => {
     await warm();
-    vi.advanceTimersByTime(10_001);
+    vi.advanceTimersByTime(COMMUNITY_READ_LIFETIME_MS + 1);
     raw.mockResolvedValueOnce(outcome);
     raw.mockResolvedValueOnce(outcome);
     await profileRead();
@@ -247,7 +251,7 @@ describe("Community display snapshot", () => {
 
   it("hides the snapshot when the Community kill switch answers the feed with 503", async () => {
     await warm();
-    vi.advanceTimersByTime(10_001);
+    vi.advanceTimersByTime(COMMUNITY_READ_LIFETIME_MS + 1);
     raw.mockResolvedValueOnce({ ok: true, value: profile(A) });
     raw.mockResolvedValueOnce({
       ok: false,

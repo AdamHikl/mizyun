@@ -634,6 +634,16 @@ export function communityErrorCause(error: ApiError): ApiError {
   return error;
 }
 
+/** The backend refused access: the caller's session or permission is gone. */
+export function isCommunityAccessDenial(error: ApiError): boolean {
+  const cause = communityErrorCause(error);
+  return (
+    cause.kind === "no_session" ||
+    cause.kind === "session_expired" ||
+    (cause.kind === "http_error" && [401, 403, 404].includes(cause.status))
+  );
+}
+
 /** Connectivity, rate-limit or server failures that say nothing about access. */
 export function isTransientCommunityError(error: ApiError): boolean {
   error = communityErrorCause(error);

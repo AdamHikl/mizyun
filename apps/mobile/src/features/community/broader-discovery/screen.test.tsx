@@ -48,7 +48,10 @@ vi.mock("../community-client", () => ({
 vi.mock("../scoped-client", () => ({
   scopeCommunityClient: (client: unknown) => client,
 }));
-vi.mock("../state/read-cache", () => ({ invalidateCommunityReads: vi.fn() }));
+vi.mock("../state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/read-cache")>()),
+  invalidateCommunityReads: vi.fn(),
+}));
 vi.mock("../ui", () => ({
   CommunityPage: "CommunityPage",
   CommunityIdentityLink: "IdentityLink",

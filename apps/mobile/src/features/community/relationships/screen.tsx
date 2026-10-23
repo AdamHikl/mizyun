@@ -60,7 +60,10 @@ import {
   humanizeCommunityError,
 } from "../community-client";
 import type { PublicCommunityProfileDto } from "@mizyun/contracts";
-import { invalidateCommunityReads } from "../state/read-cache";
+import {
+  COMMUNITY_READ_LIFETIME_MS,
+  invalidateCommunityReads,
+} from "../state/read-cache";
 import {
   RelationshipsController,
   type RelationshipList,
@@ -560,7 +563,7 @@ function OwnerRelationships({
                   clearSearch();
                   const revision = searchRevision.current;
                   const intent = controller.captureIntent();
-                  const deadline = Date.now() + 10_000;
+                  const deadline = Date.now() + COMMUNITY_READ_LIFETIME_MS;
                   const current = () =>
                     alive.current &&
                     intent() &&

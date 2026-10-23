@@ -2,7 +2,10 @@ import type { ApiClient, ApiError } from "@mizyun/api-client";
 import type { Result } from "@mizyun/core";
 import type { CommunityComment, CommunityCommentPage } from "@mizyun/contracts";
 import { scopeCommunityClient } from "../scoped-client";
-import { humanizeCommunityError } from "../community-client";
+import {
+  isCommunityAccessDenial,
+  humanizeCommunityError,
+} from "../community-client";
 import {
   fetchCommentPage,
   fetchCommentCandidates,
@@ -15,6 +18,9 @@ import {
 } from "./client";
 import { communityCommentSettingsSchema } from "@mizyun/contracts";
 import {
+  COMMUNITY_READ_RENEWAL_RETRY_MS,
+  canRetryCommunityRenewal,
+  communityRenewalDelay,
   getCommunityReadDeadline,
   invalidateCommunityReads,
 } from "../state/read-cache";
@@ -45,7 +51,7 @@ const empty = (): CommentState => ({
   candidates: [],
   mentions: [],
 });
-export const COMMENT_AUTHORITY_LIFETIME_MS = 10_000;
+export const COMMENT_AUTHORITY_LIFETIME_MS = 60_000;
 /** Memory-only. No persisted social text, offline queue or automatic mutation replay. */
 export class CommentsController {
   private state = empty();
@@ -56,6 +62,7 @@ export class CommentsController {
   private leaseRevision = 0;
   private expiresAt: number | null = null;
   private expiryTimer: ReturnType<typeof setTimeout> | undefined;
+  private renewTimer: ReturnType<typeof setTimeout> | undefined;
   private listeners = new Set<() => void>();
   constructor(
     private raw: ApiClient,
@@ -77,6 +84,8 @@ export class CommentsController {
   private clearExpiry() {
     if (this.expiryTimer !== undefined) clearTimeout(this.expiryTimer);
     this.expiryTimer = undefined;
+    if (this.renewTimer !== undefined) clearTimeout(this.renewTimer);
+    this.renewTimer = undefined;
     this.expiresAt = null;
     this.leaseRevision++;
   }
@@ -95,6 +104,145 @@ export class CommentsController {
     // Node-only test/runtime timer housekeeping; native timers are numeric.
     if (typeof this.expiryTimer === "object")
       (this.expiryTimer as { unref?: () => void }).unref?.();
+  }
+  /** Silent renewal of a settled read shortly before its deadline; expiry stays the fallback. */
+  private armRenewal() {
+    if (this.expiresAt === null) return;
+    const lease = this.leaseRevision;
+    this.renewTimer = setTimeout(
+      () => void this.renew(lease),
+      communityRenewalDelay(this.expiresAt),
+    );
+    if (typeof this.renewTimer === "object")
+      (this.renewTimer as { unref?: () => void }).unref?.();
+  }
+  /** Retry a renewal that a write, busy state or transient failure preempted. */
+  private retryRenewal(lease: number) {
+    if (
+      lease !== this.leaseRevision ||
+      this.expiresAt === null ||
+      !this.active ||
+      !this.alive() ||
+      !canRetryCommunityRenewal(this.expiresAt)
+    )
+      return;
+    if (this.renewTimer !== undefined) clearTimeout(this.renewTimer);
+    this.renewTimer = setTimeout(
+      () => void this.renew(lease),
+      COMMUNITY_READ_RENEWAL_RETRY_MS,
+    );
+    if (typeof this.renewTimer === "object")
+      (this.renewTimer as { unref?: () => void }).unref?.();
+  }
+  /**
+   * Re-reads without clearing displayed text or bumping the revision. Only a
+   * fresh successful response replaces the snapshot and starts a new lease; a
+   * failed or late renewal leaves the original deadline to retire the content.
+   */
+  private async renew(lease: number) {
+    this.renewTimer = undefined;
+    if (
+      lease !== this.leaseRevision ||
+      this.expiresAt === null ||
+      !this.active ||
+      !this.alive() ||
+      !this.principal
+    )
+      return;
+    if (this.state.busy) return this.retryRenewal(lease);
+    const original = this.expiresAt;
+    const revision = this.revision;
+    const startedAt = Date.now();
+    const current = () =>
+      this.active &&
+      this.alive() &&
+      this.revision === revision &&
+      lease === this.leaseRevision &&
+      Date.now() < original;
+    const client = scopeCommunityClient(this.raw, this.principal, current);
+    let deadline = startedAt + COMMENT_AUTHORITY_LIFETIME_MS;
+    const bound = (value: unknown) => {
+      deadline = Math.min(
+        deadline,
+        getCommunityReadDeadline(value) ?? deadline,
+      );
+    };
+    // Explicit denial retires immediately; any other failure is retried until
+    // the original deadline retires the content.
+    const denied = (error: ApiError) => {
+      if (!isCommunityAccessDenial(error)) return this.retryRenewal(lease);
+      this.revision++;
+      this.privacyRevision++;
+      this.clearExpiry();
+      this.update({ ...empty(), error: humanizeCommunityError(error) });
+    };
+    if (!this.activityId) {
+      const [inbox, preferences] = await Promise.all([
+        fetchCommentMentions(client),
+        fetchCommentPreferences(client),
+      ]);
+      if (!current()) return this.retryRenewal(lease);
+      if (!inbox.ok) return denied(inbox.error);
+      if (!preferences.ok) return denied(preferences.error);
+      bound(inbox.value);
+      bound(preferences.value);
+      if (Date.now() >= deadline) return;
+      this.update({
+        ...empty(),
+        notice: this.state.notice,
+        mentions: inbox.value.items,
+        allowMentions: preferences.value.allowMentions,
+      });
+    } else {
+      const candidatesRead = fetchCommentCandidates(client, this.activityId);
+      let cursor: string | undefined;
+      let page: CommunityCommentPage | undefined;
+      const items = new Map<string, CommunityComment>();
+      for (let index = 0; index < this.pages; index++) {
+        const result = await fetchCommentPage(client, this.activityId, cursor);
+        if (!current()) return this.retryRenewal(lease);
+        if (!result.ok) {
+          denied(result.error);
+          return;
+        }
+        bound(result.value);
+        page = result.value;
+        for (const item of page.items) items.set(item.id, item);
+        cursor = page.nextCursor ?? undefined;
+        if (!cursor) break;
+      }
+      const candidates = await candidatesRead;
+      if (!current()) return this.retryRenewal(lease);
+      if (!candidates.ok || !page) {
+        if (!candidates.ok) denied(candidates.error);
+        return;
+      }
+      bound(candidates.value);
+      if (Date.now() >= deadline) return;
+      // Replies, edits and mention picks survive a renewal only while the
+      // authority they were derived from is unchanged; otherwise retire them.
+      const before = this.state;
+      const kept =
+        before.enabled === page.enabled &&
+        before.canManage === page.canManage &&
+        before.allowMentions === page.allowMentions &&
+        before.items.every(
+          (old) => items.get(old.id)?.version === old.version,
+        ) &&
+        before.candidates.every((old) =>
+          candidates.value.items.some((next) => next.userId === old.userId),
+        );
+      if (!kept) this.privacyRevision++;
+      this.update({
+        ...empty(),
+        ...page,
+        notice: this.state.notice,
+        items: [...items.values()],
+        candidates: candidates.value.items,
+      });
+    }
+    this.beginReadLease(deadline);
+    this.armRenewal();
   }
   private consumeDeadline(value: unknown): boolean {
     const deadline = Math.min(
@@ -196,6 +344,7 @@ export class CommentsController {
         mentions: inbox.value.items,
         allowMentions: preferences.value.allowMentions,
       });
+      this.armRenewal();
       return;
     }
     const candidatesRead = fetchCommentCandidates(client, this.activityId).then(
@@ -245,6 +394,7 @@ export class CommentsController {
       items: [...items.values()],
       candidates: candidates.value.items,
     });
+    this.armRenewal();
   }
   private async mutate(
     action: (client: ApiClient) => Promise<Result<unknown, ApiError>>,

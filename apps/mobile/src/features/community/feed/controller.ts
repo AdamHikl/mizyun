@@ -14,6 +14,7 @@ import {
 } from "../state/read-cache";
 import { scopeCommunityClient } from "../scoped-client";
 import {
+  communityErrorCause,
   fetchCommunityFeed,
   humanizeCommunityError,
 } from "../community-client";
@@ -226,8 +227,12 @@ export class FeedController {
       this.#principalKey,
       isCurrent,
     );
-    // Health cards are unavailable while authority is being checked, including offline.
-    this.#state = { ...INITIAL_FEED_STATE, status };
+    // Health cards are unavailable while authority is being checked, including
+    // offline. Load-more keeps the cards already shown under their lease (#265).
+    const shown = status === "loading_more" ? this.#state : undefined;
+    this.#state = shown
+      ? { ...shown, status }
+      : { ...INITIAL_FEED_STATE, status };
     this.#notify();
     const items: SharedActivityFeedItemDto[] = [];
     const ids = new Set<string>();
@@ -240,11 +245,23 @@ export class FeedController {
       });
       if (!isCurrent()) return;
       if (!result.ok) {
-        this.#state = {
-          ...INITIAL_FEED_STATE,
-          status: "error",
-          error: humanizeCommunityError(result.error),
-        };
+        const cause = communityErrorCause(result.error);
+        const transient =
+          cause.kind === "network_error" ||
+          (cause.kind === "http_error" && cause.status >= 500);
+        // A failed next page keeps the visible cards; a denial still retires them.
+        this.#state =
+          shown && transient
+            ? {
+                ...shown,
+                status: "idle",
+                error: humanizeCommunityError(result.error),
+              }
+            : {
+                ...INITIAL_FEED_STATE,
+                status: "error",
+                error: humanizeCommunityError(result.error),
+              };
         this.#notify();
         return;
       }

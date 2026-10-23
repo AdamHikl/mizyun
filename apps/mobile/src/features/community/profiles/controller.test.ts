@@ -6,6 +6,8 @@ import {
 } from "@mizyun/contracts";
 import { ProfileViewController } from "./controller";
 import {
+  COMMUNITY_READ_LIFETIME_MS as LIFETIME,
+  COMMUNITY_READ_RENEWAL_LEAD_MS as LEAD,
   CommunityReadCache,
   invalidateCommunityReads,
 } from "../state/read-cache";
@@ -21,7 +23,10 @@ const profile: CommunityProfileViewDto = {
 };
 const controllers: ProfileViewController[] = [];
 function setup(
-  request = vi.fn().mockResolvedValue({ ok: true, value: profile }),
+  // Fresh object per read: the shared constant may carry a stale cache deadline.
+  request = vi
+    .fn()
+    .mockImplementation(async () => ({ ok: true, value: { ...profile } })),
 ) {
   const controller = new ProfileViewController(
     { request } as unknown as ApiClient,
@@ -69,7 +74,7 @@ describe("addressable profile authority", () => {
     expect(error).toBeTruthy();
     expect(error).not.toMatch(/sign in|timed out/i);
     expect(controller.getState().profile).toBeNull();
-    await vi.advanceTimersByTimeAsync(10_001);
+    await vi.advanceTimersByTimeAsync(LIFETIME + 1);
     expect(controller.getState().error).toBe(error);
     expect(controller.getState().loading).toBe(false);
     cache.dispose();
@@ -152,7 +157,7 @@ describe("addressable profile authority", () => {
     expect(request).toHaveBeenCalledOnce();
     cache.dispose();
   });
-  it("revalidates at the original ten-second deadline and hides old data while offline", async () => {
+  it("revalidates at the original deadline and hides old data while offline", async () => {
     vi.useFakeTimers();
     const request = vi
       .fn()
@@ -163,7 +168,7 @@ describe("addressable profile authority", () => {
       });
     const { controller } = setup(request);
     await controller.load();
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(controller.getState().profile).toBeNull();
     expect(controller.getState().error).toContain("connect");
   });
@@ -236,7 +241,7 @@ describe("addressable profile authority", () => {
       expectedUserId: "owner",
       schema: communityProfileViewDtoSchema,
     });
-    await vi.advanceTimersByTimeAsync(9_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD - 1_000);
     const controller = new ProfileViewController(
       cache,
       "owner",
@@ -247,10 +252,84 @@ describe("addressable profile authority", () => {
     await controller.load();
     expect(controller.getState().profile).toBeTruthy();
     expect(request).toHaveBeenCalledOnce();
+    // The renewal inside the lead bypasses the cache; its failure keeps the
+    // content until the original deadline, which it does not extend.
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(controller.getState().profile).toBeNull();
     expect(request).toHaveBeenCalledTimes(2);
+    expect(controller.getState().profile).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(LEAD);
+    expect(controller.getState().profile).toBeNull();
     cache.dispose();
+  });
+  it("renews silently before the deadline: profile stays, no loading or error", async () => {
+    vi.useFakeTimers();
+    const { controller, request } = setup();
+    const states: unknown[] = [];
+    controller.subscribe(() => states.push(controller.getState()));
+    await controller.load();
+    expect(request).toHaveBeenCalledOnce();
+    states.length = 0;
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(request).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(LEAD + 500);
+    expect(controller.getState().profile).toBeTruthy();
+    expect(controller.getState().error).toBeNull();
+    expect(
+      (
+        states as { profile: unknown; loading: boolean; error: unknown }[]
+      ).every(
+        (state) => state.profile && !state.loading && state.error === null,
+      ),
+    ).toBe(true);
+    await vi.advanceTimersByTimeAsync(LIFETIME - 2 * LEAD - 500);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(controller.getState().profile).toBeTruthy();
+  });
+  it("retires the profile at the original deadline when the renewal fails or hangs", async () => {
+    vi.useFakeTimers();
+    for (const hang of [false, true]) {
+      const request = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, value: { ...profile } })
+        .mockImplementation(() =>
+          hang
+            ? new Promise(() => {})
+            : Promise.resolve({
+                ok: false,
+                error: { kind: "network_error", cause: null },
+              }),
+        );
+      const { controller } = setup(request);
+      await controller.load();
+      await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+      expect(controller.getState().profile).toBeTruthy();
+      expect(controller.getState().error).toBeNull();
+      // A failed renewal is retried while the profile stays visible.
+      if (!hang) expect(request.mock.calls.length).toBeGreaterThan(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(controller.getState().profile).toBeNull();
+      controller.pause();
+    }
+  });
+  it("retires the profile at once when the renewal is explicitly denied", async () => {
+    vi.useFakeTimers();
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: profile })
+      .mockResolvedValue({
+        ok: false,
+        error: {
+          kind: "http_error",
+          status: 404,
+          code: "NOT_FOUND",
+          message: "",
+        },
+      });
+    const { controller } = setup(request);
+    await controller.load();
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(controller.getState().profile).toBeNull();
+    expect(controller.getState().error).toBeTruthy();
   });
   it("revalidates a mutual profile after optional messaging denial instead of showing a false Message action", async () => {
     const mutual = {
@@ -338,7 +417,7 @@ describe("addressable profile authority", () => {
     const work = controller.load();
     await vi.advanceTimersByTimeAsync(0);
     expect(controller.getState().loading).toBe(true);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(controller.getState()).toMatchObject({
       loading: false,
       profile: null,
@@ -376,7 +455,7 @@ describe("addressable profile authority", () => {
     const { controller } = setup(request);
     const work = controller.load();
     await vi.advanceTimersByTimeAsync(0);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(controller.getState().loading).toBe(false);
     expect(controller.getState().profile).toBeNull();
     finish({ ok: true, value: { items: [{ id: "late-card" }] } });

@@ -150,8 +150,9 @@ vi.mock("./feed/formatters", () => ({
   formatSharedDay: (day: string) => `day:${day}`,
 }));
 import { ShareBoulderingModal } from "./share-bouldering-modal";
-vi.mock("./state/read-cache", () => ({
-  COMMUNITY_READ_LIFETIME_MS: 10_000,
+import { COMMUNITY_READ_LIFETIME_MS } from "./state/read-cache";
+vi.mock("./state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./state/read-cache")>()),
   getCommunityReadEpoch: () => mocks.epoch,
 }));
 const SESSION = "00000000-0000-4000-8000-0000000000b1";
@@ -380,21 +381,50 @@ describe("bouldering sharing sheet", () => {
     expect(text(tree)).toContain("Failed");
     expect(button(tree, "Reload session preview")).toBeTruthy();
   });
-  it("expires a preview and rejects a saved old publish handler", async () => {
-    const publish = button(await load(), "Publish session").props.onPress;
-    vi.advanceTimersByTime(10_000);
-    await publish();
-    expect(mocks.save).not.toHaveBeenCalled();
-    expect(text(render())).toContain("Reload the session preview");
+  it("keeps the own-session preview after the Community read lifetime, with no further preview fetch", async () => {
+    const first = await load();
+    toggle(first).props.onPress();
+    render();
+    vi.advanceTimersByTime(2 * COMMUNITY_READ_LIFETIME_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+    const tree = render();
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(text(tree)).not.toContain("Reload");
+    expect(card(tree)).toBeTruthy();
+    expect(toggle(tree).props.accessibilityState.checked).toBe(true);
+    expect(button(tree, "Publish session")).toBeTruthy();
   });
-  it.each(["account", "token", "background", "source", "epoch"])(
+  it("still publishes with an old handler and a fresh button after the read lifetime", async () => {
+    const publish = button(await load(), "Publish session").props.onPress;
+    vi.advanceTimersByTime(2 * COMMUNITY_READ_LIFETIME_MS);
+    await publish();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.dismiss).toHaveBeenCalledOnce();
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  });
+  it("publishes from a freshly rendered button long after the preview loaded", async () => {
+    await load();
+    vi.advanceTimersByTime(2 * COMMUNITY_READ_LIFETIME_MS);
+    await button(render(), "Publish session").props.onPress();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  });
+  it("does not retire the preview on a read-epoch change", async () => {
+    const publish = button(await load(), "Publish session").props.onPress;
+    mocks.epoch++;
+    const tree = render();
+    expect(card(tree)).toBeTruthy();
+    await publish();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+  });
+  it.each(["account", "token", "background", "source"])(
     "retires the preview and old handlers on %s change",
     async (change) => {
       const publish = button(await load(), "Publish session").props.onPress;
       if (change === "account") mocks.principal = "account-b";
       if (change === "token") mocks.token = "token-b";
       if (change === "background") mocks.appState!("background");
-      if (change === "epoch") mocks.epoch++;
       const overrides =
         change === "source"
           ? { sessionId: "00000000-0000-4000-8000-0000000000b2" }

@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  COMMUNITY_READ_LIFETIME_MS as LIFETIME,
+  COMMUNITY_READ_RENEWAL_LEAD_MS as LEAD,
+} from "../state/read-cache";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   deadline: vi.fn(),
@@ -125,7 +129,8 @@ vi.mock("@/features/community", () => ({
   ReportModal: "ReportModal",
   scopeCommunityClient: (client: unknown) => client,
 }));
-vi.mock("../state/read-cache", () => ({
+vi.mock("../state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/read-cache")>()),
   getCommunityReadDeadline: mocks.deadline,
   invalidateCommunityReads: mocks.invalidate,
 }));
@@ -218,11 +223,96 @@ describe("protected media screen lifecycle", () => {
     expect(nodes(render(), "Image")).toHaveLength(0);
     expect(JSON.stringify(nodes(render(), "Text"))).not.toContain(item.altText);
   });
+  it("silently renews metadata and bytes before the deadline without a gap or error", async () => {
+    render();
+    await flush();
+    const calls = mocks.request.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    await flush();
+    expect(mocks.request.mock.calls.length).toBe(calls + 2);
+    expect(nodes(render(), "Image")).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(LEAD + 1_000);
+    await flush();
+    expect(nodes(render(), "Image")).toHaveLength(1);
+    expect(JSON.stringify(nodes(render(), "Text"))).not.toContain(
+      "Refresh images",
+    );
+    for (const [options] of mocks.request.mock.calls)
+      expect(
+        options.method === "GET" || options.path.endsWith("/content"),
+      ).toBe(true);
+  });
+  it("retires at the original deadline when every renewal retry fails", async () => {
+    render();
+    await flush();
+    const calls = mocks.request.mock.calls.length;
+    mocks.request.mockResolvedValue({
+      ok: false,
+      error: { kind: "network_error", cause: null },
+    });
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+    await flush();
+    expect(nodes(render(), "Image")).toHaveLength(1);
+    // The failed renewal was retried while the image stayed visible.
+    expect(mocks.request.mock.calls.length).toBeGreaterThan(calls + 1);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    const tree = render();
+    expect(nodes(tree, "Image")).toHaveLength(0);
+    expect(JSON.stringify(nodes(tree, "Text"))).toContain("Refresh images");
+  });
+  it("retires the page at once when a renewal's image bytes are denied", async () => {
+    render();
+    await flush();
+    expect(nodes(render(), "Image")).toHaveLength(1);
+    mocks.request.mockImplementation(async (options) =>
+      options.path.endsWith("/content")
+        ? {
+            ok: false,
+            error: {
+              kind: "http_error",
+              status: 403,
+              code: "FORBIDDEN",
+              message: "",
+            },
+          }
+        : { ok: true, value: { items: [item], nextCursor: null } },
+    );
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    await flush();
+    const tree = render();
+    expect(nodes(tree, "Image")).toHaveLength(0);
+    expect(JSON.stringify(nodes(tree, "Text"))).not.toContain(item.altText);
+  });
+  it("keeps the page through a transient image-byte failure during renewal and retires it at the original deadline", async () => {
+    render();
+    await flush();
+    mocks.request.mockImplementation(async (options) =>
+      options.path.endsWith("/content")
+        ? { ok: false, error: { kind: "network_error", cause: null } }
+        : { ok: true, value: { items: [item], nextCursor: null } },
+    );
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+    await flush();
+    expect(nodes(render(), "Image")).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(nodes(render(), "Image")).toHaveLength(0);
+  });
+  it("retires at the original deadline when the renewal hangs", async () => {
+    render();
+    await flush();
+    mocks.request.mockImplementation(() => new Promise(() => {}));
+    await vi.advanceTimersByTimeAsync(LIFETIME);
+    const tree = render();
+    expect(nodes(tree, "Image")).toHaveLength(0);
+    expect(JSON.stringify(nodes(tree, "Text"))).toContain("Refresh images");
+  });
   it("expires delivered metadata and bytes without waiting for another interaction", async () => {
     render();
     await flush();
     expect(nodes(render(), "Image")).toHaveLength(1);
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     const tree = render();
     expect(nodes(tree, "Image")).toHaveLength(0);
     expect(JSON.stringify(nodes(tree, "Text"))).not.toContain(item.altText);
@@ -230,7 +320,7 @@ describe("protected media screen lifecycle", () => {
   it("hides prior data immediately during stalled refresh and rejects a late authorization result", async () => {
     render();
     await flush();
-    vi.advanceTimersByTime(9_000);
+    vi.advanceTimersByTime(LIFETIME - 1_000);
     let release!: (value: any) => void;
     mocks.request.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -240,7 +330,7 @@ describe("protected media screen lifecycle", () => {
     button(render(), "Refresh").props.onPress();
     expect(nodes(render(), "Image")).toHaveLength(0);
     expect(JSON.stringify(nodes(render(), "Text"))).not.toContain(item.altText);
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     release({ ok: true, value: { items: [item], nextCursor: null } });
     await flush();
     expect(nodes(render(), "Image")).toHaveLength(0);
@@ -261,7 +351,7 @@ describe("protected media screen lifecycle", () => {
     render();
     await flush();
     expect(JSON.stringify(nodes(render(), "Text"))).toContain(item.altText);
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     release({
       ok: true,
       value: { mimeType: "image/jpeg", base64: "AQIDBA==" },
@@ -407,7 +497,7 @@ describe("protected media screen lifecycle", () => {
         mocks.appState!("inactive");
         mocks.appState!("active");
         await flush();
-      } else vi.advanceTimersByTime(10_000);
+      } else vi.advanceTimersByTime(LIFETIME);
       confirm();
       await flush();
       expect(

@@ -47,10 +47,6 @@ import { useCommunityProfile } from "./use-community-profile";
 import { saveMealShare } from "./share-meal-actions";
 import { scopeCommunityClient } from "./scoped-client";
 import { useAuth } from "@/features/auth/auth-context";
-import {
-  COMMUNITY_READ_LIFETIME_MS,
-  getCommunityReadEpoch,
-} from "./state/read-cache";
 
 export interface ShareMealModalProps {
   readonly visible: boolean;
@@ -148,11 +144,12 @@ export function ShareMealModal({
     "publish",
   );
   const [previewState, setPreview] = useState<MealSharePreviewDto | null>(null);
+  // The preview is the owner's own meal, so it has no display deadline
+  // (Adam, 2026-10-23). It still retires on background, account or token
+  // change, and the server rechecks Community access when publishing.
   const previewAuthority = useRef<{
     principal: string | null;
     token: string | null;
-    epoch: number;
-    expiresAt: number;
   } | null>(null);
   const preview =
     previewState?.mealId === mealId &&
@@ -160,8 +157,6 @@ export function ShareMealModal({
       previewState.existingActivity?.id === existingActivityId) &&
     previewAuthority.current?.principal === principalKey &&
     previewAuthority.current.token === accessToken &&
-    previewAuthority.current.epoch === getCommunityReadEpoch() &&
-    Date.now() < previewAuthority.current.expiresAt &&
     foreground.current
       ? previewState
       : null;
@@ -169,7 +164,6 @@ export function ShareMealModal({
 
   useEffect(() => {
     let active = true;
-    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
     selectionRevision.current += 1;
     publicationOperation.current = null;
     previewAuthority.current = null;
@@ -181,25 +175,7 @@ export function ShareMealModal({
     if (!visible || !mealId || !principalKey || !foreground.current) return;
     setLoading(true);
     const load = async () => {
-      const expiresAt = Date.now() + COMMUNITY_READ_LIFETIME_MS;
-      const epoch = getCommunityReadEpoch();
       const revision = selectionRevision.current;
-      expiryTimer = setTimeout(
-        () => {
-          if (!active) return;
-          selectionRevision.current += 1;
-          publicationOperation.current = null;
-          previewAuthority.current = null;
-          setPreview(null);
-          setLoading(false);
-          setSubmitting(false);
-          inFlight.current = false;
-          setError(
-            "Reload the meal preview to check your current Community access.",
-          );
-        },
-        Math.max(0, expiresAt - Date.now()),
-      );
       const res = await fetchMealSharePreview(
         scopedClient,
         mealId,
@@ -214,12 +190,6 @@ export function ShareMealModal({
       )
         return;
       setLoading(false);
-      if (Date.now() >= expiresAt || epoch !== getCommunityReadEpoch()) {
-        setError(
-          "Reload the meal preview to check your current Community access.",
-        );
-        return;
-      }
       if (!res.ok) {
         setError(
           humanizeCommunityError(res.error, "Could not load meal preview."),
@@ -235,8 +205,6 @@ export function ShareMealModal({
         previewAuthority.current = {
           principal: principalKey,
           token: accessToken,
-          epoch,
-          expiresAt,
         };
         const existing = res.value.existingActivity;
         setPreview(
@@ -270,7 +238,6 @@ export function ShareMealModal({
     });
     return () => {
       active = false;
-      if (expiryTimer !== null) clearTimeout(expiryTimer);
       selectionRevision.current += 1;
     };
   }, [
@@ -302,8 +269,7 @@ export function ShareMealModal({
   const handlePublish = async () => {
     if (
       !preview ||
-      previewAuthority.current?.epoch !== getCommunityReadEpoch() ||
-      Date.now() >= (previewAuthority.current?.expiresAt ?? 0) ||
+      previewAuthority.current === null ||
       preview.mealId !== mealId ||
       submitting ||
       inFlight.current ||
@@ -362,8 +328,7 @@ export function ShareMealModal({
       submitting ||
       inFlight.current ||
       !selectionIsCurrent() ||
-      previewAuthority.current?.epoch !== getCommunityReadEpoch() ||
-      Date.now() >= (previewAuthority.current?.expiresAt ?? 0)
+      previewAuthority.current === null
     )
       return;
     const revision = selectionRevision.current;
@@ -482,10 +447,7 @@ export function ShareMealModal({
               <View style={styles.stack}>
                 <Notice
                   tone="danger"
-                  message={
-                    error ??
-                    "Reload the meal preview to check your current Community access."
-                  }
+                  message={error ?? "Reload the meal preview to continue."}
                 />
                 {preview && (
                   <Button

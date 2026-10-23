@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  COMMUNITY_READ_LIFETIME_MS as LIFETIME,
+  COMMUNITY_READ_RENEWAL_LEAD_MS as LEAD,
+  COMMUNITY_READ_RENEWAL_RETRY_MS as RETRY,
+} from "../state/read-cache";
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   receipt: vi.fn(),
@@ -89,8 +94,8 @@ vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/composition/api-client", () => ({
   apiClient: { request: mocks.request },
 }));
-vi.mock("../state/read-cache", () => ({
-  COMMUNITY_READ_LIFETIME_MS: 10000,
+vi.mock("../state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/read-cache")>()),
   getCommunityReadDeadline: () => mocks.deadline,
 }));
 vi.mock("../community-client", () => ({
@@ -99,6 +104,14 @@ vi.mock("../community-client", () => ({
   communityErrorCause: (error: any) => {
     while (error.kind === "context_changed" && error.cause) error = error.cause;
     return error;
+  },
+  isCommunityAccessDenial: (error: any) => {
+    while (error.kind === "context_changed" && error.cause) error = error.cause;
+    return (
+      error.kind === "no_session" ||
+      error.kind === "session_expired" ||
+      (error.kind === "http_error" && [401, 403, 404].includes(error.status))
+    );
   },
   blockUser: vi.fn(),
   setUserMuted: vi.fn(),
@@ -202,17 +215,100 @@ describe("shared workout detail load errors", () => {
 });
 describe("shared workout detail loading lifetime", () => {
   it("retires protected details and a captured reaction intent at original foreground expiry", async () => {
+    // The silent renewal never answers, so the original deadline retires content.
+    mocks.fetch.mockReturnValueOnce(
+      Promise.resolve({ ok: true, value: activity }),
+    );
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
     render();
     await Promise.resolve();
     await Promise.resolve();
     const client = find(render(), "ReactionBar").props.scopedClient;
-    await vi.advanceTimersByTimeAsync(10000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(find(render(), "ReactionBar")).toBeFalsy();
     expect(await client.request({ method: "POST", path: "/unused" })).toEqual({
       ok: false,
       error: { kind: "context_changed" },
     });
     expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("renews silently before the deadline so content stays visible past the original deadline", async () => {
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD - 1);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    const mid = render();
+    expect(find(mid, "ActivityIndicator")).toBeFalsy();
+    expect(find(mid, "ReactionBar")).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(LEAD + 500);
+    const after = render();
+    expect(find(after, "ReactionBar")).toBeTruthy();
+    expect(texts(after).join(" ")).not.toContain("access is checked again");
+    // The renewed deadline is itself bounded and renewed again.
+    await vi.advanceTimersByTimeAsync(LIFETIME - 2 * LEAD - 500);
+    expect(mocks.fetch).toHaveBeenCalledTimes(3);
+  });
+  it("retries a transiently failed renewal and keeps content past the original deadline", async () => {
+    mocks.fetch.mockResolvedValueOnce({ ok: true, value: activity });
+    mocks.fetch.mockResolvedValueOnce({
+      ok: false,
+      error: { kind: "network_error", cause: null },
+    });
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(find(render(), "ReactionBar")).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(RETRY);
+    expect(mocks.fetch).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(LEAD + 1);
+    expect(Date.now()).toBeGreaterThan(LIFETIME);
+    const later = render();
+    expect(find(later, "ReactionBar")).toBeTruthy();
+    expect(texts(later).join(" ")).not.toContain("access is checked again");
+  });
+  it("retires content at the original deadline when the renewal fails", async () => {
+    mocks.fetch.mockResolvedValueOnce({ ok: true, value: activity });
+    mocks.fetch.mockResolvedValue({
+      ok: false,
+      error: { kind: "network_error", cause: null },
+    });
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+    expect(find(render(), "ReactionBar")).toBeTruthy();
+    // The failed renewal was retried while the content stayed visible.
+    expect(mocks.fetch.mock.calls.length).toBeGreaterThan(2);
+    await vi.advanceTimersByTimeAsync(1);
+    const shown = texts(render());
+    expect(find(render(), "ReactionBar")).toBeFalsy();
+    expect(shown).toContain(
+      "This activity is unavailable until access is checked again.",
+    );
+  });
+  it("retires content immediately when the renewal is denied", async () => {
+    mocks.fetch.mockResolvedValueOnce({ ok: true, value: activity });
+    mocks.fetch.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        kind: "http_error",
+        status: 404,
+        code: "NOT_FOUND",
+        message: "",
+      },
+    });
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(find(render(), "ReactionBar")).toBeFalsy();
+    expect(texts(render())).toContain("This activity is unavailable.");
   });
   it("does not extend a restored detail's original authorization deadline", async () => {
     mocks.deadline = 2500;
@@ -231,7 +327,7 @@ describe("shared workout detail loading lifetime", () => {
       }),
     );
     render();
-    await vi.advanceTimersByTimeAsync(10000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(find(render(), "ActivityIndicator")).toBeFalsy();
     finish({ ok: true, value: activity });
     await Promise.resolve();
@@ -374,12 +470,13 @@ describe("shared meal detail management", () => {
     expect(find(render("author"), "ShareWorkoutModal")).toBeFalsy();
   });
   it("hides meal projections and rejects reactions after authority expires", async () => {
-    mocks.fetch.mockResolvedValue({ ok: true, value: meal });
+    mocks.fetch.mockResolvedValueOnce({ ok: true, value: meal });
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
     render();
     await Promise.resolve();
     await Promise.resolve();
     const client = find(render(), "ReactionBar").props.scopedClient;
-    await vi.advanceTimersByTimeAsync(10000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(find(render(), "SharedMealDetails")).toBeFalsy();
     expect(await client.request({ method: "POST", path: "/unused" })).toEqual({
       ok: false,

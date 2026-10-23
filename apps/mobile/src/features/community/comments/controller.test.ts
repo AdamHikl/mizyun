@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
-import { CommentsController } from "./controller";
+import {
+  COMMUNITY_READ_RENEWAL_LEAD_MS as LEAD,
+  COMMUNITY_READ_RENEWAL_RETRY_MS as RETRY,
+} from "../state/read-cache";
+import {
+  COMMENT_AUTHORITY_LIFETIME_MS as LIFETIME,
+  CommentsController,
+} from "./controller";
 const cache = vi.hoisted(() => ({
   deadlines: new WeakMap<object, number>(),
   invalidate: vi.fn(),
 }));
-vi.mock("../state/read-cache", () => ({
+vi.mock("../state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/read-cache")>()),
   getCommunityReadDeadline: (value: object) => cache.deadlines.get(value),
   invalidateCommunityReads: cache.invalidate,
 }));
@@ -58,7 +66,7 @@ describe("comment memory and authorization lifetime", () => {
     await controller.load();
     const privacyRevision = controller.getSnapshot().privacyRevision;
     revoked = true;
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(controller.getSnapshot().items).toEqual([]);
     expect(controller.getSnapshot().candidates).toEqual([]);
     expect(controller.getSnapshot().privacyRevision).toBeGreaterThan(
@@ -67,17 +75,144 @@ describe("comment memory and authorization lifetime", () => {
     expect(request).toHaveBeenCalledTimes(4);
     controller.pause();
   });
+  it("renews silently before the deadline: text stays, no error, no privacy reset", async () => {
+    vi.useFakeTimers();
+    const request = vi.fn(async (options) => ({
+      ok: true,
+      value: options.path.endsWith("candidates") ? { items: [author] } : page(),
+    }));
+    const controller = new CommentsController(
+      client(request),
+      "alice",
+      "activity",
+    );
+    const states: unknown[] = [];
+    controller.subscribe(() => states.push(controller.getSnapshot()));
+    await controller.load();
+    const privacyRevision = controller.getSnapshot().privacyRevision;
+    states.length = 0;
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(request).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(LEAD + 500);
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.items).toHaveLength(1);
+    expect(snapshot.error).toBeNull();
+    expect(snapshot.privacyRevision).toBe(privacyRevision);
+    expect(
+      (states as { items: unknown[]; error: unknown }[]).every(
+        (state) => state.items.length === 1 && state.error === null,
+      ),
+    ).toBe(true);
+    // The fresh lease renews again instead of expiring at the old deadline.
+    await vi.advanceTimersByTimeAsync(LIFETIME - 2 * LEAD - 500);
+    expect(request).toHaveBeenCalledTimes(6);
+    controller.pause();
+  });
+  it("retires text at the original deadline when the renewal fails or hangs", async () => {
+    vi.useFakeTimers();
+    for (const mode of ["fail", "hang"]) {
+      let calls = 0;
+      const request = vi.fn(async (options) => {
+        if (++calls > 2)
+          return mode === "hang"
+            ? new Promise<never>(() => {})
+            : { ok: false, error: { kind: "network_error", cause: null } };
+        return {
+          ok: true,
+          value: options.path.endsWith("candidates")
+            ? { items: [author] }
+            : page(),
+        };
+      });
+      const controller = new CommentsController(
+        client(request),
+        "alice",
+        "activity",
+      );
+      await controller.load();
+      await vi.advanceTimersByTimeAsync(LIFETIME - 1);
+      expect(controller.getSnapshot().items).toHaveLength(1);
+      // A failed renewal is retried while the content stays visible.
+      if (mode === "fail") expect(request.mock.calls.length).toBeGreaterThan(4);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(controller.getSnapshot().items).toEqual([]);
+      controller.pause();
+    }
+  });
+  it("retries a transiently failed renewal and keeps the text past the original deadline", async () => {
+    vi.useFakeTimers();
+    let failing = false;
+    const request = vi.fn(async (options) =>
+      failing
+        ? { ok: false, error: { kind: "network_error", cause: null } }
+        : {
+            ok: true,
+            value: options.path.endsWith("candidates")
+              ? { items: [author] }
+              : page(),
+          },
+    );
+    const controller = new CommentsController(
+      client(request),
+      "alice",
+      "activity",
+    );
+    await controller.load();
+    expect(request).toHaveBeenCalledTimes(2);
+    failing = true;
+    const privacyRevision = controller.getSnapshot().privacyRevision;
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(request).toHaveBeenCalledTimes(4);
+    expect(controller.getSnapshot().items).toHaveLength(1);
+    failing = false;
+    await vi.advanceTimersByTimeAsync(RETRY);
+    expect(request).toHaveBeenCalledTimes(6);
+    await vi.advanceTimersByTimeAsync(LEAD);
+    expect(Date.now()).toBeGreaterThan(LIFETIME);
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.items).toHaveLength(1);
+    expect(snapshot.error).toBeNull();
+    expect(snapshot.privacyRevision).toBe(privacyRevision);
+    controller.pause();
+  });
+  it("clears at once when the renewal is explicitly denied", async () => {
+    vi.useFakeTimers();
+    let denied = false;
+    const request = vi.fn(async (options) =>
+      denied
+        ? {
+            ok: false,
+            error: { kind: "http_error", status: 403, code: "x", message: "" },
+          }
+        : {
+            ok: true,
+            value: options.path.endsWith("candidates")
+              ? { items: [author] }
+              : page(),
+          },
+    );
+    const controller = new CommentsController(
+      client(request),
+      "alice",
+      "activity",
+    );
+    await controller.load();
+    denied = true;
+    await vi.advanceTimersByTimeAsync(LIFETIME - LEAD);
+    expect(controller.getSnapshot().items).toEqual([]);
+    controller.pause();
+  });
   it("expires compound restored reads at the earliest original deadline, without extending their lease", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(5_000);
     const comments = page();
     const candidates = { items: [author] };
-    cache.deadlines.set(comments, 10_000);
-    cache.deadlines.set(candidates, 9_000);
+    cache.deadlines.set(comments, 5_000 + LIFETIME);
+    cache.deadlines.set(candidates, 5_000 + LIFETIME - 1_000);
     let denied = false;
     const request = vi.fn(async (options) =>
       denied
-        ? { ok: false, error: { kind: "no_session" } }
+        ? { ok: false, error: { kind: "network_error", cause: null } }
         : {
             ok: true,
             value: options.path.endsWith("candidates") ? candidates : comments,
@@ -91,7 +226,7 @@ describe("comment memory and authorization lifetime", () => {
     await controller.load();
     expect(controller.getSnapshot().items).toHaveLength(1);
     denied = true;
-    await vi.advanceTimersByTimeAsync(3_999);
+    await vi.advanceTimersByTimeAsync(LIFETIME - 1_000 - 1);
     expect(controller.getSnapshot().items).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(controller.getSnapshot().items).toEqual([]);
@@ -145,11 +280,11 @@ describe("comment memory and authorization lifetime", () => {
     await controller.load();
     expect(controller.getSnapshot().error).not.toBeNull();
     const candidates = { items: [author] };
-    cache.deadlines.set(candidates, Date.now() + 10_000);
+    cache.deadlines.set(candidates, Date.now() + LIFETIME);
     finish({ ok: true, value: candidates });
     await Promise.resolve();
     await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(request).toHaveBeenCalledTimes(2);
     expect(controller.getSnapshot().items).toEqual([]);
     expect(controller.getSnapshot().candidates).toEqual([]);
@@ -173,7 +308,7 @@ describe("comment memory and authorization lifetime", () => {
     const loading = controller.load();
     await Promise.resolve();
     await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(controller.getSnapshot().busy).toBe(false);
     expect(controller.getSnapshot().items).toEqual([]);
     candidates!({ ok: true, value: { items: [author] } });
@@ -206,7 +341,7 @@ describe("comment memory and authorization lifetime", () => {
     await controller.load();
     const pending = controller.remove("one", 1);
     expect(controller.getSnapshot().items).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(LIFETIME);
     expect(controller.getSnapshot().items).toEqual([]);
     expect(controller.getSnapshot().candidates).toEqual([]);
     expect(controller.getSnapshot().busy).toBe(false);

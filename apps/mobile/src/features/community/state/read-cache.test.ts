@@ -8,6 +8,8 @@ import {
   CommunityReadCache,
   getCommunityReadDeadline,
   getCommunityReadEpoch,
+  COMMUNITY_READ_LIFETIME_MS,
+  COMMUNITY_READ_RENEWAL_LEAD_MS,
   setCommunityReadPrincipal,
   invalidateCommunityReads,
 } from "./read-cache";
@@ -76,7 +78,7 @@ describe("Community navigation reads", () => {
         principal,
       );
       expect(value).toEqual({ revoked: false });
-      expect(getCommunityReadDeadline(value)).toBe(10_000);
+      expect(getCommunityReadDeadline(value)).toBe(COMMUNITY_READ_LIFETIME_MS);
     });
     const unsubscribe = cache.subscribeFills(observed);
     await cache.request({ ...options, expectedUserId: "alice" });
@@ -95,13 +97,13 @@ describe("Community navigation reads", () => {
     const principal = { user: { id: "alice" }, accessToken: "alice-token" };
     request.mockClear();
     sessionRead.mockClear();
-    vi.advanceTimersByTime(9_000);
+    vi.advanceTimersByTime(COMMUNITY_READ_LIFETIME_MS - 1_000);
     const first = cache.peek(
       { ...options, expectedUserId: "alice" },
       principal,
     );
     expect(first).toEqual({ revoked: false });
-    expect(getCommunityReadDeadline(first)).toBe(10_000);
+    expect(getCommunityReadDeadline(first)).toBe(COMMUNITY_READ_LIFETIME_MS);
     expect(
       cache.peek({ ...options, expectedUserId: "alice" }, principal),
     ).toEqual(first);
@@ -217,7 +219,7 @@ describe("Community navigation reads", () => {
     ).toBeUndefined();
   });
 
-  it("rejects a prior local day's snapshot even while its original ten-second lease is still live", async () => {
+  it("rejects a prior local day's snapshot even while its original lease is still live", async () => {
     const beforeMidnight = new Date(2026, 9, 12, 23, 59, 59).getTime();
     vi.setSystemTime(beforeMidnight);
     const { cache } = fixture();
@@ -227,7 +229,9 @@ describe("Community navigation reads", () => {
       { ...options, expectedUserId: "alice" },
       principal,
     );
-    expect(getCommunityReadDeadline(value)).toBe(beforeMidnight + 10_000);
+    expect(getCommunityReadDeadline(value)).toBe(
+      beforeMidnight + COMMUNITY_READ_LIFETIME_MS,
+    );
     vi.advanceTimersByTime(1_000);
     expect(Date.now()).toBeLessThan(getCommunityReadDeadline(value)!);
     expect(
@@ -334,7 +338,7 @@ describe("Community navigation reads", () => {
       });
     await client.request(options);
     expect(request).toHaveBeenCalledTimes(3);
-    vi.advanceTimersByTime(10_001);
+    vi.advanceTimersByTime(COMMUNITY_READ_LIFETIME_MS + 1);
     await client.request(options);
     expect(request).toHaveBeenCalledTimes(4);
   });
@@ -392,7 +396,10 @@ describe("Community navigation reads", () => {
       options,
     );
     firstActive = false;
-    await vi.advanceTimersByTimeAsync(6000);
+    const lead = COMMUNITY_READ_RENEWAL_LEAD_MS;
+    await vi.advanceTimersByTimeAsync(
+      COMMUNITY_READ_LIFETIME_MS - lead - 1_000,
+    );
     const restored = await scopeCommunityClient(
       cache,
       "alice",
@@ -400,11 +407,31 @@ describe("Community navigation reads", () => {
     ).request<{ revoked: boolean }>(options);
     expect(restored.ok).toBe(true);
     if (restored.ok)
-      expect(getCommunityReadDeadline(restored.value)).toBe(10000);
+      expect(getCommunityReadDeadline(restored.value)).toBe(
+        COMMUNITY_READ_LIFETIME_MS,
+      );
     expect(request).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(4000);
+    await vi.advanceTimersByTimeAsync(lead + 1_000);
     await scopeCommunityClient(cache, "alice", () => true).request(options);
     expect(request).toHaveBeenCalledTimes(2);
+  });
+  it("sends a renewal read inside the renewal lead to the backend with a new deadline", async () => {
+    const { cache, request } = fixture();
+    await scopeCommunityClient(cache, "alice", () => true).request(options);
+    const renewalAt =
+      COMMUNITY_READ_LIFETIME_MS - COMMUNITY_READ_RENEWAL_LEAD_MS + 1_000;
+    await vi.advanceTimersByTimeAsync(renewalAt);
+    const renewed = await scopeCommunityClient(
+      cache,
+      "alice",
+      () => true,
+    ).request<{ revoked: boolean }>(options);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(renewed.ok).toBe(true);
+    if (renewed.ok)
+      expect(getCommunityReadDeadline(renewed.value)).toBe(
+        renewalAt + COMMUNITY_READ_LIFETIME_MS,
+      );
   });
   it("coalesces simultaneous live profile reads without one retired scope cancelling another", async () => {
     const { cache, request } = fixture();

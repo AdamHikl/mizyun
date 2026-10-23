@@ -144,8 +144,9 @@ vi.mock("./shared-meal-details", () => ({
   SharedMealDetails: "SharedMealDetails",
 }));
 import { ShareMealModal } from "./share-meal-modal";
-vi.mock("./state/read-cache", () => ({
-  COMMUNITY_READ_LIFETIME_MS: 10_000,
+import { COMMUNITY_READ_LIFETIME_MS } from "./state/read-cache";
+vi.mock("./state/read-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./state/read-cache")>()),
   getCommunityReadEpoch: () => mocks.epoch,
 }));
 const details = {
@@ -252,11 +253,27 @@ describe("meal sharing modal lifecycle", () => {
     const pending = publish();
     await publish();
     expect(mocks.save).toHaveBeenCalledOnce();
-    vi.advanceTimersByTime(10_000);
-    expect(text(render())).toContain("Reload the meal preview");
+    vi.advanceTimersByTime(2 * COMMUNITY_READ_LIFETIME_MS);
+    expect(text(render())).not.toContain("Reload");
+    resolve({ ok: true, value: { id: "activity-a" } });
+    await pending;
+    expect(mocks.dismiss).toHaveBeenCalledOnce();
+  });
+  it("retires the late completion of an unresolved publish when the app is backgrounded", async () => {
+    let resolve: any;
+    mocks.save.mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    const pending = button(await load(), "Publish meal").props.onPress();
+    mocks.appState!("background");
+    render();
     resolve({ ok: true, value: { id: "activity-a" } });
     await pending;
     expect(mocks.dismiss).not.toHaveBeenCalled();
+    expect(text(render())).not.toContain("Oatmeal");
   });
 
   it("publishes the day chosen in the date picker", async () => {
@@ -272,6 +289,27 @@ describe("meal sharing modal lifecycle", () => {
       month: 9,
       day: 30,
     });
+    await button(tree, "Publish meal").props.onPress();
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        preview: expect.objectContaining({ sharedDay: "2026-09-30" }),
+      }),
+    );
+  });
+
+  it("keeps the chosen day and nutrition choice past the read lifetime without another preview fetch", async () => {
+    let tree = await load();
+    datePicker(tree).props.onChange({ year: 2026, month: 9, day: 30 });
+    checkbox(render()).props.onPress();
+    render();
+    vi.advanceTimersByTime(2 * COMMUNITY_READ_LIFETIME_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+    tree = render();
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(text(tree)).not.toContain("Reload");
+    expect(checkbox(tree).props.accessibilityState.checked).toBe(true);
     await button(tree, "Publish meal").props.onPress();
     expect(mocks.save).toHaveBeenCalledWith(
       expect.anything(),
@@ -330,20 +368,26 @@ describe("meal sharing modal lifecycle", () => {
       expect(button(tree, "Reload meal preview")).toBeTruthy();
     },
   );
-  it("expires a preview and rejects a saved old publish handler", async () => {
+  it("keeps the own-meal preview and still publishes with an old handler after the read lifetime", async () => {
     const tree = await load();
     const publish = button(tree, "Publish meal").props.onPress;
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(2 * COMMUNITY_READ_LIFETIME_MS);
+    await Promise.resolve();
+    const later = render();
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(text(later)).not.toContain("Reload");
+    expect(text(later)).toBeTruthy();
+    expect(checkbox(later)).toBeTruthy();
     await publish();
-    expect(mocks.save).not.toHaveBeenCalled();
-    expect(text(render())).toContain("Reload the meal preview");
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.dismiss).toHaveBeenCalledOnce();
   });
-  it("rejects a changed read epoch before publishing", async () => {
+  it("does not retire the preview or block publishing on a read-epoch change", async () => {
     const publish = button(await load(), "Publish meal").props.onPress;
     mocks.epoch++;
+    expect(checkbox(render())).toBeTruthy();
     await publish();
-    expect(mocks.save).not.toHaveBeenCalled();
-    expect(text(render())).not.toContain("Oatmeal");
+    expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it.each(["account", "token", "background", "source"])(
     "retires sensitive preview and old handlers on %s change",
@@ -362,7 +406,7 @@ describe("meal sharing modal lifecycle", () => {
       expect(text(tree)).not.toContain("Oatmeal");
     },
   );
-  it("rejects slow preview completion after the authorization lifetime", async () => {
+  it("shows a slow preview completion however late it arrives, since the preview has no display deadline", async () => {
     let resolve: any;
     mocks.fetch.mockImplementation(
       () =>
@@ -371,12 +415,12 @@ describe("meal sharing modal lifecycle", () => {
         }),
     );
     render();
-    vi.advanceTimersByTime(10_001);
+    vi.advanceTimersByTime(COMMUNITY_READ_LIFETIME_MS + 1);
     resolve({ ok: true, value: preview() });
     await Promise.resolve();
     await Promise.resolve();
-    expect(text(render())).toContain("Reload the meal preview");
-    expect(checkbox(render())).toBeUndefined();
+    expect(text(render())).not.toContain("Reload");
+    expect(checkbox(render())).toBeTruthy();
   });
   it("supports existing-card nutrition removal and version-fenced revoke retry", async () => {
     mocks.fetch.mockResolvedValue({

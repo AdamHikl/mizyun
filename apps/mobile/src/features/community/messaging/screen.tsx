@@ -39,6 +39,19 @@ import { blockUser, humanizeCommunityError } from "../community-client";
 import { scopeCommunityClient } from "../scoped-client";
 import { ReportModal } from "../safety";
 
+// Pure reads only; sends, edits, deletes, preference changes never auto-renew.
+const RENEWABLE_READS = new Set([
+  "contacts",
+  "threads",
+  "latest",
+  "list",
+  "listMine",
+]);
+export const renewableMessagingRead = (body: Record<string, unknown>) =>
+  RENEWABLE_READS.has(String(body.operation)) ||
+  // A preferences read carries only the operation; any other key is a write.
+  (body.operation === "preferences" && Object.keys(body).length === 1);
+
 function CommunityMessagingScreenContent({
   initialPeer = null,
 }: {
@@ -47,6 +60,8 @@ function CommunityMessagingScreenContent({
   const state = useExpansionCommand(
     "/v1/community/messaging",
     communityMessagingResponseSchema,
+    "POST",
+    renewableMessagingRead,
   );
   const t = useTheme();
   const insets = useSafeAreaInsets();

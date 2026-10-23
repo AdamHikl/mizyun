@@ -26,6 +26,7 @@ import { useTheme } from "@/hooks/use-theme";
 import {
   blockUser,
   communityErrorCause,
+  isCommunityAccessDenial,
   fetchSharedActivity,
   humanizeCommunityError,
   setUserMuted,
@@ -33,6 +34,9 @@ import {
 import { scopeCommunityClient } from "../scoped-client";
 import {
   COMMUNITY_READ_LIFETIME_MS,
+  COMMUNITY_READ_RENEWAL_RETRY_MS,
+  canRetryCommunityRenewal,
+  communityRenewalDelay,
   getCommunityReadDeadline,
 } from "../state/read-cache";
 import { VisibilityEpoch } from "../state/visibility-epoch";
@@ -90,6 +94,8 @@ export function ActivityDetailScreen({
   const epoch = useRef(new VisibilityEpoch());
   const readDeadline = useRef(0);
   const expiryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renewRef = useRef<() => void>(() => {});
   const isCurrent = () =>
     alive.current &&
     lifetime.current === current &&
@@ -99,6 +105,7 @@ export function ActivityDetailScreen({
     return () => {
       alive.current = false;
       if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
+      if (renewTimer.current !== null) clearTimeout(renewTimer.current);
     };
   }, []);
 
@@ -127,6 +134,8 @@ export function ActivityDetailScreen({
     readDeadline.current = 0;
     if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
     expiryTimer.current = null;
+    if (renewTimer.current !== null) clearTimeout(renewTimer.current);
+    renewTimer.current = null;
     epoch.current.invalidate();
     setActivity(null);
     setManaged(null);
@@ -134,6 +143,20 @@ export function ActivityDetailScreen({
     setReportModalVisible(false);
     setLoading(false);
     setError("This activity is unavailable until access is checked again.");
+  }, []);
+
+  // Silent renewal runs shortly before the deadline; the expiry timer stays the fallback.
+  // A retry follows a transient failure or a write that preempted the read.
+  const armRenewal = useCallback((retry = false) => {
+    if (renewTimer.current !== null) clearTimeout(renewTimer.current);
+    renewTimer.current = null;
+    if (retry && !canRetryCommunityRenewal(readDeadline.current)) return;
+    renewTimer.current = setTimeout(
+      () => renewRef.current(),
+      retry
+        ? COMMUNITY_READ_RENEWAL_RETRY_MS
+        : communityRenewalDelay(readDeadline.current),
+    );
   }, []);
 
   const loadActivity = useCallback(async () => {
@@ -147,6 +170,8 @@ export function ActivityDetailScreen({
     readDeadline.current = Date.now() + COMMUNITY_READ_LIFETIME_MS;
     if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
     expiryTimer.current = setTimeout(clear, COMMUNITY_READ_LIFETIME_MS);
+    if (renewTimer.current !== null) clearTimeout(renewTimer.current);
+    renewTimer.current = null;
     setLoading(true);
     setError(null);
     setActivity(null);
@@ -181,6 +206,7 @@ export function ActivityDetailScreen({
         Math.max(0, readDeadline.current - Date.now()),
       );
       setActivity(result.value);
+      armRenewal();
       void captureSafetyReceipt(scoped, "activity", activityId).then(
         (receipt) => {
           if (requestCurrent() && receipt.ok) setReceiptId(receipt.value.id);
@@ -199,7 +225,7 @@ export function ActivityDetailScreen({
       }
     }
     setLoading(false);
-  }, [activityId, principalKey, sessionToken, clear]);
+  }, [activityId, principalKey, sessionToken, clear, armRenewal]);
 
   const reactionsClient = useMemo(() => {
     const requestEpoch = epoch.current.capture();
@@ -212,6 +238,48 @@ export function ActivityDetailScreen({
 
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
+
+  renewRef.current = async () => {
+    renewTimer.current = null;
+    if (
+      !principalKey ||
+      !focused.current ||
+      !foreground.current ||
+      !isCurrent()
+    )
+      return;
+    const startedAt = Date.now();
+    // No invalidate: the displayed content and in-flight intents stay valid.
+    const requestEpoch = epoch.current.capture();
+    const requestCurrent = () => isCurrent() && requestEpoch();
+    const scoped = scopeCommunityClient(
+      apiClient,
+      principalKey,
+      requestCurrent,
+    );
+    const result = await fetchSharedActivity(scoped, activityId);
+    // An explicit load or clear superseded this renewal and arms its own.
+    if (!requestCurrent()) return;
+    if (!result.ok) {
+      // Denial retires at once; any other failure is retried until the deadline.
+      if (!isCommunityAccessDenial(result.error)) return armRenewal(true);
+      const cause = communityErrorCause(result.error);
+      clear();
+      if (cause.kind === "http_error" && cause.status !== 401)
+        setError("This activity is unavailable.");
+      return;
+    }
+    const deadline = Math.min(
+      startedAt + COMMUNITY_READ_LIFETIME_MS,
+      getCommunityReadDeadline(result.value) ?? Infinity,
+    );
+    if (Date.now() >= deadline) return;
+    readDeadline.current = deadline;
+    if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
+    expiryTimer.current = setTimeout(clear, Math.max(0, deadline - Date.now()));
+    setActivity(result.value);
+    armRenewal();
+  };
 
   const resume = useCallback(() => {
     if (!focused.current || !foreground.current) return;

@@ -3,6 +3,10 @@ import type { PublicCommunityProfileDto } from "@mizyun/contracts";
 import type { Result } from "@mizyun/core";
 import { randomUUID } from "expo-crypto";
 import {
+  COMMUNITY_READ_LIFETIME_MS,
+  COMMUNITY_READ_RENEWAL_RETRY_MS,
+  canRetryCommunityRenewal,
+  communityRenewalDelay,
   getCommunityReadDeadline,
   getCommunityReadEpoch,
 } from "../state/read-cache";
@@ -23,6 +27,7 @@ import {
   unblockUser,
   setUserMuted,
   humanizeCommunityError,
+  isCommunityAccessDenial,
 } from "../community-client";
 
 export type RelationshipList =
@@ -71,6 +76,8 @@ export class RelationshipsController {
   private readDeadline = 0;
   private readEpoch = -1;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private renewTimer: ReturnType<typeof setTimeout> | undefined;
+  private pagesLoaded = 1;
   private isLifetimeCurrent: () => boolean;
   private retiredState: RelationshipState;
   private followOperations = new Map<string, string>();
@@ -137,6 +144,7 @@ export class RelationshipsController {
   pause(): void {
     this.revision++;
     clearTimeout(this.timer);
+    clearTimeout(this.renewTimer);
     this.readDeadline = 0;
     this.update({
       rows: [],
@@ -150,6 +158,7 @@ export class RelationshipsController {
   }
   destroy(): void {
     clearTimeout(this.timer);
+    clearTimeout(this.renewTimer);
     this.followOperations.clear();
     this.active = false;
     this.revision++;
@@ -161,23 +170,70 @@ export class RelationshipsController {
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener();
   }
+  /**
+   * Renew the settled list due at `deadline`. A renewal that did not apply
+   * (a write or loading preempted it, or a transient failure) is retried until
+   * the original deadline; a denial sets the deadline to 0 and stops retries.
+   */
+  private scheduleRenewal(
+    list: RelationshipList,
+    revision: number,
+    deadline: number,
+    delay: number,
+  ) {
+    clearTimeout(this.renewTimer);
+    this.renewTimer = setTimeout(() => {
+      const current = () =>
+        this.active &&
+        revision === this.revision &&
+        this.readDeadline === deadline;
+      if (!current()) return;
+      void this.load(list, false, true).then(() => {
+        if (current() && canRetryCommunityRenewal(deadline))
+          this.scheduleRenewal(
+            list,
+            revision,
+            deadline,
+            COMMUNITY_READ_RENEWAL_RETRY_MS,
+          );
+      });
+    }, delay);
+    if (typeof this.renewTimer === "object")
+      (this.renewTimer as { unref?: () => void }).unref?.();
+  }
+  /**
+   * `silent` renews a settled list shortly before its deadline: rows stay
+   * displayed, the revision and expiry timer are untouched, and a fresh result
+   * replaces them only on success. Failures other than explicit denial leave
+   * the original deadline to retire the rows.
+   */
   async load(
     list: RelationshipList = this.state.list,
     more = false,
+    silent = false,
   ): Promise<void> {
     if (
       !this.active ||
       this.state.pending ||
-      (more && (this.state.loading || !this.state.cursor))
+      (more && (this.state.loading || !this.state.cursor)) ||
+      (silent &&
+        (this.state.loading ||
+          this.state.list !== list ||
+          this.readDeadline <= Date.now()))
     )
       return;
-    const revision = ++this.revision;
-    clearTimeout(this.timer);
+    const original = this.readDeadline;
+    const revision = silent ? this.revision : ++this.revision;
+    if (!silent) {
+      clearTimeout(this.timer);
+      clearTimeout(this.renewTimer);
+    }
     let deadline = more
-      ? Math.min(this.readDeadline, Date.now() + 10_000)
-      : Date.now() + 10_000;
+      ? Math.min(this.readDeadline, Date.now() + COMMUNITY_READ_LIFETIME_MS)
+      : Date.now() + COMMUNITY_READ_LIFETIME_MS;
     const epoch = getCommunityReadEpoch();
-    this.readDeadline = 0;
+    if (!silent) this.readDeadline = 0;
+    const denied = (error: ApiError) => isCommunityAccessDenial(error);
     const bound = (value: unknown) => {
       deadline = Math.min(
         deadline,
@@ -189,101 +245,146 @@ export class RelationshipsController {
       limit: 20,
       ...(more && this.state.cursor ? { cursor: this.state.cursor } : {}),
     };
-    this.update({
-      list,
-      // Keep an earlier page only in local transport context while checking authority.
-      rows: [],
-      cursor: null,
-      loading: true,
-      error: null,
-    });
-    let result: Result<
+    if (!silent)
+      this.update({
+        list,
+        // Keep an earlier page only in local transport context while checking authority.
+        rows: [],
+        cursor: null,
+        loading: true,
+        error: null,
+      });
+    type PageResult = Result<
       { items: RelationshipRow[]; nextCursor?: string | null },
       ApiError
     >;
-    if (list === "blocked") {
-      const response = await fetchBlockedUsers(this.client, page);
-      if (response.ok) bound(response.value);
-      result = response.ok
-        ? {
-            ok: true,
-            value: {
-              items: response.value.items.map((item) => ({
-                user: item.blockedUser,
-              })),
-              nextCursor: response.value.nextCursor,
-            },
+    const readPage = async (page: {
+      limit: number;
+      cursor?: string;
+    }): Promise<PageResult> => {
+      let result: PageResult;
+      if (list === "blocked") {
+        const response = await fetchBlockedUsers(this.client, page);
+        if (response.ok) bound(response.value);
+        result = response.ok
+          ? {
+              ok: true,
+              value: {
+                items: response.value.items.map((item) => ({
+                  user: item.blockedUser,
+                })),
+                nextCursor: response.value.nextCursor,
+              },
+            }
+          : response;
+      } else if (list === "muted") {
+        const response = await fetchMutedUsers(this.client, page);
+        if (response.ok) bound(response.value);
+        result = response.ok
+          ? {
+              ok: true,
+              value: {
+                items: response.value.items.map((item) => ({
+                  user: item.user,
+                })),
+                nextCursor: response.value.nextCursor,
+              },
+            }
+          : response;
+      } else {
+        const loaders = {
+          incoming: fetchIncomingFollowRequests,
+          outgoing: fetchOutgoingFollowRequests,
+          followers: fetchFollowers,
+          following: fetchFollowing,
+        };
+        result = await loaders[list](this.client, page);
+        if (result.ok) bound(result.value);
+        if (list === "followers" && result.ok) {
+          // Owner graph caps are 30 approved and 20 outgoing pending. Read both
+          // completely before offering a new request; an unavailable state fails closed.
+          const [following, outgoing] = await Promise.all([
+            fetchFollowing(this.client, { limit: 50 }),
+            fetchOutgoingFollowRequests(this.client, { limit: 50 }),
+          ]);
+          if (following.ok) bound(following.value);
+          if (outgoing.ok) bound(outgoing.value);
+          if (!following.ok) result = following;
+          else if (!outgoing.ok) result = outgoing;
+          else if (following.value.nextCursor || outgoing.value.nextCursor)
+            result = {
+              ok: false,
+              error: { kind: "network_error", cause: null },
+            };
+          else {
+            const approved = new Set(
+              following.value.items.map((item) => item.user.userId),
+            );
+            const pending = new Set(
+              outgoing.value.items.map((item) => item.user.userId),
+            );
+            result = {
+              ok: true,
+              value: {
+                ...result.value,
+                items: result.value.items.map((item) => ({
+                  ...item,
+                  outgoingFollowStatus: approved.has(item.user.userId)
+                    ? "approved"
+                    : pending.has(item.user.userId)
+                      ? "pending"
+                      : "none",
+                })),
+              },
+            };
+            // Refresh reverse states on previously loaded pages too.
+            oldRows = oldRows.map((item) => ({
+              ...item,
+              outgoingFollowStatus: approved.has(item.user.userId)
+                ? "approved"
+                : pending.has(item.user.userId)
+                  ? "pending"
+                  : "none",
+            }));
           }
-        : response;
-    } else if (list === "muted") {
-      const response = await fetchMutedUsers(this.client, page);
-      if (response.ok) bound(response.value);
-      result = response.ok
-        ? {
-            ok: true,
-            value: {
-              items: response.value.items.map((item) => ({ user: item.user })),
-              nextCursor: response.value.nextCursor,
-            },
-          }
-        : response;
-    } else {
-      const loaders = {
-        incoming: fetchIncomingFollowRequests,
-        outgoing: fetchOutgoingFollowRequests,
-        followers: fetchFollowers,
-        following: fetchFollowing,
-      };
-      result = await loaders[list](this.client, page);
-      if (result.ok) bound(result.value);
-      if (list === "followers" && result.ok) {
-        // Owner graph caps are 30 approved and 20 outgoing pending. Read both
-        // completely before offering a new request; an unavailable state fails closed.
-        const [following, outgoing] = await Promise.all([
-          fetchFollowing(this.client, { limit: 50 }),
-          fetchOutgoingFollowRequests(this.client, { limit: 50 }),
-        ]);
-        if (following.ok) bound(following.value);
-        if (outgoing.ok) bound(outgoing.value);
-        if (!following.ok) result = following;
-        else if (!outgoing.ok) result = outgoing;
-        else if (following.value.nextCursor || outgoing.value.nextCursor)
-          result = { ok: false, error: { kind: "network_error", cause: null } };
-        else {
-          const approved = new Set(
-            following.value.items.map((item) => item.user.userId),
-          );
-          const pending = new Set(
-            outgoing.value.items.map((item) => item.user.userId),
-          );
-          result = {
-            ok: true,
-            value: {
-              ...result.value,
-              items: result.value.items.map((item) => ({
-                ...item,
-                outgoingFollowStatus: approved.has(item.user.userId)
-                  ? "approved"
-                  : pending.has(item.user.userId)
-                    ? "pending"
-                    : "none",
-              })),
-            },
-          };
-          // Refresh reverse states on previously loaded pages too.
-          oldRows = oldRows.map((item) => ({
-            ...item,
-            outgoingFollowStatus: approved.has(item.user.userId)
-              ? "approved"
-              : pending.has(item.user.userId)
-                ? "pending"
-                : "none",
-          }));
         }
+      }
+      return result;
+    };
+    let result = await readPage(page);
+    if (silent) {
+      // Renew every page currently displayed, not only the first.
+      for (
+        let n = 1;
+        n < this.pagesLoaded && result.ok && result.value.nextCursor;
+        n++
+      ) {
+        const prior: RelationshipRow[] = result.value.items;
+        const next = await readPage({
+          limit: 20,
+          cursor: result.value.nextCursor,
+        });
+        if (!this.active || revision !== this.revision) return;
+        result = next.ok
+          ? {
+              ok: true,
+              value: {
+                items: [...prior, ...next.value.items],
+                nextCursor: next.value.nextCursor,
+              },
+            }
+          : next;
       }
     }
     if (!this.active || revision !== this.revision) return;
+    if (silent && Date.now() >= original) return;
     if (!result.ok) {
+      if (silent && !denied(result.error)) return;
+      if (silent) {
+        clearTimeout(this.timer);
+        clearTimeout(this.renewTimer);
+        this.readDeadline = 0;
+      }
       this.update({
         loading: false,
         rows: [],
@@ -296,6 +397,7 @@ export class RelationshipsController {
       return;
     }
     if (Date.now() >= deadline || epoch !== getCommunityReadEpoch()) {
+      if (silent) return;
       this.update({
         loading: false,
         rows: [],
@@ -306,6 +408,18 @@ export class RelationshipsController {
     }
     this.readDeadline = deadline;
     this.readEpoch = epoch;
+    this.pagesLoaded = silent
+      ? this.pagesLoaded
+      : more
+        ? this.pagesLoaded + 1
+        : 1;
+    clearTimeout(this.timer);
+    this.scheduleRenewal(
+      list,
+      revision,
+      deadline,
+      communityRenewalDelay(deadline),
+    );
     this.timer = setTimeout(
       () => {
         if (this.active && revision === this.revision) {
@@ -350,6 +464,7 @@ export class RelationshipsController {
       return;
     const revision = ++this.revision;
     clearTimeout(this.timer);
+    clearTimeout(this.renewTimer);
     this.readDeadline = 0;
     const list = this.state.list;
     // The captured row retains the exact incarnation for transport; the screen

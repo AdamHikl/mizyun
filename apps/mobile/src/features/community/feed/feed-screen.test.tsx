@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { COMMUNITY_READ_LIFETIME_MS as LIFETIME } from "../state/read-cache";
 
 const mocks = vi.hoisted(() => ({
   enrollmentOpen: true,
@@ -415,7 +416,7 @@ describe("Community home participation and navigation", () => {
       expect(mocks.controllerCreated).toHaveBeenCalledTimes(1);
     });
     expect(mocks.cacheWakeups).toBeGreaterThanOrEqual(2);
-    vi.advanceTimersByTime(9_000);
+    vi.advanceTimersByTime(LIFETIME - 1_000);
     // Cache notifications schedule this render while the eager tab is unfocused.
     const beforeFocus = render();
     expect(nodeOfType(beforeFocus, "FlatList")?.props.data).toEqual([item]);
@@ -441,7 +442,7 @@ describe("Community home participation and navigation", () => {
       { user: { id: mocks.userId }, accessToken: mocks.token },
     );
     expect(getCommunityReadDeadline(response)).toBe(
-      new Date("2026-10-12T08:00:10Z").getTime(),
+      new Date("2026-10-12T08:00:00Z").getTime() + LIFETIME,
     );
   });
 
@@ -465,7 +466,7 @@ describe("Community home participation and navigation", () => {
     const { item } = await warmRealRoot("active", () => {
       render();
     });
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(LIFETIME);
     const firstFocusFrame = render();
     // Approved stale-while-revalidate: visible, but never action authority.
     expect(nodeOfType(firstFocusFrame, "FlatList")?.props.data).toEqual([item]);
@@ -516,7 +517,7 @@ describe("Community home participation and navigation", () => {
 
     it("shows the expired warm feed read-only on the first frame, then enables actions after revalidation", async () => {
       const { item, request } = await warmRealRoot();
-      vi.advanceTimersByTime(10_001);
+      vi.advanceTimersByTime(LIFETIME + 1);
       const first = firstFrame();
       expect(listData(first)).toEqual([item]);
       expect(nodeOfType(first, "ActivityIndicator")).toBeFalsy();
@@ -573,7 +574,7 @@ describe("Community home participation and navigation", () => {
       "hides and clears the snapshot when revalidation returns %s",
       async (_label, outcome) => {
         const { item, request } = await warmRealRoot();
-        vi.advanceTimersByTime(10_001);
+        vi.advanceTimersByTime(LIFETIME + 1);
         expect(listData(firstFrame())).toEqual([item]);
         request.mockImplementation(async (options: any) =>
           options.path === "/v1/community/profile"
@@ -596,7 +597,7 @@ describe("Community home participation and navigation", () => {
     it("never shows account A's snapshot on account B's first frame and clears it on sign-out", async () => {
       const { item } = await warmRealRoot();
       const accountA = mocks.userId;
-      vi.advanceTimersByTime(10_001);
+      vi.advanceTimersByTime(LIFETIME + 1);
       mocks.userId = "00000000-0000-4000-8000-000000000004";
       const first = firstFrame();
       expect(listData(first)).not.toContainEqual(item);
@@ -613,7 +614,7 @@ describe("Community home participation and navigation", () => {
 
     it("keeps the snapshot across a same-user token rotation but hides it for an ineligible birth year", async () => {
       const { cache, item } = await warmRealRoot();
-      vi.advanceTimersByTime(10_001);
+      vi.advanceTimersByTime(LIFETIME + 1);
       mocks.token = "rotated-token";
       cache.setPrincipal(mocks.userId, mocks.token);
       const rotated = firstFrame();
@@ -628,7 +629,7 @@ describe("Community home participation and navigation", () => {
       "keeps the read-only snapshot after a %s network failure",
       async (failing) => {
         const { item, request } = await warmRealRoot();
-        vi.advanceTimersByTime(10_001);
+        vi.advanceTimersByTime(LIFETIME + 1);
         request.mockImplementation(async (options: any) =>
           failing === "membership" || options.path !== "/v1/community/profile"
             ? { ok: false, error: { kind: "network_error", cause: "offline" } }
@@ -658,7 +659,7 @@ describe("Community home participation and navigation", () => {
     "shows %s warmed Community data only read-only while live refresh is unresolved",
     async (reason) => {
       const { cache, item } = await warmRealRoot();
-      if (reason === "expired") vi.advanceTimersByTime(10_000);
+      if (reason === "expired") vi.advanceTimersByTime(LIFETIME);
       if (reason === "rotated-token") mocks.token = "rotated-token";
       if (reason === "background") cache.setForeground(false);
       if (reason === "invalidated") cache.clear();
@@ -1204,7 +1205,7 @@ describe("Community completed navigation snapshot", () => {
   it("keeps the actual FeedController snapshot across return without placeholder frames or another request", async () => {
     mocks.realController = true;
     mocks.enrolled = true;
-    mocks.deadline = Date.now() + 10_000;
+    mocks.deadline = Date.now() + LIFETIME;
     mocks.responseEpoch = mocks.epoch;
     const items = [{ id: "actual-controller-card" }];
     mocks.request.mockResolvedValue({
@@ -1230,7 +1231,7 @@ describe("Community completed navigation snapshot", () => {
   async function populated() {
     mocks.enrolled = true;
     mocks.navigationValid = true;
-    mocks.deadline = Date.now() + 10_000;
+    mocks.deadline = Date.now() + LIFETIME;
     mocks.responseEpoch = mocks.epoch;
     mocks.feedItems = [{ id: "retained-card" }];
     await settledRender();
@@ -1273,7 +1274,7 @@ describe("Community completed navigation snapshot", () => {
       await populated();
       mocks.cleanup?.();
       if (cause === "expiry")
-        vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_001);
+        vi.spyOn(Date, "now").mockReturnValue(Date.now() + LIFETIME + 1);
       if (cause === "write") mocks.epoch++;
       if (cause === "token") mocks.token = "token-b";
       if (cause === "background") {
