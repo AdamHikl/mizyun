@@ -95,7 +95,11 @@ vi.mock("../state/read-cache", () => ({
 }));
 vi.mock("../community-client", () => ({
   fetchSharedActivity: mocks.fetch,
-  humanizeCommunityError: () => "Unavailable",
+  humanizeCommunityError: () => "Humanized",
+  communityErrorCause: (error: any) => {
+    while (error.kind === "context_changed" && error.cause) error = error.cause;
+    return error;
+  },
   blockUser: vi.fn(),
   setUserMuted: vi.fn(),
 }));
@@ -142,6 +146,12 @@ function find(node: any, type: string): any {
   if (node.type === type) return node;
   return find(node.props?.children, type);
 }
+function texts(node: any): string[] {
+  if (typeof node === "string") return [node];
+  if (!node || typeof node !== "object") return [];
+  if (Array.isArray(node)) return node.flatMap(texts);
+  return texts(node.props?.children);
+}
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(0);
@@ -156,6 +166,39 @@ beforeEach(() => {
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
+});
+describe("shared workout detail load errors", () => {
+  const httpError = (status: number) => ({
+    kind: "http_error",
+    status,
+    code: "NOT_FOUND",
+    message: "server",
+  });
+  it.each([404, 403])(
+    "shows the neutral unavailable copy for a retired read wrapping a %i",
+    async (status) => {
+      mocks.fetch.mockResolvedValueOnce({
+        ok: false,
+        error: { kind: "context_changed", cause: httpError(status) },
+      });
+      render();
+      await Promise.resolve();
+      await Promise.resolve();
+      const shown = texts(render());
+      expect(shown).toContain("This activity is unavailable.");
+      expect(shown).not.toContain("Humanized");
+    },
+  );
+  it("still humanizes a wrapped failure that is not a 403 or 404", async () => {
+    mocks.fetch.mockResolvedValueOnce({
+      ok: false,
+      error: { kind: "context_changed", cause: httpError(500) },
+    });
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(texts(render())).toContain("Humanized");
+  });
 });
 describe("shared workout detail loading lifetime", () => {
   it("retires protected details and a captured reaction intent at original foreground expiry", async () => {

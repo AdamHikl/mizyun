@@ -141,4 +141,19 @@ describe("deliberate bouldering publication", () => {
       humanizeBoulderingShareError({ kind: "network_error" } as any, "x"),
     ).toContain("internet connection");
   });
+
+  it("unwraps a retired read before choosing the share copy", () => {
+    const wrapped = {
+      kind: "context_changed",
+      cause: {
+        kind: "http_error",
+        status: 404,
+        code: "COMMUNITY_NOT_ENROLLED",
+        message: "server",
+      },
+    } as any;
+    expect(humanizeBoulderingShareError(wrapped, "x")).toBe(
+      "Join Community to share sessions with your approved followers.",
+    );
+  });
 });

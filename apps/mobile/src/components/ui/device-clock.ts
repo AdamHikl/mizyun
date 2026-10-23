@@ -38,3 +38,9 @@ export function formatDeviceTime(hour: number, minute: number): string {
     uses24Hour: deviceUses24HourClock(),
   });
 }
+
+/** An instant's local time on the device's clock; empty for an invalid date. */
+export function formatDeviceInstant(date: Date): string {
+  if (Number.isNaN(date.getTime())) return "";
+  return formatDeviceTime(date.getHours(), date.getMinutes());
+}
