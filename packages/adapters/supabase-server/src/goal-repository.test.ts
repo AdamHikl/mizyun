@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { applyGoalPatch } from "@mizyun/core";
 import type { StoredGoal, UserId } from "@mizyun/core";
 
 import { SupabaseGoalRepository } from "./goal-repository.js";
@@ -274,7 +275,7 @@ describe("SupabaseGoalRepository calorie calibration (ENG-08)", () => {
   });
 });
 
-describe("SupabaseGoalRepository optional target date", () => {
+describe("SupabaseGoalRepository optional target and review dates", () => {
   const userId = "00000000-0000-4000-8000-000000000001" as UserId;
   const noDateGoal: StoredGoal = {
     id: goalRow.id,
@@ -357,5 +358,49 @@ describe("SupabaseGoalRepository optional target date", () => {
     });
     expect(written()).toHaveProperty("target_date", null);
     expect(saved.targetDate).toBeNull();
+  });
+
+  // #315: a cleared reviewDate must reach Supabase as NULL, otherwise the
+  // update omits the column and the old date survives.
+  it("writes review_date null on update after the patch clears it", async () => {
+    const { client, written } = capturingClient("update", {
+      data: goalRow,
+      error: null,
+    });
+    const repo = new SupabaseGoalRepository({ clientFor: () => client });
+    const cleared = applyGoalPatch(
+      { ...noDateGoal, reviewDate: "2026-03-01" },
+      { reviewDate: null },
+      new Date(),
+    );
+    const saved = await repo.update(userId, cleared, {
+      accessToken: "token",
+    });
+    expect(written()).toHaveProperty("review_date", null);
+    expect(saved.reviewDate).toBeUndefined();
+  });
+
+  it("writes review_date null on create when the goal has none", async () => {
+    const { client, written } = capturingClient("insert", {
+      data: goalRow,
+      error: null,
+    });
+    const repo = new SupabaseGoalRepository({ clientFor: () => client });
+    await repo.create(userId, noDateGoal, { accessToken: "token" });
+    expect(written()).toHaveProperty("review_date", null);
+  });
+
+  it("writes a set review_date on update", async () => {
+    const { client, written } = capturingClient("update", {
+      data: { ...goalRow, review_date: "2026-03-01" },
+      error: null,
+    });
+    const repo = new SupabaseGoalRepository({ clientFor: () => client });
+    await repo.update(
+      userId,
+      { ...noDateGoal, reviewDate: "2026-03-01" },
+      { accessToken: "token" },
+    );
+    expect(written()).toHaveProperty("review_date", "2026-03-01");
   });
 });
