@@ -8,6 +8,10 @@ import {
   loadCachedProfile,
   profileCacheKey,
   purgeOfflineCache,
+  loadCachedTodayRow,
+  saveCachedTodayRow,
+  todayRowCacheKey,
+  todayRowGeneration,
   saveCachedDashboard,
   saveCachedProfile,
   type DashboardMetricsData,
@@ -364,6 +368,70 @@ describe("offline-cache-storage", () => {
 
     // User B cache is completely untouched
     expect(await store.getItem(profileCacheKey(userB))).not.toBeNull();
+  });
+
+  it("remembers a Today row per account and local day and purges it", async () => {
+    const store = new MemoryStorage();
+    const userA = "00000000-0000-0000-0000-000000000001";
+    const userB = "00000000-0000-0000-0000-000000000002";
+    const day = "2026-10-23";
+    await saveCachedTodayRow(
+      userA,
+      "evening-stretch",
+      day,
+      "Legs · about 4 min",
+      todayRowGeneration(userA),
+      store,
+    );
+    await saveCachedTodayRow(
+      userB,
+      "logging-consistency",
+      day,
+      null,
+      todayRowGeneration(userB),
+      store,
+    );
+
+    expect(
+      await loadCachedTodayRow(userA, "evening-stretch", day, store),
+    ).toEqual({ value: "Legs · about 4 min" });
+    expect(
+      await loadCachedTodayRow(userA, "evening-stretch", "2026-10-24", store),
+    ).toBeNull();
+    expect(
+      await loadCachedTodayRow(userB, "evening-stretch", day, store),
+    ).toBeNull();
+    expect(
+      await loadCachedTodayRow(userB, "logging-consistency", day, store),
+    ).toEqual({ value: null });
+
+    await purgeOfflineCache(userA, store);
+    expect(
+      await store.getItem(todayRowCacheKey(userA, "evening-stretch")),
+    ).toBeNull();
+    expect(
+      await loadCachedTodayRow(userB, "logging-consistency", day, store),
+    ).toEqual({ value: null });
+  });
+
+  it("drops a Today row read that began before account cleanup", async () => {
+    const store = new MemoryStorage();
+    const userId = "00000000-0000-0000-0000-000000000003";
+    const generation = todayRowGeneration(userId);
+    await purgeOfflineCache(userId, store);
+    expect(
+      await saveCachedTodayRow(
+        userId,
+        "logging-consistency",
+        "2026-10-23",
+        { daysLoggedThisWeek: 5 },
+        generation,
+        store,
+      ),
+    ).toBe(false);
+    expect(
+      await store.getItem(todayRowCacheKey(userId, "logging-consistency")),
+    ).toBeNull();
   });
 
   it("simulates offline startup fallback and online reconnect refresh", async () => {

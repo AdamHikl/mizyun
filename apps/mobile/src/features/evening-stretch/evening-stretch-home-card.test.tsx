@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   loadEveningStretch: vi.fn(),
   refresh: vi.fn(),
   peekTailoredStretchPlan: vi.fn(),
+  loadSaved: vi.fn(),
+  save: vi.fn(),
 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -63,6 +65,11 @@ vi.mock("./evening-stretch-reminder", () => ({
     settings.completedDate === "today",
   isoLocalDate: () => state.today,
   loadEveningStretch: mocks.loadEveningStretch,
+}));
+vi.mock("@/features/offline-cache/offline-cache-storage", () => ({
+  loadCachedTodayRow: mocks.loadSaved,
+  saveCachedTodayRow: mocks.save,
+  todayRowGeneration: () => 7,
 }));
 vi.mock("./stretch-ai-refine", () => ({
   peekTailoredStretchPlan: mocks.peekTailoredStretchPlan,
@@ -117,6 +124,8 @@ beforeEach(() => {
   mocks.loadEveningStretch.mockReset().mockResolvedValue(settings);
   mocks.refresh.mockReset().mockResolvedValue(undefined);
   mocks.peekTailoredStretchPlan.mockReset().mockResolvedValue(null);
+  mocks.loadSaved.mockReset().mockResolvedValue(null);
+  mocks.save.mockReset().mockResolvedValue(undefined);
 });
 
 describe("nextStretchSubtitle", () => {
@@ -245,4 +254,105 @@ describe("EveningStretchHomeCard", () => {
     state.today = "2026-10-21";
     expect(render()).toBeNull();
   });
+  it("shows the saved subtitle on a cold launch before the live reads settle", async () => {
+    mocks.loadSaved.mockResolvedValueOnce({ value: "Legs · about 4 min" });
+    const training = deferredTraining();
+    mocks.fetchTodayTraining.mockReturnValueOnce(training.promise);
+    state.appState = "active";
+    render();
+    state.focus!();
+    await settle();
+    expect(mocks.loadSaved).toHaveBeenCalledWith(
+      "user-a",
+      "evening-stretch",
+      "2026-10-20",
+    );
+    expect(render()?.props.children.props.subtitle).toBe("Legs · about 4 min");
+
+    training.resolve(trained);
+    await settle();
+    const live = render()?.props.children.props.subtitle;
+    expect(live).toMatch(/about/);
+    expect(mocks.save).toHaveBeenCalledWith(
+      "user-a",
+      "evening-stretch",
+      "2026-10-20",
+      live,
+      7,
+    );
+  });
+
+  it("never lets a slower saved subtitle replace the live result", async () => {
+    let resolveSaved!: (value: unknown) => void;
+    mocks.loadSaved.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSaved = resolve;
+      }),
+    );
+    mocks.fetchTodayTraining.mockResolvedValueOnce(rest);
+    state.appState = "active";
+    render();
+    state.focus!();
+    await settle();
+    expect(render()).toBeNull();
+    resolveSaved({ value: "Legs · about 4 min" });
+    await settle();
+    expect(render()).toBeNull();
+    expect(mocks.save).toHaveBeenCalledWith(
+      "user-a",
+      "evening-stretch",
+      "2026-10-20",
+      null,
+      7,
+    );
+  });
+
+  it("keeps the saved subtitle and saves nothing when the training read fails", async () => {
+    mocks.loadSaved.mockResolvedValueOnce({ value: "Legs · about 4 min" });
+    mocks.fetchTodayTraining.mockResolvedValueOnce(null);
+    state.appState = "active";
+    render();
+    state.focus!();
+    await settle();
+    await settle();
+    expect(render()?.props.children.props.subtitle).toBe("Legs · about 4 min");
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("still shows the saved subtitle when a failed training read settles first", async () => {
+    let resolveSaved!: (value: unknown) => void;
+    mocks.loadSaved.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSaved = resolve;
+      }),
+    );
+    mocks.fetchTodayTraining.mockResolvedValueOnce(null);
+    state.appState = "active";
+    render();
+    state.focus!();
+    await settle();
+    expect(render()).toBeNull();
+    resolveSaved({ value: "Legs · about 4 min" });
+    await settle();
+    expect(render()?.props.children.props.subtitle).toBe("Legs · about 4 min");
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("ignores a malformed saved value", async () => {
+    mocks.loadSaved.mockResolvedValueOnce({ value: { subtitle: 3 } });
+    mocks.fetchTodayTraining.mockReturnValueOnce(new Promise(() => {}));
+    state.appState = "active";
+    render();
+    state.focus!();
+    await settle();
+    expect(render()).toBeNull();
+  });
 });
+
+function deferredTraining() {
+  let resolve!: (value: unknown) => void;
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}

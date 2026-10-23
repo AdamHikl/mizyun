@@ -10,6 +10,11 @@ import { ThemedText } from "@/components/themed-text";
 import { Card, Icon } from "@/components/ui";
 import { Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
+import {
+  loadCachedTodayRow,
+  saveCachedTodayRow,
+  todayRowGeneration,
+} from "@/features/offline-cache/offline-cache-storage";
 import { useTheme } from "@/hooks/use-theme";
 import { loadLoggingHistory } from "./logging-consistency-data";
 import {
@@ -63,8 +68,11 @@ export async function resolveLoggingConsistencyCard(
     : { kind: "shown", day: history.today, value };
 }
 
-// Last shown result, in memory only (health-derived, never persisted). Keyed by
-// account and local day so another user or tomorrow never sees it.
+// Last shown result, keyed by account and local day so another user or
+// tomorrow never sees it. Memory gives a return to Today the first frame; the
+// encrypted offline cache (purged on sign-out and account deletion) covers a
+// cold launch until the history read settles.
+let lastSaved: string | null = null;
 let remembered: {
   readonly userId: string;
   readonly day: string;
@@ -85,6 +93,42 @@ const recall = (userId: string): LoggingConsistency | null => {
     entry.day === localDay(new Date())
     ? entry.value
     : null;
+};
+
+/** Test seam: forget the remembered result. */
+export const resetLoggingConsistencyCardMemory = (): void => {
+  remembered = null;
+  lastSaved = null;
+};
+
+const isDay = (value: unknown): boolean => {
+  if (typeof value !== "object" || value === null) return false;
+  const day = value as Record<string, unknown>;
+  return (
+    typeof day.date === "string" &&
+    typeof day.logged === "boolean" &&
+    typeof day.isToday === "boolean" &&
+    typeof day.isFuture === "boolean"
+  );
+};
+
+/** A saved copy is untrusted input from an older app version or disk. */
+const isLoggingConsistency = (value: unknown): value is LoggingConsistency => {
+  if (typeof value !== "object" || value === null) return false;
+  const saved = value as Record<string, unknown>;
+  return (
+    typeof saved.weekStart === "string" &&
+    typeof saved.weeklyGoal === "number" &&
+    typeof saved.daysLoggedThisWeek === "number" &&
+    typeof saved.goalMet === "boolean" &&
+    typeof saved.loggedToday === "boolean" &&
+    (saved.daysSinceLastLog === null ||
+      typeof saved.daysSinceLastLog === "number") &&
+    typeof saved.showWelcomeBack === "boolean" &&
+    Array.isArray(saved.weekDays) &&
+    saved.weekDays.length === 7 &&
+    saved.weekDays.every(isDay)
+  );
 };
 
 export function LoggingConsistencyCard({
@@ -110,19 +154,56 @@ export function LoggingConsistencyCard({
     useCallback(() => {
       let active = true;
       let run = 0;
+      // Set once a live read decides the row, so a slower saved copy never
+      // replaces it.
+      let decided = false;
+      const save = (
+        day: string,
+        value: LoggingConsistency | null,
+        generation: number,
+      ) => {
+        // Cleanup bumps the generation, so a purged row is written again.
+        const saving = `${generation}\u0000${userId}\u0000${day}\u0000${JSON.stringify(value)}`;
+        if (saving === lastSaved) return;
+        void saveCachedTodayRow(
+          userId,
+          "logging-consistency",
+          day,
+          value,
+          generation,
+        ).then((saved) => {
+          if (saved) lastSaved = saving;
+        });
+      };
+      if (recall(userId) === null) {
+        const day = localDay(new Date());
+        void loadCachedTodayRow(userId, "logging-consistency", day).then(
+          (saved) => {
+            if (!active || decided || saved === null) return;
+            if (recall(userId) !== null) return;
+            if (!isLoggingConsistency(saved.value)) return;
+            remembered = { userId, day, value: saved.value };
+            setState({ userId, value: saved.value });
+          },
+        );
+      }
       const load = () => {
         const current = ++run;
+        const generation = todayRowGeneration(userId);
         void resolveLoggingConsistencyCard(userId)
           .then((result) => {
             if (!active || current !== run) return;
             if (result.kind === "unknown") return;
+            decided = true;
             if (result.kind === "hidden") {
               remembered = null;
               setState(null);
+              save(localDay(new Date()), null, generation);
               return;
             }
             remembered = { userId, day: result.day, value: result.value };
             setState({ userId, value: result.value });
+            save(result.day, result.value, generation);
           })
           // A failed load keeps whatever is already shown.
           .catch(() => {});

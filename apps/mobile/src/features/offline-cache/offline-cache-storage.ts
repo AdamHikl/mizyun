@@ -84,6 +84,24 @@ export const dashboardCacheKey = (
 export const dashboardIndexKey = (userId: string): string =>
   `mizyun.offline-cache.dashboard-keys.${userId}`;
 
+/** Today rows that remember their last result across launches. */
+export type TodayRow = "evening-stretch" | "logging-consistency";
+const TODAY_ROWS: readonly TodayRow[] = [
+  "evening-stretch",
+  "logging-consistency",
+];
+
+export const todayRowCacheKey = (userId: string, row: TodayRow): string =>
+  `mizyun.offline-cache.today-row.${row}.${userId}`;
+
+// Bumped synchronously when cleanup starts, so a row read that began before
+// sign-out or erasure cannot write its result back afterwards.
+const todayRowGenerations = new Map<string, number>();
+
+/** Capture before reading a row's data; pass to saveCachedTodayRow. */
+export const todayRowGeneration = (userId: string): number =>
+  todayRowGenerations.get(userId) ?? 0;
+
 const indexLocks = new Map<string, Promise<unknown>>();
 
 const withIndexLock = async <T>(
@@ -431,11 +449,63 @@ export async function loadCachedDashboard(
   return candidate;
 }
 
+/**
+ * Remember one Today row's displayed value (null when it is hidden) for the
+ * account's local day; false when nothing was written. Callers validate the
+ * value when they load it.
+ */
+export const saveCachedTodayRow = async (
+  userId: string,
+  row: TodayRow,
+  localDate: string,
+  value: unknown,
+  generation: number,
+  store: StringStorage = createDefaultOfflineCacheStorage(),
+): Promise<boolean> => {
+  if (!userId) return false;
+  return withIndexLock(userId, async () => {
+    if (generation !== todayRowGeneration(userId)) return false;
+    await store.setItem(
+      todayRowCacheKey(userId, row),
+      JSON.stringify({ version: 1, userId, localDate, value }),
+    );
+    return true;
+  }).catch(() => false);
+};
+
+/** The row's remembered value for this account and local day, if any. */
+export const loadCachedTodayRow = async (
+  userId: string,
+  row: TodayRow,
+  localDate: string,
+  store: StringStorage = createDefaultOfflineCacheStorage(),
+): Promise<{ readonly value: unknown } | null> => {
+  if (!userId) return null;
+  try {
+    const raw = await store.getItem(todayRowCacheKey(userId, row));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      (parsed as { version?: unknown }).version !== 1 ||
+      (parsed as { userId?: unknown }).userId !== userId ||
+      (parsed as { localDate?: unknown }).localDate !== localDate ||
+      !("value" in parsed)
+    )
+      return null;
+    return { value: (parsed as { value: unknown }).value };
+  } catch {
+    return null;
+  }
+};
+
 export const purgeOfflineCache = async (
   userId: string,
   store: StringStorage = createDefaultOfflineCacheStorage(),
 ): Promise<void> => {
   if (!userId) return;
+  todayRowGenerations.set(userId, todayRowGeneration(userId) + 1);
   // Fence personal writes at cleanup invocation, before waiting for dashboard work.
   const personalCleanup = purgePersonalReads(userId, store).then(
     () => true,
@@ -470,6 +540,7 @@ export const purgeOfflineCache = async (
       [
         profileCacheKey(userId),
         dashboardCacheKey(userId),
+        ...TODAY_ROWS.map((row) => todayRowCacheKey(userId, row)),
         ...new Set(keysToPurge),
       ].map((key) => Promise.resolve().then(() => store.removeItem(key))),
     );

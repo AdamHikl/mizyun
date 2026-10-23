@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   appState: null as ((state: string) => void) | null,
   loadPreferences: vi.fn(),
   loadHistory: vi.fn(),
+  loadSaved: vi.fn(),
+  save: vi.fn(),
 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -60,6 +62,11 @@ vi.mock("@/hooks/use-theme", () => ({
     backgroundSelected: "#E8ECEA",
   }),
 }));
+vi.mock("@/features/offline-cache/offline-cache-storage", () => ({
+  loadCachedTodayRow: mocks.loadSaved,
+  saveCachedTodayRow: mocks.save,
+  todayRowGeneration: () => 3,
+}));
 vi.mock("./logging-consistency-data", () => ({
   loadLoggingHistory: mocks.loadHistory,
 }));
@@ -68,6 +75,7 @@ import { computeLoggingConsistency } from "@mizyun/core";
 import {
   LoggingConsistencyCard,
   LoggingConsistencyView,
+  resetLoggingConsistencyCardMemory,
   resolveLoggingConsistencyCard,
 } from "./logging-consistency-card";
 import { presentLoggingConsistency } from "./logging-consistency-presentation";
@@ -193,21 +201,16 @@ describe("LoggingConsistencyCard", () => {
   };
   let cleanup: (() => void) | undefined;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.useRealTimers();
-    mocks.loadPreferences.mockReset();
-    mocks.loadHistory.mockReset();
-    mocks.token = "token-1";
-    // Turn the card off so each test starts without a remembered result.
-    mocks.loadPreferences.mockResolvedValue({ weeklyGoal: 5, hidden: true });
-    mount("reset-user");
-    await settle();
-    mount("u");
-    await settle();
     cleanup?.();
     cleanup = undefined;
+    resetLoggingConsistencyCardMemory();
     mocks.loadPreferences.mockReset();
     mocks.loadHistory.mockReset();
+    mocks.loadSaved.mockReset().mockResolvedValue(null);
+    mocks.save.mockReset().mockResolvedValue(undefined);
+    mocks.token = "token-1";
   });
 
   it("keeps a shown row when a later history read fails or rejects", async () => {
@@ -278,5 +281,83 @@ describe("LoggingConsistencyCard", () => {
 
     mocks.loadHistory.mockReturnValue(new Promise(() => {}));
     expect(mount("u")).toBeNull();
+  });
+  const savedResult = () =>
+    computeLoggingConsistency({
+      loggedDates: [dayOf(new Date())],
+      today: dayOf(new Date()),
+      weeklyGoal: 5,
+    })!;
+
+  it("shows the saved result on a cold launch before the history read settles", async () => {
+    ok();
+    mocks.loadHistory.mockReturnValue(new Promise(() => {}));
+    mocks.loadSaved.mockResolvedValueOnce({ value: savedResult() });
+    expect(mount("u")).toBeNull();
+    await settle();
+    expect(mocks.loadSaved).toHaveBeenCalledWith(
+      "u",
+      "logging-consistency",
+      dayOf(new Date()),
+    );
+    expect(current("u")).not.toBeNull();
+  });
+
+  it("saves a live result and a deliberate hide, but not a failed read", async () => {
+    ok();
+    mount("u");
+    await settle();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.save.mock.calls[0]).toEqual([
+      "u",
+      "logging-consistency",
+      dayOf(new Date()),
+      expect.objectContaining({ daysLoggedThisWeek: 1 }),
+      3,
+    ]);
+
+    mocks.loadHistory.mockResolvedValue(null);
+    mocks.appState!("background");
+    mocks.appState!("active");
+    await settle();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+
+    mocks.loadPreferences.mockResolvedValue({ weeklyGoal: 5, hidden: true });
+    mocks.appState!("background");
+    mocks.appState!("active");
+    await settle();
+    expect(mocks.save).toHaveBeenLastCalledWith(
+      "u",
+      "logging-consistency",
+      dayOf(new Date()),
+      null,
+      3,
+    );
+  });
+
+  it("never lets a slower saved copy replace a live hide", async () => {
+    let resolveSaved!: (value: unknown) => void;
+    mocks.loadSaved.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSaved = resolve;
+      }),
+    );
+    mocks.loadPreferences.mockResolvedValue({ weeklyGoal: 5, hidden: true });
+    mount("u");
+    await settle();
+    resolveSaved({ value: savedResult() });
+    await settle();
+    expect(current("u")).toBeNull();
+  });
+
+  it("ignores a malformed saved copy", async () => {
+    ok();
+    mocks.loadHistory.mockReturnValue(new Promise(() => {}));
+    mocks.loadSaved.mockResolvedValueOnce({
+      value: { ...savedResult(), weekDays: [{ date: 1 }] },
+    });
+    mount("u");
+    await settle();
+    expect(current("u")).toBeNull();
   });
 });

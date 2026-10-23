@@ -16,6 +16,11 @@ import {
   loadEveningStretch,
   type EveningStretchSettings,
 } from "./evening-stretch-reminder";
+import {
+  loadCachedTodayRow,
+  saveCachedTodayRow,
+  todayRowGeneration,
+} from "@/features/offline-cache/offline-cache-storage";
 import { eveningStretchRuntime } from "./evening-stretch-runtime";
 import { peekTailoredStretchPlan } from "./stretch-ai-refine";
 import { formatMinutes } from "./stretch-progress";
@@ -49,19 +54,22 @@ export const nextStretchSubtitle = (
 };
 
 /**
- * The last subtitle for one account and local day, in memory only, so a
- * return to Today shows it in the first frame while the card refreshes.
+ * The last subtitle for one account and local day. Memory gives a return to
+ * Today the first frame; the encrypted offline cache (purged on sign-out and
+ * account deletion) covers a cold launch until the live reads settle.
  */
 let lastShown: {
   readonly key: string;
   readonly subtitle: string | null;
 } | null = null;
+let lastSaved: string | null = null;
 const shownKey = (userId: string): string =>
   `${userId}:${isoLocalDate(new Date())}`;
 
 /** Test seam: forget the remembered subtitle. */
 export const resetEveningStretchHomeCardMemory = (): void => {
   lastShown = null;
+  lastSaved = null;
 };
 
 /**
@@ -88,8 +96,30 @@ export function EveningStretchHomeCard({
     useCallback(() => {
       let active = true;
       let run = 0;
+      // Set once a live read decides the row, so a slower saved copy never
+      // replaces it.
+      let decided = false;
+      const show = (subtitle: string | null) => {
+        const next = { key: shownKey(userId), subtitle };
+        lastShown = next;
+        setShown(next);
+      };
+      if (lastShown?.key !== shownKey(userId)) {
+        void loadCachedTodayRow(
+          userId,
+          "evening-stretch",
+          isoLocalDate(new Date()),
+        ).then((saved) => {
+          if (!active || decided || saved === null) return;
+          if (lastShown?.key === shownKey(userId)) return;
+          if (saved.value === null || typeof saved.value === "string")
+            show(saved.value);
+        });
+      }
       const load = async () => {
         const current = ++run;
+        const generation = todayRowGeneration(userId);
+        const today = isoLocalDate(new Date());
         const [settings, training] = await Promise.all([
           loadEveningStretch(userId),
           fetchTodayTraining().catch(() => null),
@@ -99,27 +129,40 @@ export function EveningStretchHomeCard({
         void eveningStretchRuntime.refresh().catch(() => {});
         // Today's tailored plan when one is cached; never a network call here.
         const tailored = training?.trained
-          ? await peekTailoredStretchPlan(
-              userId,
-              training.input,
-              isoLocalDate(new Date()),
-            ).catch(() => null)
+          ? await peekTailoredStretchPlan(userId, training.input, today).catch(
+              () => null,
+            )
           : null;
         if (!active || current !== run) return;
-        setShown((previous) => {
-          const key = shownKey(userId);
-          const next = {
-            key,
-            subtitle: nextStretchSubtitle(
-              previous?.key === key ? previous.subtitle : null,
-              settings,
-              training,
-              tailored,
-            ),
-          };
-          lastShown = next;
-          return next;
-        });
+        const key = shownKey(userId);
+        const next = nextStretchSubtitle(
+          lastShown?.key === key ? lastShown.subtitle : null,
+          settings,
+          training,
+          tailored,
+        );
+        // A failed training read leaves the row undecided and keeps what is
+        // shown (nextStretchSubtitle would return it unchanged).
+        const known =
+          training !== null ||
+          !settings.enabled ||
+          isEveningStretchDoneToday(settings);
+        // Before anything is shown today, that must not hide the saved copy.
+        if (!known) return;
+        decided = true;
+        show(next);
+        // Cleanup bumps the generation, so a purged row is written again.
+        const saving = `${generation}\u0000${key}\u0000${next}`;
+        if (saving !== lastSaved)
+          void saveCachedTodayRow(
+            userId,
+            "evening-stretch",
+            today,
+            next,
+            generation,
+          ).then((saved) => {
+            if (saved) lastSaved = saving;
+          });
       };
       void load();
       let foreground = AppState.currentState === "active";
