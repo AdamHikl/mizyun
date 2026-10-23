@@ -74,4 +74,36 @@ export interface RequestOptions<TBody = unknown> {
    * ignored — the bearer token is the client's responsibility.
    */
   readonly headers?: Readonly<Record<string, string>>;
+  /**
+   * Phase 2 G — conditional revalidation. On a `GET`, the client sends this
+   * entity tag as `If-None-Match`. A `304 Not Modified` then resolves to a
+   * {@link NotModifiedResult} (`value: undefined`, no schema validation).
+   * Ignored for other methods. Only callers that pass this option can
+   * receive a not-modified result.
+   */
+  readonly ifNoneMatch?: string;
+}
+
+/**
+ * Successful result for a `GET` sent with `ifNoneMatch` when the server
+ * answered `304 Not Modified`: the caller's stored representation is still
+ * current. `value` is `undefined`; narrow with `isNotModified(result)`.
+ */
+export interface NotModifiedResult {
+  readonly ok: true;
+  readonly value: undefined;
+  readonly notModified: true;
+}
+
+/**
+ * Optional revalidation metadata attached to a successful `request` result.
+ * `etag` is present on a 200 that carried a usable `ETag` header (printable
+ * ASCII, at most 256 characters); `notModified` only on a 304 answer to a
+ * request that passed `ifNoneMatch`. Read with `resultEtag(...)` and
+ * `isNotModified(...)` so existing `Result<T, ApiError>` callers are
+ * unaffected.
+ */
+export interface RevalidationMetadata {
+  readonly etag?: string;
+  readonly notModified?: true;
 }

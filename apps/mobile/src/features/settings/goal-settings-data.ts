@@ -128,7 +128,8 @@ export const loadCurrentWeightKg = async (
 ): Promise<number | null> => {
   const result = await client.request({
     method: "GET",
-    path: "/v1/body-measurements?limit=1",
+    // Shares the cached body history read; newest first.
+    path: "/v1/body-measurements?limit=200",
     schema: bodyMeasurementListResponseSchema,
   });
   if (!result.ok) return null;

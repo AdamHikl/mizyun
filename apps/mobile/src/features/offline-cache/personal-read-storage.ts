@@ -16,6 +16,14 @@ export interface PersonalReadStorage {
     userId: string,
     records: ReadonlyArray<PersonalReadRecord>,
   ): Promise<void>;
+  /**
+   * Replaces the saved records before a write. Unlike save, failures reject,
+   * so a write never proceeds while a record it changes is still saved.
+   */
+  replace?(
+    userId: string,
+    records: ReadonlyArray<PersonalReadRecord>,
+  ): Promise<void>;
   /** Cleanup failures reject so account cleanup cannot report false success. */
   purge(userId: string): Promise<void>;
 }
@@ -263,6 +271,26 @@ export function createPersonalReadStorage(
         } catch {
           // Cache persistence must not turn a successful live read into a failure.
         }
+      });
+    },
+    replace(userId, records) {
+      if (!validOwner(userId))
+        return Promise.reject(new Error("Invalid personal cache owner"));
+      const lane = laneFor(userId);
+      const generation = lane.generation;
+      let json: string;
+      try {
+        const time = now();
+        if (!Number.isSafeInteger(time) || time < 0)
+          throw new Error("Invalid clock");
+        json = serialize(userId, records, time);
+      } catch (cause) {
+        return Promise.reject(cause);
+      }
+      return enqueue(userId, lane, async () => {
+        // Cleanup since then already removed every record.
+        if (generation !== lane.generation) return;
+        await store.setItem(personalReadCacheKey(userId), json);
       });
     },
     purge(userId) {

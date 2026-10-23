@@ -155,17 +155,50 @@ it("background retires old work, and a tab listener running first on resume can 
   expect(await read).toEqual(success);
   expect(state.preload.mock.calls.at(-1)![2]()).toBe(true);
 });
-it("unchanged auth events preserve work but a refreshed token retires it and rewarms", async () => {
+it("a refreshed token keeps work and records, while another account retires them", async () => {
   render();
   const originalLifetime = state.preload.mock.calls[0]![2];
-  for (const callback of state.authListeners) callback({ ...alice });
-  expect(originalLifetime()).toBe(true);
+  await state.cache!.request(options);
   state.session = { ...alice, accessToken: "synthetic-rotated" };
   for (const callback of state.authListeners) callback(state.session);
-  expect(originalLifetime()).toBe(false);
   render();
-  expect(state.preload.mock.calls.at(-1)![1]).toEqual(state.session);
+  expect(originalLifetime()).toBe(true);
+  expect(state.preload).toHaveBeenCalledTimes(1);
   expect(await state.cache!.request(options)).toEqual(success);
+  expect(request).toHaveBeenCalledTimes(1);
+  // A resume warm uses the latest token.
+  appState("background");
+  appState("active");
+  expect(state.preload.mock.calls.at(-1)![1]).toEqual(state.session);
+  const bob = { user: { id: "bob" }, accessToken: "synthetic-bob" };
+  state.session = bob as AuthSession;
+  for (const callback of state.authListeners) callback(state.session);
+  expect(state.preload.mock.calls.at(-1)![2]()).toBe(false);
+  render();
+  expect(state.preload.mock.calls.at(-1)![1]).toEqual(bob);
+  expect(await state.cache!.request(options)).toEqual(success);
+  expect(request).toHaveBeenCalledTimes(2);
+});
+it("a quick resume skips the live warm-up; a later one or reconnect repeats it", () => {
+  vi.useFakeTimers({ now: new Date(2026, 9, 3, 12) });
+  try {
+    render();
+    expect(state.preload.mock.calls[0]![5]).toBe(true);
+    appState("background");
+    appState("active");
+    expect(state.preload.mock.calls.at(-1)![5]).toBe(false);
+    vi.advanceTimersByTime(5 * 60_000);
+    appState("background");
+    appState("active");
+    expect(state.preload.mock.calls.at(-1)![5]).toBe(true);
+    for (const notify of state.networkListeners) {
+      notify({ isConnected: false });
+      notify({ isConnected: true, isInternetReachable: true });
+    }
+    expect(state.preload.mock.calls.at(-1)![5]).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 it("rewarms all tabs on reconnect and ignores duplicate online and background events", () => {
   render();

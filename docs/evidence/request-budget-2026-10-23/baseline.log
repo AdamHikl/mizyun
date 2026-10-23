@@ -1,0 +1,5 @@
+Baseline on main ac3cb89860fec3f1167bdebacbbc99bfe9d698ef before cache changes
+stdout | src/composition/request-budget.test.ts > server request budget > records requests per journey
+request budget {"coldStart":19,"resume":19,"tokenRefresh":19,"mealWrite":20,"relaunch":19}
+   ✓ server request budget > records requests per journey  783ms
+      Tests  1 passed (1)

@@ -31,7 +31,7 @@ function deferred<T>() {
 }
 function fixture(value: unknown = saved) {
   let owner: AuthSession | null = alice;
-  const records = [{ path: options.path, value, savedAt: now - 30_000 }];
+  const records = [{ path: options.path, value, savedAt: now - 10 * 60_000 }];
   const storage: PersonalReadStorage = {
     load: vi.fn(async (userId) => (userId === "alice" ? [...records] : [])),
     save: vi.fn(async () => {}),
@@ -76,7 +76,7 @@ describe("saved personal startup reads", () => {
       expect(f.cache.peek(options, alice)).toEqual({
         ok: true,
         value: saved,
-        savedAt: now - 30_000,
+        savedAt: now - 10 * 60_000,
       });
     expect(f.storage.load).not.toHaveBeenCalled();
     expect(f.storage.save).not.toHaveBeenCalled();
@@ -105,7 +105,11 @@ describe("saved personal startup reads", () => {
   it("does not asynchronously revive or re-persist sibling records after external cleanup", async () => {
     const f = fixture();
     const sibling = { ...options, path: "/v1/workouts?limit=5" };
-    f.records.push({ path: sibling.path, value: saved, savedAt: now - 30_000 });
+    f.records.push({
+      path: sibling.path,
+      value: saved,
+      savedAt: now - 10 * 60_000,
+    });
     let generation = 0;
     f.storage.generation = () => generation;
     await f.cache.request(options);
@@ -160,7 +164,7 @@ describe("saved personal startup reads", () => {
     expect(result).toMatchObject({
       ok: true,
       value: saved,
-      savedAt: now - 30_000,
+      savedAt: now - 10 * 60_000,
     });
     expect(f.request).toHaveBeenCalledTimes(1);
     await f.cache.request(options);
@@ -197,7 +201,7 @@ describe("saved personal startup reads", () => {
     const f = fixture();
     expect(await f.cache.request(options)).toMatchObject({
       ok: true,
-      savedAt: now - 30_000,
+      savedAt: now - 10 * 60_000,
     });
     await new Promise((resolve) => setTimeout(resolve, 110));
     expect(f.storage.save).not.toHaveBeenCalled();

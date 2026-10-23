@@ -363,3 +363,42 @@ describe("encrypted personal read snapshot adapter", () => {
     expect(store.removeItem).not.toHaveBeenCalled();
   });
 });
+
+describe("replacing saved records before a write", () => {
+  it("replaces the saved records and rejects when storage fails", async () => {
+    const { cache, store } = memory();
+    await cache.save(OWNER, [record(), record("/v1/goals/active")]);
+    await cache.replace!(OWNER, [record("/v1/goals/active")]);
+    expect((await cache.load(OWNER)).map((r) => r.path)).toEqual([
+      "/v1/goals/active",
+    ]);
+    vi.mocked(store.setItem).mockRejectedValueOnce(
+      new Error("synthetic keychain locked"),
+    );
+    await expect(cache.replace!(OWNER, [])).rejects.toThrow(
+      "synthetic keychain locked",
+    );
+    await expect(cache.replace!("../owner", [])).rejects.toThrow(
+      "Invalid personal cache owner",
+    );
+  });
+
+  it("does not write a pending replace once a cleanup has started", async () => {
+    const { cache, values, store } = memory();
+    await cache.save(OWNER, [record()]);
+    const gate = deferred();
+    vi.mocked(store.getItem).mockImplementationOnce(async () => {
+      await gate.promise;
+      return null;
+    });
+    // Hold the lane so the replace is queued, then start cleanup.
+    const load = cache.load(OWNER);
+    const replace = cache.replace!(OWNER, [record()]);
+    const purge = cache.purge(OWNER);
+    gate.resolve();
+    await Promise.all([load, replace, purge]);
+    // Only the initial save wrote; the queued replace saw the cleanup.
+    expect(store.setItem).toHaveBeenCalledTimes(1);
+    expect(values.has(personalReadCacheKey(OWNER))).toBe(false);
+  });
+});

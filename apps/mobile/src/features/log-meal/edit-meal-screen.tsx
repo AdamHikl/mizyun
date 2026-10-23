@@ -157,7 +157,10 @@ export function EditMealScreen() {
     userId,
     session?.accessToken,
   );
-  const advancedCapability = useAdvancedNutritionCapability(userId);
+  const advancedCapability = useAdvancedNutritionCapability(
+    userId,
+    session?.accessToken,
+  );
   const [entry, setEntry] = useState<FoodEntry | null>(null);
   const [form, setForm] = useState<MealFormStrings>(EMPTY_FORM);
   const [grams, setGrams] = useState("");

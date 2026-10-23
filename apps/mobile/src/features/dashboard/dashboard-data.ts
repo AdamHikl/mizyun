@@ -94,9 +94,11 @@ const dailySummaryRequest = (options: {
   path: `/v1/food-entries/summary?date=${encodeURIComponent(options.date)}&utcOffsetMinutes=${encodeURIComponent(options.utcOffsetMinutes ?? 0)}`,
   schema: dailyFoodSummaryResponseSchema,
 });
+// Same read as the body history list (newest first), so one cached request
+// serves Home, Goal settings and the weight history instead of two.
 const weightRequest = {
   method: "GET" as const,
-  path: "/v1/body-measurements?limit=1",
+  path: "/v1/body-measurements?limit=200",
   schema: bodyMeasurementListResponseSchema,
 };
 const energyRequest = (offset: number) => ({
@@ -207,8 +209,7 @@ export const fetchLatestWeight = async (
   principal: DashboardPrincipal,
 ): Promise<DailyDataResult<LatestWeight>> => {
   if (principal === null) return unauthenticatedResult();
-  // Pull the most-recent measurement. The route list API caps at
-  // one row when limit=1.
+  // The list is newest first; the latest measurement is its first row.
   const result = await client.request(weightRequest);
   if (!result.ok) return { value: null, error: result.error };
   const parsed = parseSafe(result.value, bodyMeasurementListResponseSchema);

@@ -207,6 +207,7 @@ export function MealListScreen() {
   );
   const advancedCapability = useAdvancedNutritionCapability(
     session?.user.id ?? null,
+    session?.accessToken,
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [visibleAdvancedFields, setVisibleAdvancedFields] = useState<string[]>(
@@ -639,7 +640,7 @@ export function MealListScreen() {
         if (addMealDate.current !== null)
           setSearchAttempt((value) => value + 1);
       }
-      void advancedCapability.refresh();
+      void advancedCapability.revalidate();
       let foreground =
         AppState.currentState !== "background" &&
         AppState.currentState !== "inactive";
@@ -655,7 +656,7 @@ export function MealListScreen() {
         foreground = state === "active";
         if (state === "active") {
           void load();
-          void advancedCapability.refresh();
+          void advancedCapability.revalidate();
         }
       });
       let refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -672,7 +673,7 @@ export function MealListScreen() {
         unsubscribe();
         subscription.remove();
       };
-    }, [load, advancedCapability.refresh]),
+    }, [load, advancedCapability.revalidate]),
   );
 
   useEffect(() => {

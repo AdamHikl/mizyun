@@ -63,6 +63,8 @@ export const sessionReadCache = new SessionReadCache(
     load: (userId) => createPersonalReadStorage().load(userId),
     save: (userId, records) =>
       createPersonalReadStorage().save(userId, records),
+    replace: (userId, records) =>
+      createPersonalReadStorage().replace!(userId, records),
     purge: (userId) => createPersonalReadStorage().purge(userId),
     generation: (userId) => createPersonalReadStorage().generation!(userId),
   },

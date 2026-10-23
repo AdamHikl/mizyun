@@ -3,9 +3,17 @@ export { DisabledApiClient } from "./disabled-api-client";
 export { mapFetchError, parseApiErrorBody } from "./errors";
 export {
   HttpApiClient,
+  isNotModified,
+  resultEtag,
   type HttpApiClientDependencies,
 } from "./http-api-client";
-export type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
+export type {
+  ApiConfigurationStatus,
+  ApiError,
+  NotModifiedResult,
+  RequestOptions,
+  RevalidationMetadata,
+} from "./types";
 
 export {
   createMealRecipeApi,

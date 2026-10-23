@@ -221,6 +221,7 @@ import { systemRoutes } from "./modules/system/routes.js";
 import { workoutsRoutes } from "./modules/workouts/routes.js";
 import { workoutSetsRoutes } from "./modules/workout-sets/routes.js";
 import { authenticationPlugin } from "./plugins/authentication.js";
+import { conditionalGetPlugin } from "./plugins/conditional-get.js";
 import {
   InMemoryBetaProRepository,
   type BetaProRepository,
@@ -1251,6 +1252,10 @@ export const buildApp = (
   void app.register(authenticationPlugin, {
     tokenVerifier: dependencies.tokenVerifier,
   });
+
+  // `/v1/` responses default to `Cache-Control: no-store`, and GET 200 JSON
+  // reads carry an ETag so the app can revalidate with If-None-Match (304).
+  void app.register(conditionalGetPlugin);
 
   // VISION-001 — multipart support for the photo-draft endpoint.
   // 15 MiB per file (matches the private-media bucket policy);

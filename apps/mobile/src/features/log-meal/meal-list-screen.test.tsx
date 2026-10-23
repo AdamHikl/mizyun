@@ -153,6 +153,7 @@ vi.mock("./advanced-nutrition", () => ({
   useAdvancedNutritionCapability: () => ({
     enabled: mocks.advanced,
     refresh: mocks.refresh,
+    revalidate: mocks.refresh,
   }),
   fetchCurrentWeekSummaries: vi.fn().mockResolvedValue(null),
 }));

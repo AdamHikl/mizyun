@@ -32,6 +32,12 @@ export async function preloadAppData(
   isCurrent: () => boolean,
   now = new Date(),
   birthYear?: number | null,
+  /**
+   * False skips the live Community and Coach readiness warm-up. Their screens
+   * revalidate on their own when the app returns, so a resume shortly after
+   * the last warm-up does not need to repeat them.
+   */
+  live = true,
 ): Promise<void> {
   const scoped: ApiClient = {
     status: () => client.status(),
@@ -79,11 +85,9 @@ export async function preloadAppData(
     await thread;
   };
   await Promise.allSettled([
-    warmCommunity(),
-    warmCoach(),
+    ...(live ? [warmCommunity(), warmCoach()] : []),
     fetchWorkoutsHubData(scoped),
     fetchFoodHistoryWith(scoped, offset, now),
-    fetchFoodHistoryWith(scoped, offset, now, { limit: 5 }),
     fetchBodyHistoryWith(scoped),
     fetchDailySummary(scoped, principal, {
       date: today,

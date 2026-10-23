@@ -59,16 +59,19 @@ describe("personal screen navigation reads", () => {
     expect(f.request).not.toHaveBeenCalled();
     expect(f.sessionLookup).not.toHaveBeenCalled();
   });
-  it("never projects another owner/token, unscoped query, authority or retired caller", async () => {
+  it("never projects another owner, unscoped query, authority or retired caller", async () => {
     const f = fixture();
     await f.cache.request(options);
     for (const owner of [
       null,
       { ...alice, user: { ...alice.user, id: "bob" } } as AuthSession,
-      { ...alice, accessToken: "rotated" },
     ]) {
       expect(f.cache.peek(options, owner)).toBeNull();
     }
+    // A routine token refresh keeps the same account's display records.
+    expect(f.cache.peek(options, { ...alice, accessToken: "rotated" })).toEqual(
+      success,
+    );
     expect(
       f.cache.peek({ ...options, expectedUserId: "bob" }, alice),
     ).toBeNull();
@@ -88,7 +91,7 @@ describe("personal screen navigation reads", () => {
       f.cache.peek({ ...options, signal: new AbortController().signal }, alice),
     ).toBeNull();
   });
-  it("retires synchronous display on expiry, clear, background and mutation dispatch", async () => {
+  it("retires synchronous display on expiry, clear, while backgrounded and on mutation dispatch", async () => {
     const f = fixture();
     await f.cache.request(options);
     f.advance(5 * 60_000);
@@ -96,9 +99,12 @@ describe("personal screen navigation reads", () => {
     await f.cache.request(options);
     f.cache.setForeground(false);
     expect(f.cache.peek(options, alice)).toBeNull();
+    // Returning keeps records that are still fresh, without a new request.
     f.cache.setForeground(true);
-    expect(f.cache.peek(options, alice)).toBeNull();
+    f.request.mockClear();
+    expect(f.cache.peek(options, alice)).toEqual(success);
     await f.cache.request(options);
+    expect(f.request).not.toHaveBeenCalled();
     const pending = deferred();
     f.request.mockReturnValueOnce(pending.promise);
     const write = f.cache.request({
@@ -265,20 +271,23 @@ describe("personal screen navigation reads", () => {
     await cache.request(options);
     expect(request).toHaveBeenCalledTimes(2);
   });
-  it("does not reuse after sign-out, token rotation, background or explicit refresh", async () => {
+  it("does not reuse after sign-out or explicit refresh, but does across token rotation and background", async () => {
     const f = fixture();
     await f.cache.request(options);
     f.setSession(null);
     expect((await f.cache.request(options)).ok).toBe(false);
+    f.setSession(alice);
+    await f.cache.request(options);
     f.setSession({ ...alice, accessToken: "rotated" });
     await f.cache.request(options);
     f.cache.setForeground(false);
     expect((await f.cache.request(options)).ok).toBe(false);
     f.cache.setForeground(true);
     await f.cache.request(options);
+    expect(f.request).toHaveBeenCalledTimes(2);
     f.cache.clear();
     await f.cache.request(options);
-    expect(f.request).toHaveBeenCalledTimes(4);
+    expect(f.request).toHaveBeenCalledTimes(3);
   });
   it("does not keep a response from a caller retired during a shared read", async () => {
     const { cache, request } = fixture();
@@ -348,7 +357,7 @@ describe("personal screen navigation reads", () => {
     expect(await read).toEqual(success);
     expect(f.request).toHaveBeenCalledTimes(2);
   });
-  it("re-reads with the rotated token for the same account", async () => {
+  it("keeps a read that finishes after a token rotation for the same account", async () => {
     const f = fixture();
     const pending = deferred();
     f.request.mockReturnValueOnce(pending.promise);
@@ -357,7 +366,7 @@ describe("personal screen navigation reads", () => {
     f.setSession({ ...alice, accessToken: "rotated" });
     pending.resolve(success);
     expect(await read).toEqual(success);
-    expect(f.request).toHaveBeenCalledTimes(2);
+    expect(f.request).toHaveBeenCalledTimes(1);
   });
   it("waits for a pending write before returning a retried read", async () => {
     const f = fixture();

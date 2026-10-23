@@ -1,4 +1,10 @@
-import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
+import {
+  isNotModified,
+  resultEtag,
+  type ApiClient,
+  type ApiError,
+  type RequestOptions,
+} from "@mizyun/api-client";
 import type { AuthSession } from "@mizyun/identity";
 import type { Result } from "@mizyun/core";
 import type { PersonalReadStorage } from "@/features/offline-cache/personal-read-storage";
@@ -52,6 +58,87 @@ function cacheable(options: RequestOptions): boolean {
   );
 }
 
+const SLOW_LIFETIME_MS = 30 * 60_000;
+// Meal entries and totals can change on the server (scheduled meals), so they
+// are re-read after a minute. Goals and the exercise library change only
+// when the account edits them; edits on this device forget them (see
+// affectedReads), so they stay fresh for thirty minutes and an edit on another
+// device shows within that time or on pull-to-refresh. The profile stays at
+// five minutes like other reads: it carries the plan tier, which Beta Pro
+// grants change outside this app.
+const lifetime = (path: string): number =>
+  /^\/v1\/(?:food-entries(?:\?|$|\/summary)|energy\/summary(?:\?|$))/.test(path)
+    ? 60_000
+    : /^\/v1\/(?:goals\/active|exercises)(?:\?|$)/.test(path)
+      ? SLOW_LIFETIME_MS
+      : LIFETIME_MS;
+
+const FOOD = ["/v1/food-entries", "/v1/energy/summary"];
+const TRAINING = [
+  "/v1/workouts",
+  "/v1/exercises",
+  "/v1/runs",
+  "/v1/energy/summary",
+];
+const BODY = [
+  "/v1/body-measurements",
+  "/v1/profile",
+  "/v1/goals/active",
+  "/v1/energy/summary",
+];
+const COACH = ["/v1/coach/conversations"];
+
+/**
+ * Cached read paths a write can change. `"all"` keeps the original full
+ * invalidation and is the answer for every write not listed here, including
+ * Coach messages (their tools can log meals or edit workouts) and account
+ * changes.
+ */
+export function affectedReads(
+  method: string,
+  fullPath: string,
+): ReadonlyArray<string> | "all" {
+  if (method === "GET") return [];
+  const path = fullPath.split("?")[0]!;
+  const under = (prefix: string) =>
+    path === prefix || path.startsWith(`${prefix}/`);
+  // Drafts, signing and feedback store nothing that a cached read returns.
+  if (
+    under("/v1/food-entries/draft") ||
+    under("/v1/activity-drafts") ||
+    under("/v1/stretch-plans") ||
+    under("/v1/coach/memories") ||
+    under("/v1/media") ||
+    under("/v1/feedback") ||
+    under("/v1/beta-pro/request")
+  )
+    return [];
+  if (under("/v1/food-entries") || under("/v1/recurring-meals")) return FOOD;
+  if (
+    under("/v1/workouts") ||
+    under("/v1/exercises") ||
+    under("/v1/runs") ||
+    under("/v1/bouldering") ||
+    /^\/v1\/community\/routines\/[^/]+\/import$/.test(path)
+  )
+    return TRAINING;
+  if (
+    under("/v1/body-measurements") ||
+    under("/v1/profile") ||
+    under("/v1/goals") ||
+    /^\/v1\/energy\/weekly-review\/[^/]+\/decision$/.test(path)
+  )
+    return BODY;
+  // Granting consent can also save the birth year used for energy targets.
+  if (path === "/v1/account/ai-consent") return [...COACH, ...BODY];
+  if (
+    path === "/v1/coach/conversations" ||
+    /^\/v1\/coach\/conversations\/[^/]+$/.test(path)
+  )
+    return COACH;
+  return "all";
+}
+
 type Entry = {
   value: unknown;
   expiresAt: number;
@@ -59,6 +146,12 @@ type Entry = {
   bytes: number;
   savedAt: number;
   storageGeneration?: number;
+  /**
+   * Server validator from a 200 in this process; a stale record is
+   * revalidated with If-None-Match. Never saved on the device, so a value
+   * parsed by an older app build is never confirmed by an unchanged tag.
+   */
+  etag?: string;
 };
 type Pending = {
   promise: Promise<Result<unknown, ApiError>>;
@@ -89,6 +182,12 @@ export class SessionReadCache implements ApiClient {
   private utcOffset: number | null = null;
   private foreground = true;
   private hydration: Promise<void> | null = null;
+  private hydrated = false;
+  // Only the first hydration after launch may treat saved records as fresh.
+  // After an explicit clear (pull-to-refresh, account change, full write
+  // invalidation) saved records are shown but always revalidated.
+  private diskFresh = true;
+  private hydrationStarted = false;
   private listeners = new Set<(path: string) => void>();
   private persistTimer: ReturnType<typeof setTimeout> | undefined;
   // Owner -> the access token the server denied.
@@ -154,6 +253,7 @@ export class SessionReadCache implements ApiClient {
   private async hydrate(userId: string, revision: number): Promise<void> {
     if (!this.storage || this.deniedOwners.has(userId)) return;
     if (!this.hydration) {
+      this.hydrationStarted = true;
       const storageGeneration = this.storage.generation?.(userId);
       this.hydration = this.storage
         .load(userId)
@@ -164,21 +264,31 @@ export class SessionReadCache implements ApiClient {
           )
             return;
           for (const record of records) {
+            // Memory kept across a background is never older than disk.
+            const kept = this.entries.get(record.path);
+            if (kept && kept.savedAt >= record.savedAt) continue;
             const bytes = JSON.stringify(record.value).length * 2;
+            const replaced = kept?.bytes ?? 0;
             if (
-              this.entries.size >= MAX_ENTRIES ||
-              this.bytes + bytes > MAX_BYTES
+              (!kept && this.entries.size >= MAX_ENTRIES) ||
+              this.bytes - replaced + bytes > MAX_BYTES
             )
               break;
+            this.bytes -= replaced;
             this.entries.set(record.path, {
-              ...record,
+              value: record.value,
+              savedAt: record.savedAt,
               schema: undefined,
               bytes,
-              expiresAt: 0,
+              // At launch, a record saved moments ago is as fresh as one in memory.
+              expiresAt: this.diskFresh
+                ? record.savedAt + lifetime(record.path)
+                : 0,
               storageGeneration,
             });
             this.bytes += bytes;
           }
+          this.hydrated = true;
           if (records.length > 0) this.publish("*");
         })
         .catch(() => {});
@@ -228,24 +338,70 @@ export class SessionReadCache implements ApiClient {
   setForeground(active: boolean): void {
     if (active === this.foreground) return;
     this.foreground = active;
-    // Backgrounding already retired all records. Returning active must not
+    // Backgrounding retires in-flight reads but keeps the records, which are
+    // the same display data already saved on this device. The next read
+    // re-checks the account, day and timezone. Returning active must not
     // cancel a tab read started by an earlier AppState listener.
-    if (!active) this.clear();
+    if (!active) this.retire();
   }
   clear(): void {
     clearTimeout(this.persistTimer);
-    this.revision++;
+    // A clear before anything loaded (auth restoring at launch) keeps it.
+    if (this.hydrationStarted || this.entries.size > 0) this.diskFresh = false;
+    this.retire();
     this.identity = null;
     this.day = "";
     this.utcOffset = null;
     this.entries.clear();
     this.hydration = null;
+    this.hydrated = false;
+    this.bytes = 0;
+  }
+  /** Retires in-flight reads and their callers without forgetting records. */
+  private retire(): void {
+    this.revision++;
+    // A hydration the retirement interrupted is discarded, so allow another.
+    if (!this.hydrated) this.hydration = null;
     for (const pending of this.pending.values()) pending.controller.abort();
     this.pending.clear();
-    this.bytes = 0;
+  }
+  private forget(paths: ReadonlyArray<string>): void {
+    for (const [key, entry] of this.entries) {
+      const path = key.split("?")[0]!;
+      if (
+        paths.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
+      ) {
+        this.bytes -= entry.bytes;
+        this.entries.delete(key);
+      }
+    }
+  }
+  /**
+   * Replaces the device copy with the remaining records before a write, so a
+   * record the write changes is never left saved. Fails closed like a purge.
+   */
+  private async replaceSaved(userId: string): Promise<void> {
+    clearTimeout(this.persistTimer);
+    if (!this.storage) return;
+    if (!this.storage.replace || this.deniedOwners.has(userId))
+      return this.purgeSaved(userId);
+    const generation = this.storage.generation?.(userId);
+    const records = [...this.entries]
+      .filter(([, entry]) => entry.storageGeneration === generation)
+      .map(([path, entry]) => ({
+        path,
+        value: entry.value,
+        savedAt: entry.savedAt,
+      }));
+    await this.storage.replace(userId, records);
   }
   private key(session: AuthSession | null): string | null {
     return session ? `${session.user.id}:${session.accessToken}` : null;
+  }
+  // Display records belong to the account, not to one access token: a routine
+  // token refresh keeps them, while another account or sign-out clears them.
+  private owner(session: AuthSession | null): string | null {
+    return session ? session.user.id : null;
   }
   /** Read already hydrated display data during render, without IO or a new lease. */
   peek<T>(
@@ -259,7 +415,7 @@ export class SessionReadCache implements ApiClient {
       !session ||
       !this.foreground ||
       this.writes ||
-      this.identity !== this.key(session) ||
+      this.identity !== this.owner(session) ||
       this.day !== date.toDateString() ||
       this.utcOffset !== date.getTimezoneOffset() ||
       (options.expectedUserId && options.expectedUserId !== session.user.id) ||
@@ -309,8 +465,18 @@ export class SessionReadCache implements ApiClient {
     )
       return this.raw.request<T>(options);
     if (options.method !== "GET") {
+      const affected = affectedReads(options.method, options.path);
+      // Every write retires in-flight reads; only the records it can change
+      // are forgotten, here and on the device, before it is sent.
+      const invalidate = () => {
+        if (affected === "all") this.clear();
+        else {
+          this.retire();
+          this.forget(affected);
+        }
+      };
       this.writes++;
-      this.clear();
+      invalidate();
       try {
         const owner = await this.session().catch(() => null);
         if (
@@ -320,7 +486,10 @@ export class SessionReadCache implements ApiClient {
           options.isCurrent?.() === false
         )
           return retired();
-        await this.purgeSaved(owner.user.id);
+        if (affected === "all") await this.purgeSaved(owner.user.id);
+        else if (affected.length > 0 && this.identity === this.owner(owner))
+          await this.replaceSaved(owner.user.id);
+        else if (affected.length > 0) await this.purgeSaved(owner.user.id);
         if (
           this.key(owner) !==
             this.key(await this.session().catch(() => null)) ||
@@ -336,7 +505,7 @@ export class SessionReadCache implements ApiClient {
         return { ok: false, error: { kind: "network_error", cause } };
       } finally {
         this.writes--;
-        this.clear();
+        invalidate();
         this.release();
       }
     }
@@ -394,7 +563,7 @@ export class SessionReadCache implements ApiClient {
     const session = lookup.session;
     if (!this.foreground || beforeLookup !== this.revision)
       return { owner: session?.user.id ?? null };
-    const identity = this.key(session);
+    const identity = this.owner(session);
     const day = new Date(this.now()).toDateString();
     const utcOffset = new Date(this.now()).getTimezoneOffset();
     if (
@@ -477,13 +646,37 @@ export class SessionReadCache implements ApiClient {
             });
           }, 20_000);
         });
+        // A stale record with a server validator is revalidated: an
+        // unchanged response comes back as 304 without its body.
+        const validator =
+          !this.writes && entry && entry.schema === options.schema && entry.etag
+            ? { etag: entry.etag, value: entry.value }
+            : undefined;
         const transport = this.raw
           .request<unknown>({
             ...options,
             signal: controller.signal,
             isCurrent: () => revision === this.revision,
             expectedUserId: session.user.id,
+            ...(validator ? { ifNoneMatch: validator.etag } : {}),
           })
+          .then((result): Result<unknown, ApiError> =>
+            !isNotModified(result)
+              ? result
+              : validator
+                ? ({
+                    ok: true,
+                    value: validator.value,
+                    etag: validator.etag,
+                  } as Result<unknown, ApiError>)
+                : {
+                    ok: false,
+                    error: {
+                      kind: "network_error",
+                      cause: "Not modified without a saved response",
+                    },
+                  },
+          )
           .catch((cause: unknown): Result<unknown, ApiError> => ({
             ok: false,
             error: { kind: "network_error", cause },
@@ -513,17 +706,12 @@ export class SessionReadCache implements ApiClient {
                 }
                 this.entries.set(key, {
                   value: result.value,
-                  expiresAt:
-                    this.now() +
-                    (/^\/v1\/(?:food-entries(?:\?|$|\/summary)|energy\/summary(?:\?|$))/.test(
-                      key,
-                    )
-                      ? 60_000
-                      : LIFETIME_MS),
+                  expiresAt: this.now() + lifetime(key),
                   schema: options.schema,
                   bytes,
                   savedAt: this.now(),
                   storageGeneration,
+                  etag: resultEtag(result),
                 });
                 this.bytes += bytes;
                 this.persist(session.user.id, storageGeneration);
@@ -543,7 +731,8 @@ export class SessionReadCache implements ApiClient {
               this.clear();
               if (saved) this.publish(key);
             }
-            return result;
+            // Validators stay internal to the cache.
+            return result.ok ? { ok: true, value: result.value } : result;
           });
         const record = { promise, schema: options.schema, controller };
         this.pending.set(key, record);
@@ -570,7 +759,7 @@ export class SessionReadCache implements ApiClient {
       return { owner: session.user.id };
     if (
       revision !== this.revision ||
-      identity !== this.key(current) ||
+      identity !== this.owner(current) ||
       options.isCurrent?.() === false
     )
       return { owner: session?.user.id ?? null };

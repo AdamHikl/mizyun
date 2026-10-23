@@ -23,7 +23,13 @@ import {
 } from "./meal-recipe-api";
 import type { ApiClient } from "./api-client";
 import { mapFetchError, parseApiErrorBody } from "./errors";
-import type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
+import type {
+  ApiConfigurationStatus,
+  ApiError,
+  NotModifiedResult,
+  RequestOptions,
+  RevalidationMetadata,
+} from "./types";
 
 /**
  * Injectable dependencies for `HttpApiClient`. Tests substitute `fetch` with
@@ -60,6 +66,48 @@ const withCompatHeader =
     }
     return fetcher(input, { ...(init ?? {}), headers: next });
   };
+
+// Exact casing matters on iOS: React Native's RCTNetworking checks
+// `allHTTPHeaderFields[@"If-None-Match"]` to bypass the local URL cache so
+// the 304 reaches JavaScript.
+const IF_NONE_MATCH_HEADER = "If-None-Match";
+const ETAG_HEADER = "etag";
+const MAX_ETAG_LENGTH = 256;
+const PRINTABLE_ASCII = /^[\x20-\x7e]+$/;
+
+const usableEtag = (value: string | null | undefined): string | undefined =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value.length <= MAX_ETAG_LENGTH &&
+  PRINTABLE_ASCII.test(value)
+    ? value
+    : undefined;
+
+/** Opaque part of an entity tag, for the weak comparison of RFC 9110 §8.8.3.2. */
+const opaqueTag = (tag: string): string => tag.trim().replace(/^W\//, "");
+
+const readEtag = (response: Response): string | undefined => {
+  try {
+    return usableEtag(response.headers?.get(ETAG_HEADER));
+  } catch {
+    return undefined;
+  }
+};
+
+/** True when a `request` result is a 304 answer to `ifNoneMatch`. */
+export const isNotModified = (result: unknown): result is NotModifiedResult =>
+  typeof result === "object" &&
+  result !== null &&
+  (result as { ok?: unknown }).ok === true &&
+  (result as RevalidationMetadata).notModified === true;
+
+/** The validated `ETag` of a successful 200 `request` result, if any. */
+export const resultEtag = (result: unknown): string | undefined =>
+  typeof result === "object" &&
+  result !== null &&
+  (result as { ok?: unknown }).ok === true
+    ? usableEtag((result as RevalidationMetadata).etag)
+    : undefined;
 
 const isAbsoluteUrl = (path: string): boolean => /^https?:\/\//i.test(path);
 
@@ -370,6 +418,16 @@ export class HttpApiClient implements ApiClient {
       ...(options.headers ?? {}),
     };
     headers[AUTHORIZATION_HEADER] = `Bearer ${session.accessToken}`;
+    const conditional =
+      options.method === "GET" &&
+      typeof options.ifNoneMatch === "string" &&
+      options.ifNoneMatch.length > 0;
+    if (conditional) {
+      for (const name of Object.keys(headers)) {
+        if (name.toLowerCase() === "if-none-match") delete headers[name];
+      }
+      headers[IF_NONE_MATCH_HEADER] = options.ifNoneMatch as string;
+    }
 
     const url = `${this.#baseUrl}${options.path}`;
     const body =
@@ -409,6 +467,48 @@ export class HttpApiClient implements ApiClient {
         // session may already be gone.
       });
       return err({ kind: "session_expired" });
+    }
+
+    // RFC 9110 §15.4.5 — 304 has no content. It is success only as the
+    // answer to our own If-None-Match; anything else is unexpected.
+    if (response.status === 304) {
+      if (conditional) {
+        const notModified: NotModifiedResult = {
+          ok: true,
+          value: undefined,
+          notModified: true,
+        };
+        return notModified as unknown as Result<T, ApiError>;
+      }
+      return err({
+        kind: "http_error",
+        status: 304,
+        code: "INTERNAL_ERROR",
+        message: "The request could not be completed.",
+      });
+    }
+
+    // On iOS, expo/fetch uses the shared URLCache, which can merge a server
+    // 304 into a response an older build cached for the same URL (possibly
+    // for another account) and surface it as a 200. A 200 that names the tag
+    // we sent is our held representation; a 200 without any tag cannot be
+    // trusted as the server's answer, so ask once more without the validator.
+    if (conditional && response.status === 200) {
+      const tag = readEtag(response);
+      if (tag === undefined) {
+        void response.body?.cancel().catch(() => {});
+        const { ifNoneMatch: _unused, ...unconditional } = options;
+        return this.request<T>(unconditional);
+      }
+      if (opaqueTag(tag) === opaqueTag(options.ifNoneMatch as string)) {
+        void response.body?.cancel().catch(() => {});
+        const notModified: NotModifiedResult = {
+          ok: true,
+          value: undefined,
+          notModified: true,
+        };
+        return notModified as unknown as Result<T, ApiError>;
+      }
     }
 
     // RFC 9110 defines 204 as a successful response with no content.
@@ -457,9 +557,22 @@ export class HttpApiClient implements ApiClient {
           issues: validated.error.issues,
         });
       }
-      return ok(validated.data as T);
+      return withEtag(ok(validated.data as T), readEtag(response));
     }
 
-    return ok(parsedBody as T);
+    return withEtag(ok(parsedBody as T), readEtag(response));
   }
 }
+
+const withEtag = <T>(
+  result: Result<T, never>,
+  etag: string | undefined,
+): Result<T, ApiError> => {
+  if (etag === undefined || !result.ok) return result;
+  const tagged: Result<T, ApiError> & RevalidationMetadata = {
+    ok: true,
+    value: result.value,
+    etag,
+  };
+  return tagged;
+};

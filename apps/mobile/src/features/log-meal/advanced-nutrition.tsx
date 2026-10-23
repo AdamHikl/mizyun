@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router, type Href } from "expo-router";
 import {
@@ -19,36 +19,90 @@ type AdvancedNutritionCapability = ReturnType<
   typeof advancedNutritionCapabilityResponseSchema.parse
 >;
 
-export const fetchAdvancedNutritionCapability = async (): Promise<boolean> => {
+export const fetchAdvancedNutritionCapability = async (
+  expectedUserId?: string,
+): Promise<boolean> => {
   const result = await apiClient.request<AdvancedNutritionCapability>({
     method: "GET",
     path: "/v1/food-entries/capabilities",
     schema: advancedNutritionCapabilityResponseSchema,
+    ...(expectedUserId ? { expectedUserId } : {}),
   });
   return result.ok && result.value.advancedNutrition;
 };
 
-export const useAdvancedNutritionCapability = (userId: string | null) => {
-  const [enabled, setEnabled] = useState(false);
-  const refresh = useCallback(async () => {
-    if (userId === null) {
-      setEnabled(false);
+// A granted capability is reused in memory for the same account/token so
+// refocusing Meals does not re-request it. Only `true` is remembered; a denial
+// or failure clears it. Writes stay enforced by the API and database trigger
+// (ADR-0029), and `refresh()` always performs a fresh read for pre-save gates.
+const GRANT_REUSE_MS = 5 * 60_000;
+let rememberedGrant: { scope: string; at: number } | null = null;
+
+const capabilityScope = (userId: string, accessToken?: string | null) =>
+  JSON.stringify([userId, accessToken ?? null]);
+
+const recentlyGranted = (scope: string) =>
+  rememberedGrant?.scope === scope &&
+  Date.now() - rememberedGrant.at < GRANT_REUSE_MS;
+
+/** Forgets the remembered grant (used by tests; grants are already scoped to account and token). */
+export const forgetAdvancedNutritionCapability = (): void => {
+  rememberedGrant = null;
+};
+
+export const useAdvancedNutritionCapability = (
+  userId: string | null,
+  accessToken?: string | null,
+) => {
+  const scope = userId === null ? null : capabilityScope(userId, accessToken);
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const [state, setState] = useState<{
+    scope: string | null;
+    enabled: boolean;
+  }>(() => ({
+    scope,
+    enabled: scope !== null && recentlyGranted(scope),
+  }));
+  /** Fresh server read; use before a write or after a Pro change. */
+  const refresh = useCallback(async (): Promise<boolean> => {
+    if (userId === null || scope === null) {
+      setState({ scope, enabled: false });
       return false;
     }
+    let next = false;
     try {
-      const next = await fetchAdvancedNutritionCapability();
-      setEnabled(next);
-      return next;
+      next = await fetchAdvancedNutritionCapability(userId);
     } catch {
-      setEnabled(false);
-      return false;
+      next = false;
     }
-  }, [userId]);
+    // A late answer for an earlier account/token cannot change this one.
+    if (currentScope.current !== scope) return false;
+    if (next) rememberedGrant = { scope, at: Date.now() };
+    else if (rememberedGrant?.scope === scope) rememberedGrant = null;
+    setState({ scope, enabled: next });
+    return next;
+  }, [userId, scope]);
+  /** Reuses a recent grant for this account/token, otherwise reads fresh. */
+  const revalidate = useCallback(async (): Promise<boolean> => {
+    if (scope !== null && recentlyGranted(scope)) {
+      setState((current) =>
+        current.scope === scope && current.enabled
+          ? current
+          : { scope, enabled: true },
+      );
+      return true;
+    }
+    return refresh();
+  }, [scope, refresh]);
   useEffect(() => {
-    setEnabled(false);
-    void refresh();
-  }, [refresh]);
-  return { enabled, refresh };
+    void revalidate();
+  }, [revalidate]);
+  return {
+    enabled: state.scope === scope && state.enabled,
+    refresh,
+    revalidate,
+  };
 };
 
 const fields = [

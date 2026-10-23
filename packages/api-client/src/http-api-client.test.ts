@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { AuthClient, AuthSession } from "@mizyun/identity";
 import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
 
-import { HttpApiClient } from "./http-api-client";
+import { HttpApiClient, isNotModified, resultEtag } from "./http-api-client";
 
 const buildAuthClient = (overrides: Partial<AuthClient> = {}): AuthClient => ({
   status: () => ({ configured: true, provider: "supabase" }),
@@ -1036,5 +1036,190 @@ describe("HttpApiClient — client capability header", () => {
     expect(init.headers).toMatchObject({
       [API_COMPAT_HEADER]: API_COMPAT_VERSION,
     });
+  });
+});
+
+describe("HttpApiClient — conditional GET revalidation", () => {
+  const withHeaders = (
+    status: number,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ): Response =>
+    ({
+      status,
+      ok: status >= 200 && status < 300,
+      headers: new Headers(headers),
+      json: () =>
+        body === undefined
+          ? Promise.reject(new SyntaxError("Unexpected end of JSON input"))
+          : Promise.resolve(body),
+    }) as unknown as Response;
+
+  const build = (response: Response) => {
+    const fetchMock = vi.fn().mockResolvedValue(response);
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock,
+    });
+    return { client, fetchMock };
+  };
+
+  const sentHeaders = (fetchMock: Mock): Record<string, string> =>
+    (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Record<
+      string,
+      string
+    >;
+
+  it("sends If-None-Match on a GET and returns notModified on 304 without parsing", async () => {
+    const { client, fetchMock } = build(withHeaders(304, undefined));
+    const schema = z.object({ items: z.array(z.number()) });
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/items",
+      schema,
+      ifNoneMatch: '"sha256:abc"',
+      headers: { "if-none-match": '"caller"' },
+    });
+    expect(result).toEqual({ ok: true, value: undefined, notModified: true });
+    expect(isNotModified(result)).toBe(true);
+    const headers = sentHeaders(fetchMock);
+    expect(headers["If-None-Match"]).toBe('"sha256:abc"');
+    expect(headers["if-none-match"]).toBeUndefined();
+    expect(headers.authorization).toBe("Bearer test-token");
+    expect(headers[API_COMPAT_HEADER]).toBe(API_COMPAT_VERSION);
+  });
+
+  it("returns the ETag on a 200 and validates the body", async () => {
+    const { client } = build(
+      withHeaders(200, { items: [1] }, { etag: '"sha256:new"' }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/items",
+      schema: z.object({ items: z.array(z.number()) }),
+      ifNoneMatch: '"sha256:old"',
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: { items: [1] },
+      etag: '"sha256:new"',
+    });
+    expect(resultEtag(result)).toBe('"sha256:new"');
+    expect(isNotModified(result)).toBe(false);
+  });
+
+  it("treats a 200 that names the sent tag as not modified (iOS URLCache merge)", async () => {
+    const { client } = build(
+      withHeaders(
+        200,
+        { items: ["old-cached-body"] },
+        { etag: 'W/"sha256:abc"' },
+      ),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/items",
+      schema: z.object({ items: z.array(z.number()) }),
+      ifNoneMatch: '"sha256:abc"',
+    });
+    expect(result).toEqual({ ok: true, value: undefined, notModified: true });
+  });
+
+  it("re-asks without the validator when a conditional 200 carries no tag", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(withHeaders(200, { items: ["untrusted"] }))
+      .mockResolvedValueOnce(
+        withHeaders(200, { items: [2] }, { etag: '"sha256:fresh"' }),
+      );
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock,
+    });
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/items",
+      schema: z.object({ items: z.array(z.number()) }),
+      ifNoneMatch: '"sha256:abc"',
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: { items: [2] },
+      etag: '"sha256:fresh"',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retried = (fetchMock.mock.calls[1]?.[1] as RequestInit)
+      .headers as Record<string, string>;
+    expect(retried["If-None-Match"]).toBeUndefined();
+  });
+
+  it("returns the ETag on a 200 even without ifNoneMatch", async () => {
+    const { client, fetchMock } = build(
+      withHeaders(200, { a: 1 }, { ETag: 'W/"v1"' }),
+    );
+    const result = await client.request({ method: "GET", path: "/v1/a" });
+    expect(resultEtag(result)).toBe('W/"v1"');
+    expect(
+      Object.keys(sentHeaders(fetchMock)).some(
+        (name) => name.toLowerCase() === "if-none-match",
+      ),
+    ).toBe(false);
+  });
+
+  it("omits an unusable ETag header and keeps the plain ok shape", async () => {
+    const { client } = build(
+      withHeaders(200, { a: 1 }, { etag: `"${"x".repeat(300)}"` }),
+    );
+    const result = await client.request({ method: "GET", path: "/v1/a" });
+    expect(result).toEqual({ ok: true, value: { a: 1 } });
+    expect(resultEtag(result)).toBeUndefined();
+  });
+
+  it("treats a 304 without ifNoneMatch as an http_error", async () => {
+    const { client } = build(withHeaders(304, undefined));
+    const result = await client.request({ method: "GET", path: "/v1/a" });
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ kind: "http_error", status: 304 }),
+    });
+    expect(isNotModified(result)).toBe(false);
+  });
+
+  it("ignores ifNoneMatch on non-GET methods", async () => {
+    const { client, fetchMock } = build(withHeaders(304, undefined));
+    const result = await client.request({
+      method: "POST",
+      path: "/v1/a",
+      body: { x: 1 },
+      ifNoneMatch: '"sha256:abc"',
+    });
+    expect(result.ok).toBe(false);
+    expect(sentHeaders(fetchMock)["If-None-Match"]).toBeUndefined();
+  });
+
+  it("keeps 401 handling for conditional requests", async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined);
+    const fetchMock = vi.fn().mockResolvedValue(withHeaders(401, {}));
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+        signOut,
+      }),
+      fetch: fetchMock,
+    });
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/a",
+      ifNoneMatch: '"sha256:abc"',
+    });
+    expect(result).toEqual({ ok: false, error: { kind: "session_expired" } });
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

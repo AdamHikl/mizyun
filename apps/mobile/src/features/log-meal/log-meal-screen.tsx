@@ -248,7 +248,10 @@ export function LogMealScreen() {
   const photoOwner = useRef("");
   photoOwner.current = `${userId ?? ""}:${session?.accessToken ?? ""}`;
   const measurement = useLoggingFlowMeasurement("meal", userId);
-  const advancedCapability = useAdvancedNutritionCapability(userId);
+  const advancedCapability = useAdvancedNutritionCapability(
+    userId,
+    session?.accessToken,
+  );
 
   useEffect(() => {
     let active = true;
