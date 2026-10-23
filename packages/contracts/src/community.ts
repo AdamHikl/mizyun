@@ -182,7 +182,11 @@ export const createCommunityProfileSchema = z
     avatarSymbol: z.string().trim().min(1).max(4).optional(),
     bio: communityBioText.optional().nullable(),
     isSearchable: z.boolean().optional().default(false),
-    adultDeclaration: z.literal(true),
+    adultDeclaration: z.literal(true, {
+      errorMap: () => ({
+        message: "Confirm that you are 18 or older to join",
+      }),
+    }),
     termsVersion: z.literal(COMMUNITY_TERMS_VERSION),
     acceptedTerms: z.literal(true, {
       errorMap: () => ({

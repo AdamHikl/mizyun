@@ -49,6 +49,15 @@ describe("Community separate enrollment and settings form", () => {
     expect(
       validateCommunityEnrollment({ ...form, acceptedTerms: false }).success,
     ).toBe(false);
+    const unchecked = validateCommunityEnrollment({
+      ...form,
+      adultDeclaration: false,
+      acceptedTerms: false,
+    });
+    expect(unchecked.error?.issues.map((issue) => issue.message)).toEqual([
+      "Confirm that you are 18 or older to join",
+      "You must accept the Community Rules and Safety Policy to join",
+    ]);
     const valid = validateCommunityEnrollment(form);
     expect(valid.success).toBe(true);
     if (valid.success)
