@@ -30,7 +30,7 @@
 - **Home flash (Oct22):** reads retired on leaving the app no longer show "Couldn't update"; test; gatePASS. Next: iPhone.
 - **Community join redesign (Oct22):** 6045ee7c Dev+Prod; fix: non-members saw a status error (cache-wrapped 404), @undefined; Opus review ship; #320. Next: Adam Join/leave on Prod iPhone. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
 - **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
-- **#298 evening stretch (Oct23):** AI plans must cover top 3 muscles (biceps via chest); no list swap while tailoring. dc64d2bd local, review/gatePASS. Next: push, Dev, iPhone. #325. [Handoff](docs/EVENING_STRETCH_AI_COVERAGE_2026-10-23.md)
+- **#298 evening stretch (Oct23):** AI plans must cover top 3 muscles (biceps via chest); no list swap while tailoring. dc64d2bd review/gatePASS; Dev 15:35Z health200; iPhone 15:29Z. Next: Adam device. #325. [Handoff](docs/EVENING_STRETCH_AI_COVERAGE_2026-10-23.md)
 - **#307/#313 (Oct19-20, f02fbf94 Dev, reviewed):** #307 evening catch-up queue+pending sweep, next iPhone one-per-evening; #313 Claude multi-photo, live 2-photo 7/7.
 - **#314 goal target date (Oct20):** optional/editable in Goal settings; no invented 90-day date; Home warning links there. Contract nullable, no migration; 2 reviews. Old builds reject null. Shared gatePASS(3452mobile/1226API+15skips); committed Oct20 merge with #303/#308, Dev. Next: iPhone.
 - **#303 native pickers (Oct19):** shared Native{Date,Time}Picker (SwiftUI/Material3) replaces every custom/typed date-time input; JS-only. Reviewed; gatePASS(3296mobile); committed Oct20 merge, Dev. Android 24h (expo-localization, native rebuild) merged Oct21; device open.
