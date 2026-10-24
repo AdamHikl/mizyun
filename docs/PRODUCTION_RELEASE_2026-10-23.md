@@ -29,3 +29,21 @@ Requested by Adam: promote the current `main` to Production, keep existing build
 ## Rollback
 
 To roll back the code to `70adb7cc`, restore `production.env.bak-20261023T190033Z-anthropic-key` only if the old key is still valid. Otherwise keep the new key, which works with both versions.
+
+## Store packages (2026-10-24, source `bdbd15d7d7910d2b93616d3ce5286feb9c8a104b`, 1.0.10 (10))
+
+- Adam confirmed that Community works on the Production iPhone build (`bdbd15d7`, installed 19:52Z).
+- **iOS.** `pnpm mobile:founder-production:ios:ipa --sha bdbd15d7… --build-number 10`. The first run failed because the non-UTF-8 shell broke `pod install`; it was rerun with `LANG/LC_ALL=en_US.UTF-8`.
+  - The isolated full gate passed (input SHA-256 `75e1581a…`) and the archive was created.
+  - CLI export failed with "No Accounts" / no "iOS Distribution" certificate, the same as on Oct 22. Adam exports through Xcode Organizer.
+  - The archive was verified: `com.mizyun.app` 1.0.10 (10), team `LQJNDVBL43`. The bundle contains the Production API and the join fix.
+  - The archive was copied to `apps/mobile/dist/releases/ios/app-store/archives/` and `~/Library/Developer/Xcode/Archives/2026-10-24/`, as `Mizyun-1.0.10-10-bdbd15d7…-20261024T061458Z.xcarchive`.
+- **Android.**
+  - The build ran `pnpm mobile:founder-production:android:prebuild`, then `bundleRelease` with process-scoped `MIZYUN_ALLOW_DEBUG_KEYSTORE_IN_RELEASE=true` (the Gradle keystore guard has no password env).
+  - `signBundle` then stripped that signature and re-signed with the upload key from Keychain.
+  - The certificate SHA1 `A3:37:60:CF:…:70:4D` matches Play.
+  - Artifact: `apps/mobile/dist/releases/android/google-play/Mizyun-1.0.10-code10-bdbd15d7….aab`, 79,201,823 bytes, SHA-256 `9b060af6cdffc526c5674540ad39ec6bee3f5ef3bd1eb525dbe9bbe7a617ace2`. The AAB contains the Production API, the join fix and `com.mizyun.app`.
+- Still open:
+  - Adam's Organizer export and App Store Connect / Play Console uploads.
+  - Store review.
+  - Android physical-device check of this exact AAB, which has not been run.
