@@ -47,3 +47,12 @@ To roll back the code to `70adb7cc`, restore `production.env.bak-20261023T190033
   - Adam's Organizer export and App Store Connect / Play Console uploads.
   - Store review.
   - Android physical-device check of this exact AAB, which has not been run.
+
+## Android emulator smoke test and follow-up (2026-10-25)
+
+- A Production release APK (`bdbd15d7` source, signed with the debug key; the signed AAB itself was not installable without `bundletool`) ran on `Mizyun_Pixel_9_API_36`.
+  - Launch took 1.46 s, with no crash.
+  - 47 okhttp requests went to the Production API (45 returned 200; the two 404s were the normal non-member Community reads), plus one Production Auth token refresh (200). None went to Dev.
+  - Today, Workouts, Meals, Coach and Community rendered. Join was not submitted, and no Coach message was sent.
+- The join form still showed raw zod text ("String must contain at least 1 character(s)") for an empty display name. The display name and initials now have friendly messages, covered by a regression test in `profile-form.test.ts`.
+- Per Adam, this fix stays on Dev only: the 1.0.10 (10) Store packages are not rebuilt and Production is not redeployed.

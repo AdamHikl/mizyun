@@ -156,8 +156,8 @@ export type SearchProfilesResponse = z.infer<
 const communityIdentityText = z
   .string()
   .trim()
-  .min(1)
-  .max(32)
+  .min(1, "Enter a social display name")
+  .max(32, "Social display name must be at most 32 characters")
   .refine(
     (value) => !/[\u0000-\u001f\u007f]/.test(value),
     "Use plain text without control characters",
@@ -174,12 +174,17 @@ const communityBioText = z
       ),
     "Bio cannot contain links or contact details",
   );
+const communityInitialsInput = z
+  .string()
+  .trim()
+  .min(1, "Initials must be 1 to 4 characters")
+  .max(4, "Initials must be 1 to 4 characters");
 
 export const createCommunityProfileSchema = z
   .object({
     handle: communityHandleSchema,
     displayName: communityIdentityText,
-    avatarSymbol: z.string().trim().min(1).max(4).optional(),
+    avatarSymbol: communityInitialsInput.optional(),
     bio: communityBioText.optional().nullable(),
     isSearchable: z.boolean().optional().default(false),
     adultDeclaration: z.literal(true, {
@@ -203,7 +208,7 @@ export type CreateCommunityProfileInput = z.infer<
 export const updateCommunityProfileSchema = z
   .object({
     displayName: communityIdentityText.optional(),
-    avatarSymbol: z.string().trim().min(1).max(4).optional(),
+    avatarSymbol: communityInitialsInput.optional(),
     bio: communityBioText.optional().nullable(),
     isSearchable: z.boolean().optional(),
   })

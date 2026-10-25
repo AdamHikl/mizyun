@@ -58,6 +58,22 @@ describe("Community separate enrollment and settings form", () => {
       "Confirm that you are 18 or older to join",
       "You must accept the Community Rules and Safety Policy to join",
     ]);
+    const messages = (result: { error?: { issues: { message: string }[] } }) =>
+      result.error?.issues.map((issue) => issue.message);
+    expect(
+      messages(validateCommunityEnrollment({ ...form, displayName: "" })),
+    ).toContain("Enter a social display name");
+    expect(
+      messages(validateCommunityEnrollment({ ...form, avatarSymbol: "ABCDE" })),
+    ).toEqual(["Initials must be 1 to 4 characters"]);
+    expect(
+      messages(
+        validateCommunityProfileUpdate({
+          ...communityProfileForm(profile),
+          displayName: "x".repeat(33),
+        }),
+      ),
+    ).toEqual(["Social display name must be at most 32 characters"]);
     const valid = validateCommunityEnrollment(form);
     expect(valid.success).toBe(true);
     if (valid.success)
