@@ -51,3 +51,7 @@ Pending.
 ## Decisions
 
 No product decision is supported until founder or participant evidence is recorded.
+
+## Founder usage note — 2026-10-26
+
+Adam states more than two months of daily founder use of the installed app (founder statement in session, not a register entry; the seven-day gate counts above were never updated). Frictions still felt should be listed here before the first external cohort.

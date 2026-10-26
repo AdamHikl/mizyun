@@ -13,14 +13,14 @@
 
 ## Current focus
 
-**2026-09-23 founder priority — INVENTURE-001:** prepare Mizyun for the October 2–3 InVenture meeting and use the program to build a credible route from testing to over 100,000 users. The [program plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) owns the dated schedule, pitch, demo, collaborator asks and growth experiments.
+**2026-10-26 founder decision — go-to-market:** Adam adopted the [go-to-market plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md). The sequence is publish → bill → recruit → measure, with a climber beachhead and the pricing recorded in `goals.md`.
 
-1. Record the current physical-device demo and interview five target users; identify the smallest reliability/clarity fixes required for the story.
-2. Accept the chosen meal → workout/progress → explained next-action journey on the exact event build. Prepare a truthful recording fallback and freeze by October 1.
-3. Prepare and rehearse the English pitch, five slides, one-page brief and verified QR route; seek named follow-ups and pilot/distribution partners on October 2–3.
-4. Use October–January modules and mentoring for eligible design-partner cohorts, retention evidence and small acquisition experiments; scale only after the validation gates in the program plan.
+1. Keep Mizyun downloadable: Google Play listing and App Store external TestFlight are live per Adam; finish the App Store release gates in #319 and point the website at the download links.
+2. Build only the five adopted packages, each in its own session: Store billing, history import, shareable session card, two-minute first value with activation telemetry, AI unit-economics guard. First-session fixes (for example #290) stay in scope; everything else waits for 100 activated users.
+3. Run the six-week first-100 sequence from the plan (hand-recruited cohort, one boulder gym, value-first community posts, short demo videos) with the Monday scorecard; then pick one channel for 100 → 1,000.
+4. Use InVenture mentoring (through January 2027) for the wedge review, a gym introduction and the channel decision; the finale story is real activation, retention and paying counts.
 
-Defer SIMPLIFY-03 and broad new features while this milestone is active. Existing open fixes feed this work only when they address an observed demo/activation blocker. The Q1–Q9 [remediation plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md) remain release dependencies. Their safety, data-integrity, lifecycle and exact-candidate requirements outrank presentation polish; no event deadline waives them. Stage and phase labels below remain qualified historical implementation state, not newly verified acceptance.
+The September InVenture preparation focus is complete as a milestone; its program plan remains the reference for the asks and scorecard definitions. The Q1–Q9 [remediation plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md) remain release dependencies and outrank growth work; no cohort target waives them. Stage and phase labels below remain qualified historical implementation state, not newly verified acceptance.
 
 ## Dependency sequence
 

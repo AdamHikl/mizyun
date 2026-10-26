@@ -7,6 +7,7 @@
 - **Current Operational Status**: [`status.md`](../status.md) — compact active work, current authorities, qualified evidence, blockers, and one next action. Follow its dated archive links for history; archived next actions are not current instructions.
 - **Backlog & Task IDs**: [GitHub Issues](https://github.com/AdamHikl/mizyun/issues) (redirected from [`backlog.md`](../backlog.md)) — ordered executable work items, task IDs, and acceptance definitions (`gh issue list`).
 - **InVenture preparation & growth**: [October 2–3 meeting plan](INVENTURE_PROGRAM_PLAN_2026-09-23.md) — active presentation milestone, positioning, collaborator asks and path toward 100,000+ users.
+- **Go-to-market proposal (2026-10-26)**: [differentiation, pricing and first-1,000-users plan](GO_TO_MARKET_PLAN_2026-10-26.md) — proposed beachhead, Pro pricing, 90-day build list and recruitment sequence; pending founder decision.
 - **Roadmap & Phase Exit Criteria**: [`plan.md`](../plan.md) — sequencing from modular foundation to production release.
 
 ## 2. Product Intent & Requirements

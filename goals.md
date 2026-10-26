@@ -49,6 +49,12 @@ Use acceptance into InVenture Mind to move Mizyun from testing toward **over 100
 
 Focus the story on **your food and training history becoming one clear next step**, under the existing promise of **less tracking, more progress**. This is a differentiation hypothesis to validate with adult target users, not a claim of unique technology or proven results. Prioritize presentation-critical reliability, first-use clarity and evidence of repeated value before feature breadth. Keep privacy, consent and release gates intact. Follow the [InVenture preparation and growth plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) for dates, experiments and program asks.
 
+## Beachhead and 90-day freeze — founder decision 2026-10-26
+
+Adopted from the [go-to-market plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md). The recruitment beachhead is **climbers who also lift and watch their weight**: Mizyun already connects bouldering sessions, strength training, body weight and food, which no mainstream tracker combines. Positioning to test: _your climbing, lifting, food and weight in one private record, with a coach that only uses what you confirmed_. Intermediate lifters who use Hevy or Strong remain the fallback audience if the first twenty climber interviews reject the wedge; the wedge is a beachhead inside the target user, not a change of target.
+
+For 90 days from 2026-10-26, new feature work is limited to Store billing, history import (Hevy, Strong, the user's own Strava export), a shareable session card without health data, a two-minute first value with activation telemetry, and the AI unit-economics guard, plus fixes users hit in their first sessions. Other ideas are recorded as issues labelled `status:blocked` ("after 100 activated users"). Bouldering features beyond the session card are added only when climber interviews ask for them.
+
 ## Primary outcomes
 
 ### O1 — Trustworthy daily energy picture
@@ -132,7 +138,8 @@ The intended business model is freemium self-service:
 
 - a useful free tier for core manual tracking and progress visibility;
 - a paid tier for higher-cost AI capabilities such as conversational coaching, photo/text-assisted drafts, deeper personalized reviews, and advanced memory-aware guidance;
-- an initial premium pricing hypothesis of roughly USD 15–20 per month, subject to measured model cost, willingness-to-pay interviews, retention, and competitive testing;
+- pricing adopted 2026-10-26: Pro at EUR 7.99 per month or EUR 49.99 per year, a EUR 34.99 founding-member year for the first 100 payers with the price locked while subscribed, a 14-day Store trial with the price shown before any onboarding question and one-tap cancellation, and no lifetime plan while AI cost is recurring; a higher "Coach+" tier (USD 15–20) remains a later hypothesis to test only after paying users exist;
+- two public promises: features shipped free stay free, and early subscribers keep their price;
 - community features may later improve acquisition and retention, but are not required for the first paid product.
 
 Before hiring a larger team or scaling paid acquisition, the product should prove a staged funnel:

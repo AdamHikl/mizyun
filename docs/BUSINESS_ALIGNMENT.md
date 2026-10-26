@@ -8,6 +8,8 @@ Adam reports acceptance into InVenture Mind. The immediate milestone is a persua
 
 [Current status](../status.md) is the authority for qualified implementation evidence: Hetzner hosts Dev and Production, Gemini is implemented, and selected founder/device journeys have evidence. Remaining account-lifecycle, AI evaluation, signed distribution and exact-candidate device gates prevent a blanket public-readiness claim. No current cohort retention or acquisition baseline was established in this strategy session. The former July implementation matrix and Windows/Pi execution sequence are superseded; historical evidence remains in dated audits and status archives.
 
+**Adopted 2026-10-26 (Adam):** the [go-to-market plan](GO_TO_MARKET_PLAN_2026-10-26.md) now governs commercial direction: a climber beachhead inside the target user, Pro at EUR 7.99/month or EUR 49.99/year with a EUR 34.99 founding-member year, a 90-day feature freeze except Store billing, history import, a shareable session card, activation telemetry and the AI cost guard, and a six-week first-100-users sequence. Adam reports more than two months of daily founder use (founder statement, 2026-10-26; the alpha register has not been updated with it). The Google Play listing (`com.mizyun.app`) and an App Store external TestFlight link exist per Adam; the full App Store release remains open (#319). Pricing in the section below is superseded by `goals.md`.
+
 ## Customer and problem
 
 ### Initial customer

@@ -9,3 +9,7 @@ Moved verbatim from `status.md` "Local follow-ups awaiting acceptance" on 2026-1
 - **#182 (Oct14):** Coach history on token rotation;0ee20191 gatePASS; device next. [Evidence](../../FIRST_RENDER_TAB_CACHE_EVIDENCE_2026-10-12.md#oct14).
 - **#232/INT-07:** Watch/Wear gatePASS; physical deferred; Health/privacy/Prod open. [Evidence](../../WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md).
 - **#230/#233 visuals:**4fa20a8 Dev; Pro display/save locked; gate/120SQL+6races/reviewPASS. iPhone update pending; native/provider/release open. [Evidence](../../PRO_MEAL_VISUALS_EVIDENCE_2026-10-09.md).
+
+## Moved from status.md on 2026-10-26
+
+- **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key/gate-symlink fixes (main283bf05); gatePASS(2612mobile/1109API+15skips), reviewed.

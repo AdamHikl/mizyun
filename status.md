@@ -1,14 +1,14 @@
 # Mizyun status
 
-> Updated 2026-10-23 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-26 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
 - **Oct8 ten/main:**10closed per Adam/pushed; gates/SQL/replay PASS. [Proof](docs/MAIN_DEV_DELIVERY_2026-10-08.md). Native/provider/release open.
 
+- **GTM (Oct26, Adam adopted):** [plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md); goals/plan/alignment updated; #332–#336 in Opus worktree sessions. Play live (Oct10); iOS TestFlight; App Store #319 open.
 - **Issues:** #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
-- **Claude Code (Oct14):** replaces Codex; #203/#241/#242, Workouts key/gate-symlink fixes (main283bf05); gatePASS(2612mobile/1109API+15skips), reviewed.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
 - **Dev (Oct21):** 70adb7cc (ADR0078 release) deploy:dev OK 17:18Z, migration 20261021120000, health200; revocation key added.
 - **iPhone Dev (Oct18):** f388c722 Release installed/launched 11:10Z on 00008140-001114501A86801C; acceptance open. Xcode27.1 fix: patched expo-modules-jsi@57.1.0 + `with-ios-source-built-expo-modules`; drop at SDK58. #287 flaky core test.
@@ -41,8 +41,7 @@
 - **#276 bouldering:** BLD-00–06 641549ed; gate/db:verify/3 reviews PASS; Dev 45f1ccfe; device/share open. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). Grade-row sends (Oct22): gatePASS; Dev+iPhone 4645debe; device open ([handoff](docs/BOULDER_GRADES_2026-10-22.md)).
 - **#208/#248/Community audit (Oct9–15):** device/native exits open. [Moved entries](docs/archive/status/STATUS_OCT9_15_ENTRIES_2026-10-22.md)
 - **#253–#257, #238:** device/native/Prod exits open. [Moved entries](docs/archive/status/STATUS_OCT12_15_ENTRIES_2026-10-23.md)
-- **#244/#239/#237/#234/#235/#182/#232/#230/#233 (Oct9–14):** native/device/provider/release exits open. [Moved entries](docs/archive/status/STATUS_OCT9_14_FOLLOWUPS_2026-10-19.md)
-- **#139/#168/#169 closed; native/device exits open:** [archived detail](docs/archive/status/STATUS_CLOSED_RETAINED_EXITS_2026-10-17.md).
+- **#244/#239/#237/#234/#235/#182/#232/#230/#233 (Oct9–14):** native/device/provider/release exits open. #139/#168/#169 [archived](docs/archive/status/STATUS_CLOSED_RETAINED_EXITS_2026-10-17.md). [Moved entries](docs/archive/status/STATUS_OCT9_14_FOLLOWUPS_2026-10-19.md)
 - **#218/#225/#217 meal photos:** Dev; native/provider/AX exits open; Prod disabled. [Moved entries](docs/archive/status/STATUS_MEAL_PHOTO_PACKAGES_2026-10-18.md)
 - **Usability #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136:** impl/native/provider/release/combined exits open: [prior status](docs/archive/status/STATUS_PRE_MEAL_PHOTO_DELIVERY_2026-10-06.md).
 
