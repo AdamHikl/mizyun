@@ -143,6 +143,8 @@ export function RecurringMealSuggestionCardView(props: {
   )
     return null;
   if (model.status === "idle" || model.status === "loading") return null;
+  // A newly enabled schedule needs no receipt; Recurring meals manages it.
+  if (model.result?.created && model.result.recurringMeal.enabled) return null;
   const start = candidate
     ? firstSelectedDate(candidate.startLocalDate, weekdays)
     : "";
@@ -203,9 +205,7 @@ export function RecurringMealSuggestionCardView(props: {
         {resolved
           ? !model.result?.recurringMeal.enabled
             ? "This schedule is inactive"
-            : model.result?.created
-              ? "Automatic logging enabled"
-              : "Already scheduled"
+            : "Already scheduled"
           : choosingTimezone
             ? "Choose a timezone"
             : "Make this meal automatic?"}
@@ -236,18 +236,13 @@ export function RecurringMealSuggestionCardView(props: {
           <ThemedText type="small" accessibilityLiveRegion="polite">
             {!model.result?.recurringMeal.enabled
               ? "This schedule is not logging meals. Open Manage to review it."
-              : model.result?.created
-                ? `Automatic logging enabled from ${model.result.startLocalDate}.`
-                : "An equivalent meal schedule already exists."}
+              : "An equivalent meal schedule already exists."}
           </ThemedText>
           <ThemedText type="small">
             Timezone: {model.result?.recurringMeal.timeZone}
           </ThemedText>
           <View style={styles.actions}>
             {action("Manage", () => router.push("/recurring-meals"))}
-            {model.result?.created && model.result.recurringMeal.enabled
-              ? action("Undo", () => void model.undo())
-              : null}
           </View>
         </>
       ) : unknown || recoveryError || recoveryPending ? (

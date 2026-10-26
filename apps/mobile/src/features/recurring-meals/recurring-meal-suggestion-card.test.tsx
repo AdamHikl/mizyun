@@ -292,7 +292,7 @@ describe("recurring meal suggestion presentation", () => {
     press(tree, "Not now");
     expect(mocks.dismiss).not.toHaveBeenCalled();
   });
-  it("offers Undo only for newly created schedules, with Manage for both results", () => {
+  it("hides the receipt for newly enabled schedules and offers Manage otherwise", () => {
     model.result = {
       created: false,
       startLocalDate: "2026-10-14",
@@ -306,10 +306,7 @@ describe("recurring meal suggestion presentation", () => {
     expect(mocks.push).toHaveBeenCalledWith("/recurring-meals");
     model.result = { ...model.result!, created: true };
     model.status = "success";
-    tree = render();
-    expect(text(tree)).toContain("Automatic logging enabled from 2026-10-14");
-    press(tree, "Undo");
-    expect(mocks.undo).toHaveBeenCalledOnce();
+    expect(render()).toBeNull();
     model.result = {
       ...model.result!,
       recurringMeal: { ...model.result!.recurringMeal, enabled: false },
