@@ -159,6 +159,7 @@ const accountExportToWire = (
           : undefined,
       runOperationReceipts: exportDoc.runOperationReceipts,
       bouldering: exportDoc.bouldering,
+      historyImports: exportDoc.historyImports,
       productAnalytics: analytics
         ? {
             catalog: catalog ?? "legacy-v2",

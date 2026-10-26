@@ -13,6 +13,7 @@ const providerNames = {
 export const runSourceLabel = (run: RunRecord): string => {
   const origin = run.summary.origin;
   if (origin.kind === "manual") return "Entered manually";
+  if (origin.kind === "file_import") return "Imported from Strava export";
   const provider = providerNames[origin.provider];
   return origin.sourceAppName && origin.sourceAppName !== provider
     ? `From ${provider} · ${origin.sourceAppName}`

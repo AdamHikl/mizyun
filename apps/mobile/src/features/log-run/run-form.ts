@@ -78,9 +78,7 @@ export function formFromRun(run: RunRecord, unit: "km" | "mi"): RunForm {
         ? ""
         : String(run.summary.perceivedExertion),
     notes: run.notes ?? "",
-    ...(run.summary.origin.kind === "health_import"
-      ? { metricsLocked: true }
-      : {}),
+    ...(run.summary.origin.kind !== "manual" ? { metricsLocked: true } : {}),
   };
 }
 export function parseRunForm(form: RunForm, operationId: string) {

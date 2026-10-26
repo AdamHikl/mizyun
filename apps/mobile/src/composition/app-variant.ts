@@ -10,6 +10,7 @@ export interface AppVariantOverrides {
   readonly expoExtraBouldering?: unknown;
   readonly expoExtraStretchAi?: unknown;
   readonly expoExtraRunImports?: unknown;
+  readonly expoExtraHistoryImports?: unknown;
   readonly authRedirectUri?: string | null;
   readonly apiUrl?: string | null;
 }
@@ -107,6 +108,21 @@ export function isRunImportsEnabled(overrides?: AppVariantOverrides): boolean {
   const extraFlag =
     overrides?.expoExtraRunImports ??
     Constants.expoConfig?.extra?.enableRunImports;
+  if (typeof extraFlag === "boolean") return extraFlag;
+  return resolveAppVariant(overrides) === "dev";
+}
+
+/**
+ * Returns true if importing workout history from files (ADR-0083) is enabled
+ * in this build. Dev builds have it on; Production needs
+ * `extra.enableHistoryImports === true`. An explicit boolean wins either way.
+ */
+export function isHistoryImportsEnabled(
+  overrides?: AppVariantOverrides,
+): boolean {
+  const extraFlag =
+    overrides?.expoExtraHistoryImports ??
+    Constants.expoConfig?.extra?.enableHistoryImports;
   if (typeof extraFlag === "boolean") return extraFlag;
   return resolveAppVariant(overrides) === "dev";
 }

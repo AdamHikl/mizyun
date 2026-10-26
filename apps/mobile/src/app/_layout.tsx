@@ -447,6 +447,10 @@ function TabLayoutContent() {
                 name="import-runs"
                 options={{ title: "Import runs", presentation: "modal" }}
               />
+              <Stack.Screen
+                name="import-history"
+                options={{ title: "Import history", presentation: "modal" }}
+              />
               <Stack.Screen name="run/[id]" options={{ title: "Run" }} />
               <Stack.Screen
                 name="bouldering/session"

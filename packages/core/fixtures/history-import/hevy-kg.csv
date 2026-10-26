@@ -1,0 +1,9 @@
+"title","start_time","end_time","description","exercise_title","superset_id","exercise_notes","set_index","set_type","weight_kg","reps","distance_km","duration_seconds","rpe"
+"Push Day","26 Oct 2026, 07:30","26 Oct 2026, 08:35","Felt strong","Bench Press (Barbell)","","",0,"warmup",40,10,,,
+"Push Day","26 Oct 2026, 07:30","26 Oct 2026, 08:35","Felt strong","Bench Press (Barbell)","","",1,"normal",80,8,,,8
+"Push Day","26 Oct 2026, 07:30","26 Oct 2026, 08:35","Felt strong","Bench Press (Barbell)","","",2,"dropset",60,12,,,
+"Push Day","26 Oct 2026, 07:30","26 Oct 2026, 08:35","Felt strong","Bench Press (Barbell)","","",3,"failure",60,15,,,10
+"Push Day","26 Oct 2026, 07:30","26 Oct 2026, 08:35","Felt strong","Plank","","",0,"normal",,,,60,
+"Push Day","26 Oct 2026, 07:30","26 Oct 2026, 08:35","Felt strong","Treadmill","","",0,"normal",,,5,1500,
+"Leg Day","24 Oct 2026, 18:00","24 Oct 2026, 19:00","","Squat (Barbell)","","",1,"normal",100,5,,,
+"Leg Day","24 Oct 2026, 18:00","24 Oct 2026, 19:00","","Squat (Barbell)","","",0,"mystery",90,5,,,

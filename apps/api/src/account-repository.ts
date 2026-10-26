@@ -23,6 +23,7 @@ import {
   type RecurringMealSuggestionRepository,
   type RunRepository,
   type BoulderingRepository,
+  type HistoryImportRepository,
   type GoalRepository,
   type MediaAssetRepository,
   type ProductAnalyticsRepository,
@@ -60,6 +61,7 @@ export interface InMemoryAccountRepositoryOptions {
   readonly workoutRepository: WorkoutRepository;
   readonly runRepository?: RunRepository;
   readonly boulderingRepository?: BoulderingRepository;
+  readonly historyImportRepository?: HistoryImportRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -89,6 +91,7 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #workoutRepository: WorkoutRepository;
   readonly #runRepository: RunRepository | null;
   readonly #boulderingRepository: BoulderingRepository | null;
+  readonly #historyImportRepository: HistoryImportRepository | null;
   readonly #workoutSetRepository: WorkoutSetRepository;
   readonly #bodyMeasurementRepository: BodyMeasurementRepository;
   readonly #conversationRepository: ConversationRepository | null;
@@ -115,6 +118,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#workoutRepository = options.workoutRepository;
     this.#runRepository = options.runRepository ?? null;
     this.#boulderingRepository = options.boulderingRepository ?? null;
+    this.#historyImportRepository = options.historyImportRepository ?? null;
     this.#workoutSetRepository = options.workoutSetRepository;
     this.#bodyMeasurementRepository = options.bodyMeasurementRepository;
     this.#conversationRepository = options.conversationRepository ?? null;
@@ -312,6 +316,12 @@ export class InMemoryAccountRepository implements AccountRepository {
         ? {
             runOperationReceipts:
               await this.#runRepository.exportReceipts(userId),
+          }
+        : {}),
+      ...(this.#historyImportRepository?.exportForUser
+        ? {
+            historyImports:
+              await this.#historyImportRepository.exportForUser(userId),
           }
         : {}),
       ...(this.#boulderingRepository?.exportForUser
@@ -685,6 +695,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     }
     await this.#runRepository?.clearForUser?.(userId);
     await this.#boulderingRepository?.clearForUser?.(userId);
+    await this.#historyImportRepository?.clearForUser?.(userId);
     const exercises = await this.#exerciseRepository.list(userId, {
       limit: 10_000,
       accessToken: token,

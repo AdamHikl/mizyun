@@ -206,6 +206,12 @@ export function RunDetailScreen() {
                 Date, time, duration and distance come from the source app and
                 can't be edited here. Deleting this run doesn't change Health.
               </ThemedText>
+            ) : run.summary.origin.kind === "file_import" ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                Date, time, duration and distance come from the imported file
+                and can't be edited here. Deleting this run doesn't change
+                Strava.
+              </ThemedText>
             ) : null}
             {action("Edit run", () =>
               router.push({

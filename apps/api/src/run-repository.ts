@@ -90,11 +90,14 @@ export class InMemoryRunRepository implements RunRepository {
     });
     return rows
       .filter(isRun)
-      .filter(
-        (w) =>
-          options.includeImports === true ||
-          summaryOf(w)?.origin.kind === "manual",
-      )
+      .filter((w) => {
+        const kind = summaryOf(w)?.origin.kind;
+        return (
+          kind === "manual" ||
+          (kind === "health_import" && options.includeImports === true) ||
+          (kind === "file_import" && options.includeFileImports === true)
+        );
+      })
       .filter((w) => {
         const date = (w.details.runSummary as { activityDate: string })
           .activityDate;
@@ -265,7 +268,7 @@ export class InMemoryRunRepository implements RunRepository {
       // Mirror SQL: imported provider facts are read-only; origins never switch.
       const stored = summaryOf(row);
       if (
-        stored?.origin.kind === "health_import"
+        stored && stored.origin.kind !== "manual"
           ? !sameImportedRunMetrics(stored, input.summary)
           : input.summary.origin.kind !== "manual"
       )

@@ -170,9 +170,15 @@ export class SupabaseWorkoutRepository implements WorkoutRepository {
     options: { readonly accessToken: string },
   ): Promise<StoredWorkout> {
     const client = this.#clientFor(options.accessToken);
+    // `source` is provenance (manual, Health or file import, ADR-0083) and
+    // never changes after insert, so an edit leaves the stored value alone.
+    const { source: _source, ...changes } = toInsertRow(
+      workout.userId,
+      workout,
+    );
     const { data, error } = await client
       .from<WorkoutRow>("workouts")
-      .update(toInsertRow(workout.userId, workout))
+      .update(changes)
       .eq("id", workout.id)
       .select("*")
       .single();

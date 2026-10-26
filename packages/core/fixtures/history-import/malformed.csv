@@ -1,0 +1,13 @@
+date,workout,exercise,reps,weight,notes
+2026-10-19 10:00,Day,Squat,5,100,ok
+not-a-date,Day,Squat,5,100,
+2026-10-19 10:00,Day,Squat,5,abc,
+2026-10-19 10:00,Day,Squat,-3,100,
+2026-10-19 10:00,Day,Squat,5,100,x,extra,cells
+2026-10-19 10:00,Day,Bench,,,
+
+2026-10-19 10:00,Day,,5,100,
+2026-10-19 10:00,Day,Deadlift,5,100,"multi
+line note"
+2026-10-19 10:00,Day,Deadlift,abc,100,
+2026-10-19 10:00,Day,Press,99999,100,

@@ -13,11 +13,13 @@ export async function fetchAllExportPages<T extends Record<string, unknown>>(
   orderCol: string,
   ascending = true,
   tieBreaker = "id",
+  /** Read only these columns (default `*`). */
+  columns = "*",
 ): Promise<ReadonlyArray<T>> {
   const all: T[] = [];
   let offset = 0;
   for (let page = 0; page < MAX_EXPORT_PAGES; page++) {
-    let query = client.from<T>(table).select("*").eq(filterCol, filterVal);
+    let query = client.from<T>(table).select(columns).eq(filterCol, filterVal);
     query = query.order(orderCol, { ascending });
     if (orderCol !== tieBreaker) {
       query = query.order(tieBreaker, { ascending: true });

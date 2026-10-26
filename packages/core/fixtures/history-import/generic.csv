@@ -1,0 +1,6 @@
+date,workout,exercise,set_type,reps,weight,weight_unit,duration_seconds,distance,distance_unit,rpe,notes
+2026-10-19,Full Body,Squat,warmup,10,60,kg,,,,,Felt ok
+2026-10-19,Full Body,Squat,normal,5,100,kg,,,,7,
+2026-10-19,Full Body,Plank,normal,,,,1:30,,,,
+2026-10-19,Full Body,Rowing Machine,normal,,,,480,2,km,,
+2026-10-21 18:00,,Bench Press,normal,8,185,lb,,,,,

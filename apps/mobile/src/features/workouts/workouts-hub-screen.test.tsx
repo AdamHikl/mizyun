@@ -198,6 +198,7 @@ vi.mock("expo-secure-store", () => ({
 vi.mock("@/features/run-import", () => ({ runImportAvailable: () => false }));
 vi.mock("@/composition/app-variant", () => ({
   isBoulderingEnabled: () => mocks.boulderingEnabled,
+  isHistoryImportsEnabled: () => false,
 }));
 vi.mock("@/features/health-exports", () => ({
   markFirstPartyWorkout: (details: unknown) => details,

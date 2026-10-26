@@ -101,6 +101,14 @@ export interface AccountExport {
     readonly receipts: readonly Record<string, unknown>[];
     readonly projects?: readonly Record<string, unknown>[];
   };
+  /**
+   * History import batches (ADR-0083) and, per imported workout or run, its
+   * batch id and import key. The records themselves export as `workouts`.
+   */
+  readonly historyImports?: {
+    readonly batches: readonly Record<string, unknown>[];
+    readonly records: readonly Record<string, unknown>[];
+  };
   readonly workouts: ReadonlyArray<StoredWorkout>;
   readonly workoutSets: ReadonlyArray<StoredWorkoutSet>;
   readonly bodyMeasurements: ReadonlyArray<StoredBodyMeasurement>;

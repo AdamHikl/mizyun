@@ -21,7 +21,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RunCard, RunningWeek, listRuns } from "@/features/running";
 import { runImportAvailable } from "@/features/run-import";
 import { apiClient } from "@/composition/api-client";
-import { isBoulderingEnabled } from "@/composition/app-variant";
+import {
+  isBoulderingEnabled,
+  isHistoryImportsEnabled,
+} from "@/composition/app-variant";
 import { sessionHistorySubtitle } from "@/features/bouldering/public-data";
 import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
 import type { Workout } from "@mizyun/contracts";
@@ -839,6 +842,16 @@ export function WorkoutsHubScreen() {
                 }
                 accessibilityLabel="Import runs from Health"
                 onPress={() => router.push("/import-runs" as Href)}
+              />
+            ) : null}
+            {isHistoryImportsEnabled() ? (
+              <ListRow
+                key="import-history"
+                icon="history"
+                title="Import history"
+                subtitle="Hevy, Strong, Strava export or CSV"
+                accessibilityLabel="Import workout history from a file"
+                onPress={() => router.push("/import-history" as Href)}
               />
             ) : null}
             <ListRow

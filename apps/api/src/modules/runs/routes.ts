@@ -159,7 +159,8 @@ export const runsRoutes: FastifyPluginAsync<{
         cursor: q.cursor,
         limit: q.limit + 1,
         accessToken: request.principal!.accessToken,
-        includeImports: q.include === "imports",
+        includeImports: q.include === "imports" || q.include === "all_imports",
+        includeFileImports: q.include === "all_imports",
       });
       const page = rows.slice(0, q.limit).map(wire);
       const last = page.at(-1);

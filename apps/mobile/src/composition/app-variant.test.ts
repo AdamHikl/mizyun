@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getAppVariant,
   isBoulderingEnabled,
+  isHistoryImportsEnabled,
   isProgressPhotosEnabled,
   isRunImportsEnabled,
   isStretchAiEnabled,
@@ -153,6 +154,11 @@ describe("app-variant", () => {
   describe.each([
     ["isStretchAiEnabled", isStretchAiEnabled, "expoExtraStretchAi"],
     ["isRunImportsEnabled", isRunImportsEnabled, "expoExtraRunImports"],
+    [
+      "isHistoryImportsEnabled",
+      isHistoryImportsEnabled,
+      "expoExtraHistoryImports",
+    ],
   ] as const)("%s", (_name, enabled, flag) => {
     it("is on for Dev and off for Production without a flag", () => {
       expect(enabled({ expoExtraVariant: "dev", [flag]: null })).toBe(true);
