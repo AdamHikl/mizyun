@@ -233,6 +233,10 @@ export function recipeRequestMessage(error: RecipeHttpError | null): string {
   switch (error.code) {
     case "RECIPE_LIMIT_DRAFTS":
       return "You’ve used today’s meal ideas. They’ll be available again tomorrow.";
+    case "RECIPE_LIMIT_COST_DAY":
+      return "You’ve used today’s AI allowance. It renews at midnight UTC.";
+    case "RECIPE_LIMIT_COST_MONTH":
+      return "You’ve used this month’s AI allowance. It renews on the 1st.";
     case "RECIPE_LIMIT_MINUTE":
     case "RECIPE_LIMIT_INFLIGHT":
     case "RECIPE_LIMIT_TOKENS":

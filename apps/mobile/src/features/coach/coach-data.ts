@@ -15,6 +15,7 @@ import {
 } from "@mizyun/contracts";
 
 import { apiClient, peekSessionRead } from "@/composition/api-client";
+import { monthlyAllowanceMessage } from "@/lib/ai-allowance";
 
 export type CoachLoadResult =
   | {
@@ -96,6 +97,8 @@ const humanize = (error: ApiError): string => {
         const reason = error.reason;
         if (reason === "daily_budget_exhausted") {
           const resetAt = error.resetAt;
+          const monthly = monthlyAllowanceMessage(resetAt);
+          if (monthly) return monthly;
           if (resetAt) {
             const resetDate = new Date(resetAt);
             const hours = Math.max(

@@ -976,6 +976,92 @@ describe("Food draft route — durable limiter denial (#301)", () => {
     expect((await postText(app)).statusCode).toBe(200);
   });
 
+  it("explains a spent AI cost allowance with its renewal date (ADR-0081)", async () => {
+    const rateLimiter = new FoodDraftRateLimiter({
+      freePerMinute: 100,
+      freePerDay: 1,
+    });
+    const limits = durableLimits();
+    limits.acquireDraftSlot.mockResolvedValueOnce({
+      allowed: false,
+      reason: "cost",
+      retryAfter: 400_000,
+      cost: {
+        scope: "month",
+        retryAfter: 400_000,
+        resetAt: "2026-11-01T00:00:00.000Z",
+      },
+    });
+    const provider = new StubVisionProvider();
+    const generate = vi.spyOn(provider, "generateTextDraft");
+    const { app } = makeApps({ visionProvider: provider, limits, rateLimiter });
+    const denied = await postText(app);
+    expect(denied.statusCode).toBe(429);
+    expect(denied.json().error).toMatchObject({
+      code: "RATE_LIMITED",
+      reason: "daily_budget_exhausted",
+      resetAt: "2026-11-01T00:00:00.000Z",
+      message:
+        "You've used this month's AI allowance. It renews on 1 November.",
+    });
+    expect(generate).not.toHaveBeenCalled();
+    // The in-memory daily slot came back.
+    limits.acquireDraftSlot.mockResolvedValue({ allowed: true });
+    expect((await postText(app)).statusCode).toBe(200);
+  });
+
+  it("shows the allowance message on a photo draft too", async () => {
+    const limits = durableLimits();
+    limits.acquireDraftSlot.mockResolvedValueOnce({
+      allowed: false,
+      reason: "cost",
+      retryAfter: 600,
+      cost: {
+        scope: "day",
+        retryAfter: 600,
+        resetAt: "2026-10-27T00:00:00.000Z",
+      },
+    });
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      limits,
+      rateLimiter: new FoodDraftRateLimiter({ freePerMinute: 100 }),
+    });
+    const denied = await postDraft(app, {
+      file: { name: "meal.png", content: ONE_PIXEL_PNG, type: "image/png" },
+    });
+    expect(denied.statusCode).toBe(429);
+    expect(denied.json().error).toMatchObject({
+      reason: "daily_budget_exhausted",
+      resetAt: "2026-10-27T00:00:00.000Z",
+      message: "You've used today's AI allowance. It renews at midnight UTC.",
+    });
+  });
+
+  it("charges a successful draft change through the durable limiter", async () => {
+    const limits = durableLimits();
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      limits,
+      rateLimiter: new FoodDraftRateLimiter({ freePerMinute: 100 }),
+    });
+    const response = await postRefine(app, {
+      currentDraft: baselineRefineDraft,
+      instruction: "double the portion",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(limits.acquireDraftSlot).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      "refine",
+    );
+    expect(limits.releaseDraftSlot).toHaveBeenCalledWith(
+      expect.any(String),
+      "refine",
+      expect.objectContaining({ provider: expect.any(String) }),
+    );
+  });
+
   it("honours a durable minute denial that the in-memory limiter allowed", async () => {
     const rateLimiter = new FoodDraftRateLimiter({
       freePerMinute: 100,

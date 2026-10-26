@@ -788,6 +788,8 @@ describe("Anthropic text drafts", () => {
     expect(textOfParams(structured)).toContain("588 kcal");
     expect(result.caloriesKcal).toBe(588);
     expect(result.tokensUsed).toBe(1_000 + 77);
+    // No server_tool_use usage reported: charge the maximum of 3 searches.
+    expect(result.webSearches).toBe(3);
   });
 
   it("uses findings produced before a pause_turn without continuing", async () => {
@@ -833,6 +835,10 @@ describe("Anthropic text drafts", () => {
       expect(textOfParams(params(1))).toContain("user description only");
       expect(textOfParams(params(1))).not.toContain("Verified search findings");
       expect(result.name).toBe("Single Big Tasty Bacon");
+      // A completed search pass is billed even when its findings are unused;
+      // a rejected request never ran (ADR-0081).
+      if (first instanceof Error) expect(result.webSearches).toBeUndefined();
+      else expect(result.webSearches).toBe(3);
     },
   );
 

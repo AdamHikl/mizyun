@@ -121,17 +121,21 @@ const limitMessage = (error: Parameters<typeof recipeRequestMessage>[0]) =>
     error.code === "RECIPE_CATALOG_REVISION")
     ? "That didn’t work. Please try again."
     : error?.kind === "http_error" &&
-        (error.code === "RECIPE_LIMIT_DRAFTS" ||
-          error.code === "RECIPE_LIMIT_TOKENS")
-      ? "You’ve used today’s AI allowance for meal ideas. It resets tomorrow."
+        (error.code === "RECIPE_LIMIT_COST_DAY" ||
+          error.code === "RECIPE_LIMIT_COST_MONTH")
+      ? recipeRequestMessage(error)
       : error?.kind === "http_error" &&
-          (error.code === "INVALID_RECIPE_IMAGE" ||
-            error.code === "RECIPE_IMAGE_LIMIT")
-        ? "That photo couldn’t be used. Try another photo."
-        : recipeRequestMessage(error).replace(
-            "Suggestions could not be completed. Your saved request is retained; a retry creates a new request.",
-            "That didn’t go through. Please try again.",
-          );
+          (error.code === "RECIPE_LIMIT_DRAFTS" ||
+            error.code === "RECIPE_LIMIT_TOKENS")
+        ? "You’ve used today’s AI allowance for meal ideas. It resets tomorrow."
+        : error?.kind === "http_error" &&
+            (error.code === "INVALID_RECIPE_IMAGE" ||
+              error.code === "RECIPE_IMAGE_LIMIT")
+          ? "That photo couldn’t be used. Try another photo."
+          : recipeRequestMessage(error).replace(
+              "Suggestions could not be completed. Your saved request is retained; a retry creates a new request.",
+              "That didn’t go through. Please try again.",
+            );
 
 export class CookingAssistant {
   #snapshot: CookingAssistantSnapshot;

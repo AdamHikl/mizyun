@@ -580,6 +580,7 @@ const defaultDependencies = (): AppDependencies => {
         appleAuthConfig: null,
         aiExternalAccess: false,
         aiAllowedEmails: [],
+        aiPaidCostAllowance: {},
       };
   const geminiConfig = config.geminiConfig;
   // Coach uses Anthropic only when routed there (ADR-0069 + per-feature routing).
@@ -1518,6 +1519,9 @@ export const buildApp = (
           serviceRoleKey: supabaseConfig.serviceRoleKey,
         }),
         clock,
+        ...(configResult.ok
+          ? { paidCostAllowance: configResult.value.aiPaidCostAllowance }
+          : {}),
       });
     }
     return new InMemoryCoachLimitService({
@@ -1620,6 +1624,7 @@ export const buildApp = (
     provider: mealIllustrationProvider,
     enabled: mealIllustrationsEnabled,
     processImage: processMealIllustration,
+    costLedger: coachLimits.costLedger,
     ...(dependencies.mealIllustrationTimeoutMs
       ? { timeoutMs: dependencies.mealIllustrationTimeoutMs }
       : {}),
@@ -1672,6 +1677,7 @@ export const buildApp = (
         );
       }),
     ledger: recipeRequestLedger,
+    costLedger: coachLimits.costLedger,
     generationProvider:
       recipeControls?.generationProvider ?? routedRecipeProviders.generation,
     recognitionProvider:

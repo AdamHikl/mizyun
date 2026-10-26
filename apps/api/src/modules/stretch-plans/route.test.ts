@@ -210,7 +210,11 @@ describe("POST /v1/stretch-plans/refine", () => {
       "free",
       "text",
     );
-    expect(limits.commitDraftTokens).toHaveBeenCalledWith(userId, 2_900);
+    expect(limits.commitDraftTokens).toHaveBeenCalledWith(
+      userId,
+      2_900,
+      expect.objectContaining({ provider: expect.any(String) }),
+    );
     expect(limits.releaseDraftSlot).not.toHaveBeenCalled();
   });
 
@@ -244,6 +248,7 @@ describe("POST /v1/stretch-plans/refine", () => {
     expect(limits.commitDraftTokens).toHaveBeenCalledWith(
       userId,
       STRETCH_REFINE_ESTIMATED_TOKENS,
+      expect.objectContaining({ provider: expect.any(String) }),
     );
   });
 
@@ -440,7 +445,11 @@ describe("POST /v1/stretch-plans/refine", () => {
       message: "AI could not tailor the stretch session.",
     });
     expect(response.body).not.toContain("plan");
-    expect(limits.commitDraftTokens).toHaveBeenCalledWith(userId, 2_900);
+    expect(limits.commitDraftTokens).toHaveBeenCalledWith(
+      userId,
+      2_900,
+      expect.objectContaining({ provider: expect.any(String) }),
+    );
     expect(limits.releaseDraftSlot).not.toHaveBeenCalled();
   });
 

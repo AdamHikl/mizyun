@@ -920,6 +920,7 @@ export class AnthropicVisionProvider implements VisionDraftProvider {
       // output format, single attempt), then a structured pass over the
       // findings. Any failure falls back to the description-only draft.
       let searchTokens = 0;
+      let webSearches = 0;
       try {
         const searchNutrients = includeAdvancedNutrition
           ? "calories in kcal, protein, carbohydrates, fat, fibre, saturated fat, total sugars in grams, sodium and dietary cholesterol in milligrams"
@@ -943,10 +944,14 @@ export class AnthropicVisionProvider implements VisionDraftProvider {
           { timeoutMs: this.#timeoutMs },
         );
         searchTokens = usageOf(searchResponse).totalTokens;
+        // Searches are billed per use on top of tokens (ADR-0081).
+        webSearches =
+          searchResponse.usage.server_tool_use?.web_search_requests ??
+          WEB_SEARCH_MAX_USES;
         const findings = webSearchFindings(searchResponse);
         if (findings !== null) {
           const structuredPrompt = `Estimate an editable meal draft from this user description and verified search findings.\n\nUser description: "${request.description.trim()}"${countrySuffix}\n\nVerified search findings:\n${findings}`;
-          return await this.#generate(
+          const searched = await this.#generate(
             [{ type: "text", text: structuredPrompt }],
             "text",
             {
@@ -955,12 +960,13 @@ export class AnthropicVisionProvider implements VisionDraftProvider {
             },
             searchTokens,
           );
+          return { ...searched, webSearches };
         }
       } catch {
         // Search disabled for the organization, unavailable, refused or the
         // structured pass failed: continue with the description-only draft.
       }
-      return this.#generate(
+      const fallback = await this.#generate(
         [
           {
             type: "text",
@@ -971,6 +977,7 @@ export class AnthropicVisionProvider implements VisionDraftProvider {
         { systemPolicy: textNutritionSystemPolicy, includeAdvancedNutrition },
         searchTokens,
       );
+      return webSearches > 0 ? { ...fallback, webSearches } : fallback;
     }
 
     return this.#generate(

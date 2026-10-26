@@ -1167,3 +1167,40 @@ describe("loadServerConfig — AI_CONSENT_ACCEPTED_VERSIONS", () => {
     },
   );
 });
+
+describe("loadServerConfig — paid AI cost allowance overrides (ADR-0081)", () => {
+  it("leaves the tier defaults when unset", () => {
+    const result = loadServerConfig({ env: baseSnapshot });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.aiPaidCostAllowance).toEqual({});
+  });
+
+  it("parses daily and monthly micro-USD overrides", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.aiPaidDailyCostMicros]: "200000",
+        [SERVER_ENV_KEYS.aiPaidMonthlyCostMicros]: "1500000",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.aiPaidCostAllowance).toEqual({
+      dailyCostMicros: 200_000,
+      monthlyCostMicros: 1_500_000,
+    });
+  });
+
+  it("rejects an override outside 1,000–10,000,000 micro-USD", () => {
+    for (const value of ["0", "999", "10000001", "1.5"]) {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.aiPaidMonthlyCostMicros]: value,
+        },
+      });
+      expect(result.ok).toBe(false);
+    }
+  });
+});

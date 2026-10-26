@@ -38,6 +38,8 @@ import {
   consentGatedRecipeGenerationProvider,
 } from "../../ai-consent-routing.js";
 import { mealRecipeRoutes } from "./routes.js";
+import { InMemoryAiCostLedger } from "../coach/limits.js";
+import { capsForTier } from "@mizyun/config";
 import { loadOwnedRecipeContext, utcOffsetMinutesAt } from "./context.js";
 import { buildFeasibleRecipeTemplates } from "./templates.js";
 import { GeminiIngredientRecognitionProvider } from "@mizyun/provider-gemini";
@@ -103,8 +105,10 @@ async function fixture({
   timeoutMs = 25,
   assistant = new FakeRecipeAssistantProvider(),
   providers = {},
+  costLedger,
 }: {
   timeoutMs?: number;
+  costLedger?: InMemoryAiCostLedger;
   assistant?: FakeRecipeAssistantProvider;
   /** Overrides what the routes receive (e.g. consent-gated providers). */
   providers?: {
@@ -224,6 +228,7 @@ async function fixture({
       consentRepository: consent,
       accountRepository: account as never,
       ledger: ledger(),
+      ...(costLedger ? { costLedger } : {}),
       generationProvider: providers.generation ?? generation,
       recognitionProvider: providers.recognition ?? recognition,
       assistantProvider: providers.assistant ?? assistant,
@@ -516,6 +521,32 @@ describe("cooking assistant route", () => {
     expect(response.json().error.code).toBe("RECIPE_PROVIDER_MALFORMED_OUTPUT");
     expect(response.body).not.toContain("secret provider text");
   });
+  it("charges the AI cost allowance and denies a spent month (ADR-0081)", async () => {
+    let ledgerNow = now;
+    const costLedger = new InMemoryAiCostLedger({ clock: () => ledgerNow });
+    const f = await fixture({ costLedger });
+    const textTurn = (requestId: string) =>
+      turn({
+        requestId,
+        ingredients: ["eggs"],
+        messages: [{ role: "user", text: "Something quick please" }],
+      });
+    expect((await ask(f.app, textTurn(crypto.randomUUID()))).statusCode).toBe(
+      200,
+    );
+    const charged = costLedger.usedMicros(user, "2026-10-13");
+    expect(charged).toBeGreaterThan(0);
+    // Spend the rest of the paid month on an earlier day.
+    ledgerNow = new Date("2026-10-02T12:00:00Z");
+    const spend = await costLedger.reserve(user, capsForTier("paid"), "recipe");
+    if (!spend.allowed) throw new Error("expected admission");
+    await costLedger.settle(spend.reservation, 1_000_000);
+    ledgerNow = now;
+    const denied = await ask(f.app, textTurn(crypto.randomUUID()));
+    expect(denied.statusCode).toBe(429);
+    expect(denied.json().error.code).toBe("RECIPE_LIMIT_COST_MONTH");
+  });
+
   it("maps provider failures to stable codes", async () => {
     const f = await fixture({
       assistant: new FakeRecipeAssistantProvider(

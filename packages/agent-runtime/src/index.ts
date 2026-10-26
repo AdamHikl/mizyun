@@ -1086,6 +1086,8 @@ export interface VisionDraftCandidate {
     readonly promptVersion: string;
   };
   readonly tokensUsed?: number | undefined;
+  /** Web searches or grounded requests made for this draft (cost, ADR-0081). */
+  readonly webSearches?: number | undefined;
   readonly calculation?: string | null | undefined;
 }
 

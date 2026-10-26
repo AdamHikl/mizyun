@@ -33,6 +33,7 @@ import {
 } from "../food-entries/index.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import type { CoachLimitService } from "./limits.js";
+import { costDenialResponse } from "./limits.js";
 import { stripCoachPayloadForLegacyClient } from "./legacy-client-compat.js";
 
 interface CoachNutritionPhotoRoutesOptions {
@@ -238,7 +239,10 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
             request,
             429,
             "RATE_LIMITED",
-            "Meal photo drafts are limited. Try again shortly.",
+            slot.cost
+              ? costDenialResponse(slot.cost).message
+              : "Meal photo drafts are limited. Try again shortly.",
+            slot.cost ? costDenialResponse(slot.cost).extras : undefined,
           );
         }
         acquiredUnifiedLimit = true;
@@ -464,6 +468,11 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
               await options.limits.commitDraftTokens(
                 principal.userId,
                 generated.tokensUsed ?? 1500,
+                {
+                  tokensUsed: generated.tokensUsed,
+                  provider: generated.provenance.provider,
+                  webSearches: generated.webSearches,
+                },
               );
             }
             committed = true;

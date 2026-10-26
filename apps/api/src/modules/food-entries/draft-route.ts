@@ -30,6 +30,7 @@ import type {
 import {
   screenCoachInput,
   VisionProviderError,
+  type VisionDraftCandidate,
   type VisionDraftProvider,
   type VisionDraftRequest,
   type VisionMimeType,
@@ -50,7 +51,9 @@ import {
   type AiAuthorizationResult,
 } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
+import { capsForTier } from "@mizyun/config";
 import type { CoachLimitService, DraftKind } from "../coach/limits.js";
+import { costDenialResponse } from "../coach/limits.js";
 import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import {
@@ -203,6 +206,8 @@ export const foodDraftRoutes: FastifyPluginAsync<
     reason?: LimitReasonKind;
     retryAfter?: number;
     resetAt?: string;
+    /** Copy for a cost-allowance denial (ADR-0081). */
+    costMessage?: string;
   }> => {
     if (options.rateLimiter) {
       const res = options.rateLimiter.acquire(userId, tier, draftKind);
@@ -236,6 +241,16 @@ export const foodDraftRoutes: FastifyPluginAsync<
         // request through would skip the durable daily check (#301). Return
         // the in-memory daily slot taken above so the denial costs nothing.
         options.rateLimiter?.release(userId, draftKind);
+        if (res.cost) {
+          const denial = costDenialResponse(res.cost);
+          return {
+            allowed: false,
+            reason: denial.extras.reason,
+            retryAfter: denial.extras.retryAfterSeconds,
+            resetAt: denial.extras.resetAt,
+            costMessage: denial.message,
+          };
+        }
         const isDaily = res.reason === "drafts" || res.reason === "tokens";
         const reason: LimitReasonKind = isDaily
           ? "daily_budget_exhausted"
@@ -258,18 +273,42 @@ export const foodDraftRoutes: FastifyPluginAsync<
     return { allowed: true };
   };
 
-  const commitDraftLimit = async (userId: UserId, tokens: number) => {
+  const commitDraftLimit = async (
+    userId: UserId,
+    candidate: VisionDraftCandidate,
+    fallbackTokens: number,
+  ) => {
     if (options.limits) {
-      await options.limits.commitDraftTokens(userId, tokens);
+      await options.limits.commitDraftTokens(
+        userId,
+        candidate.tokensUsed ?? fallbackTokens,
+        {
+          tokensUsed: candidate.tokensUsed,
+          provider: candidate.provenance.provider,
+          webSearches: candidate.webSearches,
+        },
+      );
     }
   };
 
-  const releaseDraftLimit = async (userId: UserId, draftKind?: DraftKind) => {
+  const releaseDraftLimit = async (
+    userId: UserId,
+    draftKind?: DraftKind,
+    charged?: VisionDraftCandidate,
+  ) => {
     if (options.rateLimiter) {
       options.rateLimiter.release(userId, draftKind);
     }
     if (options.limits) {
-      await options.limits.releaseDraftSlot(userId, draftKind);
+      if (charged === undefined) {
+        await options.limits.releaseDraftSlot(userId, draftKind);
+      } else {
+        await options.limits.releaseDraftSlot(userId, draftKind, {
+          tokensUsed: charged.tokensUsed,
+          provider: charged.provenance.provider,
+          webSearches: charged.webSearches,
+        });
+      }
     }
   };
 
@@ -328,11 +367,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           reply.header("retry-after", String(rate.retryAfter));
         }
         const message =
-          rate.reason === "daily_budget_exhausted"
-            ? `Daily meal drafts limit reached (${tier === "paid" ? 100 : 5} per day). Quota resets at midnight UTC.`
+          rate.costMessage ??
+          (rate.reason === "daily_budget_exhausted"
+            ? `Daily meal drafts limit reached (${capsForTier(tier).photoDraftDailyLimit} per day). Quota resets at midnight UTC.`
             : rate.reason === "concurrent_in_flight"
               ? "A meal draft is already in progress. Please wait for it to finish."
-              : `Nutrition drafts are limited to ${tier === "paid" ? 3 : 1} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
+              : `Nutrition drafts are limited to ${capsForTier(tier).draftRequestsPerMinute} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`);
         return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
           ...(rate.reason ? { reason: rate.reason } : {}),
           ...(rate.retryAfter !== undefined
@@ -367,10 +407,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
             includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
           }),
         );
-        await commitDraftLimit(
-          principal.userId as UserId,
-          candidate.tokensUsed ?? 500,
-        );
+        await commitDraftLimit(principal.userId as UserId, candidate, 500);
         committed = true;
         return reply.status(200).send(
           foodDraftResponseSchema.parse({
@@ -462,11 +499,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           reply.header("retry-after", String(rate.retryAfter));
         }
         const message =
-          rate.reason === "daily_budget_exhausted"
-            ? `Daily meal drafts limit reached (${tier === "paid" ? 100 : 5} per day). Quota resets at midnight UTC.`
+          rate.costMessage ??
+          (rate.reason === "daily_budget_exhausted"
+            ? `Daily meal draft changes limit reached (${capsForTier(tier).refineDailyLimit} per day). Quota resets at midnight UTC.`
             : rate.reason === "concurrent_in_flight"
               ? "A draft refinement is already in progress. Please wait for it to finish."
-              : `Nutrition drafts are limited to ${tier === "paid" ? 3 : 1} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
+              : `Nutrition drafts are limited to ${capsForTier(tier).draftRequestsPerMinute} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`);
         return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
           ...(rate.reason ? { reason: rate.reason } : {}),
           ...(rate.retryAfter !== undefined
@@ -502,8 +540,13 @@ export const foodDraftRoutes: FastifyPluginAsync<
             includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
           }),
         );
-        // Refine is free and does not consume daily meal draft quota; release in-flight slot
-        await releaseDraftLimit(principal.userId as UserId, "refine");
+        // Refine stays outside the daily draft count: release the in-flight
+        // slot and charge its cost (ADR-0081).
+        await releaseDraftLimit(
+          principal.userId as UserId,
+          "refine",
+          candidate,
+        );
         released = true;
         return reply.status(200).send(
           foodDraftResponseSchema.parse({
@@ -586,10 +629,11 @@ export const foodDraftRoutes: FastifyPluginAsync<
         }
         const message =
           rate.reason === "daily_budget_exhausted"
-            ? `Daily meal photo drafts limit reached (${tier === "paid" ? 100 : 5} per day). Quota resets at midnight UTC.`
+            ? (rate.costMessage ??
+              `Daily meal photo drafts limit reached (${capsForTier(tier).photoDraftDailyLimit} per day). Quota resets at midnight UTC.`)
             : rate.reason === "concurrent_in_flight"
               ? "A meal photo draft is already in progress. Please wait for it to finish."
-              : `Photo drafts are limited to ${tier === "paid" ? 3 : 1} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
+              : `Photo drafts are limited to ${capsForTier(tier).draftRequestsPerMinute} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
         return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
           ...(rate.reason !== undefined ? { reason: rate.reason } : {}),
           ...(rate.retryAfter !== undefined
@@ -716,10 +760,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
         const candidate = await runWithAiConsent(auth.consent, () =>
           vision.generateDraft(visionRequest),
         );
-        await commitDraftLimit(
-          principal.userId as UserId,
-          candidate.tokensUsed ?? 1500,
-        );
+        await commitDraftLimit(principal.userId as UserId, candidate, 1500);
         committed = true;
         return reply.status(200).send(
           foodDraftResponseSchema.parse({

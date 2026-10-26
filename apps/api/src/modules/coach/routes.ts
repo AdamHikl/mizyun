@@ -67,6 +67,7 @@ import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { buildCoachGrounding } from "./grounding.js";
 import { isExplicitDailyPlanIntent } from "./daily-plan-action.js";
 import type { CoachLimitService } from "./limits.js";
+import { costDenialResponse } from "./limits.js";
 import { isExplicitMealLoggingIntent } from "./nutrition-action.js";
 import {
   buildDailyActionPlanForUser,
@@ -693,7 +694,10 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               request,
               429,
               "RATE_LIMITED",
-              "Meal drafts are limited. Try again shortly.",
+              slot.cost
+                ? costDenialResponse(slot.cost).message
+                : "Meal drafts are limited. Try again shortly.",
+              slot.cost ? costDenialResponse(slot.cost).extras : undefined,
             );
           }
           acquiredUnifiedLimit = true;
@@ -777,6 +781,11 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             await options.limits.commitDraftTokens(
               principal.userId,
               candidate.tokensUsed ?? 500,
+              {
+                tokensUsed: candidate.tokensUsed,
+                provider: candidate.provenance.provider,
+                webSearches: candidate.webSearches,
+              },
             );
           }
           return coachMessageResponseSchema.parse({
@@ -830,7 +839,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
 
       if (slot.kind === "limited") {
         reply.header("retry-after", String(slot.retryAfter));
-        const isDaily = slot.reason === "tokens";
+        const isDaily = slot.reason === "tokens" || slot.reason === "cost";
         const reason: LimitReasonKind = isDaily
           ? "daily_budget_exhausted"
           : slot.reason === "inflight"
@@ -838,11 +847,14 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             : slot.reason === "lock_busy"
               ? "service_busy"
               : "minute_rate_limit";
-        const resetAt = isDaily
-          ? new Date(Date.now() + (slot.retryAfter ?? 0) * 1000).toISOString()
-          : undefined;
-        const message =
-          slot.reason === "tokens"
+        const resetAt = slot.cost
+          ? slot.cost.resetAt
+          : isDaily
+            ? new Date(Date.now() + (slot.retryAfter ?? 0) * 1000).toISOString()
+            : undefined;
+        const message = slot.cost
+          ? costDenialResponse(slot.cost).message
+          : slot.reason === "tokens"
             ? `Your daily Coach AI budget has been reached (${cap.dailyTokenBudget.toLocaleString()} tokens). Quota resets at midnight UTC.`
             : slot.reason === "inflight"
               ? "A Coach request is already in progress. Try again shortly."
@@ -1119,10 +1131,14 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         ) {
           evidenceKinds.push("energy");
         }
-        const totalTokens =
-          typeof response.providerMetadata?.totalTokens === "number"
+        // A missing or zero count is unknown cost: the allowance charges
+        // the reservation, while the token ledger keeps the 0 fallback.
+        const reportedTokens =
+          typeof response.providerMetadata?.totalTokens === "number" &&
+          response.providerMetadata.totalTokens > 0
             ? response.providerMetadata.totalTokens
-            : 0;
+            : undefined;
+        const totalTokens = reportedTokens ?? 0;
         const rawAssistantText = extractAssistantText(response.message.text);
         const assistantText =
           actionProposal !== null
@@ -1157,6 +1173,8 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           messageId: assistantMessage.id,
           tokensUsed: totalTokens,
           tokensEstimated,
+          provider: response.provider,
+          costTokensUsed: reportedTokens,
         });
         const latestConversation =
           (await options.conversationRepository.get(

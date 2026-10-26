@@ -6,7 +6,9 @@ import {
 } from "@mizyun/adapter-supabase-server";
 import type { PlanTier, UserId, ConversationId } from "@mizyun/core";
 
+import { AI_COST_RESERVATION_MICROS } from "@mizyun/config";
 import {
+  InMemoryAiCostLedger,
   InMemoryCoachLimitService,
   SupabaseCoachLimitService,
   type ReserveSlotRequest,
@@ -113,6 +115,16 @@ const sharedCounterFixture = (
         break;
       case "ai_reserve_provider_call":
         row = { outcome: "reserved", call_id: crypto.randomUUID() };
+        break;
+      case "ai_reserve_cost":
+        row = {
+          allowed: name !== deniedRpc,
+          scope: name === deniedRpc ? "day" : null,
+          retry_after: 60,
+        };
+        break;
+      case "ai_settle_cost":
+        row = {};
         break;
       default:
         throw new Error(`unexpected RPC ${name}`);
@@ -686,5 +698,450 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
       expect(usage.coach.tokensRemaining).toBe(10_000);
       expect(usage.resetsAt).toBe("2026-07-25T00:00:00.000Z");
     });
+  });
+});
+
+describe("AI cost allowance and refine cap (#336, ADR-0081)", () => {
+  const draftLoop = async (
+    service: InMemoryCoachLimitService,
+    tier: PlanTier,
+    kind: "photo" | "refine",
+    clock: { now: number },
+    count: number,
+  ) => {
+    for (let i = 0; i < count; i++) {
+      const slot = await service.acquireDraftSlot(userId, tier, kind);
+      expect(slot.allowed).toBe(true);
+      if (kind === "refine") {
+        await service.releaseDraftSlot(userId, "refine", {
+          tokensUsed: 10,
+          provider: "anthropic",
+        });
+      } else {
+        await service.commitDraftTokens(userId, 10, {
+          tokensUsed: 10,
+          provider: "anthropic",
+        });
+      }
+      clock.now += 65_000;
+    }
+  };
+
+  it("lowers the paid draft cap and caps refines per tier", () => {
+    expect(capsForTier("paid").photoDraftDailyLimit).toBe(15);
+    expect(capsForTier("paid").refineDailyLimit).toBe(30);
+    expect(capsForTier("free").refineDailyLimit).toBe(10);
+    expect(capsForTier("paid").dailyTokenBudget).toBe(100_000);
+  });
+
+  it("denies the paid tier's 16th draft of the day", async () => {
+    const clock = { now: Date.parse("2026-10-26T01:00:00.000Z") };
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+    });
+    await draftLoop(service, "paid", "photo", clock, 15);
+    const blocked = await service.acquireDraftSlot(userId, "paid", "photo");
+    expect(blocked).toMatchObject({ allowed: false, reason: "drafts" });
+  });
+
+  it("caps refines without spending the draft count", async () => {
+    const clock = { now: Date.parse("2026-10-26T01:00:00.000Z") };
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      capOverrides: { refineDailyLimit: 3 },
+    });
+    await draftLoop(service, "paid", "refine", clock, 3);
+    const blocked = await service.acquireDraftSlot(userId, "paid", "refine");
+    expect(blocked).toMatchObject({ allowed: false, reason: "drafts" });
+    const usage = await service.getAiUsage(userId, "paid");
+    expect(usage.photos.draftsUsed).toBe(0);
+    // The refine denial returned its in-flight slot.
+    expect(
+      (await service.acquireDraftSlot(userId, "paid", "photo")).allowed,
+    ).toBe(true);
+  });
+
+  it("charges settled draft cost and denies once the day is spent", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      capOverrides: { dailyCostMicros: 20_000 },
+    });
+    expect(
+      (await service.acquireDraftSlot(userId, "paid", "photo")).allowed,
+    ).toBe(true);
+    // 4,000 Gemini tokens of a photo draft in 2026 ≈ 0.0072 USD.
+    await service.commitDraftTokens(userId, 4_000, { provider: "gemini" });
+    clock.now += 65_000;
+    expect(
+      (await service.acquireDraftSlot(userId, "paid", "photo")).allowed,
+    ).toBe(true);
+    await service.commitDraftTokens(userId, 10_000, { provider: "gemini" });
+    clock.now += 65_000;
+    const blocked = await service.acquireDraftSlot(userId, "paid", "photo");
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.reason).toBe("cost");
+    expect(blocked.cost).toMatchObject({
+      scope: "day",
+      resetAt: "2026-10-27T00:00:00.000Z",
+    });
+    // A cost denial leaves the draft count and in-flight slot untouched.
+    expect((await service.getAiUsage(userId, "paid")).photos.draftsUsed).toBe(
+      2,
+    );
+    expect(
+      (await service.acquireDraftSlot(otherUserId, "paid", "photo")).allowed,
+    ).toBe(true);
+  });
+
+  it("charges the reservation when a draft fails after admission (a lost response is not free)", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const ledger = new InMemoryAiCostLedger({
+      clock: () => new Date(clock.now),
+    });
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      costLedger: ledger,
+    });
+    expect(
+      (await service.acquireDraftSlot(userId, "paid", "photo")).allowed,
+    ).toBe(true);
+    await service.releaseDraftSlot(userId, "photo");
+    expect(ledger.usedMicros(userId, "2026-10-26")).toBe(
+      AI_COST_RESERVATION_MICROS.photo,
+    );
+  });
+
+  it("charges a provider count when reported and the reservation when it is missing", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const ledger = new InMemoryAiCostLedger({
+      clock: () => new Date(clock.now),
+    });
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      costLedger: ledger,
+    });
+    await service.acquireDraftSlot(userId, "paid", "photo");
+    // Route fallback 1,500 is for the token ledger; the provider sent none.
+    await service.commitDraftTokens(userId, 1_500, {
+      tokensUsed: undefined,
+      provider: "gemini",
+    });
+    expect(ledger.usedMicros(userId, "2026-10-26")).toBe(
+      AI_COST_RESERVATION_MICROS.photo,
+    );
+  });
+
+  it("denies the month with a renewal date even on a fresh day", async () => {
+    const clock = { now: Date.parse("2026-10-01T10:00:00.000Z") };
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      capOverrides: { monthlyCostMicros: 50_000 },
+    });
+    const first = await service.acquireSlot(buildRequest({ planTier: "paid" }));
+    expect(first.kind).toBe("reserved");
+    if (first.kind !== "reserved") return;
+    // 60,000 Gemini Coach tokens in 2026 ≈ 0.056 USD: over the month.
+    await service.commitTokens({
+      userId,
+      providerCallId: first.providerCallId,
+      finalStatus: "succeeded",
+      messageId: "msg-1",
+      tokensUsed: 60_000,
+      provider: "gemini",
+    });
+    clock.now = Date.parse("2026-10-20T10:00:00.000Z");
+    const blocked = await service.acquireSlot(
+      buildRequest({ planTier: "paid", idempotencyKey: "key-0002" }),
+    );
+    expect(blocked).toMatchObject({
+      kind: "limited",
+      reason: "cost",
+      cost: { scope: "month", resetAt: "2026-11-01T00:00:00.000Z" },
+    });
+    clock.now = Date.parse("2026-11-01T00:00:01.000Z");
+    expect(
+      (
+        await service.acquireSlot(
+          buildRequest({ planTier: "paid", idempotencyKey: "key-0003" }),
+        )
+      ).kind,
+    ).toBe("reserved");
+  });
+
+  it("prices Coach on Haiku far below Gemini", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      capOverrides: { monthlyCostMicros: 50_000 },
+    });
+    // 60,000 Haiku tokens ≈ 0.0074 USD, so the month stays open.
+    for (const key of ["key-a", "key-b"]) {
+      const slot = await service.acquireSlot(
+        buildRequest({ planTier: "paid", idempotencyKey: key }),
+      );
+      expect(slot.kind).toBe("reserved");
+      if (slot.kind !== "reserved") return;
+      await service.commitTokens({
+        userId,
+        providerCallId: slot.providerCallId,
+        finalStatus: "succeeded",
+        messageId: key,
+        tokensUsed: 60_000,
+        provider: "anthropic",
+      });
+      clock.now += 65_000;
+    }
+  });
+
+  it("calls the durable refine and cost RPCs", async () => {
+    const fixture = sharedCounterFixture();
+    const calls: string[] = [];
+    const original = fixture.rpc.getMockImplementation()!;
+    fixture.rpc.mockImplementation(async (name, args) => {
+      calls.push(name);
+      if (name === "ai_charge_refine") {
+        return { data: [{ allowed: false, retry_after: 30 }], error: null };
+      }
+      return original(name, args);
+    });
+    const refine = await fixture.coach.acquireDraftSlot(
+      userId,
+      "paid",
+      "refine",
+    );
+    expect(refine).toMatchObject({ allowed: false, reason: "drafts" });
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        "ai_reserve_cost",
+        "ai_charge_refine",
+        "ai_settle_cost",
+        "ai_release_in_flight",
+      ]),
+    );
+    expect(calls).not.toContain("ai_reserve_draft");
+    expect(fixture.active()).toBe(0);
+  });
+
+  it("maps a durable cost denial with its renewal", async () => {
+    const fixture = sharedCounterFixture(1, "ai_reserve_cost");
+    const denied = await fixture.coach.acquireDraftSlot(
+      userId,
+      "paid",
+      "photo",
+    );
+    expect(denied).toMatchObject({
+      allowed: false,
+      reason: "cost",
+      cost: { scope: "day", resetAt: "2026-10-14T00:00:00.000Z" },
+    });
+    expect(fixture.active()).toBe(0);
+  });
+  it("returns the reservation on a Coach replay and charges a failed Coach call", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const ledger = new InMemoryAiCostLedger({
+      clock: () => new Date(clock.now),
+    });
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      costLedger: ledger,
+    });
+    const first = await service.acquireSlot(buildRequest({ planTier: "paid" }));
+    if (first.kind !== "reserved") throw new Error("expected reserved");
+    await service.commitTokens({
+      userId,
+      providerCallId: first.providerCallId,
+      finalStatus: "succeeded",
+      messageId: "msg-1",
+      tokensUsed: 10_000,
+      provider: "anthropic",
+    });
+    const charged = ledger.usedMicros(userId, "2026-10-26");
+    expect(charged).toBe(Math.ceil(10_000 * (0.94 * 0.1 + 0.06 * 0.5)));
+    clock.now += 65_000;
+    // Same idempotency key: replayed, never charged twice.
+    const replay = await service.acquireSlot(
+      buildRequest({ planTier: "paid" }),
+    );
+    expect(replay.kind).toBe("replayed");
+    expect(ledger.usedMicros(userId, "2026-10-26")).toBe(charged);
+    // A new call that fails after dispatch is charged its reservation.
+    clock.now += 65_000;
+    const failing = await service.acquireSlot(
+      buildRequest({ planTier: "paid", idempotencyKey: "key-fail" }),
+    );
+    if (failing.kind !== "reserved") throw new Error("expected reserved");
+    await service.releaseSlot({
+      userId,
+      providerCallId: failing.providerCallId,
+      finalStatus: "failed",
+      messageId: null,
+      tokensUsed: 0,
+    });
+    expect(ledger.usedMicros(userId, "2026-10-26")).toBe(
+      charged + AI_COST_RESERVATION_MICROS.coach,
+    );
+  });
+
+  it("denies the next Coach turn once a conversation spends the day", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    // The free tier's 10k Coach tokens would also bind; lift them so the
+    // cost allowance is what stops the conversation.
+    const lifted = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      capOverrides: { dailyTokenBudget: 1_000_000, dailyCostMicros: 3_000 },
+    });
+    let turn = 0;
+    const results: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      turn += 1;
+      const slot = await lifted.acquireSlot(
+        buildRequest({ planTier: "free", idempotencyKey: `t-${turn}` }),
+      );
+      results.push(slot.kind === "limited" ? slot.reason : slot.kind);
+      if (slot.kind === "reserved") {
+        await lifted.commitTokens({
+          userId,
+          providerCallId: slot.providerCallId,
+          finalStatus: "succeeded",
+          messageId: `m-${turn}`,
+          tokensUsed: 1_000,
+          provider: "gemini",
+        });
+      }
+      clock.now += 65_000;
+    }
+    // 930 × 4 turns passes 3,000 micros: the fifth turn is refused.
+    expect(results).toEqual([
+      "reserved",
+      "reserved",
+      "reserved",
+      "reserved",
+      "cost",
+    ]);
+  });
+
+  it("keeps each user's allowance separate", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      capOverrides: { dailyCostMicros: 15_000 },
+    });
+    await service.acquireDraftSlot(userId, "paid", "photo");
+    await service.commitDraftTokens(userId, 10_000, {
+      tokensUsed: 10_000,
+      provider: "gemini",
+    });
+    clock.now += 65_000;
+    expect(
+      (await service.acquireDraftSlot(userId, "paid", "photo")).reason,
+    ).toBe("cost");
+    expect(
+      (await service.acquireDraftSlot(otherUserId, "paid", "photo")).allowed,
+    ).toBe(true);
+  });
+
+  it("applies the paid allowance override to paid accounts only", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const ledger = new InMemoryAiCostLedger({
+      clock: () => new Date(clock.now),
+      paidAllowance: { dailyCostMicros: 1_000 },
+    });
+    const paidOver = await ledger.reserve(userId, capsForTier("paid"), "photo");
+    expect(paidOver.allowed).toBe(true);
+    if (paidOver.allowed) await ledger.settle(paidOver.reservation, 1_000);
+    expect(
+      (await ledger.reserve(userId, capsForTier("paid"), "photo")).allowed,
+    ).toBe(false);
+    const free = await ledger.reserve(
+      otherUserId,
+      capsForTier("free"),
+      "photo",
+    );
+    expect(free.allowed).toBe(true);
+    if (free.allowed) await ledger.settle(free.reservation, 1_000);
+    // The free default (50,000 micros/day) still applies.
+    expect(
+      (await ledger.reserve(otherUserId, capsForTier("free"), "photo")).allowed,
+    ).toBe(true);
+  });
+
+  it("releases the slot and commits tokens when cost settlement fails", async () => {
+    const fixture = sharedCounterFixture();
+    const original = fixture.rpc.getMockImplementation()!;
+    const calls: string[] = [];
+    fixture.rpc.mockImplementation(async (name, args) => {
+      calls.push(name);
+      if (name === "ai_settle_cost") throw new Error("settle unavailable");
+      if (name === "ai_commit_draft") return { data: [], error: null };
+      return original(name, args);
+    });
+    const slot = await fixture.coach.acquireDraftSlot(userId, "paid", "photo");
+    expect(slot.allowed).toBe(true);
+    await expect(
+      fixture.coach.commitDraftTokens(userId, 900, {
+        tokensUsed: 900,
+        provider: "gemini",
+      }),
+    ).resolves.toBeUndefined();
+    expect(calls).toContain("ai_commit_draft");
+    expect(fixture.active()).toBe(0);
+  });
+
+  it("returns slots it took when the cost RPC is missing", async () => {
+    const fixture = sharedCounterFixture();
+    const original = fixture.rpc.getMockImplementation()!;
+    fixture.rpc.mockImplementation(async (name, args) => {
+      if (name === "ai_reserve_cost")
+        return {
+          data: null,
+          error: { message: "function does not exist" },
+        } as unknown as Awaited<ReturnType<typeof original>>;
+      return original(name, args);
+    });
+    await expect(
+      fixture.coach.acquireDraftSlot(userId, "paid", "photo"),
+    ).rejects.toThrow(/ai_reserve_cost/);
+    expect(fixture.active()).toBe(0);
+  });
+  it("charges the Coach reservation when the provider reported no count", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const ledger = new InMemoryAiCostLedger({
+      clock: () => new Date(clock.now),
+    });
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      costLedger: ledger,
+    });
+    const slot = await service.acquireSlot(buildRequest({ planTier: "paid" }));
+    if (slot.kind !== "reserved") throw new Error("expected reserved");
+    await service.commitTokens({
+      userId,
+      providerCallId: slot.providerCallId,
+      finalStatus: "succeeded",
+      messageId: "msg-1",
+      tokensUsed: 0,
+      provider: "gemini",
+      costTokensUsed: undefined,
+    });
+    expect(ledger.usedMicros(userId, "2026-10-26")).toBe(
+      AI_COST_RESERVATION_MICROS.coach,
+    );
+  });
+
+  it("returns the cost reservation and slot when a count RPC fails after it", async () => {
+    const fixture = sharedCounterFixture();
+    const original = fixture.rpc.getMockImplementation()!;
+    const settled: unknown[] = [];
+    fixture.rpc.mockImplementation(async (name, args) => {
+      if (name === "ai_reserve_draft") throw new Error("transient");
+      if (name === "ai_settle_cost") settled.push(args);
+      return original(name, args);
+    });
+    await expect(
+      fixture.coach.acquireDraftSlot(userId, "paid", "photo"),
+    ).rejects.toThrow(/transient/);
+    expect(settled).toEqual([expect.objectContaining({ p_actual: 0 })]);
+    expect(fixture.active()).toBe(0);
   });
 });

@@ -50,6 +50,24 @@ export {
 } from "./ai-tier";
 
 export {
+  AI_COST_OUTPUT_SHARE,
+  AI_COST_RESERVATION_MICROS,
+  AI_PRICES_CHECKED_ON,
+  ANTHROPIC_WEB_SEARCH_MICROS,
+  GEMINI_GROUNDING_MICROS,
+  GEMINI_PRICE_2026,
+  GEMINI_PRICE_2027,
+  HAIKU_PRICE,
+  ILLUSTRATION_MICROS,
+  type AiCallUsage,
+  type AiCostKind,
+  aiAllowanceMessage,
+  estimateAiCallCostMicros,
+  nextMonthlyAllowanceReset,
+  pricedProvider,
+} from "./ai-cost";
+
+export {
   type BuildMatrixValidationInput,
   type MizyunAppVariant,
   type MizyunBuildProfile,

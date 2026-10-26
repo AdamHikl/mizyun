@@ -57,6 +57,7 @@
     "test": "pnpm -r --if-present test",
     "alpha:analyze": "tsx scripts/analyze-alpha-exports.ts",
     "analytics": "node scripts/product-analytics.mjs",
+    "ai:cost-report": "node scripts/ai-usage-cost-report.mjs",
     "feedback": "node scripts/check-user-feedback.mjs",
     "beta-pro": "node scripts/check-beta-pro-requests.mjs",
     "beta-pro:check": "node scripts/check-beta-pro-requests.mjs",
@@ -101,8 +102,9 @@
     "analytics:dashboard:local": "node --import tsx scripts/analytics-dashboard/local.mjs",
     "analytics:dashboard:demo": "node --import tsx scripts/analytics-dashboard/demo.mjs",
     "test:coach-feature-knowledge": "node --test scripts/check-coach-feature-knowledge.test.mjs && node --import tsx scripts/check-coach-feature-knowledge.mjs",
-    "check:steps": "pnpm test:check-runner && pnpm navigation:check && pnpm test:navigation && pnpm test:exercise-catalog && pnpm test:coach-feature-knowledge && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:analytics-dashboard && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:android-release-optimization && pnpm test:android-window-support && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:community-operations && pnpm test:dev-ios-apple-auth && pnpm test:ios-simulator",
+    "check:steps": "pnpm test:check-runner && pnpm navigation:check && pnpm test:navigation && pnpm test:exercise-catalog && pnpm test:coach-feature-knowledge && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:analytics-dashboard && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:android-release-optimization && pnpm test:android-window-support && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:ai-cost-report && pnpm test:community-operations && pnpm test:dev-ios-apple-auth && pnpm test:ios-simulator",
     "test:check-runner": "node --test scripts/run-check.test.mjs",
+    "test:ai-cost-report": "node --import tsx --test scripts/ai-usage-cost-report.test.mjs",
     "mobile:simulator:ios": "node scripts/ios-simulator-dev.mjs",
     "test:ios-simulator": "node --test scripts/ios-simulator-dev.test.mjs",
     "test:meal-recipe-eval": "node --import tsx --test scripts/recipe-evaluation/evaluation.test.mjs && node --import tsx scripts/run-meal-recipe-evaluation.mjs"

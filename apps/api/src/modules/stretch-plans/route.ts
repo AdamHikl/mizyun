@@ -50,6 +50,7 @@ import { runWithAiConsent } from "../../ai-consent-routing.js";
 import { authorizeAiAccess } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { CoachLimitService } from "../coach/limits.js";
+import { costDenialResponse } from "../coach/limits.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
 
 interface StretchPlanRoutesOptions {
@@ -140,6 +141,8 @@ export const stretchPlanRoutes: FastifyPluginAsync<
     readonly reason?: LimitReasonKind;
     readonly retryAfter?: number;
     readonly resetAt?: string;
+    /** Copy for a cost-allowance denial (ADR-0081). */
+    readonly costMessage?: string;
   }> => {
     const denied = (
       reason: LimitReasonKind,
@@ -173,6 +176,16 @@ export const stretchPlanRoutes: FastifyPluginAsync<
       // reserved nothing, so proceeding would skip its daily check (#301).
       if (!res.allowed) {
         options.rateLimiter?.release(userId, "text");
+        if (res.cost) {
+          const denial = costDenialResponse(res.cost);
+          return {
+            allowed: false,
+            reason: denial.extras.reason,
+            retryAfter: denial.extras.retryAfterSeconds,
+            resetAt: denial.extras.resetAt,
+            costMessage: denial.message,
+          };
+        }
         return denied(
           res.reason === "drafts" || res.reason === "tokens"
             ? "daily_budget_exhausted"
@@ -261,11 +274,12 @@ export const stretchPlanRoutes: FastifyPluginAsync<
           reply.header("retry-after", String(rate.retryAfter));
         }
         const message =
-          rate.reason === "daily_budget_exhausted"
+          rate.costMessage ??
+          (rate.reason === "daily_budget_exhausted"
             ? "You've reached today's AI drafts limit. It resets at midnight UTC."
             : rate.reason === "concurrent_in_flight"
               ? "An AI draft is already in progress. Please wait for it to finish."
-              : `AI drafts are limited per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
+              : `AI drafts are limited per minute. Try again in ${rate.retryAfter ?? 1} second(s).`);
         return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
           ...(rate.reason ? { reason: rate.reason } : {}),
           ...(rate.retryAfter !== undefined
@@ -311,6 +325,10 @@ export const stretchPlanRoutes: FastifyPluginAsync<
         await options.limits?.commitDraftTokens(
           userId,
           candidate.tokensUsed ?? STRETCH_REFINE_ESTIMATED_TOKENS,
+          {
+            tokensUsed: candidate.tokensUsed,
+            provider: candidate.provenance.provider,
+          },
         );
         committed = true;
         const plan = stretchPlanFromChoice(
