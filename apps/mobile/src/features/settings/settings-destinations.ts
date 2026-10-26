@@ -20,6 +20,7 @@ export type SettingsDetailKey =
   | "health-preview"
   | "coach-preferences"
   | "ai-usage"
+  | "plan"
   | "memory"
   | "analytics"
   | "photo-backup"
@@ -97,6 +98,11 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
   },
   "ai-usage": {
     title: "AI usage & Launch Pro Pass",
+    categoryId: "ai-coach",
+    validAnchors: [],
+  },
+  plan: {
+    title: "Mizyun Pro plan",
     categoryId: "ai-coach",
     validAnchors: [],
   },

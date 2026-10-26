@@ -2587,6 +2587,101 @@
       "lastReviewedSha": "0135228778059dc25c1a4925738f0b6934ed4f0c",
       "lastReviewedDate": "2026-10-13",
       "limitations": "REC-01–05 and REC-06 offline engineering automatically verified locally; independent High review and isolated full gate passed. Synthetic scoring is not model accuracy. Live recipes enabled on Dev by Adam 2026-10-14; qualified nutrition/food-safety, supported-image/live provider cost/latency, authenticated/native/accessibility/pilot and Production acceptance remain open."
+    },
+    {
+      "id": "store-billing",
+      "title": "Store Billing (Pro Subscriptions)",
+      "summary": "App Store and Google Play Pro subscriptions through RevenueCat. A signed webhook triggers a server re-read of the subscriber; the server alone sets or clears profiles.plan_tier (subscription or Beta Pro). Plan screen with Store prices, restore and cancel links.",
+      "aliases": [
+        "billing",
+        "subscription",
+        "revenuecat",
+        "pro plan",
+        "in-app purchase",
+        "entitlement",
+        "plan tier",
+        "restore purchases"
+      ],
+      "entryPoints": [
+        "apps/api/src/modules/billing/routes.ts",
+        "apps/mobile/src/features/billing/plan-card.tsx"
+      ],
+      "ownedPaths": [
+        "apps/api/src/modules/billing",
+        "apps/mobile/src/features/billing",
+        "packages/adapters/revenuecat-server",
+        "packages/core/src/billing.ts",
+        "packages/config/src/billing.ts"
+      ],
+      "contracts": ["packages/contracts/src/billing.ts"],
+      "domainPort": ["packages/core/src/billing.ts"],
+      "api": [
+        "apps/api/src/modules/billing/routes.ts",
+        "apps/api/src/modules/billing/service.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/features/billing/plan-card.tsx",
+        "apps/mobile/src/features/billing/plan-presentation.ts",
+        "apps/mobile/src/features/billing/store-purchases.ts"
+      ],
+      "adapters": [
+        "packages/adapters/revenuecat-server/src/index.ts",
+        "packages/adapters/supabase-server/src/subscription-entitlement-repository.ts"
+      ],
+      "dataTables": ["subscription_entitlements", "billing_webhook_events"],
+      "migrationPaths": [
+        "supabase/migrations/20261026140000_store_billing_entitlements.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/billing/routes.test.ts",
+        "packages/core/src/billing.test.ts",
+        "packages/adapters/revenuecat-server/src/webhook-signature.test.ts",
+        "packages/adapters/revenuecat-server/src/webhook-event.test.ts",
+        "packages/adapters/revenuecat-server/src/subscriber-client.test.ts",
+        "packages/adapters/supabase-server/src/subscription-entitlement-repository.test.ts",
+        "packages/contracts/src/billing.test.ts",
+        "packages/config/src/billing.test.ts",
+        "apps/mobile/src/features/billing/store-purchases.test.ts",
+        "apps/mobile/src/features/billing/plan-presentation.test.ts",
+        "apps/mobile/src/features/billing/billing-client.test.ts",
+        "supabase/tests/database/0053_store_billing_entitlements.test.sql"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "The RevenueCat app user id is the authenticated Supabase user id"
+        },
+        {
+          "type": "dependsOn",
+          "target": "coach-consent-budgets",
+          "reason": "plan_tier selects the AI tier caps"
+        },
+        {
+          "type": "dependsOn",
+          "target": "account-lifecycle",
+          "reason": "Entitlement rows are exported and cascade on account deletion"
+        }
+      ],
+      "docs": [
+        "docs/adr/0080-store-billing-revenuecat-entitlements.md",
+        "docs/STORE_LISTING_DISCLOSURES.md",
+        "docs/ACCOUNT_EXPORT_INVENTORY.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/modules/billing",
+        "pnpm --filter @mizyun/adapter-revenuecat-server test",
+        "pnpm --filter @mizyun/mobile test src/features/billing"
+      ],
+      "lastReviewedSha": "a3947503f61c2aa50db492489cbcb426e86d8791",
+      "lastReviewedDate": "2026-10-26",
+      "limitations": "Production purchases off until BILLING_ENABLED=true; Store products, RevenueCat project and secrets are manual console steps; RevenueCat customer records are not erased on account deletion; no periodic re-read of lapsed rows; sandbox purchase on a device and Dev deployment not yet done.",
+      "requirements": [],
+      "openAcceptance": [
+        "Sandbox purchase, restore, cancel and expiry on iPhone and Android against Dev",
+        "Dev deployment with RevenueCat secrets and webhook",
+        "Store console products and privacy labels (docs/STORE_LISTING_DISCLOSURES.md Section 6)"
+      ]
     }
   ]
 }

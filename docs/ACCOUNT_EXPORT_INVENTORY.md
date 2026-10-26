@@ -218,6 +218,15 @@ The Mizyun account export delivers a versioned JSON document of the implemented 
 
 Mobile account export additionally includes `localRecurringMealSetup` from the active owner's encrypted operation journal; local account erasure retires callbacks and removes manifest/journal/chunks. Signout retains owner-keyed recovery for later same-owner resolution but cannot display or submit it as another account. These optional categories are present as arrays; the legacy summary manifest counts do not enumerate every optional category.
 
+### 2.12 Store subscription entitlement (`public.subscription_entitlements`, #332)
+
+- **Table**: `public.subscription_entitlements` (one row per user; written only by the server's service role after it re-reads RevenueCat, ADR-0080)
+- **Ownership**: `user_id = auth.uid()` (owner `select` RLS; no client writes)
+- **Pagination**: Batch size500 ordered by `user_id` (at most one row).
+- **Export key**: top-level `subscriptionEntitlements` (optional array; absent from servers without the table).
+- **Included Fields** (raw column names): `user_id`, `entitlement_id`, `status` ("active" | "expired"), `product_id`, `store` ("app_store" | "play_store" | "other"), `environment` ("sandbox" | "production"), `in_trial`, `will_renew`, `billing_issue`, `expires_at`, `observed_at`, `last_event_id`, `created_at`, `updated_at`.
+- **Deletion**: cascades with `auth.users`. RevenueCat's own customer record and the Store's purchase history are held by those services and are not erased by Mizyun account deletion (follow-up); the Store subscription keeps renewing until the user cancels it in the Store.
+
 ## 3. Deliberate & Justified Exclusions
 
 | Excluded Resource                              | Justification                                                                                                                                                                                        |
@@ -226,6 +235,7 @@ Mobile account export additionally includes `localRecurringMealSetup` from the a
 | Supabase Auth Session Refresh Tokens           | Ephemeral session tokens are revoked on export or signout to prevent session hijacking.                                                                                                              |
 | `public.account_deletion_jobs` Tokens & Hashes | Internal challenge tokens are security controls for verification, not personal health records.                                                                                                       |
 | `public.account_provider_revocations`          | Encrypted Apple refresh tokens and private recovery bindings are authentication cleanup secrets. They are never included in account exports; successful revocation clears the ciphertext (ADR-0050). |
+| `public.billing_webhook_events`                | Webhook idempotency ledger (event id, type, timestamps). It holds no user identifier, is pruned after 90 days and is not personal data (ADR-0080).                                                   |
 | Server Secrets & API Keys                      | Infrastructure configuration is excluded by design.                                                                                                                                                  |
 | Shared System Exercise Templates               | Universal exercise library definitions are public system records, not user-owned personal data.                                                                                                      |
 

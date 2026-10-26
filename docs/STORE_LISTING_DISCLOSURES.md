@@ -207,3 +207,37 @@ Compare against the previous answers (Section 2 before this update: Email Addres
 - Neither console's current wording, category names or definitions were opened. Label names above are those in this document's earlier version plus the categories named in Apple's and Google's questionnaires as known when this was written.
 - That the Production build and backend actually behave as the policy and these answers describe (routing by feature, consent-version handling, meal photo storage enabled, Health run import enabled, Community retention cleanup running) is not established by documentation edits; it needs the release's own verification.
 - No legal review of the Community terms, privacy lawful basis, GDPR/DSA applicability or child-safety applicability has been supplied; see `docs/COMMUNITY_LEGAL_STORE_CHECKLIST.md`.
+
+---
+
+## 6. Pro subscriptions through RevenueCat (#332, ADR-0080) — before the first build that sells Pro
+
+Date prepared: 2026-10-26. Not done; these are Adam's manual steps. They apply once a Store build ships the plan screen with purchases enabled on its backend (`BILLING_ENABLED=true`). Until then the existing labels stay as they are.
+
+What the app does: the Store (Apple or Google) takes payment. RevenueCat (a service provider acting for Mizyun) receives the purchase and receipt data from the Store and from its SDK, keyed by the Mizyun user id (a random UUID, never email). Mizyun's server stores the resulting entitlement (product, store, expiry, trial, renewal state) in the account and includes it in account export. No card or bank details reach Mizyun or the app.
+
+### 6.1 App Store Connect > App Privacy
+
+1. **Purchases > Purchase History**: ADD. Collected, linked to user, not used for tracking, purpose App Functionality (RevenueCat's App Privacy guidance also lists Analytics if its charts are used; Mizyun uses them only for subscription operations, so App Functionality is the conservative minimum; add Analytics if Adam uses RevenueCat analytics).
+2. **Identifiers > User ID**: keep; now also sent to RevenueCat as the app user id.
+3. **Tracking**: keep **No** (no advertising integrations are configured in RevenueCat; do not enable any).
+4. **In-app purchase metadata**: create the subscription group and products with the adopted prices (EUR 7.99/month, EUR 49.99/year, founding-member EUR 34.99 year, 14-day trial), localized display names and descriptions, and a review screenshot of the plan screen. Accept the Paid Applications agreement and complete banking and tax.
+5. **App Review notes**: add "Mizyun Pro is an auto-renewable subscription. Account → AI coach → Mizyun Pro plan shows the price, trial, renewal terms, Restore purchases, Manage or cancel subscription, Terms of Use and Privacy Policy before purchase. All logging, history, export and deletion work without Pro."
+6. **Terms of Use**: the app links `/legal/terms`. If those terms do not cover auto-renewing subscriptions, use Apple's standard EULA link in the App Store description or update the terms first (Guideline 3.1.2).
+
+### 6.2 Google Play Console > Data safety and monetization
+
+1. **Financial info > Purchase history**: ADD. Collected, App functionality, not shared with advertisers. RevenueCat processing on Mizyun's behalf is a service provider transfer, not "sharing", under Google's published definition as understood when prepared; confirm in the current help text.
+2. **Device or other IDs / User IDs**: keep; the user id also goes to RevenueCat.
+3. **Monetization**: create the subscription and base plans (monthly, yearly) plus the founding-member offer and 14-day free-trial offer; set prices; link a Play payments profile. Add the Play service-account credentials that RevenueCat needs (RevenueCat console, not Mizyun's server).
+4. **App content > Ads**: unchanged (no ads).
+
+### 6.3 Privacy Policy and Terms
+
+- Name RevenueCat (and Apple/Google as payment processors) in the Privacy Policy processors section, with the data listed above and its retention. Publish before the Store build that sells Pro.
+- State in the Terms that Pro renews automatically until cancelled in the Store, that deleting the Mizyun account does not cancel the Store subscription, and that the free tier remains available.
+
+### 6.4 Not verified by this preparation
+
+- Apple's and Google's current questionnaire wording was not opened; category names come from RevenueCat's App Privacy page and Google's Data safety help (checked 2026-10-26).
+- RevenueCat customer records are not yet deleted when a Mizyun account is deleted (ADR-0080 follow-up); say so in the policy until that ships.

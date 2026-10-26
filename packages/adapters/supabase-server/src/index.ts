@@ -293,6 +293,7 @@ export { SupabaseMediaAssetRepository } from "./media-asset-repository.js";
 export { SupabaseConversationRepository } from "./conversation-repository.js";
 export { SupabaseAccountRepository } from "./account-repository.js";
 export { SupabaseAccountProviderRevocationRepository } from "./account-provider-revocation-repository.js";
+export { SupabaseSubscriptionEntitlementRepository } from "./subscription-entitlement-repository.js";
 export {
   SupabaseAiConsentRepository,
   aiConsentFromRow,

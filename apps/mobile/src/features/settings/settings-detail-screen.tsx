@@ -39,6 +39,7 @@ import { WeighInReminderCard } from "./weigh-in-reminder-card";
 import { AppearanceSettingsCard } from "./appearance-settings-card";
 import { HealthStepsSettingsCard } from "../health-steps/health-steps-settings-card";
 import { CoachPreferencesCard } from "./coach-preferences-card";
+import { PlanCard } from "../billing/plan-card";
 import { AiUsageCard } from "./ai-usage-card";
 import { MemoryControlsCard } from "./memory-controls-card";
 import { AnalyticsCard } from "./analytics-card";
@@ -212,6 +213,9 @@ export function SettingsDetailScreen({
 
       case "ai-usage":
         return <AiUsageCard />;
+
+      case "plan":
+        return <PlanCard userId={session?.user.id} />;
 
       case "memory":
         return <MemoryControlsCard />;

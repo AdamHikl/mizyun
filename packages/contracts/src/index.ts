@@ -772,6 +772,23 @@ export {
 } from "./beta-pro";
 
 export {
+  billingEntitlementResponseSchema,
+  billingEntitlementSchema,
+  billingEntitlementStatusSchema,
+  billingEnvironmentSchema,
+  billingPaidSourceSchema,
+  billingStoreSchema,
+  billingStoreSdkSchema,
+  type BillingEntitlement,
+  type BillingEntitlementResponse,
+  type BillingEntitlementStatus,
+  type BillingEnvironment,
+  type BillingPaidSource,
+  type BillingStore,
+  type BillingStoreSdk,
+} from "./billing";
+
+export {
   CURRENT_ANALYTICS_CONSENT_VERSION,
   ANALYTICS_DASHBOARD_CATALOG,
   analyticsEventsListQuerySchema,

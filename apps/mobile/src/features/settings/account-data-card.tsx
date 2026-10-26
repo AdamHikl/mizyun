@@ -462,6 +462,11 @@ export function AccountDataCard({
           period; a cleanup outage may delay physical deletion. Previously
           exported local files are not remotely erased.
         </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          Deleting your account does not cancel a Mizyun Pro subscription.
+          Cancel it first in Settings → Mizyun Pro plan → Manage or cancel
+          subscription, or in your App Store or Google Play account.
+        </ThemedText>
         <Button
           label={deletionButtonLabel()}
           variant="destructive"
