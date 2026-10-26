@@ -1424,7 +1424,10 @@
         "apps/mobile/src/features/analytics/local-analytics-storage.ts",
         "apps/mobile/src/features/analytics/network-analytics-client.ts",
         "apps/mobile/src/features/analytics/consent-reminder-prompt.tsx",
-        "apps/mobile/src/features/settings/analytics-card.tsx"
+        "apps/mobile/src/features/settings/analytics-card.tsx",
+        "apps/mobile/src/features/analytics/activation-milestones.ts",
+        "apps/mobile/src/features/analytics/analytics-consent-prompt.tsx",
+        "apps/mobile/src/features/dashboard/first-run-card.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/product-analytics-repository.ts"
@@ -1459,7 +1462,11 @@
         "apps/mobile/src/features/analytics/consent-reminder-preferences.test.ts",
         "apps/mobile/src/features/analytics/consent-reminder-prompt.test.tsx",
         "apps/mobile/src/composition/analytics-consent-reminder-bridge.test.tsx",
-        "apps/mobile/src/features/settings/analytics-discovery.test.ts"
+        "apps/mobile/src/features/settings/analytics-discovery.test.ts",
+        "apps/mobile/src/features/analytics/activation-milestones.test.ts",
+        "apps/mobile/src/features/dashboard/first-run-card.test.tsx",
+        "apps/api/src/release-compatibility.test.ts",
+        "scripts/analytics-dashboard/scorecard.test.mjs"
       ],
       "relations": [
         {
@@ -1488,7 +1495,9 @@
         "docs/DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md",
         "docs/ANALYTICS_REGISTRATION_ZERO_DAYS_2026-10-12.md",
         "docs/adr/0057-discoverable-analytics-consent-reminders.md",
-        "docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md"
+        "docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md",
+        "docs/adr/0083-activation-scorecard-telemetry.md",
+        "docs/ACTIVATION_SCORECARD_2026-10-26.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/observability test",
@@ -1499,11 +1508,12 @@
         "node --test scripts/product-analytics.test.mjs",
         "pnpm test:analytics-dashboard",
         "pnpm analytics:dashboard:verify-db",
-        "pnpm analytics:dashboard:verify-metabase"
+        "pnpm analytics:dashboard:verify-metabase",
+        "pnpm analytics:scorecard:verify-db"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
-      "limitations": "Optional current-consent telemetry; aggregate-only dashboard; hosted access, store reports and native capture acceptance remain open under #186.",
+      "limitations": "Optional current-consent telemetry; aggregate-only dashboard and Monday scorecard (consenting accounts only, week-4 denominators from the weekly ledger); hosted access, store reports and native capture acceptance remain open under #186; first-run device acceptance open under #335.",
       "requirements": ["OBS-01", "OBS-002", "PRIV-01"],
       "openAcceptance": []
     },

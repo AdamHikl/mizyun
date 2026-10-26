@@ -8,17 +8,23 @@ import {
   type FailureStage,
   type LoggingFlow,
 } from "@mizyun/observability";
-import { analyticsClient } from "@/composition/analytics-client";
+import type { CoreRecordKind } from "@mizyun/contracts";
+import {
+  activationMilestones,
+  analyticsClient,
+} from "@/composition/analytics-client";
 import type {
   AnalyticsEventInput,
   AnalyticsFlowScope,
   NetworkAnalyticsClient,
 } from "./network-analytics-client";
+import type { ActivationMilestones } from "./activation-milestones";
 
 type FlowAnalyticsClient = Pick<
   NetworkAnalyticsClient,
   "createFlowScope" | "track"
 >;
+type CoreActionReporter = Pick<ActivationMilestones, "recordCoreAction">;
 
 /** A logging visit, not a durable health record or workout identity. */
 export class LoggingFlowMeasurement {
@@ -32,6 +38,8 @@ export class LoggingFlowMeasurement {
     private readonly analytics: FlowAnalyticsClient = analyticsClient,
     private readonly startedAt = Date.now(),
     private readonly now: () => number = Date.now,
+    private readonly owner: string | null = null,
+    private readonly milestones?: CoreActionReporter,
   ) {
     try {
       this.scope = analytics.createFlowScope();
@@ -62,6 +70,12 @@ export class LoggingFlowMeasurement {
       name: "core_record_created",
       properties: { recordKind: this.flow },
     });
+    try {
+      void (this.milestones ?? activationMilestones).recordCoreAction(
+        this.owner,
+        this.flow,
+      );
+    } catch {}
   }
   fail(stage: FailureStage, reason: FailureReason, retryable: boolean): void {
     if (this.finished) return;
@@ -96,6 +110,26 @@ export class LoggingFlowMeasurement {
   }
 }
 
+/**
+ * A confirmed save outside the measured logging flows (a finished bouldering
+ * session). Only the record kind is reported, and only under current consent.
+ */
+export function recordCoreRecordSaved(
+  kind: CoreRecordKind,
+  owner: string | null,
+  analytics: Pick<NetworkAnalyticsClient, "track"> = analyticsClient,
+  milestones?: CoreActionReporter,
+): void {
+  try {
+    void analytics
+      .track({ name: "core_record_created", properties: { recordKind: kind } })
+      .catch(() => {});
+  } catch {}
+  try {
+    void (milestones ?? activationMilestones).recordCoreAction(owner, kind);
+  } catch {}
+}
+
 /** Only an observed route removal is an exit; effect cleanup is not one. */
 export function useLoggingFlowMeasurement(
   flow: LoggingFlow,
@@ -108,7 +142,13 @@ export function useLoggingFlowMeasurement(
   useEffect(() => {
     if (!enabled) return;
     if (!measurement.current || currentOwner.current !== owner) {
-      measurement.current = new LoggingFlowMeasurement(flow);
+      measurement.current = new LoggingFlowMeasurement(
+        flow,
+        analyticsClient,
+        Date.now(),
+        Date.now,
+        owner,
+      );
       currentOwner.current = owner;
     }
     const attempt = measurement.current;

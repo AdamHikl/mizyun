@@ -23,6 +23,7 @@ import {
   analyticsConsentResponseSchema,
   analyticsEventV2Schema,
   ANALYTICS_DASHBOARD_CATALOG,
+  ANALYTICS_DASHBOARD_V1_CATALOG,
   legacyAnalyticsEventV2Schema,
 } from "./analytics";
 
@@ -207,7 +208,13 @@ export const accountExportSchema = z.object({
     .object({
       consent: analyticsConsentResponseSchema.nullable(),
       events: z.array(analyticsEventV2Schema),
-      catalog: z.enum(["legacy-v2", ANALYTICS_DASHBOARD_CATALOG]).optional(),
+      catalog: z
+        .enum([
+          "legacy-v2",
+          ANALYTICS_DASHBOARD_V1_CATALOG,
+          ANALYTICS_DASHBOARD_CATALOG,
+        ])
+        .optional(),
       omittedEventCount: z.number().int().nonnegative().optional(),
     })
     .optional(),

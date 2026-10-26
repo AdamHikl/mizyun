@@ -47,7 +47,7 @@ import {
 } from "./account-data-management.js";
 
 describe("account-data-management", () => {
-  it("erases only the account's analytics reminder and reports failed cleanup", async () => {
+  it("erases only the account's analytics reminder and first-run anchor and reports failed cleanup", async () => {
     const deleteItemAsync = vi.fn().mockResolvedValue(undefined);
     const analyticsReminderStore = {
       getItemAsync: vi.fn(),
@@ -60,9 +60,10 @@ describe("account-data-management", () => {
       clearHealthExports: async () => undefined,
     };
     await clearLocalUserData("synthetic-analytics-owner", options);
-    expect(deleteItemAsync).toHaveBeenCalledExactlyOnceWith(
+    expect(deleteItemAsync.mock.calls.map(([key]) => key).sort()).toEqual([
+      "mizyun.activation.v1.synthetic-analytics-owner",
       "mizyun.analytics-reminder.v1.synthetic-analytics-owner",
-    );
+    ]);
     deleteItemAsync.mockRejectedValueOnce(new Error("locked"));
     await expect(
       clearLocalUserData("synthetic-analytics-owner", options),
@@ -109,7 +110,7 @@ describe("account-data-management", () => {
     const result = await fetchAccountExport(client);
     expect(client.request).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: "/v1/account/export?catalog=dashboard-v1",
+        path: "/v1/account/export?catalog=activation-v1",
       }),
     );
     expect(result.ok).toBe(true);

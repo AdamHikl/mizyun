@@ -1,10 +1,12 @@
 import { apiClient } from "@/composition/api-client";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import {
   NetworkAnalyticsClient,
   type NetworkAnalyticsApiTransport,
 } from "@/features/analytics/network-analytics-client";
+import { ActivationMilestones } from "@/features/analytics/activation-milestones";
 import {
   analyticsConsentResponseSchema,
   analyticsBatchIngestResponseSchema,
@@ -144,4 +146,10 @@ export const analyticsClient = new NetworkAnalyticsClient(
   undefined,
   appVersion,
   build,
+);
+
+/** First-run anchor and payload-free activation/return events (GTM-04). */
+export const activationMilestones = new ActivationMilestones(
+  SecureStore,
+  analyticsClient,
 );
