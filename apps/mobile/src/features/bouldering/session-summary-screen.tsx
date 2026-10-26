@@ -1,5 +1,5 @@
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type {
@@ -8,6 +8,12 @@ import type {
   BoulderProjectRecord,
   BoulderSessionRecord,
 } from "@mizyun/contracts";
+import {
+  boulderShareCard,
+  fontGradeRank,
+  isFontGrade,
+  type ShareCardOptions,
+} from "@mizyun/core";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -18,6 +24,7 @@ import { apiClient } from "@/composition/api-client";
 import { isBoulderingEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
 import { useCommunityProfile } from "@/features/community";
+import { ShareCardButton } from "@/features/share-card";
 import {
   getBoulderSession,
   listBoulderProjects,
@@ -125,6 +132,28 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
       void load();
     }, [load]),
   );
+
+  const buildShareCard = useMemo(() => {
+    if (!data) return null;
+    const { session, ascents } = data;
+    const grades = sessionGradeBars(session, ascents).map((bar) => ({
+      grade: bar.grade,
+      gradeRank: isFontGrade(bar.grade) ? fontGradeRank(bar.grade) : 0,
+      sends: bar.sends,
+      flashes: bar.flashes,
+    }));
+    return (options: ShareCardOptions) =>
+      boulderShareCard(
+        {
+          activityDate: session.session.activityDate,
+          sends: session.summary.sends,
+          flashes: session.summary.flashes,
+          topGrade: session.summary.topGrade,
+          grades,
+        },
+        options,
+      );
+  }, [data]);
 
   const done = () => {
     if (router.canGoBack()) router.back();
@@ -302,6 +331,17 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
               block
               accessibilityHint="Preview the card before sharing it with your approved followers"
               onPress={() => router.push(shareBoulderingHref(session.id))}
+            />
+          ) : null}
+          {session.completedAt && buildShareCard ? (
+            <ShareCardButton
+              userId={userId}
+              build={buildShareCard}
+              communityHandle={
+                community.isEnrolled
+                  ? (community.profile?.handle ?? null)
+                  : null
+              }
             />
           ) : null}
           <Button

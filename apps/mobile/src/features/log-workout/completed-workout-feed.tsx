@@ -1,10 +1,12 @@
 import { StyleSheet, View } from "react-native";
 import type { Exercise, Workout, WorkoutSet } from "@mizyun/contracts";
+import { workoutShareCard, type ShareCardOptions } from "@mizyun/core";
 import { ThemedText } from "@/components/themed-text";
 import { Button, Card, SectionHeader } from "@/components/ui";
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { calculateWorkoutVolume, formatStopwatch } from "@/features/workouts";
+import { ShareCardButton } from "@/features/share-card";
 import { kilogramsToDisplayWeight, weightUnitLabel } from "@/lib/weight-units";
 
 interface RecordedExercise {
@@ -19,6 +21,10 @@ export function CompletedWorkoutFeed(props: {
   readonly savedSets: ReadonlyArray<WorkoutSet>;
   readonly unitSystem: "metric" | "imperial";
   readonly onOpenHistory: (name: string) => void;
+  /** Signed-in user, for the on-device share card preferences. */
+  readonly userId?: string;
+  /** Set only for an enrolled Community member (ADR-0082). */
+  readonly communityHandle?: string | null;
 }) {
   const theme = useTheme();
   const unit = weightUnitLabel(props.unitSystem);
@@ -69,6 +75,22 @@ export function CompletedWorkoutFeed(props: {
     }
     groups.get(set.exerciseId)!.sets.push(set);
   }
+  const buildShareCard = (options: ShareCardOptions) =>
+    workoutShareCard(
+      {
+        activityDate: Number.isFinite(end) ? localDay(new Date(end)) : "",
+        durationSeconds:
+          Number.isFinite(start) && Number.isFinite(end) && end >= start
+            ? (end - start) / 1000
+            : null,
+        unitSystem: props.unitSystem,
+        exercises: Array.from(groups.values(), (group) => ({
+          name: group.name,
+          sets: group.sets,
+        })),
+      },
+      options,
+    );
   return (
     <View style={styles.feed} testID="completed-workout-review">
       <Card>
@@ -95,6 +117,13 @@ export function CompletedWorkoutFeed(props: {
           </View>
         </View>
       </Card>
+      {props.userId && props.savedSets.length > 0 ? (
+        <ShareCardButton
+          userId={props.userId}
+          build={buildShareCard}
+          communityHandle={props.communityHandle ?? null}
+        />
+      ) : null}
       {props.savedSets.length === 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
           No sets were recorded for this workout.
@@ -226,6 +255,11 @@ export function CompletedWorkoutFeed(props: {
     </View>
   );
 }
+
+const localDay = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
 
 const styles = StyleSheet.create({
   feed: { gap: Spacing.three },

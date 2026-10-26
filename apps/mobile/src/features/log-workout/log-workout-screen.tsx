@@ -1975,6 +1975,12 @@ export function LogWorkoutScreen() {
                 savedSets={workspace.sets}
                 unitSystem={unitSystem}
                 onOpenHistory={setProgressionExerciseName}
+                userId={session?.user.id}
+                communityHandle={
+                  community.isEnrolled
+                    ? (community.profile?.handle ?? null)
+                    : null
+                }
               />
             ) : (
               <ActiveWorkoutFeed

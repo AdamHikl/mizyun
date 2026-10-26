@@ -243,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278); its Fill in from description asks AI first for users with AI consent, with the on-device parser as fallback (ADR-0073). The Exercise library creates, edits and deletes custom exercises with a tracking type; logged sets fix the type and block deletion (ADR-0075, #308).",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278); its Fill in from description asks AI first for users with AI consent, with the on-device parser as fallback (ADR-0073). The Exercise library creates, edits and deletes custom exercises with a tracking type; logged sets fix the type and block deletion (ADR-0075, #308). Completed bouldering sessions and workouts offer Share as image: a previewed 1080x1350 card built from a core allowlist (no food, weight, measurements, photos, notes or Coach text) handed to the system share sheet, without Community or network (ADR-0082, #334).",
       "aliases": [
         "workout",
         "exercise",
@@ -259,7 +259,10 @@
         "cycling",
         "cardio",
         "timed",
-        "activity"
+        "activity",
+        "share card",
+        "share image",
+        "session card"
       ],
       "entryPoints": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -272,7 +275,8 @@
         "apps/mobile/src/features/bouldering/index.ts",
         "apps/mobile/src/features/log-activity/index.ts",
         "apps/mobile/src/features/evening-stretch/index.ts",
-        "apps/api/src/modules/activity-drafts/route.ts"
+        "apps/api/src/modules/activity-drafts/route.ts",
+        "apps/mobile/src/features/share-card/index.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -311,7 +315,8 @@
         "packages/core/src/evening-stretch.ts",
         "apps/api/src/modules/stretch-plans",
         "packages/agent-runtime/src/stretch-refinement.ts",
-        "packages/config/src/stretch-ai.ts"
+        "packages/config/src/stretch-ai.ts",
+        "apps/mobile/src/features/share-card"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
@@ -333,7 +338,8 @@
         "packages/core/src/bouldering.ts",
         "packages/core/src/bouldering-grades.ts",
         "packages/core/src/bouldering-repository.ts",
-        "packages/core/src/exercise-tracking.ts"
+        "packages/core/src/exercise-tracking.ts",
+        "packages/core/src/share-card.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -362,7 +368,9 @@
         "apps/mobile/src/app/bouldering/grade.tsx",
         "apps/mobile/src/app/log-activity.tsx",
         "apps/mobile/src/features/log-activity/log-activity-screen.tsx",
-        "apps/mobile/src/features/log-workout/timed-set-input.ts"
+        "apps/mobile/src/features/log-workout/timed-set-input.ts",
+        "apps/mobile/src/features/share-card/share-card-sheet.tsx",
+        "apps/mobile/src/features/share-card/share-card-view.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/workout-repository.ts",
@@ -428,7 +436,11 @@
         "apps/mobile/src/features/log-workout/timed-set-input.test.ts",
         "apps/mobile/src/features/log-activity/log-activity-data.test.ts",
         "apps/mobile/src/features/log-activity/log-activity-form.test.ts",
-        "apps/mobile/src/features/log-activity/log-activity-screen.test.tsx"
+        "apps/mobile/src/features/log-activity/log-activity-screen.test.tsx",
+        "packages/core/src/share-card.test.ts",
+        "apps/mobile/src/features/share-card/share-card-view.test.tsx",
+        "apps/mobile/src/features/share-card/share-card-native.test.ts",
+        "apps/mobile/src/features/share-card/share-card-preferences.test.ts"
       ],
       "relations": [
         {
@@ -460,7 +472,8 @@
         "docs/adr/0073-ai-activity-description-drafts.md",
         "docs/adr/0072-evening-stretch-reminder.md",
         "docs/adr/0076-ai-tailored-evening-stretch.md",
-        "docs/adr/0075-custom-exercises-in-the-exercise-library.md"
+        "docs/adr/0075-custom-exercises-in-the-exercise-library.md",
+        "docs/adr/0082-shareable-session-card.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
@@ -470,7 +483,8 @@
         "pnpm --filter @mizyun/mobile test src/features/bouldering",
         "pnpm --filter @mizyun/mobile test src/features/log-activity",
         "pnpm --filter @mizyun/core test src/exercise-tracking",
-        "pnpm --filter @mizyun/core test src/custom-exercise"
+        "pnpm --filter @mizyun/core test src/custom-exercise",
+        "pnpm --filter @mizyun/mobile test src/features/share-card"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
@@ -489,7 +503,8 @@
       ],
       "openAcceptance": [
         "WO-07 exact-candidate standalone Dev start/add-before-first-set/restart/log/finish/history and appearance/accessibility acceptance (#187)",
-        "WO-08 Dev/iPhone log past workout enter/save/history/review, restart and offline retry, discard, large text/VoiceOver acceptance (#279)"
+        "WO-08 Dev/iPhone log past workout enter/save/history/review, restart and offline retry, discard, large text/VoiceOver acceptance (#279)",
+        "GTM-03 share card iOS and Android device acceptance on a rebuilt Dev binary: preview, light/dark, gym name remember, handle toggle, share to Instagram/WhatsApp/Photos, VoiceOver/TalkBack, button hidden on older binaries (#334)"
       ]
     },
     {

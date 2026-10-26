@@ -1,0 +1,2813 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ShareCardView snapshots > bouldering card, dark 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": "Oct 25, 2026",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#2BC48A",
+              "fontSize": 13,
+              "fontWeight": "700",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Bouldering session",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#F3F4F6",
+              "fontSize": 26,
+              "fontWeight": "800",
+            },
+          },
+          "type": "Text",
+        },
+      ],
+      "props": {
+        "style": {
+          "gap": 2,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": "Top grade",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "6B+",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Sends",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "7",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Flashes",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "2",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "flexDirection": "row",
+          "gap": 8,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        [
+          {
+            "children": [
+              {
+                "children": "6B+",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#2BC48A",
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                    "width": 44,
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": {
+                  "children": null,
+                  "props": {
+                    "style": {
+                      "backgroundColor": "#2BC48A",
+                      "borderRadius": 6,
+                      "height": "100%",
+                      "width": "25%",
+                    },
+                  },
+                  "type": "View",
+                },
+                "props": {
+                  "style": {
+                    "backgroundColor": "#262B30",
+                    "borderRadius": 6,
+                    "flex": 1,
+                    "height": 12,
+                    "overflow": "hidden",
+                  },
+                },
+                "type": "View",
+              },
+              {
+                "children": "1",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#2BC48A",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "6A",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#F3F4F6",
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                    "width": 44,
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": {
+                  "children": null,
+                  "props": {
+                    "style": {
+                      "backgroundColor": "#2BC48A",
+                      "borderRadius": 6,
+                      "height": "100%",
+                      "width": "100%",
+                    },
+                  },
+                  "type": "View",
+                },
+                "props": {
+                  "style": {
+                    "backgroundColor": "#262B30",
+                    "borderRadius": 6,
+                    "flex": 1,
+                    "height": 12,
+                    "overflow": "hidden",
+                  },
+                },
+                "type": "View",
+              },
+              {
+                "children": "4 · 2 flashes",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#A3ABB8",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "5C",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#F3F4F6",
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                    "width": 44,
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": {
+                  "children": null,
+                  "props": {
+                    "style": {
+                      "backgroundColor": "#2BC48A",
+                      "borderRadius": 6,
+                      "height": "100%",
+                      "width": "50%",
+                    },
+                  },
+                  "type": "View",
+                },
+                "props": {
+                  "style": {
+                    "backgroundColor": "#262B30",
+                    "borderRadius": 6,
+                    "flex": 1,
+                    "height": 12,
+                    "overflow": "hidden",
+                  },
+                },
+                "type": "View",
+              },
+              {
+                "children": "2",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#A3ABB8",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+        ],
+      ],
+      "props": {
+        "style": {
+          "backgroundColor": "#181B1F",
+          "borderRadius": 12,
+          "flex": 1,
+          "gap": 8,
+          "padding": 12,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": "",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#A3ABB8",
+              "flexShrink": 1,
+              "fontSize": 13,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": [
+            {
+              "children": null,
+              "props": {
+                "accessibilityIgnoresInvertColors": true,
+                "source": {
+                  "uri": "mark",
+                },
+                "style": {
+                  "borderRadius": 4,
+                  "height": 18,
+                  "width": 18,
+                },
+              },
+              "type": "Image",
+            },
+            {
+              "children": "Mizyun",
+              "props": {
+                "allowFontScaling": false,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 13,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "gap": 6,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 8,
+          "justifyContent": "space-between",
+        },
+      },
+      "type": "View",
+    },
+  ],
+  "props": {
+    "accessibilityLabel": "Bouldering session. Oct 25, 2026. Top grade 6B plus. 7 sends. 2 flashes. 6B plus: 1 send. 6A: 4 sends, 2 flashes. 5C: 2 sends. Made with Mizyun",
+    "accessibilityRole": "image",
+    "accessible": true,
+    "collapsable": false,
+    "ref": undefined,
+    "style": {
+      "backgroundColor": "#0B0D0F",
+      "gap": 14,
+      "height": 450,
+      "overflow": "hidden",
+      "padding": 20,
+      "width": 360,
+    },
+    "testID": "share-card",
+  },
+  "type": "View",
+}
+`;
+
+exports[`ShareCardView snapshots > bouldering card, light 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": "Oct 25, 2026",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#0A7A55",
+              "fontSize": 13,
+              "fontWeight": "700",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Bouldering session",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#111827",
+              "fontSize": 26,
+              "fontWeight": "800",
+            },
+          },
+          "type": "Text",
+        },
+      ],
+      "props": {
+        "style": {
+          "gap": 2,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": "Top grade",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "6B+",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Sends",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "7",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Flashes",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "2",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "flexDirection": "row",
+          "gap": 8,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        [
+          {
+            "children": [
+              {
+                "children": "6B+",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#0A7A55",
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                    "width": 44,
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": {
+                  "children": null,
+                  "props": {
+                    "style": {
+                      "backgroundColor": "#0A7A55",
+                      "borderRadius": 6,
+                      "height": "100%",
+                      "width": "25%",
+                    },
+                  },
+                  "type": "View",
+                },
+                "props": {
+                  "style": {
+                    "backgroundColor": "#E3E7E5",
+                    "borderRadius": 6,
+                    "flex": 1,
+                    "height": 12,
+                    "overflow": "hidden",
+                  },
+                },
+                "type": "View",
+              },
+              {
+                "children": "1",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#0A7A55",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "6A",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#111827",
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                    "width": 44,
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": {
+                  "children": null,
+                  "props": {
+                    "style": {
+                      "backgroundColor": "#0A7A55",
+                      "borderRadius": 6,
+                      "height": "100%",
+                      "width": "100%",
+                    },
+                  },
+                  "type": "View",
+                },
+                "props": {
+                  "style": {
+                    "backgroundColor": "#E3E7E5",
+                    "borderRadius": 6,
+                    "flex": 1,
+                    "height": 12,
+                    "overflow": "hidden",
+                  },
+                },
+                "type": "View",
+              },
+              {
+                "children": "4 · 2 flashes",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#5B6472",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "5C",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#111827",
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                    "width": 44,
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": {
+                  "children": null,
+                  "props": {
+                    "style": {
+                      "backgroundColor": "#0A7A55",
+                      "borderRadius": 6,
+                      "height": "100%",
+                      "width": "50%",
+                    },
+                  },
+                  "type": "View",
+                },
+                "props": {
+                  "style": {
+                    "backgroundColor": "#E3E7E5",
+                    "borderRadius": 6,
+                    "flex": 1,
+                    "height": 12,
+                    "overflow": "hidden",
+                  },
+                },
+                "type": "View",
+              },
+              {
+                "children": "2",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#5B6472",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+        ],
+      ],
+      "props": {
+        "style": {
+          "backgroundColor": "#FFFFFF",
+          "borderRadius": 12,
+          "flex": 1,
+          "gap": 8,
+          "padding": 12,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": "",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#5B6472",
+              "flexShrink": 1,
+              "fontSize": 13,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": [
+            {
+              "children": null,
+              "props": {
+                "accessibilityIgnoresInvertColors": true,
+                "source": {
+                  "uri": "mark",
+                },
+                "style": {
+                  "borderRadius": 4,
+                  "height": 18,
+                  "width": 18,
+                },
+              },
+              "type": "Image",
+            },
+            {
+              "children": "Mizyun",
+              "props": {
+                "allowFontScaling": false,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 13,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "gap": 6,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 8,
+          "justifyContent": "space-between",
+        },
+      },
+      "type": "View",
+    },
+  ],
+  "props": {
+    "accessibilityLabel": "Bouldering session. Oct 25, 2026. Top grade 6B plus. 7 sends. 2 flashes. 6B plus: 1 send. 6A: 4 sends, 2 flashes. 5C: 2 sends. Made with Mizyun",
+    "accessibilityRole": "image",
+    "accessible": true,
+    "collapsable": false,
+    "ref": undefined,
+    "style": {
+      "backgroundColor": "#F2F4F3",
+      "gap": 14,
+      "height": 450,
+      "overflow": "hidden",
+      "padding": 20,
+      "width": 360,
+    },
+    "testID": "share-card",
+  },
+  "type": "View",
+}
+`;
+
+exports[`ShareCardView snapshots > workout card, dark, imperial 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": "Oct 26, 2026",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#2BC48A",
+              "fontSize": 13,
+              "fontWeight": "700",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Workout",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#F3F4F6",
+              "fontSize": 26,
+              "fontWeight": "800",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Ostbloc",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#A3ABB8",
+              "fontSize": 15,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+      ],
+      "props": {
+        "style": {
+          "gap": 2,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": "Exercises",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "3",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Sets",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "6",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Volume",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "4,602 lb",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Time",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "1 h 07 min",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "flexDirection": "row",
+          "gap": 8,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        [
+          {
+            "children": [
+              {
+                "children": "Back Squat",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#2BC48A",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "PR · 226 lb × 3",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#2BC48A",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Romanian Deadlift",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#F3F4F6",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "176.4 lb × 8",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#A3ABB8",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Pull-up",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#F3F4F6",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "2 sets",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#A3ABB8",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+        ],
+      ],
+      "props": {
+        "style": {
+          "backgroundColor": "#181B1F",
+          "borderRadius": 12,
+          "flex": 1,
+          "gap": 8,
+          "padding": 12,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": "@crimp_queen",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#A3ABB8",
+              "flexShrink": 1,
+              "fontSize": 13,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": [
+            {
+              "children": null,
+              "props": {
+                "accessibilityIgnoresInvertColors": true,
+                "source": {
+                  "uri": "mark",
+                },
+                "style": {
+                  "borderRadius": 4,
+                  "height": 18,
+                  "width": 18,
+                },
+              },
+              "type": "Image",
+            },
+            {
+              "children": "Mizyun",
+              "props": {
+                "allowFontScaling": false,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 13,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "gap": 6,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 8,
+          "justifyContent": "space-between",
+        },
+      },
+      "type": "View",
+    },
+  ],
+  "props": {
+    "accessibilityLabel": "Workout. Oct 26, 2026. at Ostbloc. 3 exercises. 6 working sets. 4,602 lb volume. Duration 1 h 07 min. Back Squat: 2 sets, top set 226 lb for 3 reps, personal record. Romanian Deadlift: 2 sets, top set 176.4 lb for 8 reps. Pull-up: 2 sets. Shared by @crimp_queen. Made with Mizyun",
+    "accessibilityRole": "image",
+    "accessible": true,
+    "collapsable": false,
+    "ref": undefined,
+    "style": {
+      "backgroundColor": "#0B0D0F",
+      "gap": 14,
+      "height": 450,
+      "overflow": "hidden",
+      "padding": 20,
+      "width": 360,
+    },
+    "testID": "share-card",
+  },
+  "type": "View",
+}
+`;
+
+exports[`ShareCardView snapshots > workout card, dark, metric 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": "Oct 26, 2026",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#2BC48A",
+              "fontSize": 13,
+              "fontWeight": "700",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Workout",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#F3F4F6",
+              "fontSize": 26,
+              "fontWeight": "800",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Ostbloc",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#A3ABB8",
+              "fontSize": 15,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+      ],
+      "props": {
+        "style": {
+          "gap": 2,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": "Exercises",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "3",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Sets",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "6",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Volume",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "2,088 kg",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Time",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#A3ABB8",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "1 h 07 min",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#181B1F",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "flexDirection": "row",
+          "gap": 8,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        [
+          {
+            "children": [
+              {
+                "children": "Back Squat",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#2BC48A",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "PR · 102.5 kg × 3",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#2BC48A",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Romanian Deadlift",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#F3F4F6",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "80 kg × 8",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#A3ABB8",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Pull-up",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#F3F4F6",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "2 sets",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#A3ABB8",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+        ],
+      ],
+      "props": {
+        "style": {
+          "backgroundColor": "#181B1F",
+          "borderRadius": 12,
+          "flex": 1,
+          "gap": 8,
+          "padding": 12,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": "@crimp_queen",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#A3ABB8",
+              "flexShrink": 1,
+              "fontSize": 13,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": [
+            {
+              "children": null,
+              "props": {
+                "accessibilityIgnoresInvertColors": true,
+                "source": {
+                  "uri": "mark",
+                },
+                "style": {
+                  "borderRadius": 4,
+                  "height": 18,
+                  "width": 18,
+                },
+              },
+              "type": "Image",
+            },
+            {
+              "children": "Mizyun",
+              "props": {
+                "allowFontScaling": false,
+                "style": {
+                  "color": "#F3F4F6",
+                  "fontSize": 13,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "gap": 6,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 8,
+          "justifyContent": "space-between",
+        },
+      },
+      "type": "View",
+    },
+  ],
+  "props": {
+    "accessibilityLabel": "Workout. Oct 26, 2026. at Ostbloc. 3 exercises. 6 working sets. 2,088 kg volume. Duration 1 h 07 min. Back Squat: 2 sets, top set 102.5 kg for 3 reps, personal record. Romanian Deadlift: 2 sets, top set 80 kg for 8 reps. Pull-up: 2 sets. Shared by @crimp_queen. Made with Mizyun",
+    "accessibilityRole": "image",
+    "accessible": true,
+    "collapsable": false,
+    "ref": undefined,
+    "style": {
+      "backgroundColor": "#0B0D0F",
+      "gap": 14,
+      "height": 450,
+      "overflow": "hidden",
+      "padding": 20,
+      "width": 360,
+    },
+    "testID": "share-card",
+  },
+  "type": "View",
+}
+`;
+
+exports[`ShareCardView snapshots > workout card, light, imperial 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": "Oct 26, 2026",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#0A7A55",
+              "fontSize": 13,
+              "fontWeight": "700",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Workout",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#111827",
+              "fontSize": 26,
+              "fontWeight": "800",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Ostbloc",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#5B6472",
+              "fontSize": 15,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+      ],
+      "props": {
+        "style": {
+          "gap": 2,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": "Exercises",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "3",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Sets",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "6",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Volume",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "4,602 lb",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Time",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "1 h 07 min",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "flexDirection": "row",
+          "gap": 8,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        [
+          {
+            "children": [
+              {
+                "children": "Back Squat",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#0A7A55",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "PR · 226 lb × 3",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#0A7A55",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Romanian Deadlift",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#111827",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "176.4 lb × 8",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#5B6472",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Pull-up",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#111827",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "2 sets",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#5B6472",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+        ],
+      ],
+      "props": {
+        "style": {
+          "backgroundColor": "#FFFFFF",
+          "borderRadius": 12,
+          "flex": 1,
+          "gap": 8,
+          "padding": 12,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": "@crimp_queen",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#5B6472",
+              "flexShrink": 1,
+              "fontSize": 13,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": [
+            {
+              "children": null,
+              "props": {
+                "accessibilityIgnoresInvertColors": true,
+                "source": {
+                  "uri": "mark",
+                },
+                "style": {
+                  "borderRadius": 4,
+                  "height": 18,
+                  "width": 18,
+                },
+              },
+              "type": "Image",
+            },
+            {
+              "children": "Mizyun",
+              "props": {
+                "allowFontScaling": false,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 13,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "gap": 6,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 8,
+          "justifyContent": "space-between",
+        },
+      },
+      "type": "View",
+    },
+  ],
+  "props": {
+    "accessibilityLabel": "Workout. Oct 26, 2026. at Ostbloc. 3 exercises. 6 working sets. 4,602 lb volume. Duration 1 h 07 min. Back Squat: 2 sets, top set 226 lb for 3 reps, personal record. Romanian Deadlift: 2 sets, top set 176.4 lb for 8 reps. Pull-up: 2 sets. Shared by @crimp_queen. Made with Mizyun",
+    "accessibilityRole": "image",
+    "accessible": true,
+    "collapsable": false,
+    "ref": undefined,
+    "style": {
+      "backgroundColor": "#F2F4F3",
+      "gap": 14,
+      "height": 450,
+      "overflow": "hidden",
+      "padding": 20,
+      "width": 360,
+    },
+    "testID": "share-card",
+  },
+  "type": "View",
+}
+`;
+
+exports[`ShareCardView snapshots > workout card, light, metric 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": "Oct 26, 2026",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#0A7A55",
+              "fontSize": 13,
+              "fontWeight": "700",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Workout",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#111827",
+              "fontSize": 26,
+              "fontWeight": "800",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": "Ostbloc",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#5B6472",
+              "fontSize": 15,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+      ],
+      "props": {
+        "style": {
+          "gap": 2,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": "Exercises",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "3",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Sets",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "6",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Volume",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "2,088 kg",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+        {
+          "children": [
+            {
+              "children": "Time",
+              "props": {
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#5B6472",
+                  "fontSize": 11,
+                  "fontWeight": "600",
+                },
+              },
+              "type": "Text",
+            },
+            {
+              "children": "1 h 07 min",
+              "props": {
+                "adjustsFontSizeToFit": true,
+                "allowFontScaling": false,
+                "numberOfLines": 1,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 20,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "backgroundColor": "#FFFFFF",
+              "borderRadius": 12,
+              "flex": 1,
+              "gap": 2,
+              "paddingHorizontal": 8,
+              "paddingVertical": 10,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "flexDirection": "row",
+          "gap": 8,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        [
+          {
+            "children": [
+              {
+                "children": "Back Squat",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#0A7A55",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "PR · 102.5 kg × 3",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#0A7A55",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Romanian Deadlift",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#111827",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "80 kg × 8",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#5B6472",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+          {
+            "children": [
+              {
+                "children": "Pull-up",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#111827",
+                    "flex": 1,
+                    "fontSize": 14,
+                    "fontWeight": "700",
+                  },
+                },
+                "type": "Text",
+              },
+              {
+                "children": "2 sets",
+                "props": {
+                  "allowFontScaling": false,
+                  "numberOfLines": 1,
+                  "style": {
+                    "color": "#5B6472",
+                    "fontSize": 13,
+                    "fontVariant": [
+                      "tabular-nums",
+                    ],
+                    "fontWeight": "600",
+                    "textAlign": "right",
+                  },
+                },
+                "type": "Text",
+              },
+            ],
+            "props": {
+              "style": {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 8,
+              },
+            },
+            "type": "View",
+          },
+        ],
+      ],
+      "props": {
+        "style": {
+          "backgroundColor": "#FFFFFF",
+          "borderRadius": 12,
+          "flex": 1,
+          "gap": 8,
+          "padding": 12,
+        },
+      },
+      "type": "View",
+    },
+    {
+      "children": [
+        {
+          "children": "@crimp_queen",
+          "props": {
+            "allowFontScaling": false,
+            "numberOfLines": 1,
+            "style": {
+              "color": "#5B6472",
+              "flexShrink": 1,
+              "fontSize": 13,
+              "fontWeight": "600",
+            },
+          },
+          "type": "Text",
+        },
+        {
+          "children": [
+            {
+              "children": null,
+              "props": {
+                "accessibilityIgnoresInvertColors": true,
+                "source": {
+                  "uri": "mark",
+                },
+                "style": {
+                  "borderRadius": 4,
+                  "height": 18,
+                  "width": 18,
+                },
+              },
+              "type": "Image",
+            },
+            {
+              "children": "Mizyun",
+              "props": {
+                "allowFontScaling": false,
+                "style": {
+                  "color": "#111827",
+                  "fontSize": 13,
+                  "fontWeight": "800",
+                },
+              },
+              "type": "Text",
+            },
+          ],
+          "props": {
+            "style": {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "gap": 6,
+            },
+          },
+          "type": "View",
+        },
+      ],
+      "props": {
+        "style": {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 8,
+          "justifyContent": "space-between",
+        },
+      },
+      "type": "View",
+    },
+  ],
+  "props": {
+    "accessibilityLabel": "Workout. Oct 26, 2026. at Ostbloc. 3 exercises. 6 working sets. 2,088 kg volume. Duration 1 h 07 min. Back Squat: 2 sets, top set 102.5 kg for 3 reps, personal record. Romanian Deadlift: 2 sets, top set 80 kg for 8 reps. Pull-up: 2 sets. Shared by @crimp_queen. Made with Mizyun",
+    "accessibilityRole": "image",
+    "accessible": true,
+    "collapsable": false,
+    "ref": undefined,
+    "style": {
+      "backgroundColor": "#F2F4F3",
+      "gap": 14,
+      "height": 450,
+      "overflow": "hidden",
+      "padding": 20,
+      "width": 360,
+    },
+    "testID": "share-card",
+  },
+  "type": "View",
+}
+`;
