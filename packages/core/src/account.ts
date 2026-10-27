@@ -95,6 +95,8 @@ export interface AccountExport {
   readonly foodEntries: ReadonlyArray<StoredFoodEntry>;
   readonly exercises: ReadonlyArray<StoredExercise>;
   readonly runOperationReceipts?: readonly Record<string, unknown>[];
+  /** Server-verified Store subscription entitlement rows (ADR-0080). */
+  readonly subscriptionEntitlements?: readonly Record<string, unknown>[];
   /** Boulders and owner receipts; bouldering sessions export as workouts. */
   readonly bouldering?: {
     readonly ascents: readonly Record<string, unknown>[];

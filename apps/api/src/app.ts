@@ -53,9 +53,17 @@ import type { PhotoBackupRepository } from "@mizyun/core";
 import { SupabasePhotoBackupRepository } from "@mizyun/adapter-supabase-server";
 import { InMemoryPhotoBackupRepository } from "./photo-backup-repository.js";
 import { photoBackupRoutes } from "./modules/photo-backups/routes.js";
+import type { SubscriptionEntitlementRepository } from "@mizyun/core";
+import { SupabaseSubscriptionEntitlementRepository } from "@mizyun/adapter-supabase-server";
+import { RevenueCatSubscriberClient } from "@mizyun/adapter-revenuecat-server";
+import { billingRoutes } from "./modules/billing/routes.js";
+import { InMemorySubscriptionEntitlementRepository } from "./modules/billing/in-memory-repository.js";
+import type { EntitlementReader } from "./modules/billing/service.js";
 import {
   boulderingEnabled,
+  loadBillingConfig,
   stretchAiEnabled,
+  type BillingConfigResult,
   loadMealPhotosEnabled,
   runHealthImportsEnabled,
 } from "@mizyun/config";
@@ -416,6 +424,12 @@ export interface AppDependencies {
   /** Overrides `MIZYUN_BOULDERING_ENABLED` (tests). */
   readonly boulderingEnabled?: boolean;
   readonly photoBackupRepository?: PhotoBackupRepository;
+  /** Store billing (ADR-0080); tests inject these instead of env + RevenueCat. */
+  readonly subscriptionEntitlementRepository?: SubscriptionEntitlementRepository;
+  readonly billingConfig?: BillingConfigResult;
+  readonly billingEntitlementReader?: EntitlementReader;
+  readonly billingNow?: () => Date;
+  readonly billingSyncBudgetPerMinute?: number;
   /** Overrides `stretchAiEnabled(process.env)` (tests). */
   readonly stretchAiEnabled?: boolean;
   readonly workoutSetRepository?: WorkoutSetRepository;
@@ -1756,6 +1770,40 @@ export const buildApp = (
     // feature flag gates upload/read, not erasure (DELETE stays available).
     mealPhotosAvailable: mealPhotoService !== null,
   });
+  {
+    const billing =
+      dependencies.billingConfig ?? loadBillingConfig(process.env);
+    const repository: SubscriptionEntitlementRepository =
+      dependencies.subscriptionEntitlementRepository ??
+      (sp
+        ? new SupabaseSubscriptionEntitlementRepository({
+            clientFor: sp.clientFor,
+            serviceRoleClient: sp.serviceRoleClient ?? null,
+          })
+        : new InMemorySubscriptionEntitlementRepository());
+    // Writes need the service role; without it billing stays read-only.
+    const writable =
+      dependencies.subscriptionEntitlementRepository !== undefined ||
+      !sp ||
+      !!sp.serviceRoleClient;
+    const config = billing.enabled && writable ? billing.config : null;
+    if (billing.enabled && !writable) {
+      app.log.warn("billing disabled: no service-role client configured");
+    }
+    void app.register(billingRoutes, {
+      prefix: "/v1",
+      repository,
+      config,
+      reader: config
+        ? (dependencies.billingEntitlementReader ??
+          new RevenueCatSubscriberClient({ secretApiKey: config.secretApiKey }))
+        : null,
+      ...(dependencies.billingNow ? { now: dependencies.billingNow } : {}),
+      ...(dependencies.billingSyncBudgetPerMinute !== undefined
+        ? { syncBudgetPerMinute: dependencies.billingSyncBudgetPerMinute }
+        : {}),
+    });
+  }
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",
     workoutRepository,

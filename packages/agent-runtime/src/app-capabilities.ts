@@ -199,6 +199,11 @@ export const COACH_INTERNAL_FEATURES = [
     reason: "Operational health endpoints are not a user navigation feature.",
   },
   {
+    id: "store-billing",
+    reason:
+      "Pro purchases are off in Production until release; Coach must not claim subscriptions can be bought.",
+  },
+  {
     id: "agent-navigation",
     reason: "Repository navigation belongs to developer tooling.",
   },

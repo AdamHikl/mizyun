@@ -158,6 +158,7 @@ const accountExportToWire = (
             }
           : undefined,
       runOperationReceipts: exportDoc.runOperationReceipts,
+      subscriptionEntitlements: exportDoc.subscriptionEntitlements,
       bouldering: exportDoc.bouldering,
       productAnalytics: analytics
         ? {

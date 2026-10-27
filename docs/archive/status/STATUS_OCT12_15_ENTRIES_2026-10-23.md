@@ -9,3 +9,7 @@ Moved verbatim from status.md to keep it within its size limit. Their open exits
 - **#290 (Oct17):** lock/resume keeps sets, no false sign-out; 2 reviews/gatePASS; on main. Next: Dev/iPhone lock test; #291.
 - **#314 goal target date (Oct20):** optional/editable in Goal settings; no invented 90-day date; Home warning links there. Contract nullable, no migration; 2 reviews. Old builds reject null. gatePASS(3452mobile/1226API+15skips); Oct20 merge w/ #303/#308, Dev. Next: iPhone.
 - **#303 native pickers (Oct19):** shared Native{Date,Time}Picker (SwiftUI/Material3) replaces every custom/typed date-time input; JS-only. Reviewed; gatePASS(3296mobile); Oct20 merge, Dev. Android 24h (expo-localization, native rebuild) merged Oct21; device open.
+
+## Moved 2026-10-26 (status.md size limit)
+
+- **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
