@@ -6,7 +6,7 @@
 
 - **Oct8 ten/main:**10closed per Adam/pushed; gates/SQL/replay PASS. [Proof](docs/MAIN_DEV_DELIVERY_2026-10-08.md). Native/provider/release open.
 
-- **GTM (Oct26–27):** [plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md) adopted. #332–#336 merged on main Oct27: billing ADR0080, AI cost ADR0081, share card ADR0082, import ADR0083, activation ADR0084; migrations 20261026140000/150000/160000. ece07bd3 gatePASS(3818mobile/1442API+15skips); db:verify unrun. Pushed; Dev b06e3700 Oct27 17:02Z, 3 migrations, health200; no device check. Next: new Dev binary, Adam Store products/webhook, device acceptance. [Entries](docs/archive/status/STATUS_GTM_PACKAGES_2026-10-27.md)
+- **GTM (Oct26–27):** [plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md) adopted. #332–#336 merged on main Oct27: billing ADR0080, AI cost ADR0081, share card ADR0082, import ADR0083, activation ADR0084; migrations 20261026140000/150000/160000. ece07bd3 gatePASS(3818mobile/1442API+15skips); db:verify unrun. Pushed; Dev b06e3700 Oct27 17:02Z, 3 migrations, health200. iPhone Dev b46c6e2f Release 1.0.10(10) launched 17:10Z PID2508; acceptance open. Next: Adam Store products/webhook, device acceptance. [Entries](docs/archive/status/STATUS_GTM_PACKAGES_2026-10-27.md)
 - **Issues:** #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
