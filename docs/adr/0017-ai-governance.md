@@ -64,6 +64,14 @@ runtime, not the model:
 - Emergency, self-harm, eating-disorder, medical, dangerous-target,
   prompt-injection: fixed `screenCoachInput` patterns + fixed
   response copy. Provider is bypassed entirely.
+  Since 2026-10-27 (AI-01, L10N-01) the patterns live in
+  `packages/agent-runtime/src/safety-screen.ts`, match diacritic-folded
+  English, Slovak and Czech text, and are guarded by a must-block and
+  must-allow corpus. Questions that only mention pain, injury,
+  medication or a condition are answered with a fixed
+  see-a-professional advisory instead of a refusal. The provider
+  `*KeywordContentScreen` classes are local self-harm keyword checks,
+  not moderation-model calls.
 - Provider output is post-screened for unsafe-content patterns
   (medical claims, unsafe daily targets, train-through-pain advice).
   Matched output is replaced with a generic safety fallback.

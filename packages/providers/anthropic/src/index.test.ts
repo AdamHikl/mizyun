@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AnthropicAgentProvider,
-  AnthropicContentModerator,
+  AnthropicKeywordContentScreen,
   type AnthropicMessagesClient,
 } from "./index.js";
 import { toAnthropicJsonSchema } from "./client.js";
@@ -342,9 +342,11 @@ describe("AnthropicAgentProvider", () => {
   });
 });
 
-describe("AnthropicContentModerator", () => {
+describe("AnthropicKeywordContentScreen", () => {
   it("blocks self-harm language locally", async () => {
-    const moderator = new AnthropicContentModerator({ externalAccess: true });
+    const moderator = new AnthropicKeywordContentScreen({
+      externalAccess: true,
+    });
     await expect(
       moderator.moderateText({
         text: "I want to kill myself",

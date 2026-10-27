@@ -9,6 +9,7 @@ import {
   type AgentToolDefinition,
   type AgentToolResult,
   type ContentModerationDecision,
+  containsSelfHarmLanguage,
   type ContentModerator,
 } from "@mizyun/agent-runtime";
 import { z } from "zod";
@@ -783,23 +784,20 @@ export interface GeminiModerationOptions {
 }
 
 /**
- * LocalHeuristicContentModerator (REL-AUD-006).
- *
- * NOTE: This is a fast, local-heuristic screen designed to catch critical self-harm
- * and non-wellness emergency language before external model calls are made. It is
- * NOT an external Gemini Moderation API endpoint (Google Gemini does not offer a
- * standalone moderation endpoint analogous to OpenAI's or Mistral's; Gemini instead
- * enforces content safety at the model inference boundary using safetySettings
- * for HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_HATE_SPEECH,
- * HARM_CATEGORY_SEXUALLY_EXPLICIT, and HARM_CATEGORY_DANGEROUS_CONTENT).
+ * Local keyword screen behind the `ContentModerator` port (REL-AUD-006,
+ * AI-01). It is NOT a model or moderation-API call: Gemini has no standalone
+ * moderation endpoint and enforces content safety at inference through
+ * `safetySettings`. It reuses the shared, diacritic-insensitive self-harm
+ * patterns from `@mizyun/agent-runtime` on both input and output, and throws
+ * (fail closed) when external AI access is disabled.
  */
-export class GeminiContentModerator implements ContentModerator {
+export class GeminiKeywordContentScreen implements ContentModerator {
   readonly #externalAccess: boolean;
   readonly #model: string;
 
   constructor(options: GeminiModerationOptions) {
     this.#externalAccess = options.externalAccess;
-    this.#model = options.model ?? "local-heuristic-moderation";
+    this.#model = options.model ?? "local-keyword-screen";
   }
 
   async moderateText(input: {
@@ -809,13 +807,7 @@ export class GeminiContentModerator implements ContentModerator {
     if (!this.#externalAccess) {
       throw new Error("External moderation access is disabled.");
     }
-    // Fast-path heuristic screen for severe non-wellness emergency harms
-    const lower = input.text.toLowerCase();
-    if (
-      lower.includes("suicide") ||
-      lower.includes("self-harm") ||
-      lower.includes("kill myself")
-    ) {
+    if (containsSelfHarmLanguage(input.text)) {
       return {
         allowed: false,
         provider: "gemini",
@@ -830,9 +822,6 @@ export class GeminiContentModerator implements ContentModerator {
     };
   }
 }
-
-/** Alias for semantic clarity */
-export const LocalHeuristicContentModerator = GeminiContentModerator;
 
 export {
   GeminiVisionProvider,

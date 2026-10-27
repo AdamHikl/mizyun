@@ -8,6 +8,7 @@ import {
   type AgentResponse,
   type AgentToolCall,
   type ContentModerationDecision,
+  containsSelfHarmLanguage,
   type ContentModerator,
 } from "@mizyun/agent-runtime";
 import {
@@ -367,11 +368,13 @@ export class AnthropicAgentProvider implements AgentProvider {
 }
 
 /**
- * Same local heuristic screen the Gemini path uses (REL-AUD-006). Anthropic
- * has no standalone moderation endpoint; model-side safeguards surface as
- * `stop_reason: "refusal"`.
+ * Local keyword screen behind the `ContentModerator` port, the same one the
+ * Gemini path uses (REL-AUD-006, AI-01). It is not a model call: Anthropic has
+ * no standalone moderation endpoint, and model-side safeguards surface as
+ * `stop_reason: "refusal"`. It reuses the shared, diacritic-insensitive
+ * self-harm patterns from `@mizyun/agent-runtime`.
  */
-export class AnthropicContentModerator implements ContentModerator {
+export class AnthropicKeywordContentScreen implements ContentModerator {
   readonly #externalAccess: boolean;
 
   constructor(options: { readonly externalAccess: boolean }) {
@@ -385,23 +388,18 @@ export class AnthropicContentModerator implements ContentModerator {
     if (!this.#externalAccess) {
       throw new Error("External moderation access is disabled.");
     }
-    const lower = input.text.toLowerCase();
-    if (
-      lower.includes("suicide") ||
-      lower.includes("self-harm") ||
-      lower.includes("kill myself")
-    ) {
+    if (containsSelfHarmLanguage(input.text)) {
       return {
         allowed: false,
         provider: PROVIDER,
-        model: "local-heuristic-moderation",
+        model: "local-keyword-screen",
         category: "self_harm",
       };
     }
     return {
       allowed: true,
       provider: PROVIDER,
-      model: "local-heuristic-moderation",
+      model: "local-keyword-screen",
     };
   }
 }
