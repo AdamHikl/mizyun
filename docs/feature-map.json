@@ -479,7 +479,7 @@
         "packages/core/src/history-import-csv.test.ts",
         "packages/core/src/history-import-match.test.ts",
         "packages/core/src/history-import-plan.test.ts",
-        "supabase/tests/database/0054_history_imports.test.sql",
+        "supabase/tests/database/0055_history_imports.test.sql",
         "packages/core/src/share-card.test.ts",
         "apps/mobile/src/features/share-card/share-card-view.test.tsx",
         "apps/mobile/src/features/share-card/share-card-native.test.ts",

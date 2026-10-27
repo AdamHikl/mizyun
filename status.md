@@ -1,12 +1,12 @@
 # Mizyun status
 
-> Updated 2026-10-26 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-27 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
 - **Oct8 ten/main:**10closed per Adam/pushed; gates/SQL/replay PASS. [Proof](docs/MAIN_DEV_DELIVERY_2026-10-08.md). Native/provider/release open.
 
-- **GTM (Oct26, Adam adopted):** [plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md); goals/plan/alignment updated; #332–#336 in Opus worktree sessions. Play live (Oct10); iOS TestFlight; App Store #319 open.
+- **GTM (Oct26–27):** [plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md) adopted. #332–#336 merged on main Oct27: billing ADR0080, AI cost ADR0081, share card ADR0082, import ADR0083, activation ADR0084; migrations 20261026140000/150000/160000. Combined gate below; not pushed/deployed. Next: Dev API before new Dev binary, Adam Store products/webhook, device acceptance. [Entries](docs/archive/status/STATUS_GTM_PACKAGES_2026-10-27.md)
 - **Issues:** #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
@@ -24,7 +24,6 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#336 AI cost allowance (Oct26, ADR0081):** per-call USD ledger (migration 20261026150000): paid $0.15/day, $1/month; free $0.05/$0.50; paid drafts 15/day; refines (were unbounded) 30/10. Worst paid month $1.15 = 29% annual net (2027 prices). `pnpm ai:cost-report`. 2 Opus reviews; gatePASS(3726mobile/1399API); pgTAP scratch PASS, db:verify unrun. Undeployed. #340/#341. [Economics](docs/AI_UNIT_ECONOMICS_2026-10-26.md)
 - **#265 Community lifetime (Oct23):** own previews no deadline; others 60s+renewal (Adam). ca9a0955 3 reviews, gatePASS(3656mobile/1365API+15skips); Dev 13:24Z health200; iPhone 13:56Z PID85043. Next: Adam device. #324. [Handoff](docs/COMMUNITY_READ_LIFETIME_2026-10-23.md)
 - **Overnight fixes (Oct23):** #316/#310/#317/#284/#285/#286/#315/#301/#320/#318/#245 Dev 8823fa47 08:20Z health200 (AGENT_PROVIDER=gemini); gatePASS(3614mobile/1365API). iPhone Release installed 08:21Z; launch blocked (locked). Next: Adam device checks. [Handoff](docs/OVERNIGHT_FIXES_2026-10-23.md)
 - **#321 local-first photos (Oct22, ADR0079):** photos on device, optional backup; reviewed; gatePASS; Dev 8823fa47; device open. #322/#323. [Handoff](docs/LOCAL_FIRST_PHOTOS_2026-10-22.md)
