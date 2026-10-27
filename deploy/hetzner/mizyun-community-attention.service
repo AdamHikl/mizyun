@@ -1,0 +1,27 @@
+[Unit]
+Description=Mizyun Production Community moderation and privacy attention check
+After=network-online.target mizyun-supabase.service
+Requires=mizyun-supabase.service
+OnFailure=mizyun-community-alert@%n.service
+
+[Service]
+Type=oneshot
+User=mizyun
+Group=mizyun
+WorkingDirectory=/var/lib/mizyun/repo
+EnvironmentFile=/etc/mizyun/production.env
+# Exit 3 = reports or withdrawals need a human; exit 1 = the check itself failed.
+ExecStart=/usr/local/bin/node /var/lib/mizyun/repo/scripts/community-production-maintenance.mjs attention
+TimeoutStartSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+InaccessiblePaths=-/etc/mizyun/dev.env -/var/lib/mizyun/dev -/srv/mizyun/supabase -/srv/mizyun/migration -/var/run/docker.sock
+ReadWritePaths=/tmp
+MemoryMax=128M
+CPUQuota=25%
+UMask=0077

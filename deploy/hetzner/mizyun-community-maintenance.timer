@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Mizyun Production Community privacy maintenance every five minutes
+
+[Timer]
+# Calendar trigger keeps firing after a failed run (OnFailure alerts each failure).
+OnCalendar=*:0/5:30
+AccuracySec=10s
+Persistent=true
+Unit=mizyun-community-maintenance.service
+
+[Install]
+WantedBy=timers.target

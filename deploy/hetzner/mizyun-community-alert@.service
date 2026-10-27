@@ -1,0 +1,15 @@
+[Unit]
+Description=Mizyun Community alert for %i
+After=network-online.target
+Wants=network-online.target
+# At most three alerts per failing unit per hour. The hourly attention check never reaches
+# the limit, so a new urgent report is never throttled; a maintenance outage is capped.
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/mizyun-send-alert "%i" "Community unit %i needs attention on %H (open reports or failed privacy maintenance). Read: journalctl -u %i -n 20"
+Nice=10
+UMask=0077

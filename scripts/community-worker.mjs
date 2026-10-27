@@ -14,12 +14,16 @@ export async function runCommunityTick({
     accepted: 0,
     suppressed: 0,
     retries: 0,
+    withdrawalJobs: 0,
     cleanupBatches: 0,
+    retentionRows: 0,
+    mediaCleaned: 0,
     receipts: 0,
   };
   // Service-only SQL cursor bounded to ten jobs per tick.
   const jobs = await rpc("community_withdrawal_pending", {});
   for (const job of jobs) {
+    stats.withdrawalJobs++;
     for (let batch = 0; batch < 20; batch++) {
       const result = await rpc("community_withdrawal_batch", {
         p_user_id: job.user_id,
@@ -30,8 +34,9 @@ export async function runCommunityTick({
       if (result[0]?.complete) break;
     }
   }
-  await rpc("community_retention_batch", { p_limit: 500 });
-  if (cleanupMedia) await cleanupMedia();
+  const retention = await rpc("community_retention_batch", { p_limit: 500 });
+  stats.retentionRows = Number(retention?.[0]?.deleted_count ?? 0);
+  if (cleanupMedia) stats.mediaCleaned = (await cleanupMedia()) ?? 0;
   if (receipts) {
     const pendingReceipts = await rpc("community_notification_receipts", {
       p_limit: 20,

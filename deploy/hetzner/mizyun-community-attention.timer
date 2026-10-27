@@ -1,0 +1,12 @@
+[Unit]
+Description=Check the Mizyun Production Community report queue every hour
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=120
+AccuracySec=30s
+Persistent=true
+Unit=mizyun-community-attention.service
+
+[Install]
+WantedBy=timers.target

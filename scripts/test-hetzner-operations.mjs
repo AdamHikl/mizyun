@@ -94,6 +94,41 @@ const alertService = readFileSync(
 );
 assert.match(alertService, /ExecStart=\/usr\/local\/sbin\/mizyun-send-alert/);
 
+// Production Community privacy maintenance and report attention (#153/#319).
+const communityAlert = readFileSync(
+  "deploy/hetzner/mizyun-community-alert@.service",
+  "utf8",
+);
+assert.match(
+  communityAlert,
+  /ExecStart=\/usr\/local\/sbin\/mizyun-send-alert "%i"/,
+);
+assert.match(communityAlert, /StartLimitBurst=3/);
+for (const [unit, mode] of [
+  ["mizyun-community-maintenance", "maintenance"],
+  ["mizyun-community-attention", "attention"],
+]) {
+  const service = readFileSync(`deploy/hetzner/${unit}.service`, "utf8");
+  assert.match(service, /OnFailure=mizyun-community-alert@%n\.service/);
+  assert.match(service, /^User=mizyun$/m);
+  assert.match(service, /^EnvironmentFile=\/etc\/mizyun\/production\.env$/m);
+  assert.match(service, /Requires=mizyun-supabase\.service/);
+  assert.ok(
+    service.includes(
+      `ExecStart=/usr/local/bin/node /var/lib/mizyun/repo/scripts/community-production-maintenance.mjs ${mode}\n`,
+    ),
+    `${unit} must run the Production runner in ${mode} mode`,
+  );
+  assert.doesNotMatch(service, /dev\.env$|mizyun\/dev\/repo|:8100|:5433/m);
+  assert.match(
+    service,
+    /InaccessiblePaths=-\/etc\/mizyun\/dev\.env -\/var\/lib\/mizyun\/dev /,
+  );
+  const timer = readFileSync(`deploy/hetzner/${unit}.timer`, "utf8");
+  assert.match(timer, /^OnCalendar=/m);
+  assert.ok(timer.includes(`Unit=${unit}.service`));
+}
+
 const verifyScript = readFileSync("scripts/verify-backup-recovery.sh", "utf8");
 assert.match(verifyScript, /PAYLOAD_SHA256SUMS/);
 assert.match(verifyScript, /table-counts\.tsv/);

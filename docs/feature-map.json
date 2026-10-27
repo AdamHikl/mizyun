@@ -1789,7 +1789,13 @@
         "scripts/community-revocation-ledger.test.mjs",
         "scripts/community-revocation-replay.py",
         "scripts/test-community-revocation-replay.py",
-        "scripts/test-community-revocation-replay-db.py"
+        "scripts/test-community-revocation-replay-db.py",
+        "scripts/community-production-maintenance.mjs",
+        "deploy/hetzner/mizyun-community-maintenance.service",
+        "deploy/hetzner/mizyun-community-maintenance.timer",
+        "deploy/hetzner/mizyun-community-attention.service",
+        "deploy/hetzner/mizyun-community-attention.timer",
+        "deploy/hetzner/mizyun-community-alert@.service"
       ],
       "contracts": [
         "packages/contracts/src/community.ts",
@@ -1987,7 +1993,8 @@
         "supabase/migrations/20261007120000_community_messaging_reads.sql",
         "supabase/migrations/20261007130000_community_artifact_authors.sql",
         "supabase/migrations/20261008120000_community_revocation_ledger.sql",
-        "supabase/migrations/20261016180000_community_bouldering_sharing.sql"
+        "supabase/migrations/20261016180000_community_bouldering_sharing.sql",
+        "supabase/migrations/20261027130000_community_operations_alert_counts.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -2092,7 +2099,9 @@
         "supabase/tests/scratch/0045_community_routine_projection_refusal.test.sql",
         "apps/mobile/src/features/community/invitation-fallback.test.ts",
         "supabase/tests/database/0050_community_bouldering_sharing.test.sql",
-        "apps/api/src/modules/community/bouldering-publication-routes.test.ts"
+        "apps/api/src/modules/community/bouldering-publication-routes.test.ts",
+        "scripts/community-production-maintenance.test.mjs",
+        "supabase/tests/database/0056_community_operations_alert_counts.test.sql"
       ],
       "relations": [
         {
@@ -2136,7 +2145,8 @@
         "docs/adr/0052-community-revocation-capture-and-quarantined-replay.md",
         "docs/COMMUNITY_CLOSURE_MATERIALS_2026-10-08.md",
         "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md",
-        "docs/adr/0067-explicit-community-bouldering-publication.md"
+        "docs/adr/0067-explicit-community-bouldering-publication.md",
+        "docs/adr/0085-community-production-privacy-maintenance-and-report-alerts.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",
