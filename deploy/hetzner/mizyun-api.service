@@ -3,6 +3,7 @@ Description=Mizyun production API on Hetzner
 Wants=network-online.target
 After=network-online.target mizyun-supabase.service
 Requires=mizyun-supabase.service
+OnFailure=mizyun-alert@%n.service
 
 [Service]
 Type=simple

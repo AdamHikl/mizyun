@@ -256,3 +256,10 @@ while IFS= read -r -d '' candidate; do
 done < <(find "$export_root" -mindepth 1 -maxdepth 1 -type d -mtime "+$retention_days" -print0)
 
 echo "Encrypted Production backup created: $release_dir"
+
+# Optional dead-man ping for the scheduled run only; a pre-deploy backup
+# (caller holds the lock) must not hide a stopped daily timer.
+heartbeat_command="${MIZYUN_HEARTBEAT_COMMAND:-/usr/local/sbin/mizyun-heartbeat}"
+if [[ "$caller_holds_lock" == "false" && -x "$heartbeat_command" ]]; then
+  "$heartbeat_command" backup || true
+fi

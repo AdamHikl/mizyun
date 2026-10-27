@@ -1,0 +1,13 @@
+[Unit]
+Description=Mizyun host watch (disk, memory, critical units, restarts)
+OnFailure=mizyun-alert@%n.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/mizyun-host-watch
+StateDirectory=mizyun-host-watch
+StateDirectoryMode=0700
+TimeoutStartSec=120
+Nice=10
+UMask=0077

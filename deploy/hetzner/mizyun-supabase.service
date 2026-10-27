@@ -3,6 +3,7 @@ Description=Mizyun Supabase production stack on Hetzner
 Wants=network-online.target
 After=network-online.target docker.service
 Requires=docker.service
+OnFailure=mizyun-alert@%n.service
 
 [Service]
 Type=oneshot

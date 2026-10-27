@@ -85,19 +85,199 @@ ssh rpserver 'sudo cat /srv/mizyun/vm-backups/last-success.json'
 
 ### Operational alerting
 
-Both `mizyun-backup.service` (Hetzner) and `mizyun-backup-pull.service` (Pi) attach
-an automated failure handler via `OnFailure=mizyun-backup-alert@%n.service`.
+All alerts go through `/usr/local/sbin/mizyun-send-alert <unit> <message>`
+(`deploy/hetzner/mizyun-send-alert.sh`). It always logs at `daemon.crit` to
+journald (`journalctl -t mizyun-alert`) and, when `/etc/mizyun/alerts.env`
+sets `MIZYUN_ALERT_WEBHOOK_URL`, posts JSON with both `text` (Slack,
+Mattermost) and `content` (Discord) to that webhook. The alert scripts source
+`alerts.env` as root and ignore it unless it is a regular file owned by root
+and not group- or world-writable; webhook and ping URLs are passed to `curl`
+on stdin, never in the process list.
 
-When a failure occurs:
+| Signal                                         | Mechanism                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Backup or Pi pull failed                       | `OnFailure=mizyun-backup-alert@%n.service` on both backup units                                              |
+| Production API, Supabase, Dev Supabase, tunnel | `OnFailure=mizyun-alert@%n.service`: each crash, failed start or stop timeout; at most 3 per unit per 30 min |
+| Automatic restart of a watched unit            | `mizyun-host-watch.timer` compares systemd `NRestarts` every 5 minutes; at most one alert per hour per unit  |
+| Watched unit not active (incl. a manual stop)  | host watch, after two consecutive runs; paused while the matching maintenance lock is held                   |
+| Disk ≥ 85 % used, available memory < 10 %      | host watch, after two consecutive runs; repeats hourly; sends "Recovered" when cleared                       |
+| Unhealthy or restarting Docker container       | host watch (`docker ps --filter health=unhealthy` / `status=restarting`)                                     |
+| Backup or Pi pull did not succeed on schedule  | optional dead-man ping (`mizyun-heartbeat`) to an external check, e.g. healthchecks.io                       |
+| Public API or tunnel unreachable               | external uptime monitor (outside Hetzner); the only signal if the whole VM is down                           |
 
-1. Systemd triggers `mizyun-backup-alert@.service`.
-2. The unit executes `/usr/local/sbin/mizyun-send-alert` (`deploy/hetzner/mizyun-send-alert.sh`).
-3. Alerts are logged with `daemon.crit` priority to journald / syslog.
-4. If `/etc/mizyun/alerts.env` defines `MIZYUN_ALERT_WEBHOOK_URL`, an alert payload
-   is dispatched via HTTP POST to the webhook (Slack, Discord, or Telegram).
-5. Operator runbook: on alert, inspect `journalctl -u mizyun-backup.service` (or
-   `mizyun-backup-pull.service`), check disk space (`df -h`), container health
-   (`docker ps`), and database write freeze state.
+On systemd 255 (`RestartMode=normal`) a crashing unit passes through the
+failed state before `Restart=on-failure` restarts it, so `OnFailure` reports
+each crash; the `StartLimitBurst` on `mizyun-alert@.service` caps a crash loop
+and the host watch keeps reporting it hourly. A clean `systemctl stop`
+(backup, deployment) is not a failure. `mizyun-api-dev.service` deliberately
+has no `OnFailure`/`ExecStopPost` hook: the Dev backup freeze
+(`scripts/backup-dev-encrypted.py`) refuses units with stop or completion
+hooks, so the host watch alone covers Dev API restarts and stops. A manually
+stopped tunnel, as in the 32-minute Production outage, is caught by the host
+watch and the external monitor, never by `OnFailure`.
+
+The host watch never takes a lock. It reads `lslocks` and pauses unit-state
+checks while `/run/lock/mizyun-production-maintenance.lock` is held (all
+units) or `/tmp/mizyun-deploy-dev.lock` is held (`*-dev.service` only).
+Known gaps: a manual `systemctl start`/`restart` resets `NRestarts`, so crashes
+just before a deployment can go unreported; exited containers inside an
+otherwise active Supabase unit are not reported unless Docker restarts them.
+
+Thresholds and the watched unit list are optional `alerts.env` settings:
+`MIZYUN_WATCH_DISK_PATHS` (space-separated, default `/`),
+`MIZYUN_WATCH_DISK_PERCENT` (85), `MIZYUN_WATCH_MEM_AVAILABLE_PERCENT` (10),
+`MIZYUN_WATCH_CONFIRM_RUNS` (2), `MIZYUN_WATCH_REPEAT_MINUTES` (60),
+`MIZYUN_WATCH_DOCKER_HEALTH` (`true`) and `MIZYUN_WATCH_UNITS` (default: both
+APIs, both Supabase stacks, `cloudflared` and `docker`; set it to empty on the
+Pi).
+
+On an alert, inspect `journalctl -u <unit> -n 200`, `systemctl status <unit>`,
+`df -h`, `free -m` and `docker ps -a`. For a backup failure also check the
+database write freeze state.
+
+### Monitoring setup (one-time, Adam)
+
+These steps need accounts and root access, so only Adam performs them. They
+restart no service. Run steps 4–6 only after this change is on `main` and Dev
+has been deployed to that commit, so the new files exist in the pristine Dev
+checkout on Hetzner (`/var/lib/mizyun/dev/repo`). Run nothing in steps 5–6
+between 02:00 and 02:45 UTC or during a deployment.
+
+1. **Alert channel.** Create an incoming webhook in a private Discord channel
+   or Slack workspace that you read on your phone. Keep the URL secret.
+2. **Dead-man checks.** In healthchecks.io (or similar), create two checks:
+   `mizyun-backup` (period 1 day, grace 2 hours; it should ping shortly after
+   02:15 UTC) and `mizyun-backup-pull` (period 1 day, grace 2 hours; after
+   03:15 UTC). Set each to notify the same channel. Copy their ping URLs.
+3. **External uptime monitor.** In a service outside Hetzner (for example
+   UptimeRobot or Better Stack), add HTTP monitors that expect status 200 every
+   5 minutes from more than one region:
+   - Production readiness: `https://mizyun-api.phiskel.com/v1/readiness`
+     (returns 503 while not ready).
+   - Dev health: `https://mizyun-api-dev.phiskel.com/v1/health`.
+
+   Alert after three consecutive failures rather than using a fixed
+   maintenance window: the backup closes the tunnel briefly each night, and
+   after a reboot or missed run (`Persistent=true`) it can run at any time.
+
+4. **Hetzner: alert config.** Keep an existing file; create it only if
+   missing. Edit with an editor so the URLs never enter shell history:
+
+   ```bash
+   ssh mizyun-hetzner-ops
+   install -d -m 0755 -o root -g root /etc/mizyun
+   [ -e /etc/mizyun/alerts.env ] || install -m 0600 -o root -g root /dev/null /etc/mizyun/alerts.env
+   chown root:root /etc/mizyun/alerts.env && chmod 0600 /etc/mizyun/alerts.env
+   nano /etc/mizyun/alerts.env
+   ```
+
+   Add (plain `NAME=value` lines only; the file is sourced by root):
+
+   ```bash
+   MIZYUN_ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/...
+   MIZYUN_HEARTBEAT_URL_BACKUP=https://hc-ping.com/...
+   ```
+
+5. **Hetzner: pre-checks.** Each must pass before step 6; stop and report
+   otherwise.
+
+   ```bash
+   # a) Last night's planned stops must not have failed. Expect no output.
+   journalctl -u mizyun-api.service -u cloudflared.service --since yesterday --no-pager \
+     | grep 'Failed with result'
+   # b) No unrelated unit edits are waiting for a reload. Expect all "no".
+   systemctl show -p NeedDaemonReload mizyun-api.service mizyun-api-dev.service \
+     mizyun-supabase.service mizyun-supabase-dev.service cloudflared.service
+   # c) lslocks shows flock paths (briefly takes the lock; outside maintenance only).
+   flock -n /run/lock/mizyun-production-maintenance.lock \
+     lslocks --noheadings --output PATH | grep -Fx /run/lock/mizyun-production-maintenance.lock \
+     || echo "check failed or lock busy"
+   ```
+
+   If (a) shows a planned stop as failed, fix the exit status
+   (`SuccessExitStatus=`) before adding `OnFailure`; do not install the
+   drop-ins and mute alerts. If (c) prints "check failed or lock busy", confirm no backup or deployment is running (`systemctl is-active mizyun-backup.service mizyun-backup-for-deploy.service`) and retry once; if it still fails, the watch cannot see
+   maintenance and will alert during long backups or deployments; report it.
+
+6. **Hetzner: install scripts, units and drop-ins** (as root, from the Dev
+   checkout; drop-ins avoid overwriting any live unit drift):
+
+   ```bash
+   src=/var/lib/mizyun/dev/repo/deploy/hetzner
+   install -m 0755 -o root -g root "$src/mizyun-send-alert.sh" /usr/local/sbin/mizyun-send-alert
+   install -m 0755 -o root -g root "$src/mizyun-heartbeat.sh" /usr/local/sbin/mizyun-heartbeat
+   install -m 0755 -o root -g root "$src/mizyun-host-watch.sh" /usr/local/sbin/mizyun-host-watch
+   install -m 0644 -o root -g root "$src/mizyun-alert@.service" "$src/mizyun-host-watch.service" "$src/mizyun-host-watch.timer" /etc/systemd/system/
+   for unit in mizyun-api mizyun-supabase mizyun-supabase-dev cloudflared; do
+     install -d -m 0755 "/etc/systemd/system/$unit.service.d"
+     printf '[Unit]\nOnFailure=mizyun-alert@%%n.service\n' > "/etc/systemd/system/$unit.service.d/alert.conf"
+   done
+   systemctl daemon-reload
+   systemctl enable --now mizyun-host-watch.timer
+   ```
+
+   Do **not** install `backup-production-encrypted.sh` from the Dev checkout:
+   it is Production backup code. Its heartbeat line reaches
+   `/usr/local/sbin/mizyun-backup-production` only with a Production release
+   of this commit, from `/var/lib/mizyun/repo`, after
+   `diff /usr/local/sbin/mizyun-backup-production /var/lib/mizyun/repo/deploy/hetzner/backup-production-encrypted.sh`
+   shows only the heartbeat block. Until then the `mizyun-backup` check gets
+   no pings: leave it paused.
+
+7. **Hetzner: verify and send one test alert.**
+
+   ```bash
+   systemctl show -p OnFailure mizyun-api.service cloudflared.service mizyun-supabase.service mizyun-supabase-dev.service
+   systemctl show -p OnFailure mizyun-api-dev.service   # must be empty
+   systemctl start mizyun-alert@manual-test.service     # arrives in the channel as "Unit manual-test failed"
+   systemctl start mizyun-host-watch.service && journalctl -u mizyun-host-watch -n 20 --no-pager
+   systemctl show cloudflared.service -p Id -p LoadState -p UnitFileState -p After -p Before -p Wants -p Requires -p Requisite -p BindsTo -p PartOf -p Conflicts -p ConflictedBy -p PropagatesStopTo -p StopPropagatedFrom -p Type -p Restart > /tmp/tunnel.txt
+   node /var/lib/mizyun/dev/repo/deploy/hetzner/verify-shared-tunnel-dependencies.mjs --snapshot /tmp/tunnel.txt && rm /tmp/tunnel.txt
+   ```
+
+   The next morning, check that no false alert arrived from the 02:15 backup.
+
+8. **Pi** (`ssh rpserver`, then `sudo -i`). Copy `mizyun-send-alert.sh`,
+   `mizyun-heartbeat.sh`, `mizyun-host-watch.sh`, `mizyun-alert@.service`,
+   `mizyun-host-watch.service`, `mizyun-host-watch.timer` and
+   `pull-backups-from-hetzner.sh` from the Mac checkout of the merged `main`
+   commit to a new root-only directory (for example `/root/mizyun-ops`), then:
+
+   ```bash
+   cd /root/mizyun-ops
+   diff /usr/local/sbin/mizyun-backup-pull pull-backups-from-hetzner.sh   # expect only the heartbeat block; stop otherwise
+   install -m 0755 -o root -g root mizyun-send-alert.sh /usr/local/sbin/mizyun-send-alert
+   install -m 0755 -o root -g root mizyun-heartbeat.sh /usr/local/sbin/mizyun-heartbeat
+   install -m 0755 -o root -g root mizyun-host-watch.sh /usr/local/sbin/mizyun-host-watch
+   install -m 0755 -o root -g root pull-backups-from-hetzner.sh /usr/local/sbin/mizyun-backup-pull
+   install -m 0644 -o root -g root mizyun-alert@.service mizyun-host-watch.service mizyun-host-watch.timer /etc/systemd/system/
+   install -d -m 0755 /etc/mizyun
+   [ -e /etc/mizyun/alerts.env ] || install -m 0600 -o root -g root /dev/null /etc/mizyun/alerts.env
+   chown root:root /etc/mizyun/alerts.env && chmod 0600 /etc/mizyun/alerts.env
+   nano /etc/mizyun/alerts.env
+   ```
+
+   Pi `alerts.env` lines: `MIZYUN_ALERT_WEBHOOK_URL=...`,
+   `MIZYUN_HEARTBEAT_URL_BACKUP_PULL=...`, `MIZYUN_WATCH_UNITS=`,
+   `MIZYUN_WATCH_DOCKER_HEALTH=false` (keeps the frozen pre-migration stack out
+   of the watch) and `MIZYUN_WATCH_DISK_PATHS="/ /srv/mizyun/vm-backups"`.
+   Then:
+
+   ```bash
+   systemctl show -p NeedDaemonReload mizyun-backup-pull.service   # expect "no"
+   systemctl daemon-reload
+   systemctl enable --now mizyun-host-watch.timer
+   systemctl start mizyun-alert@pi-manual-test.service
+   /usr/local/sbin/mizyun-heartbeat backup-pull   # healthchecks.io shows one ping
+   ```
+
+9. **Record evidence** (redacted, no URLs): the test alert arrival times,
+   the first healthchecks.io pings, the first green uptime checks and the
+   `systemctl show` output. Uptime monitoring does not prove backup restore;
+   the restore drill below remains separate.
+
+Crash and error reporting for the app and API is not part of this setup; see
+the draft [ADR-0085](../adr/0085-crash-error-reporting.md) and #342.
 
 ### Capacity and retention plan
 
