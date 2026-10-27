@@ -10,6 +10,28 @@ Consequences ([ADR-0080](adr/0080-store-billing-revenuecat-entitlements.md)):
 - Sandbox purchases grant Pro only in Dev unless `BILLING_ALLOW_SANDBOX=true`, because TestFlight testers use the Production backend.
 - Not confirmed from a primary source: the Play Billing Library version inside purchases-hybrid-common 19.10.0 (check the built AAB's dependencies before the Store release), Apple's Schedule 2 disclosure list text, and the exact `apps.apple.com/account/subscriptions` deep-link documentation.
 
+## AI list prices and unit economics for Pro caps (#336, ADR-0081) — 2026-10-26
+
+Checked on 2026-10-26, USD:
+
+- [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing): `claude-haiku-5-5` $0.10 input / $0.50 output per MTok for prompts up to 100,000 tokens ($0.50 / $2.50 above), cache hits $0.01, batch half price. Web search costs $10 per 1,000 searches on top of tokens. US-only `inference_geo` costs 1.1× (Mizyun uses the default global routing).
+- [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), paid tier:
+  - `gemini-3.8-flash` and the `gemini-3.6-flash` fallback: $0.75 input / $3.75 output per MTok (output includes thinking) through 2026-12-31, then **$1.50 / $7.50 from 2027-01-01**. Context caching is $0.075 per MTok.
+  - `gemini-3.1-flash-lite-image`: $0.25 input, $30 per MTok of image output. A 1K image is 1,120 tokens, about $0.0336.
+  - Grounding with Google Search: 5,000 free requests a month, shared across Gemini 3 models in the project, then $14 per 1,000.
+  - `gemini-3.7-flash`, which the old Pi Dev example uses as a fallback, is no longer listed.
+- [Gemini media resolution](https://ai.google.dev/gemini-api/docs/media-resolution): a Gemini 3 image at the default resolution is 1,120 input tokens.
+- [ECB euro reference rate](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/eurofxref-graph-usd.en.html), 2026-10-26: 1 EUR = 1.1188 USD.
+
+Request sizes come from the Mizyun AI eval suite (`mizyun-ai-eval/runs/suite`, `gemini-3.8-flash-none` and `claude-haiku-5-5-low`). On Haiku a Coach turn is a median of 14,036 input and 804 output tokens, the largest observed turn uses 59,758 input tokens (three tool calls) and the longest answer 1,560 output tokens. Gemini photo drafts are 1,430 / 616 at most for one photo, and cooking assistant answers are up to 731 / 1,546.
+
+Consequences:
+
+- Annual Pro subscriptions sold now are mostly served at the 2027 Gemini price. The model therefore prices Gemini at 2027 rates.
+- A typed meal that takes the web-search pass costs about $0.03 in search fees alone, far more than its tokens.
+- Mizyun sends no `cache_control`, so Coach pays full input price for its repeated grounding prompt.
+- Detail and results: [AI unit economics](AI_UNIT_ECONOMICS_2026-10-26.md).
+
 ## Conditional GET revalidation and no-store for personal reads (offline cache phase 2, #329) — 2026-10-23
 
 Checked [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) §8.8.3 ETag (`entity-tag = [ W/ ] DQUOTE *etagc DQUOTE`; weak comparison matches opaque-tags regardless of `W/`), §13.1.2 If-None-Match (`*` or a comma list, weak comparison; GET/HEAD answer 304) and §15.4.5 304 (no content; send the `ETag` and `Cache-Control` a 200 would have carried); [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html) §3 and §5.2.2.5 (a cache must not store a response marked `no-store`; without it a 200 is storable even with no explicit freshness); [Fastify v5 Hooks](https://fastify.dev/docs/latest/Reference/Hooks/) (async `onSend(request, reply, payload)` may replace the payload with a string, Buffer, stream or `null` and may call `reply.code(304)`; parent hooks run before encapsulated child hooks). The installed Fastify 5.10.0 `onSendEnd` sends no `content-length` for a `null` 304 payload. [Apple URLCache](https://developer.apple.com/documentation/foundation/urlcache) and [`useProtocolCachePolicy`](https://developer.apple.com/documentation/foundation/nsurlrequest/cachepolicy-swift.enum/useprotocolcachepolicy) pages are script-rendered and returned no body text, so iOS behaviour comes from installed sources. Correction (independent review, same day): Mizyun's global `fetch` is expo/fetch (Expo SDK 57 winter runtime), not React Native's `RCTNetworking`, so RN's switch to `NSURLRequestReloadIgnoringLocalCacheData` for `If-None-Match` does not apply. `ExpoFetchModule.swift` uses `URLSessionConfiguration.default` (shared disk `URLCache`, Cache.db) with the default protocol cache policy, so Foundation may merge a 304 into a response an older build cached for the same URL. The client therefore treats a conditional 200 whose `ETag` names the sent tag as not modified, and re-asks once without the validator when a conditional 200 carries no tag. Validators are kept in memory only, never on the device, so an unchanged tag cannot confirm a value parsed by an older app build. iOS device behaviour of a 304 through expo/fetch is not yet observed. Android: RN's `OkHttpClientProvider.createClient(context)` installs a 10 MiB OkHttp disk cache in `cacheDir/http-cache`; OkHttp's [`CacheStrategy.kt`](https://github.com/square/okhttp/blob/master/okhttp/src/commonJvmAndroid/kotlin/okhttp3/internal/cache/CacheStrategy.kt) treats a 200 as cacheable unless request or response says `no-store`, and passes a caller-supplied `If-None-Match` straight to the network without using the cache.

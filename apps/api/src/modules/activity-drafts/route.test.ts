@@ -139,7 +139,11 @@ describe("POST /v1/activity-drafts/text", () => {
       "free",
       "text",
     );
-    expect(limits.commitDraftTokens).toHaveBeenCalledWith(userId, 250);
+    expect(limits.commitDraftTokens).toHaveBeenCalledWith(
+      userId,
+      250,
+      expect.objectContaining({ provider: expect.any(String) }),
+    );
     expect(limits.releaseDraftSlot).not.toHaveBeenCalled();
   });
 

@@ -18,6 +18,7 @@
  * oldest falls out of the window>`.
  */
 
+import { capsForTier } from "@mizyun/config";
 import type { PlanTier } from "@mizyun/core";
 
 const WINDOW_MS = 60_000;
@@ -49,10 +50,14 @@ export class FoodDraftRateLimiter {
 
   constructor(options: DraftRateLimitOptions = {}) {
     this.#clock = options.clock ?? Date.now;
-    this.#freePerMinute = options.freePerMinute ?? 1;
-    this.#paidPerMinute = options.paidPerMinute ?? 3;
-    this.#freePerDay = options.freePerDay ?? 5;
-    this.#paidPerDay = options.paidPerDay ?? 100;
+    this.#freePerMinute =
+      options.freePerMinute ?? capsForTier("free").draftRequestsPerMinute;
+    this.#paidPerMinute =
+      options.paidPerMinute ?? capsForTier("paid").draftRequestsPerMinute;
+    this.#freePerDay =
+      options.freePerDay ?? capsForTier("free").photoDraftDailyLimit;
+    this.#paidPerDay =
+      options.paidPerDay ?? capsForTier("paid").photoDraftDailyLimit;
   }
 
   dailyLimit(tier: PlanTier): number {

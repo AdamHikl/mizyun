@@ -155,6 +155,15 @@ export interface ServerConfig {
   readonly appleRevocationEncryptionKey?: string | undefined;
   readonly aiExternalAccess: boolean;
   /**
+   * Paid-tier AI cost allowance overrides in micro-USD (ADR-0081), from
+   * `AI_PAID_DAILY_COST_MICROS` / `AI_PAID_MONTHLY_COST_MICROS`. Unset keeps
+   * `AI_TIER_CAPS.paid`; the free tier has no override.
+   */
+  readonly aiPaidCostAllowance: {
+    readonly dailyCostMicros?: number | undefined;
+    readonly monthlyCostMicros?: number | undefined;
+  };
+  /**
    * Stored AI consent versions the server accepts, from
    * `AI_CONSENT_ACCEPTED_VERSIONS`. `null` when unset, meaning the API's
    * default set (every disclosure version still supported by installed
@@ -218,6 +227,8 @@ export const SERVER_ENV_KEYS = {
   aiUserRequestsPerMinute: "AI_USER_REQUESTS_PER_MINUTE",
   aiUserMaxConcurrentRequests: "AI_USER_MAX_CONCURRENT_REQUESTS",
   aiExternalAccess: "AI_EXTERNAL_ACCESS",
+  aiPaidDailyCostMicros: "AI_PAID_DAILY_COST_MICROS",
+  aiPaidMonthlyCostMicros: "AI_PAID_MONTHLY_COST_MICROS",
   aiAllowedEmails: "AI_ALLOWED_EMAILS",
   aiConsentAcceptedVersions: "AI_CONSENT_ACCEPTED_VERSIONS",
   appleTeamId: "APPLE_TEAM_ID",
@@ -459,6 +470,18 @@ const baseServerSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  aiPaidDailyCostMicros: z.coerce
+    .number()
+    .int("AI_PAID_DAILY_COST_MICROS must be an integer")
+    .min(1_000, "AI_PAID_DAILY_COST_MICROS must be >= 1000")
+    .max(10_000_000, "AI_PAID_DAILY_COST_MICROS must be <= 10000000")
+    .optional(),
+  aiPaidMonthlyCostMicros: z.coerce
+    .number()
+    .int("AI_PAID_MONTHLY_COST_MICROS must be an integer")
+    .min(1_000, "AI_PAID_MONTHLY_COST_MICROS must be >= 1000")
+    .max(10_000_000, "AI_PAID_MONTHLY_COST_MICROS must be <= 10000000")
+    .optional(),
   aiConsentAcceptedVersions: z
     .string()
     .optional()
@@ -830,6 +853,14 @@ export const loadServerConfig = (
         ? { apiKey: value.geminiApiKey, model: value.geminiImageModel }
         : null,
     aiExternalAccess: value.aiExternalAccess,
+    aiPaidCostAllowance: {
+      ...(value.aiPaidDailyCostMicros !== undefined
+        ? { dailyCostMicros: value.aiPaidDailyCostMicros }
+        : {}),
+      ...(value.aiPaidMonthlyCostMicros !== undefined
+        ? { monthlyCostMicros: value.aiPaidMonthlyCostMicros }
+        : {}),
+    },
     aiConsentAcceptedVersions: value.aiConsentAcceptedVersions,
     aiAllowedEmails: value.aiAllowedEmails ?? [],
   });

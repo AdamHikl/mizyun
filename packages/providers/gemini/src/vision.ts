@@ -520,6 +520,31 @@ const BRAND_OR_RESTAURANT_PATTERNS: readonly RegExp[] = [
   /\bfast\s*food\b/i,
 ];
 
+/** `usageMetadata.totalTokenCount` of a raw Gemini response, if reported. */
+const geminiTotalTokens = (raw: unknown): number | undefined => {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const usage = (raw as { usageMetadata?: { totalTokenCount?: unknown } })
+    .usageMetadata;
+  const total = usage?.totalTokenCount;
+  return typeof total === "number" && Number.isFinite(total) && total >= 0
+    ? Math.round(total)
+    : undefined;
+};
+
+/** Adds a completed search pass: its tokens and one grounded request. */
+const withSearchCost = (
+  draft: VisionDraftCandidate,
+  searchTokens: number,
+): VisionDraftCandidate => ({
+  ...draft,
+  // Without the structured pass's count the total is unknown: leave it
+  // unset so the cost allowance charges its reservation.
+  ...(draft.tokensUsed !== undefined
+    ? { tokensUsed: draft.tokensUsed + searchTokens }
+    : {}),
+  webSearches: 1,
+});
+
 export const isBrandOrRestaurantQuery = (description: string): boolean => {
   const trimmed = description.trim();
   if (trimmed.length === 0) return false;
@@ -1074,6 +1099,9 @@ export class GeminiVisionProvider implements VisionDraftProvider {
       this.#externalAccess &&
       isBrandOrRestaurantQuery(request.description)
     ) {
+      // A completed search pass is billed (grounding fee and tokens) even
+      // when its findings are unusable (ADR-0081).
+      let searchTokens: number | undefined;
       try {
         const searchNutrients = request.includeAdvancedNutrition
           ? "calories in kcal, protein, carbohydrates, fat, fibre, saturated fat, total sugars in grams, sodium and dietary cholesterol in milligrams"
@@ -1097,16 +1125,38 @@ export class GeminiVisionProvider implements VisionDraftProvider {
           { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
         );
 
+        searchTokens = geminiTotalTokens(searchResponse) ?? 0;
         const groundedText = extractGeminiCandidateText(searchResponse);
         if (groundedText && groundedText.length > 0) {
           const structuredPrompt = `Estimate an editable meal draft from this user description and verified search findings.\n\nUser description: "${request.description.trim()}"${countrySuffix}\n\nVerified search findings:\n${groundedText}`;
-          return await this.#generate([{ text: structuredPrompt }], "text", {
-            systemPolicy: textNutritionSystemPolicy,
-            includeAdvancedNutrition: request.includeAdvancedNutrition === true,
-          });
+          const grounded = await this.#generate(
+            [{ text: structuredPrompt }],
+            "text",
+            {
+              systemPolicy: textNutritionSystemPolicy,
+              includeAdvancedNutrition:
+                request.includeAdvancedNutrition === true,
+            },
+          );
+          return withSearchCost(grounded, searchTokens);
         }
       } catch {
         // Step 1 search failed; gracefully fall back to direct single-step generation
+      }
+      if (searchTokens !== undefined) {
+        const fallback = await this.#generate(
+          [
+            {
+              text: `Estimate an editable meal draft from this user description only: "${request.description.trim()}"${countrySuffix}.`,
+            },
+          ],
+          "text",
+          {
+            systemPolicy: textNutritionSystemPolicy,
+            includeAdvancedNutrition: request.includeAdvancedNutrition === true,
+          },
+        );
+        return withSearchCost(fallback, searchTokens);
       }
     }
 

@@ -127,5 +127,7 @@ export const RECIPE_API_ERROR_CODES = [
   "RECIPE_LIMIT_DRAFTS",
   "RECIPE_LIMIT_MINUTE",
   "RECIPE_LIMIT_INFLIGHT",
+  "RECIPE_LIMIT_COST_DAY",
+  "RECIPE_LIMIT_COST_MONTH",
 ] as const;
 export type RecipeApiErrorCode = (typeof RECIPE_API_ERROR_CODES)[number];

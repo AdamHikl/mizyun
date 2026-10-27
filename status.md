@@ -24,6 +24,7 @@
 
 ## Local follow-ups awaiting acceptance
 
+- **#336 AI cost allowance (Oct26, ADR0081):** per-call USD ledger (migration 20261026150000): paid $0.15/day, $1/month; free $0.05/$0.50; paid drafts 15/day; refines (were unbounded) 30/10. Worst paid month $1.15 = 29% annual net (2027 prices). `pnpm ai:cost-report`. 2 Opus reviews; gatePASS(3726mobile/1399API); pgTAP scratch PASS, db:verify unrun. Undeployed. #340/#341. [Economics](docs/AI_UNIT_ECONOMICS_2026-10-26.md)
 - **#265 Community lifetime (Oct23):** own previews no deadline; others 60s+renewal (Adam). ca9a0955 3 reviews, gatePASS(3656mobile/1365API+15skips); Dev 13:24Z health200; iPhone 13:56Z PID85043. Next: Adam device. #324. [Handoff](docs/COMMUNITY_READ_LIFETIME_2026-10-23.md)
 - **Overnight fixes (Oct23):** #316/#310/#317/#284/#285/#286/#315/#301/#320/#318/#245 Dev 8823fa47 08:20Z health200 (AGENT_PROVIDER=gemini); gatePASS(3614mobile/1365API). iPhone Release installed 08:21Z; launch blocked (locked). Next: Adam device checks. [Handoff](docs/OVERNIGHT_FIXES_2026-10-23.md)
 - **#321 local-first photos (Oct22, ADR0079):** photos on device, optional backup; reviewed; gatePASS; Dev 8823fa47; device open. #322/#323. [Handoff](docs/LOCAL_FIRST_PHOTOS_2026-10-22.md)
@@ -31,13 +32,11 @@
 - **#327/#329 offline cache (Oct23):** targeted invalidation, keep across background/token, shared weight read, 30min goals, API ETag/304 + no-store. Budget resume 19→2, meal write 20→7, cold 19→17. Reviewed; gatePASS(3707mobile/1377API+15skips/88client). 7c58761d; Dev 20806d8d 17:40Z health200, no-store+ETag live; iPhone 17:41Z; Adam device checks PASS (Oct23). Prod not released. Visuals 20s poll kept (ADR-0053, Adam). #328/#330. [P1](docs/OFFLINE_CACHE_PHASE1_2026-10-23.md) [P2](docs/OFFLINE_CACHE_PHASE2_2026-10-23.md)
 - **#331 offline meal icons (Oct23):** ADR-0053 amended per Adam: bundled icons stay up to 48h after last Pro check when unreachable (incl. Auth refresh failure); denial hides now. Opus review + fixes; gatePASS(3723mobile/1377API). 6e86ea3c; iPhone 18:53Z; Adam offline check PASS (Oct23). [Handoff](docs/OFFLINE_MEAL_ICONS_2026-10-23.md)
 - **Community join redesign (Oct22):** 6045ee7c Dev+Prod; fix: non-members saw a status error (cache-wrapped 404), @undefined; Opus review ship; #320. Next: Adam Join/leave on Prod iPhone. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
-- **#292/#293 (Oct17):** weekly "X of Y days", no streak; protein ideas (ADR0070); on Dev f388c722. Next: iPhone Dev.
 - **#298 evening stretch (Oct23):** AI plans cover top 3 muscles (biceps via chest); no list swap on tailoring. dc64d2bd review/gatePASS; Dev 15:35Z health200; iPhone 15:29Z. Next: Adam device. #325. [Handoff](docs/EVENING_STRETCH_AI_COVERAGE_2026-10-23.md)
 - **#303, #314:** iPhone/Android device exits open. [Moved entries](docs/archive/status/STATUS_OCT12_15_ENTRIES_2026-10-23.md)
-- **#308 custom exercises (Oct19):** library create/edit/delete, tracking type, My exercises, rename via previousNames; API PUT/DELETE 409 when sets exist (ADR0075). 2 reviews resolved; shared-tree gatePASS(3439mobile/1221API+15skips); Oct20 merge, Dev. Next: iPhone. #311/#312.
 - **#290, #295/#297, #307/#313:** device exits open. [Moved entries](docs/archive/status/STATUS_OCT12_15_ENTRIES_2026-10-23.md)
 - **#288/#299/#304 Log activity:** #288 gatePASS, Dev 47c814e5 ([evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)). #299 ADR0073 Gemini drafts; gatePASS; Dev 4/4 ([evidence](docs/LOG_ACTIVITY_AI_DRAFTS_EVIDENCE_2026-10-19.md)); iPhone 10:23Z. #300/#302 fixed, #301. #304 ADR0074 on-device, Haiku fallback on failure (Oct21), notes removed; Dev. Next: Adam iPhone; #304 latency+gate; #305/#306.
-- **#278/#279 timed + past workouts (Oct17):** main/Dev 45f1ccfe; device acceptance open. [Moved entries](docs/archive/status/STATUS_OCT17_WORKOUT_PACKAGES_2026-10-22.md)
+- **#292/#293, #278/#279, #308 (Oct17–19):** Dev; iPhone/device exits open. [Moved entries](docs/archive/status/STATUS_OCT17_ENTRIES_2026-10-26.md)
 - **#276 bouldering:** BLD-00–06 641549ed; gate/db:verify/3 reviews PASS; Dev 45f1ccfe; device/share open. [Evidence](docs/BOULDERING_EVIDENCE_2026-10-16.md). Grade-row sends (Oct22): gatePASS; Dev+iPhone 4645debe; device open ([handoff](docs/BOULDER_GRADES_2026-10-22.md)).
 - **#208/#248/Community audit (Oct9–15):** device/native exits open. [Moved entries](docs/archive/status/STATUS_OCT9_15_ENTRIES_2026-10-22.md)
 - **#253–#257, #238:** device/native/Prod exits open. [Moved entries](docs/archive/status/STATUS_OCT12_15_ENTRIES_2026-10-23.md)

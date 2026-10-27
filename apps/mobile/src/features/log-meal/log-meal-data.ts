@@ -12,6 +12,7 @@ import {
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import type { Result } from "@mizyun/core";
 import { apiClient } from "@/composition/api-client";
+import { monthlyAllowanceMessage } from "@/lib/ai-allowance";
 import { isValidOperationId } from "./meal-form";
 
 /**
@@ -225,6 +226,8 @@ const humanizeDraftError = (result: Result<unknown, ApiError>): string => {
     const reason = result.error.reason;
     if (reason === "daily_budget_exhausted") {
       const resetAt = result.error.resetAt;
+      const monthly = monthlyAllowanceMessage(resetAt);
+      if (monthly) return monthly;
       if (resetAt) {
         const resetDate = new Date(resetAt);
         const hours = Math.max(
@@ -272,7 +275,10 @@ const humanizeRefineError = (result: Result<unknown, ApiError>): string => {
   ) {
     const reason = result.error.reason;
     if (reason === "daily_budget_exhausted") {
-      return "Daily AI limit reached. Try again tomorrow.";
+      return (
+        monthlyAllowanceMessage(result.error.resetAt) ??
+        "Daily AI limit reached. Try again tomorrow."
+      );
     }
     if (reason === "concurrent_in_flight") {
       return "Already refining — please wait.";

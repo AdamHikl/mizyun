@@ -545,6 +545,44 @@ describe("GeminiVisionProvider", () => {
     );
   });
 
+  it("charges a completed search pass when its findings are empty (ADR-0081)", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>();
+    generateContent.mockResolvedValueOnce({
+      modelVersion: "gemini-2.5-flash",
+      candidates: [{ content: { role: "model", parts: [{ text: "" }] } }],
+      usageMetadata: { totalTokenCount: 120 },
+    });
+    generateContent.mockResolvedValueOnce({
+      modelVersion: "gemini-2.5-flash",
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [{ text: JSON.stringify(candidateOutput) }],
+          },
+        },
+      ],
+      usageMetadata: { totalTokenCount: 77 },
+    });
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "McDonald's Single Big Tasty Bacon",
+      countryCode: "SK",
+      requestId: "grounded-empty",
+    });
+    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(result.tokensUsed).toBe(197);
+    expect(result.webSearches).toBe(1);
+  });
+
   it("executes two-step grounded drafting for restaurant brand query with countryCode", async () => {
     const generateContent = vi.fn<GeminiVisionClient["generateContent"]>();
 
@@ -609,6 +647,7 @@ describe("GeminiVisionProvider", () => {
     });
 
     expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(result.webSearches).toBe(1);
 
     // Verify Step 1 call: has googleSearch tool, no responseSchema, prompt has country code and query
     const step1Call = generateContent.mock.calls[0]?.[0];

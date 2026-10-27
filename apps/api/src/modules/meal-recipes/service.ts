@@ -36,6 +36,7 @@ import {
   authorizedAiConsentVersion,
 } from "../../ai-eligibility.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
+import type { AiCostLedger } from "../coach/limits.js";
 import type { EnergyRoutesOptions } from "../energy/index.js";
 import { loadOwnedRecipeContext, recipeDigest } from "./context.js";
 import { applyProfileDiets } from "./profile-diet.js";
@@ -59,6 +60,8 @@ export interface RecipeServiceOptions {
   readonly accountRepository: AccountRepository;
   readonly betaProRepository?: BetaProRepository;
   readonly ledger: RecipeRequestLedger | null;
+  /** AI cost allowance shared with the other AI routes (ADR-0081). */
+  readonly costLedger?: AiCostLedger;
   readonly generationProvider: RecipeGenerationProvider;
   readonly recognitionProvider: IngredientRecognitionProvider;
   /** Conversational cooking assistant (ADR0071); disabled when omitted. */
@@ -224,7 +227,6 @@ export class MealRecipeService {
       tokensEstimated > 100_000
     )
       throw new RecipeServiceError(503, "RECIPE_PROVIDER_BOUNDS_INVALID");
-    const ledger = this.options.ledger!;
     // The SQL reservation re-checks consent against this exact version, so
     // pass the user's stored, accepted version rather than the current one.
     const consentVersion = authorizedAiConsentVersion({
@@ -236,6 +238,7 @@ export class MealRecipeService {
     });
     if (consentVersion === null)
       throw new RecipeServiceError(403, "RECIPE_LIMIT_CONSENT");
+    const ledger = this.options.ledger!;
     const reserved = await ledger.reserve({
       userId,
       requestId,
@@ -275,6 +278,32 @@ export class MealRecipeService {
             : "RECIPE_OUTCOME_UNAVAILABLE",
       );
     }
+    // Cost allowance (ADR-0081), only for a new attempt, so a retried
+    // request id meets the recipe ledger's own answer first.
+    const costLedger = this.options.costLedger;
+    const cost = await costLedger
+      ?.reserve(userId, caps, "recipe")
+      .catch(async (error: unknown) => {
+        await ledger
+          .finalize({ userId, attemptId: reserved.attemptId, status: "failed" })
+          .catch(() => undefined);
+        throw error;
+      });
+    if (cost !== undefined && !cost.allowed) {
+      await ledger
+        .finalize({ userId, attemptId: reserved.attemptId, status: "failed" })
+        .catch(() => undefined);
+      throw new RecipeServiceError(
+        429,
+        cost.scope === "month"
+          ? "RECIPE_LIMIT_COST_MONTH"
+          : "RECIPE_LIMIT_COST_DAY",
+      );
+    }
+    const costReservation = cost?.allowed ? cost.reservation : undefined;
+    // 0 until the provider is called; then the reservation (unknown cost of
+    // a timeout or failure) until it reports usage.
+    let costMicros = 0;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let terminal = false;
@@ -290,7 +319,15 @@ export class MealRecipeService {
           reject(new RecipeServiceError(504, "RECIPE_PROVIDER_TIMEOUT"));
         }, timeoutMs);
       });
+      costMicros = costReservation?.reservedMicros ?? 0;
       const result = await Promise.race([invoke(controller.signal), deadline]);
+      // Recipe features run on Gemini (ADR-0078); without a reported count
+      // the full token estimate is charged.
+      costMicros =
+        costLedger?.estimate("recipe", {
+          provider: "gemini",
+          tokensUsed: result.tokensUsed ?? tokensEstimated,
+        }) ?? 0;
       await this.requireReady(userId, accessToken, operation, provider);
       if (
         result.tokensUsed !== undefined &&
@@ -333,6 +370,10 @@ export class MealRecipeService {
     } finally {
       if (timer) clearTimeout(timer);
       controller.abort();
+      if (costReservation !== undefined)
+        await costLedger!
+          .settle(costReservation, costMicros)
+          .catch(() => undefined);
     }
   }
   suggest(

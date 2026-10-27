@@ -15,7 +15,9 @@ import {
   type MealIllustrationProvider,
 } from "@mizyun/agent-runtime";
 import { authorizedAiConsentVersion } from "../../ai-eligibility.js";
+import { capsForTier, ILLUSTRATION_MICROS } from "@mizyun/config";
 import { sendApiError } from "../../errors.js";
+import type { AiCostLedger } from "../coach/limits.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { hasMealVisuals } from "../../meal-visual-access.js";
 
@@ -51,6 +53,8 @@ export interface MealIllustrationRoutesOptions {
   readonly enabled: () => boolean;
   readonly processImage: (bytes: Uint8Array) => Promise<string>;
   readonly timeoutMs?: number;
+  /** AI cost allowance shared with the other AI routes (ADR-0081). */
+  readonly costLedger?: AiCostLedger;
 }
 export const mealIllustrationRoutes: FastifyPluginAsync<
   MealIllustrationRoutesOptions
@@ -173,6 +177,20 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
       const key = createHash("sha256")
         .update(`${MEAL_ILLUSTRATION_STYLE}:${dishName}`)
         .digest("hex");
+      // Illustrations are Pro-only (a paid plan or an approved pass, as
+      // meal_visuals_pro decides), so the paid allowance applies.
+      let cost;
+      try {
+        cost = await options.costLedger?.reserve(
+          userId,
+          capsForTier("paid"),
+          "illustration",
+        );
+      } catch {
+        return { status: "unavailable" };
+      }
+      if (cost !== undefined && !cost.allowed) return { status: "unavailable" };
+      const costReservation = cost?.allowed ? cost.reservation : undefined;
       let claim;
       try {
         claim = await withAbort(
@@ -180,8 +198,19 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
           AbortSignal.timeout(10_000),
         );
       } catch {
-        return { status: "unavailable" };
+        claim = null;
       }
+      if (costReservation !== undefined) {
+        // A new claim is a charged attempt (never refunded); a cached,
+        // limited or failed claim costs nothing.
+        await options
+          .costLedger!.settle(
+            costReservation,
+            claim?.kind === "claimed" ? ILLUSTRATION_MICROS : 0,
+          )
+          .catch(() => undefined);
+      }
+      if (claim === null) return { status: "unavailable" };
       if (claim.kind === "limited") return { status: "unavailable" };
       if (claim.kind === "existing") {
         // Recheck after any cache/authorization IO so a revocation does not expose ready bytes.

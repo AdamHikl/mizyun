@@ -232,4 +232,12 @@ describe("suggestion errors", () => {
       "a retry creates a new request",
     );
   });
+  it("names when a spent AI allowance renews (ADR-0081)", () => {
+    expect(recipeRequestMessage(http(429, "RECIPE_LIMIT_COST_DAY"))).toBe(
+      "You’ve used today’s AI allowance. It renews at midnight UTC.",
+    );
+    expect(recipeRequestMessage(http(429, "RECIPE_LIMIT_COST_MONTH"))).toBe(
+      "You’ve used this month’s AI allowance. It renews on the 1st.",
+    );
+  });
 });
