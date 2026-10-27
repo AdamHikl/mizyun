@@ -1053,6 +1053,133 @@ describe("coach routes", () => {
     expect(respond).toHaveBeenCalledTimes(2);
   });
 
+  it.each([
+    ["gemini", 9_000],
+    ["anthropic", 14_000],
+  ] as const)(
+    "lets a free user send five real %s turns (%i tokens each), then counts messages, not tokens (AI-02)",
+    async (provider, totalTokens) => {
+      const respond = vi.fn<AgentProvider["respond"]>(async (request) => ({
+        message: { role: "assistant", text: "One sensible next step." },
+        provider,
+        evidence: request.grounding,
+        providerMetadata: { totalTokens },
+      }));
+      let clock = Date.parse("2026-10-27T09:00:00.000Z");
+      const { app } = makeApp(respond, undefined, {
+        now: () => new Date(clock),
+        planTierOverride: "free",
+      });
+      const id = await createConversation(app);
+
+      const remaining: number[] = [];
+      for (let turn = 1; turn <= 5; turn += 1) {
+        clock += 61_000; // stay under the free per-minute limit
+        const response = await sendMessage(app, id, `free-turn-key-${turn}`);
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body.usage).toMatchObject({
+          dailyMessageLimit: 5,
+          resetsAt: "2026-10-28T00:00:00.000Z",
+        });
+        remaining.push(body.usage.messagesRemaining);
+      }
+      expect(remaining).toEqual([4, 3, 2, 1, 0]);
+
+      clock += 61_000;
+      const limited = await sendMessage(app, id, "free-turn-key-6");
+      expect(limited.statusCode).toBe(429);
+      const error = limited.json().error;
+      expect(error).toMatchObject({
+        code: "RATE_LIMITED",
+        reason: "daily_budget_exhausted",
+        resetAt: "2026-10-28T00:00:00.000Z",
+      });
+      expect(error.message).not.toMatch(/token|UTC/i);
+      expect(respond).toHaveBeenCalledTimes(5);
+
+      // A replay of an answered message is free and does not count again.
+      const replay = await sendMessage(app, id, "free-turn-key-5");
+      expect(replay.statusCode).toBe(200);
+      expect(respond).toHaveBeenCalledTimes(5);
+    },
+  );
+
+  it("does not count canned app help that made no model call", async () => {
+    let clock = Date.parse("2026-10-27T09:00:00.000Z");
+    const { app, respond } = makeApp(undefined, undefined, {
+      now: () => new Date(clock),
+      planTierOverride: "free",
+    });
+    const id = await createConversation(app);
+    clock += 61_000;
+    const canned = await sendMessage(
+      app,
+      id,
+      "canned-help-key",
+      "How do I set up recurring meals?",
+    );
+    expect(canned.statusCode).toBe(200);
+    expect(canned.json().assistantMessage.provider).toBe("mizyun-app-guide");
+    expect(respond).not.toHaveBeenCalled();
+    expect(canned.json().usage.messagesRemaining).toBe(5);
+    clock += 61_000;
+    const answered = await sendMessage(app, id, "model-turn-key");
+    expect(answered.json().usage.messagesRemaining).toBe(4);
+  });
+
+  it("counts a model answer that output moderation replaced", async () => {
+    const respond = vi.fn<AgentProvider["respond"]>(async () => ({
+      message: { role: "assistant", text: "Mizyun could not safely answer." },
+      provider: "mizyun-safety",
+      evidence: [],
+      providerMetadata: {
+        safetyCategory: "external_moderation_violence",
+        moderationDirection: "output",
+      },
+    }));
+    let clock = Date.parse("2026-10-27T09:00:00.000Z");
+    const { app } = makeApp(respond, undefined, {
+      now: () => new Date(clock),
+      planTierOverride: "free",
+    });
+    const id = await createConversation(app);
+    clock += 61_000;
+    const blocked = await sendMessage(app, id, "moderated-output-key");
+    expect(blocked.statusCode).toBe(200);
+    expect(blocked.json().usage.messagesRemaining).toBe(4);
+  });
+
+  it("returns a failed reply's message to the free user's daily count", async () => {
+    let fail = true;
+    const respond = vi.fn<AgentProvider["respond"]>(async (request) => {
+      if (fail) {
+        throw new AgentProviderError("timeout", "Provider timed out.", true);
+      }
+      return {
+        message: { role: "assistant", text: "Answered." },
+        provider: "gemini",
+        evidence: request.grounding,
+        providerMetadata: { totalTokens: 9_000 },
+      };
+    });
+    let clock = Date.parse("2026-10-27T09:00:00.000Z");
+    const { app } = makeApp(respond, undefined, {
+      now: () => new Date(clock),
+      planTierOverride: "free",
+    });
+    const id = await createConversation(app);
+    clock += 61_000;
+    expect((await sendMessage(app, id, "failed-turn-key")).statusCode).toBe(
+      502,
+    );
+    fail = false;
+    clock += 61_000;
+    const answered = await sendMessage(app, id, "answered-turn-key");
+    expect(answered.statusCode).toBe(200);
+    expect(answered.json().usage.messagesRemaining).toBe(4);
+  });
+
   it("enforces the daily token budget but allows completed idempotent replay", async () => {
     const { app, respond } = makeApp(undefined, undefined, {
       dailyUserTokenBudget: 1,

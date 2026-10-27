@@ -6,6 +6,7 @@ import {
 } from "@mizyun/agent-runtime";
 import {
   cleanGeminiSchema,
+  GEMINI_COACH_ANSWER_ENVELOPE_RULE,
   GeminiAgentProvider,
   type GeminiChatClient,
 } from "./index.js";
@@ -75,9 +76,10 @@ describe("GeminiAgentProvider", () => {
         { role: "user", text: "What app features can I use?" },
       ],
     });
+    expect(COACH_SYSTEM_POLICY).not.toContain('{"answer"');
     expect(
       generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
-    ).toBe(COACH_SYSTEM_POLICY);
+    ).toBe(`${COACH_SYSTEM_POLICY}\n${GEMINI_COACH_ANSWER_ENVELOPE_RULE}`);
     expect(
       generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
     ).toContain("Recurring meals");

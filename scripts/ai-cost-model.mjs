@@ -134,15 +134,18 @@ export const COST_SHARE_LIMIT = 0.3;
 
 /**
  * Worst-case monthly USD for a user who reaches every daily cap on each of
- * `days` days: the token ledger plus one overshooting Coach turn, every draft
- * slot at the most expensive draft, every refine at its design size, and the
- * monthly illustration allowance.
+ * `days` days: every Coach message at the design turn size, bounded by the
+ * hidden Coach token ceiling plus one overshooting turn (ADR-0085), every
+ * draft slot at the most expensive draft, every refine at its design size,
+ * and the monthly illustration allowance.
  */
 export const worstCaseMonthlyUsd = (caps, { days = 30, year = 2027 } = {}) => {
-  const coachTokens =
-    caps.dailyTokenBudget +
-    REQUEST_SIZES.coachTurn.input +
-    REQUEST_SIZES.coachTurn.output;
+  const turnTokens =
+    REQUEST_SIZES.coachTurn.input + REQUEST_SIZES.coachTurn.output;
+  const coachTokens = Math.min(
+    caps.coachDailyMessageLimit * turnTokens,
+    caps.coachDailyTokenBudget + turnTokens,
+  );
   const perDay =
     coachTokens * coachTokenCostUsd("haiku", year) +
     caps.photoDraftDailyLimit * worstDraftSlotUsd(year) +

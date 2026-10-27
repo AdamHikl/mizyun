@@ -307,8 +307,69 @@ describe("coach data boundary", () => {
 
     expect(result).toEqual({
       ok: false,
-      message: "Daily Coach limit reached. Resets at midnight UTC.",
+      message: "You've reached today's Coach limit. More messages tomorrow.",
+      limitReached: true,
     });
+  });
+
+  it("names the local reset time for a daily denial, never tokens or UTC", async () => {
+    const resetAt = "2026-10-28T00:00:00.000Z";
+    const client: ApiClient = {
+      request: vi.fn(async () =>
+        err({
+          kind: "http_error" as const,
+          status: 429,
+          code: "RATE_LIMITED",
+          message: "You've used today's 5 Coach messages.",
+          reason: "daily_budget_exhausted",
+          resetAt,
+        }),
+      ) as unknown as ApiClient["request"],
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+    const result = await sendCoachMessageWith(
+      client,
+      conversation.id,
+      "How am I doing?",
+      "stable-message-key",
+    );
+    expect(result).toEqual({
+      ok: false,
+      message: `You've reached today's Coach limit. More messages from ${new Date(
+        resetAt,
+      ).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      })}.`,
+      limitReached: true,
+    });
+    expect(result.ok ? "" : result.message).not.toMatch(/UTC|token/i);
+  });
+
+  it("returns the messages left today with a new reply", async () => {
+    const usage = {
+      dailyMessageLimit: 5,
+      messagesRemaining: 3,
+      resetsAt: "2026-10-28T00:00:00.000Z",
+    };
+    const client: ApiClient = {
+      request: vi.fn(async () =>
+        ok({
+          conversation,
+          userMessage,
+          assistantMessage,
+          usage,
+        }),
+      ) as unknown as ApiClient["request"],
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+    const result = await sendCoachMessageWith(
+      client,
+      conversation.id,
+      "How am I doing?",
+      "stable-message-key",
+    );
+    expect(result.ok && result.usage).toEqual(usage);
   });
 
   it("does not present configuration failures as retryable", async () => {

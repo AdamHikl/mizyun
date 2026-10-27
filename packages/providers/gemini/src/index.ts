@@ -13,6 +13,14 @@ import {
 } from "@mizyun/agent-runtime";
 import { z } from "zod";
 
+/**
+ * Gemini Coach replies use the `{answer}` envelope (JSON mode without tools,
+ * parsed by extractAssistantText with tools). The provider-neutral policy
+ * does not carry it, so other providers never see this instruction.
+ */
+export const GEMINI_COACH_ANSWER_ENVELOPE_RULE =
+  'Always format your final answer as a JSON object with a single string field \'answer\' containing your conversational markdown response: {"answer": "<your conversational markdown response>"}.';
+
 const coachOutputSchema = z.object({
   answer: z.string().trim().min(1).max(8_000),
 });
@@ -606,7 +614,11 @@ export class GeminiAgentProvider implements AgentProvider {
           {
             model: targetModel,
             systemInstruction: {
-              parts: [{ text: request.systemPolicy }],
+              parts: [
+                {
+                  text: `${request.systemPolicy}\n${GEMINI_COACH_ANSWER_ENVELOPE_RULE}`,
+                },
+              ],
             },
             contents: buildContents(request),
             ...(toolsPayload ? { tools: toolsPayload } : {}),

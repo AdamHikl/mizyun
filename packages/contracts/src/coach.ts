@@ -292,10 +292,21 @@ export const coachThreadResponseSchema = z.object({
   messages: z.array(coachMessageSchema),
 });
 
+/**
+ * Coach messages left today (ADR-0085), sent with a new reply. Absent on
+ * replays, local fallbacks and older servers.
+ */
+export const coachMessageUsageSchema = z.object({
+  dailyMessageLimit: z.number().int().nonnegative(),
+  messagesRemaining: z.number().int().nonnegative(),
+  resetsAt: z.string().datetime(),
+});
+
 export const coachMessageResponseSchema = z.object({
   conversation: coachConversationSchema,
   userMessage: coachMessageSchema,
   assistantMessage: coachMessageSchema,
+  usage: coachMessageUsageSchema.optional(),
 });
 
 export const coachWeeklyAdaptationAcceptResponseSchema = z.object({
@@ -342,6 +353,7 @@ export type CoachConversationListResponse = z.infer<
 >;
 export type CoachThreadResponse = z.infer<typeof coachThreadResponseSchema>;
 export type CoachMessageResponse = z.infer<typeof coachMessageResponseSchema>;
+export type CoachMessageUsage = z.infer<typeof coachMessageUsageSchema>;
 export type CoachWeeklyAdaptationAcceptResponse = z.infer<
   typeof coachWeeklyAdaptationAcceptResponseSchema
 >;

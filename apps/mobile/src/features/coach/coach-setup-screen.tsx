@@ -42,6 +42,7 @@ import {
 
 import { ThemedText, type ThemedTextProps } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { coachMessagesLeftLabel } from "@/lib/ai-allowance";
 import {
   Button,
   Card,
@@ -258,6 +259,15 @@ export function CoachSetupScreen() {
     false,
     currentUser,
   );
+  // Messages left today from the latest reply (ADR-0085); shown when few.
+  const [messageUsage, setMessageUsage] = useUserOwnedCoachState<{
+    readonly messagesRemaining: number;
+    readonly resetsAt: string;
+  } | null>(userId, null, currentUser);
+  const messagesLeft =
+    messageUsage !== null && Date.parse(messageUsage.resetsAt) > Date.now()
+      ? coachMessagesLeftLabel(messageUsage)
+      : null;
   const [deleting, setDeleting] = useUserOwnedCoachState(
     userId,
     false,
@@ -743,6 +753,7 @@ export function CoachSetupScreen() {
         if (currentUser.current !== userId) return;
         if (result.ok) {
           setActive(result.conversation);
+          if (result.usage !== undefined) setMessageUsage(result.usage);
           // Replace the optimistic bubble and de-duplicate the canonical user
           // message if this retry was restored after an app restart.
           setMessages((current) =>
@@ -754,6 +765,8 @@ export function CoachSetupScreen() {
           setLiveRegionTick((tick) => tick + 1);
         } else {
           setMessage(result.message);
+          // The refusal names the reset; an older "N left" line would conflict.
+          if (result.limitReached) setMessageUsage(null);
           // Keep the failed bubble and encrypted retry payload, but leave the
           // composer empty. The bubble owns the explicit retry affordance.
         }
@@ -1478,6 +1491,17 @@ export function CoachSetupScreen() {
                     />
                   </View>
                 </View>
+              ) : null}
+
+              {messagesLeft !== null ? (
+                <ThemedText
+                  type="small"
+                  themeColor="textSecondary"
+                  style={styles.messagesLeft}
+                  accessibilityLiveRegion="polite"
+                >
+                  {messagesLeft}
+                </ThemedText>
               ) : null}
 
               {/* Composer */}
@@ -2801,6 +2825,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.one,
     alignItems: "flex-start",
+  },
+  messagesLeft: {
+    textAlign: "center",
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.one,
   },
   composerWrapper: {
     width: "100%",

@@ -60,6 +60,29 @@ const COACH_OUTPUT_RULE =
   "Reply to the user in plain conversational text (Markdown allowed). Never wrap the reply in JSON. When you use a tool, you may say a brief sentence first. If no tool can express what the user asked for, say so instead of guessing. Do not include internal or system XML tags in your response.";
 
 /**
+ * The fixed Coach policy is identical on every request, so it carries the
+ * prompt-cache breakpoint (AI-06): tools and the fixed policy are read from
+ * cache, and only the per-question catalog excerpt and the output rule are
+ * new input. A request without the split sends one uncached block.
+ */
+const systemBlocks = (request: AgentRequest): Anthropic.TextBlockParam[] => {
+  const parts = request.systemPolicyParts;
+  if (parts === undefined) {
+    return [
+      { type: "text", text: `${request.systemPolicy}\n\n${COACH_OUTPUT_RULE}` },
+    ];
+  }
+  return [
+    {
+      type: "text",
+      text: parts.fixed,
+      cache_control: { type: "ephemeral" },
+    },
+    { type: "text", text: `${parts.variable}\n\n${COACH_OUTPUT_RULE}` },
+  ];
+};
+
+/**
  * #309: after tool rounds Claude can write a short preface and then the
  * Gemini-style `{"answer": …}` envelope anyway. The envelope holds the reply,
  * so the preface is dropped. Text that only mentions braces is kept, because
@@ -253,7 +276,7 @@ export class AnthropicAgentProvider implements AgentProvider {
     const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: this.#model,
       max_tokens: this.#maxOutputTokens,
-      system: `${request.systemPolicy}\n\n${COACH_OUTPUT_RULE}`,
+      system: systemBlocks(request),
       messages: buildMessages(request),
       ...requestControls({ effort: this.#effort, thinking: false }),
       ...(tools !== undefined

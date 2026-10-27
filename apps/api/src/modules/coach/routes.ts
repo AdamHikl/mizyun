@@ -821,14 +821,14 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         }
       }
 
-      // Acquire a durable slot via the AI-OPS-001 limiter service.
-      // `tokensEstimated` is the per-request upper bound used by
-      // `ai_reserve_tokens` to gate against the daily budget before
-      // the provider call lands. We clamp to the per-tier budget so
-      // a misconfigured tiny budget (e.g. test fixture = 1) does not
-      // make every request reject before reaching the provider.
+      // Acquire a durable slot via the AI-OPS-001 limiter service. Users are
+      // metered in messages (ADR-0085); `tokensEstimated` is only the
+      // admission estimate for the hidden token ceiling, which records the
+      // real count afterwards. We clamp to the ceiling so a misconfigured
+      // tiny budget (e.g. test fixture = 1) does not make every request
+      // reject before reaching the provider.
       const cap = limits.resolveCap(planTier);
-      const tokensEstimated = Math.min(cap.dailyTokenBudget, 1_200);
+      const tokensEstimated = Math.min(cap.coachDailyTokenBudget, 1_200);
       const slot = await limits.acquireSlot({
         userId: principal.userId,
         conversationId,
@@ -839,7 +839,10 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
 
       if (slot.kind === "limited") {
         reply.header("retry-after", String(slot.retryAfter));
-        const isDaily = slot.reason === "tokens" || slot.reason === "cost";
+        const isDaily =
+          slot.reason === "messages" ||
+          slot.reason === "tokens" ||
+          slot.reason === "cost";
         const reason: LimitReasonKind = isDaily
           ? "daily_budget_exhausted"
           : slot.reason === "inflight"
@@ -847,20 +850,27 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             : slot.reason === "lock_busy"
               ? "service_busy"
               : "minute_rate_limit";
+        // Counts renew at the next UTC midnight of the limiter clock.
         const resetAt = slot.cost
           ? slot.cost.resetAt
           : isDaily
-            ? new Date(Date.now() + (slot.retryAfter ?? 0) * 1000).toISOString()
+            ? new Date(
+                Date.parse(
+                  `${limits.clock().toISOString().slice(0, 10)}T00:00:00.000Z`,
+                ) + 86_400_000,
+              ).toISOString()
             : undefined;
         const message = slot.cost
           ? costDenialResponse(slot.cost).message
-          : slot.reason === "tokens"
-            ? `Your daily Coach AI budget has been reached (${cap.dailyTokenBudget.toLocaleString()} tokens). Quota resets at midnight UTC.`
-            : slot.reason === "inflight"
-              ? "A Coach request is already in progress. Try again shortly."
-              : slot.reason === "lock_busy"
-                ? "The Coach limiter is busy. Try again shortly."
-                : "Too many Coach requests. Try again shortly.";
+          : slot.reason === "messages"
+            ? `You've used today's ${cap.coachDailyMessageLimit} Coach messages. More are available after the daily reset.`
+            : slot.reason === "tokens"
+              ? "You've reached today's Coach limit. More messages are available after the daily reset."
+              : slot.reason === "inflight"
+                ? "A Coach request is already in progress. Try again shortly."
+                : slot.reason === "lock_busy"
+                  ? "The Coach limiter is busy. Try again shortly."
+                  : "Too many Coach requests. Try again shortly.";
         return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
           reason,
           retryAfterSeconds: slot.retryAfter,
@@ -922,6 +932,20 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
 
       const providerCallId =
         slot.kind === "reserved" ? slot.providerCallId : "";
+      // This reply is counted on success, so it is one of the messages used.
+      const usage =
+        slot.kind === "reserved"
+          ? {
+              dailyMessageLimit: cap.coachDailyMessageLimit,
+              messagesRemaining: Math.max(
+                0,
+                cap.coachDailyMessageLimit - slot.messagesUsed - 1,
+              ),
+              resetsAt: new Date(
+                Date.parse(`${slot.day}T00:00:00.000Z`) + 86_400_000,
+              ).toISOString(),
+            }
+          : undefined;
 
       try {
         const grounding = await buildCoachGrounding(
@@ -1139,6 +1163,14 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             ? response.providerMetadata.totalTokens
             : undefined;
         const totalTokens = reportedTokens ?? 0;
+        // Canned app help and an input safety screen make no model call and
+        // use no Coach message (ADR-0085). A reply replaced by output
+        // moderation followed a model call and still counts.
+        const localReply =
+          reportedTokens === undefined &&
+          (response.provider === "mizyun-app-guide" ||
+            (response.provider === "mizyun-safety" &&
+              response.providerMetadata?.moderationDirection !== "output"));
         const rawAssistantText = extractAssistantText(response.message.text);
         const assistantText =
           actionProposal !== null
@@ -1175,6 +1207,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           tokensEstimated,
           provider: response.provider,
           costTokensUsed: reportedTokens,
+          countMessage: !localReply,
         });
         const latestConversation =
           (await options.conversationRepository.get(
@@ -1186,6 +1219,19 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           conversation: toConversationWire(latestConversation),
           userMessage: toMessageWire(userMessage),
           assistantMessage: toMessageWire(assistantMessage),
+          ...(usage !== undefined
+            ? {
+                usage: localReply
+                  ? {
+                      ...usage,
+                      messagesRemaining: Math.min(
+                        usage.dailyMessageLimit,
+                        usage.messagesRemaining + 1,
+                      ),
+                    }
+                  : usage,
+              }
+            : {}),
         });
       } catch (error) {
         await limits

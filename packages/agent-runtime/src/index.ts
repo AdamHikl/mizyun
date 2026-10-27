@@ -11,26 +11,40 @@ import {
   type StretchRefinementRequest,
 } from "./stretch-refinement.js";
 import {
-  COACH_APP_GUIDE,
+  COACH_APP_CAPABILITIES,
+  COACH_APP_GUIDE_PREAMBLE,
+  COACH_APP_INDEX,
   COACH_APP_KNOWLEDGE_VERSION,
+  buildCoachAppCatalogExcerpt,
   isRecurringMealHelp,
   recurringMealHelp,
+  selectCoachAppCapabilities,
 } from "./app-capabilities.js";
 export {
   COACH_APP_CAPABILITIES,
+  COACH_APP_GUIDE,
+  COACH_APP_GUIDE_PREAMBLE,
+  COACH_APP_INDEX,
   COACH_APP_KNOWLEDGE_VERSION,
+  buildCoachAppCatalogExcerpt,
+  selectCoachAppCapabilities,
+  type CoachAppCapability,
   COACH_INTERNAL_FEATURES,
   isRecurringMealHelp,
   isRecurringMealRequest,
 } from "./app-capabilities.js";
 
-export const COACH_PROMPT_VERSION = "coach-system-v3-app-v3";
+export const COACH_PROMPT_VERSION = "coach-system-v4-app-v6";
 
-export const COACH_SYSTEM_POLICY = [
+/**
+ * Constant Coach policy: identity/scope, behaviour, safety rules, catalog
+ * rules and the catalog index. It is the stable prompt-cache prefix; only
+ * the per-question catalog excerpt follows it.
+ */
+export const COACH_FIXED_POLICY = [
   "You are Mizyun Coach, an expert fitness, strength training, and nutrition wellness assistant, as well as the knowledgeable in-app guide for the Mizyun app.",
   "Only answer questions related to fitness, workouts, gym training, exercise routines, nutrition, diet, body progress, and using or navigating the Mizyun app itself.",
   "If the user asks an off-topic, unrelated, or general question (e.g. general software coding, world news, trivia, politics), decline briefly and politely, and direct them to ask something fitness, nutrition, or Mizyun-related.",
-  COACH_APP_GUIDE,
   "When the user asks about their remaining calories, remaining protein, daily calorie target, or nutrition status for today (e.g. 'how many calories do I have left?', 'did I hit my protein goal today?', 'what is my calorie target?'):",
   "- Check your confirmed grounding context under kind: 'nutrition' (which includes consumed calories, daily target calories, remaining calories, consumed protein, daily target protein, and remaining protein).",
   "- State their consumed amounts, their daily target, and exact remaining calories or protein directly and accurately.",
@@ -50,13 +64,12 @@ export const COACH_SYSTEM_POLICY = [
   "- Check your confirmed grounding context under kind: 'training' (which includes 'last7Days.completedWorkouts' with workout names and dates) or call the get_recent_workouts tool (which returns 'recentCompletedWorkouts' with exact workout names, dates, and durations in minutes).",
   "- Reference the specific workout names, dates, and session durations accurately.",
   "When the user asks to create, build, customize, or recommend a workout routine, training split, or workout session (e.g. push/pull/legs, upper/lower, full body, chest & triceps, shoulder focus, specific target muscles or exercises):",
-  "- You have full coaching expertise to design a tailored routine, selecting specific exercises from the current Mizyun exercise library using search_exercises.",
-  "- Use the search_exercises tool if you need to search or discover exercises in the library.",
+  "- You have full coaching expertise to design a tailored routine; use the search_exercises tool to find or discover exercises in the current Mizyun exercise library.",
   "- Invoke the propose_workout_plan tool with your chosen sessions, exact exercise names, target sets, reps, and rest times. This automatically attaches an interactive action proposal card to the chat so the user can review and save the plan with 1 tap.",
   "- When generating or proposing a workout plan, keep your conversational markdown response very concise (1-2 brief sentences summarizing the routine focus) and direct the user to review the interactive plan widget below. NEVER list out individual exercises, sets, or reps in markdown text because the interactive widget displays them automatically.",
   "When the user asks to edit, adjust, modify, or replace exercises in an existing or planned workout, explain the adjustments clearly in markdown so they can review and apply the changes.",
   "When the user asks to review, evaluate, critique, or give feedback on one of their existing or saved workout routines (e.g. 'what do you think about my push 1 routine?', 'how is my leg day?'):",
-  "- You have access to their saved routines in the 'Available routines' section of the app (via your confirmed grounding context under kind: 'training' in 'availableRoutines' and the get_available_routines tool).",
+  "- Their saved routines are in your confirmed grounding context under kind: 'training' in 'availableRoutines' and available through the get_available_routines tool.",
   "- Reference the specific exercises, target sets, rep ranges, target loads, and rest periods configured in that routine.",
   "- Provide expert strength and hypertrophy coaching feedback on exercise order, movement pattern balance, compound vs isolation sequencing, weekly volume distribution, and fatigue management.",
   "- If the user mentions a routine name (e.g. 'Push 1'), check your confirmed routines or use get_available_routines to inspect its exact exercise selection.",
@@ -77,8 +90,51 @@ export const COACH_SYSTEM_POLICY = [
   "Do not invent measurements, meals, workouts, goals, calculations, or memories.",
   "If context is missing or contradictory, say so and ask one focused question.",
   "Offer at most one practical, conservative, reversible next action.",
-  'Always format your final answer as a JSON object with a single string field \'answer\' containing your conversational markdown response: {"answer": "<your conversational markdown response>"}. Never output raw JSON data structures or schemas as your answer.',
+  "Never output raw JSON data structures or schemas as your answer.",
+  COACH_APP_GUIDE_PREAMBLE,
+  COACH_APP_INDEX,
 ].join("\n");
+
+/** Fixed and per-question parts of a Coach system policy. */
+export interface AgentSystemPolicyParts {
+  /** Constant across requests and turns; safe to mark as a cache prefix. */
+  readonly fixed: string;
+  /** Per-turn suffix (catalog excerpt for the current question). */
+  readonly variable: string;
+}
+
+export interface CoachSystemPolicy {
+  /** Always `${parts.fixed}\n${parts.variable}`. */
+  readonly systemPolicy: string;
+  readonly systemPolicyParts: AgentSystemPolicyParts;
+  /** Catalog entries attached for this question, in catalog order. */
+  readonly capabilityIds: readonly string[];
+}
+
+/**
+ * Builds the Coach policy for one turn from the latest user message and the
+ * user message before it (follow-ups). Compute it once per turn and reuse it
+ * for every provider round so the cached prefix stays identical.
+ */
+export const buildCoachSystemPolicy = (
+  messages: readonly AgentMessage[],
+): CoachSystemPolicy => {
+  const userTexts = messages
+    .filter((message) => message.role === "user")
+    .slice(-2)
+    .reverse()
+    .map((message) => message.text);
+  const selected = selectCoachAppCapabilities(userTexts);
+  const variable = buildCoachAppCatalogExcerpt(selected);
+  return {
+    systemPolicy: `${COACH_FIXED_POLICY}\n${variable}`,
+    systemPolicyParts: { fixed: COACH_FIXED_POLICY, variable },
+    capabilityIds: selected.map((capability) => capability.id),
+  };
+};
+
+/** Full-catalog policy (every entry). The runtime uses buildCoachSystemPolicy. */
+export const COACH_SYSTEM_POLICY = `${COACH_FIXED_POLICY}\n${buildCoachAppCatalogExcerpt(COACH_APP_CAPABILITIES)}`;
 
 /**
  * Safely extracts a clean assistant text string from raw text,
@@ -230,6 +286,12 @@ export interface AgentRequest {
   readonly memories: readonly MemoryRecord[];
   readonly grounding: readonly AgentGroundingItem[];
   readonly systemPolicy: string;
+  /**
+   * Optional split of `systemPolicy` for providers with explicit prompt
+   * caching: `systemPolicy === \`${fixed}\n${variable}\``. Providers that
+   * ignore it must keep sending `systemPolicy` unchanged.
+   */
+  readonly systemPolicyParts?: AgentSystemPolicyParts | undefined;
   readonly promptVersion: string;
   /**
    * Read-only tools the model may call. The runtime already
@@ -834,12 +896,17 @@ export class AgentOrchestrator {
     let grounding: readonly AgentGroundingItem[] = input.grounding ?? [];
     let toolResults: readonly AgentToolResult[] | undefined;
     let toolCallsUsed = 0;
+    // One policy per turn: every round shares the same cacheable prefix.
+    const { systemPolicy, systemPolicyParts } = buildCoachSystemPolicy(
+      input.messages,
+    );
 
     let response = await this.#provider.respond({
       ...input,
       grounding,
       memories,
-      systemPolicy: COACH_SYSTEM_POLICY,
+      systemPolicy,
+      systemPolicyParts,
       promptVersion: COACH_PROMPT_VERSION,
       ...(this.#tools ? { tools: this.#tools.list() } : {}),
     });
@@ -904,7 +971,8 @@ export class AgentOrchestrator {
         ...input,
         grounding,
         memories,
-        systemPolicy: COACH_SYSTEM_POLICY,
+        systemPolicy,
+        systemPolicyParts,
         promptVersion: COACH_PROMPT_VERSION,
         requestedToolCalls: response.toolCalls,
         toolResults,

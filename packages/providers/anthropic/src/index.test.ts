@@ -103,6 +103,39 @@ describe("AnthropicAgentProvider", () => {
     });
   });
 
+  it("caches the fixed Coach policy and sends the question's excerpt after it (AI-06)", async () => {
+    const client = fakeClient([message([text("Open Log.")])]);
+    await provider(client).respond(
+      request({
+        systemPolicy: "Fixed rules.\nCatalog excerpt.",
+        systemPolicyParts: {
+          fixed: "Fixed rules.",
+          variable: "Catalog excerpt.",
+        },
+      }),
+    );
+    const system = client.calls[0]!.system as Anthropic.TextBlockParam[];
+    expect(system).toHaveLength(2);
+    expect(system[0]).toEqual({
+      type: "text",
+      text: "Fixed rules.",
+      cache_control: { type: "ephemeral" },
+    });
+    expect(system[1]?.text.startsWith("Catalog excerpt.")).toBe(true);
+    expect(system[1]?.text).toMatch(/Never wrap the reply in JSON/);
+    expect(system[1]).not.toHaveProperty("cache_control");
+    expect(JSON.stringify(system)).not.toMatch(/"answer"/);
+  });
+
+  it("sends one uncached system block without the policy split", async () => {
+    const client = fakeClient([message([text("Fine.")])]);
+    await provider(client).respond(request());
+    const system = client.calls[0]!.system as Anthropic.TextBlockParam[];
+    expect(system).toHaveLength(1);
+    expect(system[0]?.text.startsWith("Coach policy.")).toBe(true);
+    expect(system[0]).not.toHaveProperty("cache_control");
+  });
+
   it("returns tool calls and replays them as tool_use/tool_result blocks", async () => {
     const tools = [
       {

@@ -13,6 +13,7 @@ import {
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { apiClient } from "@/composition/api-client";
+import { localResetTime } from "@/lib/ai-allowance";
 
 import {
   aiUsageResponseSchema,
@@ -154,8 +155,24 @@ export function AiUsageCard() {
   const { usage, betaPro } = state;
   const isPaid = usage.planTier === "paid";
 
-  const coachPercent =
-    usage.coach.dailyTokenBudget > 0
+  // Coach is metered in messages (ADR-0085). An older server only reports
+  // its token ceiling, which is shown as a share, never as tokens.
+  const coachMessages =
+    usage.coach.dailyMessageLimit !== undefined &&
+    usage.coach.messagesUsed !== undefined
+      ? {
+          used: Math.min(
+            usage.coach.messagesUsed,
+            usage.coach.dailyMessageLimit,
+          ),
+          limit: usage.coach.dailyMessageLimit,
+        }
+      : null;
+  const coachPercent = coachMessages
+    ? coachMessages.limit > 0
+      ? Math.round((coachMessages.used / coachMessages.limit) * 100)
+      : 0
+    : usage.coach.dailyTokenBudget > 0
       ? Math.min(
           100,
           Math.round(
@@ -163,6 +180,7 @@ export function AiUsageCard() {
           ),
         )
       : 0;
+  const resetTime = localResetTime(usage.resetsAt);
 
   const photosPercent =
     usage.photos.dailyLimit > 0
@@ -192,7 +210,11 @@ export function AiUsageCard() {
           icon="chat"
           title="Coach Chat"
           percent={coachPercent}
-          detail={`${usage.coach.tokensUsed.toLocaleString()} / ${usage.coach.dailyTokenBudget.toLocaleString()} tokens`}
+          detail={
+            coachMessages
+              ? `${coachMessages.used} / ${coachMessages.limit} messages`
+              : `${coachPercent}% used`
+          }
         />
         <UsageMeter
           icon="camera"
@@ -202,7 +224,7 @@ export function AiUsageCard() {
         />
       </Card>
       <ThemedText type="footnote" themeColor="textSecondary">
-        Resets at midnight UTC
+        {resetTime ? `Resets daily at ${resetTime}` : "Resets daily"}
       </ThemedText>
 
       {!isPaid && betaPro.status === "none" ? (
