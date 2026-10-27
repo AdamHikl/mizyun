@@ -65,6 +65,7 @@ import {
 } from "../food-entries/index.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { buildCoachGrounding } from "./grounding.js";
+import { withRequestTimeZoneScope } from "../../request-time-zone.js";
 import { isExplicitDailyPlanIntent } from "./daily-plan-action.js";
 import type { CoachLimitService } from "./limits.js";
 import { costDenialResponse } from "./limits.js";
@@ -529,7 +530,8 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
   app.post(
     "/conversations/:id/messages",
     { preHandler: app.authenticate },
-    async (request, reply) => {
+    // REL-01: "today" follows the phone's zone until the profile has one.
+    withRequestTimeZoneScope(async (request, reply) => {
       const principal = request.principal ?? principalOrThrow();
       const conversationId = parseConversationId(
         (request.params as { readonly id: string }).id,
@@ -1580,6 +1582,6 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         }
         throw error;
       }
-    },
+    }),
   );
 };

@@ -2,7 +2,11 @@ import { describe, expect, it, vi, type Mock } from "vitest";
 import { z } from "zod";
 
 import type { AuthClient, AuthSession } from "@mizyun/identity";
-import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
+import {
+  API_COMPAT_HEADER,
+  API_COMPAT_VERSION,
+  DEVICE_TIME_ZONE_HEADER,
+} from "@mizyun/contracts";
 
 import { HttpApiClient, isNotModified, resultEtag } from "./http-api-client";
 
@@ -1017,6 +1021,31 @@ describe("HttpApiClient — client capability header", () => {
       "x-mizyun-activity-kinds": "meal",
       [API_COMPAT_HEADER]: API_COMPAT_VERSION,
     });
+  });
+
+  it("sends the device zone read at request time (REL-01)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, {}));
+    let zone: string | null = "America/Los_Angeles";
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock,
+      deviceTimeZone: () => zone,
+    });
+    await client.request({ method: "GET", path: "/v1/profile" });
+    zone = "Europe/Paris";
+    await client.request({ method: "GET", path: "/v1/profile" });
+    zone = null;
+    await client.request({ method: "GET", path: "/v1/profile" });
+    const sent = fetchMock.mock.calls.map(
+      ([, init]) => (init as RequestInit).headers as Record<string, string>,
+    );
+    expect(sent[0]?.[DEVICE_TIME_ZONE_HEADER]).toBe("America/Los_Angeles");
+    expect(sent[1]?.[DEVICE_TIME_ZONE_HEADER]).toBe("Europe/Paris");
+    expect(sent[2]).not.toHaveProperty(DEVICE_TIME_ZONE_HEADER);
+    expect(sent[2]?.[API_COMPAT_HEADER]).toBe(API_COMPAT_VERSION);
   });
 
   it("marks multipart meal-draft uploads too", async () => {

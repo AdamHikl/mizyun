@@ -183,6 +183,16 @@ export type ProfilePatch = {
   readonly aiProvider?: AiProvider | undefined;
 };
 
+export type ProfilePatchField = keyof ProfilePatch;
+
+/** The fields a patch sets, for a column-limited `ProfileRepository.update`. */
+export const profilePatchFields = (
+  patch: ProfilePatch,
+): ReadonlyArray<ProfilePatchField> =>
+  (Object.keys(patch) as ProfilePatchField[]).filter(
+    (field) => patch[field] !== undefined,
+  );
+
 /**
  * Why-not-valid reasons for a profile patch. The discriminated union
  * keeps the rejection reason machine-checkable at the route layer
@@ -210,6 +220,41 @@ export type ProfileValidationError =
   | { readonly kind: "invalid_ai_provider"; readonly value: string };
 
 const TIMEZONE_PATTERN = /^[A-Za-z][A-Za-z0-9_+\-/]*$/;
+const TIMEZONE_MAX_LENGTH = 64;
+
+/**
+ * True for a named IANA zone the runtime knows (`Europe/Paris`, `UTC`).
+ * Offset strings such as `+02:00`, which newer runtimes also accept, are
+ * rejected because they ignore daylight-saving changes.
+ */
+export const isValidIanaTimeZone = (value: unknown): value is string => {
+  if (
+    typeof value !== "string" ||
+    value.length > TIMEZONE_MAX_LENGTH ||
+    !TIMEZONE_PATTERN.test(value)
+  ) {
+    return false;
+  }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * REL-01: the zone that decides a user's calendar day. Profiles start at
+ * `DEFAULT_TIMEZONE` until the app saves the device zone, so until then a
+ * valid zone sent with the request (the phone's current zone) wins.
+ */
+export const effectiveProfileTimeZone = (
+  storedTimeZone: string,
+  requestTimeZone: string | null | undefined,
+): string =>
+  storedTimeZone === DEFAULT_TIMEZONE && isValidIanaTimeZone(requestTimeZone)
+    ? requestTimeZone
+    : storedTimeZone;
 const MAX_BIRTH_YEAR = () => new Date().getUTCFullYear();
 
 const ACTIVITY_LEVEL_VALUES = [
@@ -274,7 +319,7 @@ const validateTimezone = (
   value: string | undefined,
 ): ProfileValidationError | null => {
   if (value === undefined) return null;
-  if (isBlank(value) || !TIMEZONE_PATTERN.test(value)) {
+  if (isBlank(value) || !isValidIanaTimeZone(value)) {
     return { kind: "invalid_timezone", value };
   }
   return null;
@@ -468,9 +513,18 @@ export interface ProfileRepository {
     userId: UserId,
     defaults: { readonly now: Date; readonly accessToken: string },
   ): Promise<StoredProfile>;
+  /**
+   * `fields`, when given, limits the write to those patched columns so a
+   * concurrent update of other columns is not overwritten with the values
+   * this request read (REL-01: the app saves its zone in the background).
+   * Without it every editable column is written.
+   */
   update(
     userId: UserId,
     next: StoredProfile,
-    options: { readonly accessToken: string },
+    options: {
+      readonly accessToken: string;
+      readonly fields?: ReadonlyArray<ProfilePatchField>;
+    },
   ): Promise<StoredProfile>;
 }

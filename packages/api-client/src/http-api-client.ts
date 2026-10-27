@@ -6,6 +6,7 @@ import { err, ok, type Result } from "@mizyun/core";
 import {
   API_COMPAT_HEADER,
   API_COMPAT_VERSION,
+  DEVICE_TIME_ZONE_HEADER,
   coachMessageResponseSchema,
   foodDraftResponseSchema,
   mealIllustrationResponseSchema,
@@ -40,29 +41,50 @@ export interface HttpApiClientDependencies {
   readonly baseUrl: string;
   readonly authClient: AuthClient;
   readonly fetch?: typeof globalThis.fetch;
+  /** Device IANA zone sent with each request; defaults to the runtime's. */
+  readonly deviceTimeZone?: () => string | null;
 }
 
 const AUTHORIZATION_HEADER = "authorization";
 const CONTENT_TYPE_HEADER = "content-type";
 const JSON_CONTENT_TYPE = "application/json";
 
+/** The runtime's current IANA zone, or null when it cannot report one. */
+const runtimeTimeZone = (): string | null => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Adds the client capability header to every request this client sends, so
- * the server can tell current clients from installed legacy builds.
+ * the server can tell current clients from installed legacy builds, and the
+ * device zone (REL-01), read per request because the phone can change zone
+ * while the app runs.
  */
 const withCompatHeader =
-  (fetcher: typeof globalThis.fetch): typeof globalThis.fetch =>
+  (
+    fetcher: typeof globalThis.fetch,
+    deviceTimeZone: () => string | null = runtimeTimeZone,
+  ): typeof globalThis.fetch =>
   (input, init) => {
+    const extra: Array<[string, string]> = [
+      [API_COMPAT_HEADER, API_COMPAT_VERSION],
+    ];
+    const zone = deviceTimeZone();
+    if (zone) extra.push([DEVICE_TIME_ZONE_HEADER, zone]);
     const headers = init?.headers;
     let next: NonNullable<NonNullable<typeof init>["headers"]>;
     if (headers instanceof Headers) {
       const copy = new Headers(headers);
-      copy.set(API_COMPAT_HEADER, API_COMPAT_VERSION);
+      for (const [name, value] of extra) copy.set(name, value);
       next = copy;
     } else if (Array.isArray(headers)) {
-      next = [...headers, [API_COMPAT_HEADER, API_COMPAT_VERSION]];
+      next = [...headers, ...extra];
     } else {
-      next = { ...(headers ?? {}), [API_COMPAT_HEADER]: API_COMPAT_VERSION };
+      next = { ...(headers ?? {}), ...Object.fromEntries(extra) };
     }
     return fetcher(input, { ...(init ?? {}), headers: next });
   };
@@ -154,6 +176,7 @@ export class HttpApiClient implements ApiClient {
     this.#authClient = dependencies.authClient;
     this.#fetch = withCompatHeader(
       dependencies.fetch ?? globalThis.fetch.bind(globalThis),
+      dependencies.deviceTimeZone,
     );
     const recipes = createMealRecipeTransport({
       ...dependencies,

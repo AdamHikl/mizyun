@@ -679,7 +679,8 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
                 { birthYear: parsed.data.birthYear },
                 now,
               ),
-              { accessToken: principal.accessToken },
+              // Only the birth year: other columns may change concurrently.
+              { accessToken: principal.accessToken, fields: ["birthYear"] },
             );
           }
           if (!isAdultEligibleForAi(profile, now)) {

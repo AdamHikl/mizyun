@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
   applyProfilePatch,
+  profilePatchFields,
   validateProfilePatch,
   type ProfilePatch,
   type ProfileRepository,
@@ -227,6 +228,9 @@ export const profileRoutes: FastifyPluginAsync<ProfileRoutesOptions> = async (
         next,
         {
           accessToken: principal.accessToken,
+          // Write only what this request changes; the app also saves its
+          // zone in the background (REL-01).
+          fields: profilePatchFields(patch),
         },
       );
       return toWire(saved);

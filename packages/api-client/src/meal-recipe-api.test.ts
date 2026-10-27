@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { API_COMPAT_HEADER, API_COMPAT_VERSION } from "@mizyun/contracts";
+import {
+  API_COMPAT_HEADER,
+  API_COMPAT_VERSION,
+  DEVICE_TIME_ZONE_HEADER,
+} from "@mizyun/contracts";
 import type { AuthClient, AuthSession } from "@mizyun/identity";
 import { createMealRecipeApi } from "./meal-recipe-api";
 import { HttpApiClient } from "./http-api-client";
 import { DisabledApiClient } from "./disabled-api-client";
 
-const compat = { [API_COMPAT_HEADER]: API_COMPAT_VERSION };
+const compat = {
+  [API_COMPAT_HEADER]: API_COMPAT_VERSION,
+  [DEVICE_TIME_ZONE_HEADER]: "Europe/Paris",
+};
 
 const requestId = "00000000-0000-4000-8000-000000000001";
 const options = { expectedUserId: "owner", isCurrent: () => true };
@@ -104,6 +111,7 @@ const make = (payload: unknown = capabilities) => {
       baseUrl: "https://api.example/",
       authClient: auth,
       fetch: fetcher,
+      deviceTimeZone: () => "Europe/Paris",
     }),
   );
   return {

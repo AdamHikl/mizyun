@@ -18,6 +18,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { AppState } from "react-native";
 
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import {
@@ -41,6 +42,11 @@ import {
   setMealPhotoPrincipal,
 } from "@/features/log-meal/public-data";
 import { hydrateAuthBootstrap } from "./auth-bootstrap";
+import {
+  createProfileTimeZoneSync,
+  readDeviceTimeZone,
+  type TimeZoneSyncTrigger,
+} from "./profile-time-zone-sync";
 import {
   loadCachedProfile,
   purgeOfflineCache,
@@ -336,6 +342,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [fetchProfile, session]);
+
+  // REL-01: store the phone's zone so Coach's "today" matches Home's.
+  const timeZoneSync = useRef(
+    createProfileTimeZoneSync({
+      deviceTimeZone: readDeviceTimeZone,
+      save: async (timezone) => {
+        const result = await apiClient.request<{ profile: Profile }>({
+          method: "PUT",
+          path: "/v1/profile",
+          body: { timezone },
+          schema: profileResponseSchema,
+        });
+        if (result.ok) return result.value.profile;
+        const { error } = result;
+        return error.kind === "http_error" &&
+          error.status >= 400 &&
+          error.status < 500 &&
+          error.status !== 401 &&
+          error.status !== 408 &&
+          error.status !== 429
+          ? "rejected"
+          : null;
+      },
+    }),
+  ).current;
+  const syncTimeZone = useCallback(
+    (current: Profile | null, trigger: TimeZoneSyncTrigger) => {
+      const owner = pushSession.current;
+      if (
+        !apiConfiguration.configured ||
+        owner === null ||
+        owner.accessToken === "preview-token" ||
+        current?.userId !== owner.user.id
+      )
+        return;
+      void timeZoneSync.sync(current, trigger).then((saved) => {
+        if (saved === null || pushSession.current?.user.id !== saved.userId)
+          return;
+        setProfile(saved);
+        void saveCachedProfile(saved.userId, saved);
+      });
+    },
+    [timeZoneSync],
+  );
+  const latestProfile = useRef<Profile | null>(null);
+  useEffect(() => {
+    latestProfile.current = profile;
+    // Wait for the server read so a cached profile does not trigger a save.
+    if (!profileLoading) syncTimeZone(profile, "profile");
+  }, [profile, profileLoading, syncTimeZone]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") syncTimeZone(latestProfile.current, "foreground");
+    });
+    return () => subscription.remove();
+  }, [syncTimeZone]);
 
   const clearRecoveryState = useCallback(() => setRecoveryState(false), []);
 

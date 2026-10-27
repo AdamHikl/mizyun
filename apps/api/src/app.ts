@@ -216,6 +216,7 @@ import {
   type CoachLimitService,
 } from "./modules/coach/limits.js";
 import { buildCoachToolRegistry } from "./modules/coach/tools.js";
+import { withRequestTimeZone } from "./request-time-zone.js";
 import { energyRoutes } from "./modules/energy/routes.js";
 import { InMemoryMemoryStore, type MemoryStore } from "@mizyun/memory";
 import { exercisesRoutes } from "./modules/exercises/routes.js";
@@ -1271,9 +1272,11 @@ export const buildApp = (
   // registry against the wired repos and pass it into a
   // freshly-constructed orchestrator that owns the default
   // provider + memory store.
+  // REL-01: Coach reads see the phone's zone while the profile has none.
+  const coachProfileRepository = withRequestTimeZone(profileRepository);
   const defaultToolSet = buildCoachToolRegistry({
     runRepository,
-    profileRepository,
+    profileRepository: coachProfileRepository,
     goalRepository,
     workoutRepository,
     workoutSetRepository,
@@ -2133,7 +2136,7 @@ export const buildApp = (
     resolveAgent,
     resolveStatusConsent,
     conversationRepository,
-    profileRepository,
+    profileRepository: coachProfileRepository,
     betaProRepository,
     aiConsentRepository,
     goalRepository,

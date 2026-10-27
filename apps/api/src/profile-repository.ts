@@ -1,6 +1,7 @@
 import type {
   CoachingPreferences,
   PlanTier,
+  ProfilePatchField,
   ProfileRepository,
   StoredProfile,
   UnitSystem,
@@ -87,7 +88,10 @@ export class InMemoryProfileRepository implements ProfileRepository {
   async update(
     userId: UserId,
     next: StoredProfile,
-    options: { readonly accessToken: string },
+    options: {
+      readonly accessToken: string;
+      readonly fields?: ReadonlyArray<ProfilePatchField>;
+    },
   ): Promise<StoredProfile> {
     void options.accessToken;
     if (next.userId !== userId) {
@@ -100,8 +104,19 @@ export class InMemoryProfileRepository implements ProfileRepository {
     if (stored === null) {
       throw new Error(`update called for missing user ${userId}`);
     }
-    this.#byUser.set(userId, next);
-    return next;
+    // Mirror the Supabase adapter: only the listed columns change.
+    const saved: StoredProfile =
+      options.fields === undefined
+        ? next
+        : {
+            ...stored,
+            ...Object.fromEntries(
+              options.fields.map((field) => [field, next[field]]),
+            ),
+            updatedAt: next.updatedAt,
+          };
+    this.#byUser.set(userId, saved);
+    return saved;
   }
 
   /**

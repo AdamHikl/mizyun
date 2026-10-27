@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { UserId } from "./index.js";
 import {
   applyProfilePatch,
+  effectiveProfileTimeZone,
+  isValidIanaTimeZone,
   type ProfilePatch,
   type StoredProfile,
   validateProfilePatch,
@@ -74,6 +76,15 @@ describe("validateProfilePatch", () => {
       kind: "invalid_timezone",
       value: "not a tz!",
     });
+  });
+
+  it("rejects well-shaped names that are not IANA zones, and offsets", () => {
+    for (const value of ["Mars/Olympus_Mons", "Europe/Atlantis", "+02:00"]) {
+      expect(validateProfilePatch({ timezone: value })).toEqual({
+        kind: "invalid_timezone",
+        value,
+      });
+    }
   });
 
   it("rejects a height outside the plausible range", () => {
@@ -288,5 +299,28 @@ describe("applyProfilePatch", () => {
       new Date("2026-08-01T00:00:00Z"),
     );
     expect(next.aiProvider).toBe("gemini");
+  });
+});
+
+describe("REL-01 effective profile time zone", () => {
+  it("recognises named IANA zones only", () => {
+    expect(isValidIanaTimeZone("America/Los_Angeles")).toBe(true);
+    expect(isValidIanaTimeZone("UTC")).toBe(true);
+    expect(isValidIanaTimeZone("Not/AZone")).toBe(false);
+    expect(isValidIanaTimeZone("-07:00")).toBe(false);
+    expect(isValidIanaTimeZone("")).toBe(false);
+    expect(isValidIanaTimeZone(null)).toBe(false);
+    expect(isValidIanaTimeZone(`Europe/${"x".repeat(80)}`)).toBe(false);
+  });
+
+  it("uses the request zone only while the stored zone is the default", () => {
+    expect(effectiveProfileTimeZone("UTC", "America/Los_Angeles")).toBe(
+      "America/Los_Angeles",
+    );
+    expect(
+      effectiveProfileTimeZone("Europe/Paris", "America/Los_Angeles"),
+    ).toBe("Europe/Paris");
+    expect(effectiveProfileTimeZone("UTC", null)).toBe("UTC");
+    expect(effectiveProfileTimeZone("UTC", "Not/AZone")).toBe("UTC");
   });
 });

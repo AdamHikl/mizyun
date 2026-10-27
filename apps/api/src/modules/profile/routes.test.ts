@@ -4,7 +4,7 @@ import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
-import type { UserId } from "@mizyun/core";
+import type { ProfileRepository, UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
@@ -192,6 +192,78 @@ describe("PUT /v1/profile", () => {
       headers: { authorization: "Bearer valid" },
     });
     expect(read.json().profile.timezone).toBe("Europe/Paris");
+  });
+
+  it("does not overwrite a concurrent settings save with a background timezone save (REL-01)", async () => {
+    const inner = new InMemoryProfileRepository({
+      defaultTimezone: "UTC",
+      defaultUnitSystem: "metric",
+    });
+    // Hold the first read (the timezone PUT) until the other PUT has saved.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    const profileRepository: ProfileRepository = {
+      getOrCreate: async (userId, defaults) => {
+        const profile = await inner.getOrCreate(userId, defaults);
+        if (++reads === 1) await gate;
+        return profile;
+      },
+      update: (userId, next, options) => inner.update(userId, next, options),
+    };
+    const app = buildApp({
+      tokenVerifier: tokenVerifierFor({ userId: userA }),
+      agent: new AgentOrchestrator({
+        provider: new DisabledAgentProvider(),
+        memories: new InMemoryMemoryStore(),
+      }),
+      profileRepository,
+    });
+    apps.push(app);
+    const put = (payload: Record<string, unknown>) =>
+      app.inject({
+        method: "PUT",
+        url: "/v1/profile",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload,
+      });
+    const timezone = put({ timezone: "America/Los_Angeles" });
+    while (reads === 0) await new Promise((resolve) => setTimeout(resolve, 1));
+    expect((await put({ unitSystem: "imperial" })).statusCode).toBe(200);
+    release();
+    expect((await timezone).statusCode).toBe(200);
+    const stored = await inner.getOrCreate(userA, {
+      now: new Date(),
+      accessToken: "test-token",
+    });
+    expect(stored).toMatchObject({
+      timezone: "America/Los_Angeles",
+      unitSystem: "imperial",
+    });
+  });
+
+  it("rejects a timezone that is not a named IANA zone (REL-01)", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { timezone: "Mars/Olympus_Mons" },
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    const read = await app.inject({
+      method: "GET",
+      url: "/v1/profile",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(read.json().profile.timezone).toBe("UTC");
   });
 
   it("rejects an empty patch with a 422 VALIDATION_ERROR", async () => {
