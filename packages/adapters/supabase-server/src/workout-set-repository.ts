@@ -1,7 +1,8 @@
-import type {
-  StoredWorkoutSet,
-  UserId,
-  WorkoutSetRepository,
+import {
+  WorkoutSetSequenceCollisionError,
+  type StoredWorkoutSet,
+  type UserId,
+  type WorkoutSetRepository,
 } from "@mizyun/core";
 
 import type { RepositorySupabaseClient } from "./index.js";
@@ -11,6 +12,7 @@ interface WorkoutSetRow extends Record<string, unknown> {
   readonly id: string;
   readonly user_id: string;
   readonly workout_id: string;
+  readonly client_operation_id?: string | null;
   readonly exercise_id: string;
   readonly sequence: number;
   readonly set_type?: string | null;
@@ -27,6 +29,7 @@ export const workoutSetFromRow = (row: WorkoutSetRow): StoredWorkoutSet => ({
   id: row.id,
   userId: row.user_id as UserId,
   workoutId: row.workout_id,
+  clientOperationId: row.client_operation_id ?? null,
   exerciseId: row.exercise_id,
   sequence: row.sequence,
   setType: (row.set_type as StoredWorkoutSet["setType"]) ?? "normal",
@@ -44,6 +47,7 @@ const toInsertRow = (set: StoredWorkoutSet): Partial<WorkoutSetRow> => ({
   id: set.id,
   user_id: set.userId,
   workout_id: set.workoutId,
+  client_operation_id: set.clientOperationId ?? null,
   exercise_id: set.exerciseId,
   sequence: set.sequence,
   set_type: set.setType ?? "normal",
@@ -54,6 +58,8 @@ const toInsertRow = (set: StoredWorkoutSet): Partial<WorkoutSetRow> => ({
   perceived_exertion: set.perceivedExertion,
   completed_at: set.completedAt === null ? null : set.completedAt.toISOString(),
 });
+
+const OPERATION_INDEX = "workout_sets_user_client_op_idx";
 
 export interface SupabaseWorkoutSetRepositoryOptions {
   readonly clientFor: (accessToken: string) => RepositorySupabaseClient;
@@ -66,37 +72,55 @@ export class SupabaseWorkoutSetRepository implements WorkoutSetRepository {
     this.#clientFor = options.clientFor;
   }
 
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkoutSet | null> {
+    const { data, error } = await this.#clientFor(options.accessToken)
+      .from<WorkoutSetRow>("workout_sets")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("client_operation_id", clientOperationId)
+      .maybeSingle();
+    if (error) throw new RepositoryError(error.message);
+    return data === null ? null : fromRow(data);
+  }
+
   async create(
     userId: UserId,
     set: StoredWorkoutSet,
     options: { readonly accessToken: string },
   ): Promise<StoredWorkoutSet> {
     const client = this.#clientFor(options.accessToken);
-    try {
-      const { data, error } = await client
-        .from<WorkoutSetRow>("workout_sets")
-        .insert(toInsertRow(set))
-        .select("*")
-        .single();
-      if (error || data === null) {
-        throw new RepositoryError(
-          error?.message ?? "workout set insert returned no row",
+    const { data, error } = await client
+      .from<WorkoutSetRow>("workout_sets")
+      .insert(toInsertRow(set))
+      .select("*")
+      .single();
+    if (!error && data !== null) return fromRow(data);
+    const message = error?.message ?? "workout set insert returned no row";
+    const uniqueViolation =
+      error?.code === "23505" || message.includes("duplicate key value");
+    if (uniqueViolation) {
+      // A keyed retry that lost the race (or replayed after a lost
+      // response) returns the row its identity already saved.
+      if (set.clientOperationId) {
+        const existing = await this.findByClientOperationId(
+          userId,
+          set.clientOperationId,
+          options,
         );
+        if (existing !== null) return existing;
       }
-      return fromRow(data);
-    } catch (cause) {
-      // 23505 unique_violation on (workout_id, sequence).
-      const message = cause instanceof Error ? cause.message : "unknown";
-      if (
-        message.includes("workout_sets") &&
-        message.includes("duplicate key value")
-      ) {
-        throw new RepositoryError(
-          `workout set sequence collision: workout=${set.workoutId} sequence=${set.sequence}`,
-        );
+      // Any other unique violation on this table is the
+      // (workout_id, sequence) constraint
+      // `workout_sets_workout_id_sequence_key`.
+      if (!message.includes(OPERATION_INDEX)) {
+        throw new WorkoutSetSequenceCollisionError(set.workoutId, set.sequence);
       }
-      throw cause;
     }
+    throw new RepositoryError(message);
   }
 
   async listForWorkout(

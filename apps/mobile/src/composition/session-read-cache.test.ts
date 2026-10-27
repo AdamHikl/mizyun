@@ -460,6 +460,29 @@ describe("personal screen navigation reads", () => {
       error: { kind: "no_session" },
     });
   });
+  it("reports a failed lookup before a set save as retryable, not a sign-out (#291)", async () => {
+    const f = fixture();
+    const cause = new Error("refresh unreachable after unlock");
+    const write = {
+      method: "POST" as const,
+      path: "/v1/workouts/w1/sets",
+      body: {},
+      schema,
+    };
+    f.sessionLookup.mockRejectedValueOnce(cause);
+    expect(await f.cache.request(write)).toEqual({
+      ok: false,
+      error: { kind: "network_error", cause },
+    });
+    // Nothing was sent, so the queued set can be replayed safely.
+    expect(f.request).not.toHaveBeenCalled();
+    expect(await f.cache.request(write)).toEqual(success);
+    f.setSession(null);
+    expect(await f.cache.request(write)).toEqual({
+      ok: false,
+      error: { kind: "no_session" },
+    });
+  });
   it("lifts a token denial only for a new token of that owner", async () => {
     const f = fixture();
     f.request.mockResolvedValueOnce({

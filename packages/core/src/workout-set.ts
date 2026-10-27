@@ -78,7 +78,31 @@ export interface StoredWorkoutSet extends WorkoutSetCore {
   readonly id: string;
   readonly userId: UserId;
   readonly workoutId: string;
+  /**
+   * Optional client retry identity (REL-02 / REL-04). Unique per
+   * owner when present; `null`/absent for older keyless clients.
+   * Never part of the wire response.
+   */
+  readonly clientOperationId?: string | null;
   readonly createdAt: Date;
+}
+
+/**
+ * Thrown by `WorkoutSetRepository.create` when the requested
+ * `(workoutId, sequence)` is already taken by another set. Lets the
+ * route retry a keyed (retry-safe) create at the next free sequence
+ * without parsing database error text.
+ */
+export class WorkoutSetSequenceCollisionError extends Error {
+  constructor(
+    readonly workoutId: string,
+    readonly sequence: number,
+  ) {
+    super(
+      `workout set sequence collision: workout=${workoutId} sequence=${sequence}`,
+    );
+    this.name = "WorkoutSetSequenceCollisionError";
+  }
 }
 
 /**
@@ -312,10 +336,24 @@ export const summariseExerciseSets = (
  */
 export interface WorkoutSetRepository {
   /**
+   * Return the caller's set saved under `clientOperationId`, or
+   * `null`. The identity is unique per owner (REL-02 / REL-04).
+   */
+  findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkoutSet | null>;
+  /**
    * `accessToken` is the verified principal's bearer token. The
    * in-memory adapter ignores it; the Supabase adapter uses it
    * to construct a per-request client bound to the user's RLS
    * session. PERSIST-002.
+   *
+   * When `set.clientOperationId` is already used by the owner, the
+   * existing row is returned (the caller compares its payload). A
+   * `(workoutId, sequence)` collision with another row throws
+   * `WorkoutSetSequenceCollisionError`.
    */
   create(
     userId: UserId,

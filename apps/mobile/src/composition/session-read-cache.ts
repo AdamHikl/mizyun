@@ -478,7 +478,14 @@ export class SessionReadCache implements ApiClient {
       this.writes++;
       invalidate();
       try {
-        const owner = await this.session().catch(() => null);
+        // A token refresh that cannot reach Auth (right after unlocking) is a
+        // retryable failure, not a sign-out (#291). Nothing has been sent.
+        const lookup = await this.session().then(
+          (session) => ({ session }),
+          (cause: unknown) => ({ session: null, cause }),
+        );
+        if ("cause" in lookup) return lookupFailed(lookup.cause);
+        const owner = lookup.session;
         if (
           !owner ||
           (options.expectedUserId &&

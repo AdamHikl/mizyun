@@ -120,3 +120,41 @@ describe("workout set types wire contracts", () => {
     ).toBe(false);
   });
 });
+
+describe("workoutSetCreateSchema retry identity (REL-02 / REL-04)", () => {
+  const exerciseId = "00000000-0000-4000-8000-000000000004";
+  const clientOperationId = "00000000-0000-4000-8000-00000000e001";
+
+  it("accepts an optional client operation UUID", () => {
+    const parsed = workoutSetCreateSchema.parse({
+      clientOperationId,
+      exerciseId,
+      repetitions: 5,
+      completedAt: "2026-10-27T08:10:00.000Z",
+    });
+    expect(parsed.clientOperationId).toBe(clientOperationId);
+  });
+
+  it("keeps older keyless bodies valid", () => {
+    const parsed = workoutSetCreateSchema.parse({ exerciseId, repetitions: 5 });
+    expect(parsed).not.toHaveProperty("clientOperationId");
+  });
+
+  it("rejects a malformed or null operation id", () => {
+    for (const value of ["not-a-uuid", null, ""]) {
+      expect(
+        workoutSetCreateSchema.safeParse({
+          clientOperationId: value,
+          exerciseId,
+          repetitions: 5,
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("does not echo the identity in the stored-set wire shape", () => {
+    expect(Object.keys(workoutSetSchema.shape)).not.toContain(
+      "clientOperationId",
+    );
+  });
+});

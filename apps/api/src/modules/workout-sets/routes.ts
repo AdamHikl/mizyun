@@ -1,9 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
   isNonStrengthWorkoutDetails,
+  MAX_SEQUENCE,
   summariseExerciseSets,
   validateWorkoutSetCreate,
   isRoutineDetails,
+  WorkoutSetSequenceCollisionError,
   type StoredWorkout,
   type StoredWorkoutSet,
   type UserId,
@@ -35,6 +37,26 @@ const GENERIC_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const RECENT_SETS_DEFAULT_LIMIT = 20;
+
+/**
+ * Keyed (retry-safe) creates whose requested sequence is taken by a
+ * different set move to the next free ordinal at most this many times.
+ */
+const KEYED_SEQUENCE_RETRIES = 3;
+
+const OPERATION_CONFLICT_MESSAGE =
+  "This operation already saved a different set. Recover the original entry before making changes.";
+
+/** Compare two values at the SQL column's numeric scale. */
+const sameAtScale = (
+  stored: number | null,
+  requested: number | null,
+  scale: number,
+): boolean => {
+  if (stored === null || requested === null) return stored === requested;
+  const factor = 10 ** scale;
+  return Math.round(stored * factor) === Math.round(requested * factor);
+};
 const RECENT_SETS_MAX_LIMIT = 50;
 
 /**
@@ -156,6 +178,51 @@ const nextSequence = async (
   if (existing.length === 0) return 1;
   const max = existing.reduce((m, s) => (s.sequence > m ? s.sequence : m), 0);
   return max + 1;
+};
+
+/**
+ * Insert a set. Keyless (older-client) creates keep the documented
+ * behaviour: a sequence collision is rejected. A keyed create is an
+ * already-acknowledged user action (possibly replayed from an offline
+ * queue), so when another set has taken its ordinal it moves to the next
+ * free sequence a bounded number of times. Before each move it re-reads
+ * its identity in case a concurrent replay of the same operation won.
+ */
+const createWithSequenceRetry = async (
+  workoutSetRepository: WorkoutSetRepository,
+  stored: StoredWorkoutSet,
+  accessToken: string,
+): Promise<StoredWorkoutSet> => {
+  let candidate = stored;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await workoutSetRepository.create(candidate.userId, candidate, {
+        accessToken,
+      });
+    } catch (cause) {
+      const operation = candidate.clientOperationId;
+      if (
+        !operation ||
+        !(cause instanceof WorkoutSetSequenceCollisionError) ||
+        attempt >= KEYED_SEQUENCE_RETRIES
+      ) {
+        throw cause;
+      }
+      const winner = await workoutSetRepository.findByClientOperationId(
+        candidate.userId,
+        operation,
+        { accessToken },
+      );
+      if (winner !== null) return winner;
+      const sequence = await nextSequence(
+        workoutSetRepository,
+        candidate.workoutId,
+        accessToken,
+      );
+      if (sequence > MAX_SEQUENCE) throw cause;
+      candidate = { ...candidate, sequence };
+    }
+  }
 };
 
 /**
@@ -286,6 +353,17 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         );
         return;
       }
+      const clientOperationId = parsed.data.clientOperationId?.toLowerCase();
+      if (clientOperationId && !parsed.data.completedAt) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "completedAt is required for repeatable sets.",
+        );
+        return;
+      }
       const sequence =
         parsed.data.sequence ??
         (await nextSequence(
@@ -336,6 +414,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         id: crypto.randomUUID(),
         userId: principal.userId,
         workoutId,
+        clientOperationId: clientOperationId ?? null,
         exerciseId: parsed.data.exerciseId,
         sequence,
         setType: parsed.data.setType ?? "normal",
@@ -347,19 +426,81 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         completedAt,
         createdAt: now,
       };
+      // Canonical replay identity. `sequence` is excluded: a keyed
+      // create may have moved to the next free ordinal.
+      const matches = (existing: StoredWorkoutSet): boolean =>
+        existing.userId === principal.userId &&
+        existing.workoutId === workoutId &&
+        existing.exerciseId === stored.exerciseId &&
+        (existing.setType ?? "normal") === stored.setType &&
+        sameAtScale(existing.repetitions, stored.repetitions, 2) &&
+        sameAtScale(existing.loadKg, stored.loadKg, 3) &&
+        sameAtScale(existing.durationSeconds, stored.durationSeconds, 0) &&
+        sameAtScale(existing.distanceMeters, stored.distanceMeters, 2) &&
+        sameAtScale(existing.perceivedExertion, stored.perceivedExertion, 1) &&
+        existing.completedAt?.getTime() === stored.completedAt?.getTime();
+      if (clientOperationId) {
+        const existing =
+          await options.workoutSetRepository.findByClientOperationId(
+            principal.userId,
+            clientOperationId,
+            { accessToken: principal.accessToken },
+          );
+        if (existing !== null) {
+          if (!matches(existing)) {
+            await sendApiError(
+              reply,
+              request,
+              409,
+              "CONFLICT",
+              OPERATION_CONFLICT_MESSAGE,
+            );
+            return;
+          }
+          return toWire(existing);
+        }
+      }
+      let saved: StoredWorkoutSet;
       try {
-        const saved = await options.workoutSetRepository.create(
-          principal.userId,
+        saved = await createWithSequenceRetry(
+          options.workoutSetRepository,
           stored,
-          { accessToken: principal.accessToken },
+          principal.accessToken,
         );
-        return toWire(saved);
       } catch (cause) {
+        // A keyed set waits in an offline queue that discards it on 409, so
+        // only a real sequence conflict is a 409; anything else (a database
+        // outage) stays a retryable server error.
+        if (clientOperationId) {
+          if (!(cause instanceof WorkoutSetSequenceCollisionError)) throw cause;
+          // Other writers kept taking the next number: never saved, so ask
+          // the queue to try again rather than discard the set.
+          await sendApiError(
+            reply,
+            request,
+            503,
+            "SERVICE_UNAVAILABLE",
+            "The set could not be numbered yet. Try again.",
+          );
+          return;
+        }
         const message =
           cause instanceof Error ? cause.message : "Could not create set.";
         await sendApiError(reply, request, 409, "VALIDATION_ERROR", message);
         return;
       }
+      // A concurrent insert can return the winner; compare its canonical payload too.
+      if (clientOperationId && !matches(saved)) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          OPERATION_CONFLICT_MESSAGE,
+        );
+        return;
+      }
+      return toWire(saved);
     },
   );
 

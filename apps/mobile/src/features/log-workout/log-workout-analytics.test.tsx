@@ -3,6 +3,8 @@ vi.mock("@/features/workout-companion", () => ({
 }));
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
+  // Sets the durable queue holds; the default sync confirms them all.
+  queued: [] as any[],
   refs: [] as any[],
   index: 0,
   effects: [] as (() => void)[],
@@ -168,7 +170,26 @@ vi.mock("./log-workout-data", () => ({
   extractPlannedExercises: () => [],
   loadWorkoutWorkspace: vi.fn(),
   startWorkout: vi.fn(),
-  addWorkoutSet: mocks.addSet,
+  // The durable set queue (REL-02) keeps the old (workoutId, form) seam here.
+  queueWorkoutSet: async (workoutId: string, form: unknown) => {
+    const result = await mocks.addSet(workoutId, form);
+    if (!result?.ok) return result;
+    const command = {
+      kind: "create",
+      workoutId,
+      body: { clientOperationId: result.workoutSet.id },
+      queuedAt: "2026-10-27T10:00:00.000Z",
+    };
+    mocks.queued.push({ command, workoutSet: result.workoutSet });
+    return { ...result, command };
+  },
+  loadPendingWorkoutSets: async () => [],
+  syncPendingWorkoutSets: async () => ({
+    synced: mocks.queued.splice(0),
+    dropped: [],
+    blocked: null,
+    remaining: [],
+  }),
   applyCompletedWorkoutProgressions: vi.fn(),
   createExercise: vi.fn(),
   deleteWorkoutSet: vi.fn(),

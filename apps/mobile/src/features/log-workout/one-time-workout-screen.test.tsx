@@ -12,6 +12,8 @@ import { getExerciseFromCatalog } from "@mizyun/core";
 // Follow the existing logger hook harness: retain state between explicit renders,
 // while isolating native effects. Persistence and user callbacks stay observable.
 const mocks = vi.hoisted(() => ({
+  // Sets the durable queue holds; the default sync confirms them all.
+  queued: [] as any[],
   cells: [] as any[],
   context: null as any,
   index: 0,
@@ -20,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   persist: vi.fn(),
   createExercise: vi.fn(),
   addSet: vi.fn(),
+  syncSets: vi.fn(),
   complete: vi.fn(),
   abandon: vi.fn(),
   progression: vi.fn(),
@@ -201,7 +204,25 @@ vi.mock("./log-workout-data", async (original) => ({
   completeWorkout: mocks.complete,
   loadWorkoutWorkspace: mocks.load,
   startWorkout: vi.fn(),
-  addWorkoutSet: mocks.addSet,
+  // The durable set queue (REL-02) keeps the old (workoutId, form) seam here.
+  queueWorkoutSet: async (workoutId: string, form: unknown) => {
+    const result = await mocks.addSet(workoutId, form);
+    if (!result?.ok) return result;
+    const command = {
+      kind: "create",
+      workoutId,
+      body: {
+        clientOperationId: result.workoutSet.id,
+        exerciseId: result.workoutSet.exerciseId,
+        completedAt: result.workoutSet.completedAt,
+      },
+      queuedAt: "2026-10-27T10:00:00.000Z",
+    };
+    mocks.queued.push({ command, workoutSet: result.workoutSet });
+    return { ...result, command };
+  },
+  loadPendingWorkoutSets: async () => mocks.queued.map((q: any) => q.command),
+  syncPendingWorkoutSets: (...args: unknown[]) => mocks.syncSets(...args),
   applyCompletedWorkoutProgressions: mocks.progression,
   createExercise: mocks.createExercise,
   deleteWorkoutSet: vi.fn(),
@@ -359,6 +380,13 @@ beforeEach(() => {
   });
   mocks.appState.mockReturnValue({ remove: vi.fn() });
   mocks.addSet.mockReset();
+  mocks.queued.length = 0;
+  mocks.syncSets.mockReset().mockImplementation(async () => ({
+    synced: mocks.queued.splice(0),
+    dropped: [],
+    blocked: null,
+    remaining: [],
+  }));
   mocks.abandon.mockReset().mockResolvedValue({ ok: true });
 });
 
@@ -1066,6 +1094,185 @@ it("logs entered load and reps through the existing set API and finishes without
   expect(mocks.progression).not.toHaveBeenCalled();
   expect(mocks.clearDraft).toHaveBeenCalledWith("workout-owner", "workout");
   expect(mocks.back).toHaveBeenCalledTimes(1);
+});
+
+it("shows a set saved offline at once and never finishes while it waits to sync (REL-02)", async () => {
+  openLibrary().props.onSelectExercises([catalogExercise]);
+  await settle();
+  let active = feed();
+  const entry = active.props.exercises[0];
+  active.props.onUpdatePendingInput(entry.id, { load: "60", reps: "5" });
+  active = feed();
+  const waiting = {
+    id: "op-one",
+    exerciseId: exercise.id,
+    sequence: 1,
+    loadKg: 60,
+    repetitions: 5,
+    completedAt: "2026-10-04T10:01:00.000Z",
+  };
+  const command = {
+    kind: "create",
+    workoutId: workout.id,
+    body: { clientOperationId: waiting.id },
+    queuedAt: "2026-10-27T10:00:00.000Z",
+  };
+  mocks.addSet.mockResolvedValueOnce({ ok: true, workoutSet: waiting });
+  const offline = {
+    synced: [],
+    dropped: [],
+    blocked: { kind: "network_error", cause: new Error("offline") },
+    remaining: [command],
+  };
+  mocks.syncSets.mockResolvedValue(offline);
+  // The reconcile read fails too; the waiting set must stay visible.
+  mocks.load.mockImplementation(async () => ({
+    ...mocks.workspace,
+    sets: [],
+    message: "Network unavailable. Refresh your workout when you're online.",
+  }));
+  expect(await active.props.onLogSet(entry)).toBe("saved");
+  await settle();
+  active = feed();
+  expect(active.props.savedSets).toEqual([waiting]);
+  expect(active.props.pendingSetIds.has(waiting.id)).toBe(true);
+  expect(textContent(render())).toContain(
+    "1 set is saved on this device and will sync when you're back online.",
+  );
+
+  headerFinish().props.onPress();
+  mocks.alert.mock.calls
+    .at(-1)![2]
+    .find((button: any) => button.text === "Finish & Save")
+    .onPress();
+  await settle();
+  expect(mocks.complete).not.toHaveBeenCalled();
+  expect(textContent(render())).toContain(
+    "1 set is still waiting to sync. Connect to the internet, then finish.",
+  );
+
+  // Back online: the replay confirms the set and finishing proceeds.
+  const confirmed = { ...waiting, id: "server-set" };
+  mocks.syncSets.mockResolvedValue({
+    synced: [{ command, workoutSet: confirmed }],
+    dropped: [],
+    blocked: null,
+    remaining: [],
+  });
+  headerFinish().props.onPress();
+  mocks.alert.mock.calls
+    .at(-1)![2]
+    .find((button: any) => button.text === "Finish & Save")
+    .onPress();
+  await settle();
+  expect(
+    find(render(), (node) => Array.isArray(node.props?.savedSets)).props
+      .savedSets,
+  ).toEqual([confirmed]);
+  expect(mocks.complete).toHaveBeenCalledWith(workout.id, workout.startedAt);
+});
+
+it("keeps a set logged during an in-flight sync pending and blocks Finish until it is sent (REL-02 review)", async () => {
+  openLibrary().props.onSelectExercises([catalogExercise]);
+  await settle();
+  let active = feed();
+  const entry = active.props.exercises[0];
+  active.props.onUpdatePendingInput(entry.id, { load: "60", reps: "5" });
+  const setA = {
+    id: "op-a",
+    exerciseId: exercise.id,
+    sequence: 1,
+    loadKg: 60,
+    repetitions: 5,
+    completedAt: "2026-10-04T10:01:00.000Z",
+  };
+  const setB = {
+    ...setA,
+    id: "op-b",
+    sequence: 2,
+    completedAt: "2026-10-04T10:03:00.000Z",
+  };
+  const held = deferred<any>();
+  const offline = { kind: "network_error", cause: new Error("offline") };
+  mocks.syncSets.mockImplementationOnce(() => held.promise);
+  mocks.addSet.mockResolvedValueOnce({ ok: true, workoutSet: setA });
+  await feed().props.onLogSet(feed().props.exercises[0]);
+  await settle();
+  // A slow first pass for A is still running when B is logged.
+  mocks.addSet.mockResolvedValueOnce({ ok: true, workoutSet: setB });
+  await feed().props.onLogSet(feed().props.exercises[0]);
+  await settle();
+  const [queuedA, queuedB] = mocks.queued.splice(0);
+  mocks.syncSets.mockResolvedValue({
+    synced: [],
+    dropped: [],
+    blocked: offline,
+    remaining: [queuedB.command],
+  });
+  held.resolve({
+    synced: [{ command: queuedA.command, workoutSet: setA }],
+    dropped: [],
+    blocked: null,
+    remaining: [],
+  });
+  await settle();
+  await settle();
+  active = feed();
+  expect(active.props.pendingSetIds.has(setB.id)).toBe(true);
+  expect(active.props.pendingSetIds.has(setA.id)).toBe(false);
+  // B is attempted again in a second pass, not forgotten.
+  expect(mocks.syncSets.mock.calls.length).toBeGreaterThanOrEqual(2);
+
+  headerFinish().props.onPress();
+  mocks.alert.mock.calls
+    .at(-1)![2]
+    .find((button: any) => button.text === "Finish & Save")
+    .onPress();
+  await settle();
+  expect(mocks.complete).not.toHaveBeenCalled();
+});
+
+it("does not delete a saved set whose lost-response replay is still queued (REL-02 review)", async () => {
+  openLibrary().props.onSelectExercises([catalogExercise]);
+  await settle();
+  const waiting = {
+    id: "op-lost",
+    workoutId: workout.id,
+    exerciseId: exercise.id,
+    sequence: 1,
+    loadKg: 60,
+    repetitions: 5,
+    completedAt: "2026-10-04T10:01:00.000Z",
+  };
+  const serverCopy = { ...waiting, id: "server-row" };
+  mocks.addSet.mockResolvedValueOnce({ ok: true, workoutSet: waiting });
+  // The POST committed but its reply was lost, so the command stays queued;
+  // the reconcile read already returns the server's copy.
+  mocks.syncSets.mockImplementation(async () => ({
+    synced: [],
+    dropped: [],
+    blocked: { kind: "network_error", cause: new Error("lost") },
+    remaining: mocks.queued.map((q: any) => q.command),
+  }));
+  mocks.load.mockImplementation(async () => ({
+    ...mocks.workspace,
+    sets: [serverCopy],
+  }));
+  await feed().props.onLogSet(feed().props.exercises[0]);
+  await settle();
+  // A later reload (returning to the app) shows the server's copy.
+  const { loadRecentPerformance } = await import("./log-workout-data");
+  vi.mocked(loadRecentPerformance).mockResolvedValue(null as never);
+  mocks.effects = [];
+  render();
+  for (const effect of mocks.effects) effect();
+  await settle();
+  await settle();
+  expect(feed().props.savedSets).toEqual([serverCopy]);
+  mocks.alert.mockClear();
+  feed().props.onRemoveSet(serverCopy);
+  expect(mocks.alert).not.toHaveBeenCalled();
+  expect(textContent(render())).toContain("still waiting to sync");
 });
 
 it("keeps logged sets when locking the phone interrupts the post-save reload, then recovers on return", async () => {

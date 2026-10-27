@@ -433,7 +433,8 @@
         "supabase/migrations/20261016140000_indoor_bouldering.sql",
         "supabase/migrations/20261016160000_bouldering_projects.sql",
         "supabase/migrations/20261016200000_bouldering_challenge_days.sql",
-        "supabase/migrations/20261026160000_history_imports.sql"
+        "supabase/migrations/20261026160000_history_imports.sql",
+        "supabase/migrations/20261027120000_workout_set_retry_identity.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",
@@ -480,6 +481,8 @@
         "packages/core/src/history-import-match.test.ts",
         "packages/core/src/history-import-plan.test.ts",
         "supabase/tests/database/0055_history_imports.test.sql",
+        "supabase/tests/database/0056_workout_set_retry_identity.test.sql",
+        "apps/mobile/src/features/log-workout/pending-sets.test.ts",
         "packages/core/src/share-card.test.ts",
         "apps/mobile/src/features/share-card/share-card-view.test.tsx",
         "apps/mobile/src/features/share-card/share-card-native.test.ts",

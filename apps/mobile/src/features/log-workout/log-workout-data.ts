@@ -34,16 +34,29 @@ import {
   type CoachWorkoutProposal,
   type WorkoutResponse,
   type WorkoutSet,
+  type WorkoutSetCreate,
   type WorkoutSetListResponse,
   type WorkoutSetResponse,
   type WorkoutSetType,
 } from "@mizyun/contracts";
 
+import * as Crypto from "expo-crypto";
 import { apiClient } from "@/composition/api-client";
 import { displayWeightToKilograms } from "@/lib/weight-units";
 import { updateExerciseTargetLoad } from "@/features/workouts/exercise-progression-data";
 import { syncRoutineExerciseTargets } from "@/features/workouts/workouts-hub-data";
 import { readPlannedSetTypes } from "@/features/workouts/planned-set-types";
+import {
+  flushPendingSets,
+  pendingSetCommand,
+  pendingSetEnqueueMessage,
+  pendingSetRecord,
+  pendingSetStore,
+  sendPendingSet,
+  type PendingSetCommand,
+  type PendingSetFlush,
+  type PendingSetStore,
+} from "./pending-sets";
 
 export interface WorkoutWorkspace {
   readonly exercises: ReadonlyArray<Exercise>;
@@ -449,12 +462,13 @@ export const addWorkoutSet = async (
 ): Promise<AddWorkoutSetResult> =>
   addWorkoutSetWith(apiClient, workoutId, form);
 
-export const addWorkoutSetWith = async (
-  client: ApiClient,
-  workoutId: string,
+/** Validates a set form into the wire create body, without sending it. */
+export const buildWorkoutSetCreate = (
   form: WorkoutSetForm,
   now: () => Date = () => new Date(),
-): Promise<AddWorkoutSetResult> => {
+):
+  | { readonly ok: true; readonly body: WorkoutSetCreate }
+  | { readonly ok: false; readonly message: string } => {
   const repetitions = optionalNumber(form.repetitions);
   const load = optionalNumber(form.load);
   const durationSeconds = optionalNumber(form.durationSeconds);
@@ -494,16 +508,132 @@ export const addWorkoutSetWith = async (
   if (!parsed.success) {
     return { ok: false, message: "Enter reps, load, duration, or distance." };
   }
+  return { ok: true, body: parsed.data };
+};
+
+export const addWorkoutSetWith = async (
+  client: ApiClient,
+  workoutId: string,
+  form: WorkoutSetForm,
+  now: () => Date = () => new Date(),
+): Promise<AddWorkoutSetResult> => {
+  const built = buildWorkoutSetCreate(form, now);
+  if (!built.ok) return built;
   const result = await client.request<WorkoutSetResponse>({
     method: "POST",
     path: `/v1/workouts/${encodeURIComponent(workoutId)}/sets`,
-    body: parsed.data,
+    body: built.body,
     schema: workoutSetResponseSchema,
   });
   return result.ok
     ? { ok: true, workoutSet: result.value.workoutSet }
     : { ok: false, message: humanize(result.error, "Save that set") };
 };
+
+export type QueueWorkoutSetResult =
+  | {
+      readonly ok: true;
+      /** The set as shown while it waits (id = operation id), or the saved row. */
+      readonly workoutSet: WorkoutSet;
+      /** Null when the device could not store it and the server saved it directly. */
+      readonly command: PendingSetCommand | null;
+    }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * Saves a new set on this device first (REL-02). The caller shows it at once
+ * and replays the queue with `syncPendingWorkoutSets`; nothing is lost when
+ * the send fails, the phone locks or the app is closed.
+ */
+export const queueWorkoutSet = async (
+  workoutId: string,
+  form: WorkoutSetForm & { readonly sequence: number },
+  context: {
+    readonly userId: string;
+    readonly isCurrent: () => boolean;
+    readonly operationId?: string;
+    readonly now?: () => Date;
+    readonly store?: PendingSetStore;
+    readonly client?: ApiClient;
+  },
+): Promise<QueueWorkoutSetResult> => {
+  const now = context.now ?? (() => new Date());
+  const built = buildWorkoutSetCreate(form, now);
+  if (!built.ok) return built;
+  const command = pendingSetCommand(
+    workoutId,
+    built.body,
+    context.operationId ?? Crypto.randomUUID(),
+    now(),
+  );
+  if (command === null)
+    return { ok: false, message: "Please double-check the workout values." };
+  const write = await (context.store ?? pendingSetStore).enqueue(
+    context.userId,
+    command,
+    context.isCurrent,
+  );
+  if (!write.ok && write.reason === "storage" && context.isCurrent()) {
+    // Some iOS releases reject large secure values. Never do worse than a
+    // direct save: send it once, keyed, so a later retry cannot duplicate it.
+    const client = context.client ?? apiClient;
+    const result = await sendPendingSet(
+      {
+        status: () => client.status(),
+        request: (options) =>
+          client.request({
+            ...options,
+            expectedUserId: context.userId,
+            isCurrent: context.isCurrent,
+          }),
+      },
+      command,
+    );
+    if (result.ok)
+      return { ok: true, workoutSet: result.value.workoutSet, command: null };
+    // Saved, but the reply was unreadable: never invite a duplicate retry.
+    if (result.error.kind === "validation_error")
+      return {
+        ok: true,
+        workoutSet: pendingSetRecord(command, context.userId),
+        command: null,
+      };
+    return { ok: false, message: humanize(result.error, "Save that set") };
+  }
+  if (!write.ok)
+    return { ok: false, message: pendingSetEnqueueMessage(write.reason) };
+  return {
+    ok: true,
+    workoutSet: pendingSetRecord(command, context.userId),
+    command,
+  };
+};
+
+/** This account's sets still waiting on the device; null when unreadable. */
+export const loadPendingWorkoutSets = async (
+  userId: string,
+  store: PendingSetStore = pendingSetStore,
+): Promise<readonly PendingSetCommand[] | null> => {
+  try {
+    return (await store.load(userId)).commands;
+  } catch {
+    return null;
+  }
+};
+
+/** Replays waiting sets in order for this account only. */
+export const syncPendingWorkoutSets = (
+  userId: string,
+  isCurrent: () => boolean,
+): Promise<PendingSetFlush> =>
+  flushPendingSets(userId, {
+    client: {
+      status: () => apiClient.status(),
+      request: (options) =>
+        apiClient.request({ ...options, expectedUserId: userId, isCurrent }),
+    },
+    isCurrent,
+  });
 
 export const loadRecentPerformance = async (
   exerciseId: string,
