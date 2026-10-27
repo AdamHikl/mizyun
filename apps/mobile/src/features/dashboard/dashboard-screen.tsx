@@ -16,7 +16,11 @@ import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Network from "expo-network";
 import * as Crypto from "expo-crypto";
-import type { CoachingPreferences, FoodEntry } from "@mizyun/contracts";
+import type {
+  CoachingPreferences,
+  FirstLogChoice,
+  FoodEntry,
+} from "@mizyun/contracts";
 import {
   createBlankWorkout,
   formatStopwatch,
@@ -58,9 +62,15 @@ import {
   isSavedDisplayResult,
   savedDisplayTime,
 } from "@/composition/personal-read-events";
-import { analyticsClient } from "@/composition/analytics-client";
+import {
+  activationMilestones,
+  analyticsClient,
+} from "@/composition/analytics-client";
 import { trackDashboardControl } from "@/features/analytics/ui-analytics";
-import { isProgressPhotosEnabled } from "@/composition/app-variant";
+import {
+  isBoulderingEnabled,
+  isProgressPhotosEnabled,
+} from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
 import {
   readTodaySteps,
@@ -91,6 +101,7 @@ import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminder
 import { DailyNutrients } from "./daily-nutrients";
 import { proteinIdeasFor } from "./protein-ideas";
 import { LoggingConsistencyCard } from "./logging-consistency-card";
+import { FirstRunCard } from "./first-run-card";
 import { EveningStretchHomeCard } from "@/features/evening-stretch";
 import { WeeklyReviewPopup } from "../weekly-review/weekly-review-modal";
 import { reconcileWeeklyReviewReminder } from "../weekly-review/weekly-review-notification";
@@ -396,7 +407,7 @@ function initialMetricsFor(session: AuthSession | null): MetricsState {
 export function DashboardScreen() {
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const colors = useTheme();
-  const { profile, session, openOnboarding } = useAuth();
+  const { profile, session, openOnboarding, refreshProfile } = useAuth();
   const [prefetchRevision, setPrefetchRevision] = useState(0);
   useEffect(
     () =>
@@ -990,6 +1001,46 @@ export function DashboardScreen() {
     }
   }, [activeWorkout, ownerKey, userId]);
 
+  // GTM-04: a not-yet-set-up account without a first-run record on this
+  // device gets "What do you want to log first?" instead of the setup row.
+  const needsSetup = !profile?.displayName;
+  const [firstRunOwner, setFirstRunOwner] = useState<string | null>(null);
+  useEffect(() => {
+    if (userId === null || !needsSetup) {
+      setFirstRunOwner(null);
+      return;
+    }
+    let current = true;
+    void activationMilestones
+      .stateFor(userId)
+      .then((state) => {
+        if (current) setFirstRunOwner(state === null ? userId : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [needsSetup, userId]);
+  const startFirstLog = useCallback(
+    (choice: FirstLogChoice) => {
+      switch (choice) {
+        case "climb":
+          router.push("/bouldering/session?start=1" as Href);
+          return;
+        case "workout":
+          void handleStartWorkout();
+          return;
+        case "meal":
+          router.push("/log-meal" as Href);
+          return;
+        case "weight":
+          router.push("/log-weight" as Href);
+          return;
+      }
+    },
+    [handleStartWorkout],
+  );
+
   const quickLogActions = useMemo(() => {
     return actions
       .filter(
@@ -1068,7 +1119,16 @@ export function DashboardScreen() {
             {formatHomeDate(new Date())}
           </ThemedText>
 
-          {!profile?.displayName ? (
+          {userId !== null && firstRunOwner === userId ? (
+            <FirstRunCard
+              owner={userId}
+              unitSystem={profile?.unitSystem ?? "metric"}
+              boulderingEnabled={isBoulderingEnabled()}
+              onChoose={startFirstLog}
+              onUnitsSaved={() => void refreshProfile()}
+              onDone={() => setFirstRunOwner(null)}
+            />
+          ) : needsSetup ? (
             <ListGroup>
               <ListRow
                 icon="sparkles"

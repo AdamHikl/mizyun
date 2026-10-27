@@ -41,6 +41,7 @@ import { InMemoryBodyMeasurementRepository } from "./body-measurement-repository
 import * as account9 from "./test-fixtures/build9-contracts/account.mjs";
 import * as goal9 from "./test-fixtures/build9-contracts/goal.mjs";
 import * as community9 from "./test-fixtures/build9-contracts/community.mjs";
+import * as analytics9 from "./test-fixtures/build9-contracts/analytics.mjs";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const auth = { authorization: "Bearer synthetic-build6-token" };
@@ -468,6 +469,78 @@ describe("current API compatibility with the pinned original build6 client contr
     ).toBe(false);
     expect(upgradedExport.export.manifest.completeness).toBe("complete");
     expect(upgradedExport.export.productAnalytics.events).toHaveLength(3);
+  });
+
+  it("keeps dashboard-v1 lists and exports parseable by build 9/10 after activation events arrive", async () => {
+    const { request } = makeApp();
+    const consent = analytics9.analyticsConsentResponseSchema.parse(
+      await request("PUT", "/v1/analytics/consent", {
+        version: analytics9.CURRENT_ANALYTICS_CONSENT_VERSION,
+        granted: true,
+        expectedRevision: 0,
+        operationId: "11111111-1111-4111-8111-111111111111",
+      }),
+    );
+    const base = {
+      schemaVersion: 2,
+      recordedAt: new Date().toISOString(),
+      sessionId: "22222222-2222-4222-8222-222222222222",
+      platform: "ios",
+      appVersion: "1.0.11",
+    };
+    const events = [
+      ["core_record_created", { recordKind: "meal" }],
+      ["core_record_created", { recordKind: "bouldering_session" }],
+      [
+        "first_run_completed",
+        { choice: "climb", duration: "under_30_seconds" },
+      ],
+      ["acquisition_source_selected", { source: "climbing_gym_or_club" }],
+      ["first_confirmed_record", { recordKind: "bouldering_session" }],
+      [
+        "return_milestone_reached",
+        { milestone: "day_7", cohortWeek: "2026-W44" },
+      ],
+    ].map(([name, properties], sequence) => ({
+      ...base,
+      id: `66666666-6666-4666-8666-66666666666${sequence}`,
+      sequence,
+      name,
+      properties,
+    }));
+    await request("POST", "/v1/analytics/events", {
+      consentVersion: consent.version,
+      epoch: consent.epoch,
+      events,
+    });
+    // Build 9/10 parse the dashboard-v1 list with this exact strict union.
+    const build10List = await request(
+      "GET",
+      `/v1/analytics/events?catalog=${analytics9.ANALYTICS_DASHBOARD_CATALOG}`,
+    );
+    expect(
+      build10List.events.map(
+        (event: unknown) => analytics9.analyticsEventV2Schema.parse(event).id,
+      ),
+    ).toEqual([events[0]!.id]);
+    const build10Export = account9.accountExportResponseSchema.parse(
+      await request(
+        "GET",
+        `/v1/account/export?catalog=${analytics9.ANALYTICS_DASHBOARD_CATALOG}`,
+      ),
+    ).export;
+    expect(build10Export.productAnalytics?.events).toHaveLength(1);
+    expect(build10Export.manifest?.completeness).toBe("partial");
+    const current = await request(
+      "GET",
+      "/v1/analytics/events?catalog=activation-v1",
+    );
+    expect(current.events).toHaveLength(6);
+    const currentExport = currentAccountExportResponseSchema.parse(
+      await request("GET", "/v1/account/export?catalog=activation-v1"),
+    ).export;
+    expect(currentExport.productAnalytics?.events).toHaveLength(6);
+    expect(currentExport.manifest?.completeness).toBe("complete");
   });
 
   it("parses original Coach status, thread, send and idempotent replay using only a fake provider", async () => {

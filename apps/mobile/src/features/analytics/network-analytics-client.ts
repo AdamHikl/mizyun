@@ -7,6 +7,7 @@ import {
   type AnalyticsClearResponse,
   type AnalyticsConsentResponse,
   type AnalyticsEventV2,
+  type CoreRecordKind,
   type ScreenName,
 } from "@mizyun/contracts";
 import type {
@@ -81,7 +82,11 @@ type UiAnalyticsEventName =
   | "settings_search_selected"
   | "onboarding_step_completed"
   | "onboarding_failed"
-  | "onboarding_exited";
+  | "onboarding_exited"
+  | "first_run_completed"
+  | "acquisition_source_selected"
+  | "first_confirmed_record"
+  | "return_milestone_reached";
 type UiAnalyticsEventInput = {
   [Name in UiAnalyticsEventName]: Pick<
     Extract<AnalyticsEventV2, { name: Name }>,
@@ -146,7 +151,7 @@ export type AnalyticsEventInput =
     }
   | {
       readonly name: "core_record_created";
-      readonly properties: { readonly recordKind: LoggingFlow };
+      readonly properties: { readonly recordKind: CoreRecordKind };
     }
   | {
       readonly name: "feature_action_result";

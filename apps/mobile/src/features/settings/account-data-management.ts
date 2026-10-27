@@ -73,7 +73,10 @@ import {
   clearAllMealPhotoRetries,
 } from "../log-meal/public-data";
 import { clearQuickMealRepeat } from "../dashboard/public-data";
-import { clearAnalyticsReminder } from "../analytics/public-data";
+import {
+  clearActivationState,
+  clearAnalyticsReminder,
+} from "../analytics/public-data";
 import {
   clearRecipeIngredientData,
   exportIngredientReview,
@@ -352,6 +355,7 @@ export const clearLocalUserData = async (
     }),
     clearQuickMealRepeat(userId, options.quickMealRepeatStore),
     clearAnalyticsReminder(userId, options.analyticsReminderStore),
+    clearActivationState(userId, options.analyticsReminderStore),
     Promise.resolve()
       .then(() => clearAllMealPhotoRetries(userId, options.draftStore))
       .then((cleaned) => {

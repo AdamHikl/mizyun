@@ -30,6 +30,17 @@ Record:
 
 Do not calculate a percentage with a denominator smaller than the disclosed sample, imply that exports equal unique users without confirming the workflow, or report exact time/tap values from bucketed data.
 
+## First-value path (source-measured, 2026-10-26)
+
+Counted from mobile source, not a device; details in [ACTIVATION_SCORECARD_2026-10-26.md](../ACTIVATION_SCORECARD_2026-10-26.md). Taps from a new account's first Home screen, before → after #335:
+
+- Top Home item: setup wizard, 14 taps before any record → first-run card, 1 tap to a capture.
+- Bouldering session saved: 4 → 3. Workout, meal, weight: 3 → 3.
+- First Coach answer including AI consent and 18+ confirmation: 5 → 5.
+- Device timing to first record and Coach answer: not measured.
+
+Weekly scorecard counts (installs by source, activated, day-7, week-4, MAU with denominators) go in the scorecard ledger once the events ship.
+
 ## Qualitative themes
 
 ### Repeated value

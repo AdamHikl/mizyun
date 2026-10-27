@@ -15,6 +15,7 @@ const hooks = vi.hoisted(() => ({
   effects: [] as (() => void | (() => void))[],
   listener: null as ((event?: { defaultPrevented: boolean }) => void) | null,
   track: vi.fn().mockResolvedValue({ recorded: true }),
+  recordCoreAction: vi.fn().mockResolvedValue(undefined),
   scopes: 0,
 }));
 vi.mock("react", async (original) => ({
@@ -31,6 +32,7 @@ vi.mock("@/composition/analytics-client", () => ({
     createFlowScope: () => ({ flowId: `hook-${++hooks.scopes}` }),
     track: hooks.track,
   },
+  activationMilestones: { recordCoreAction: hooks.recordCoreAction },
 }));
 const navigation = {
   addListener: (
@@ -45,6 +47,7 @@ const navigation = {
 };
 import {
   LoggingFlowMeasurement,
+  recordCoreRecordSaved,
   useLoggingFlowMeasurement,
 } from "./flow-measurement";
 
@@ -107,6 +110,91 @@ beforeEach(() => {
   hooks.listener = null;
   hooks.scopes = 0;
   hooks.track.mockReset().mockResolvedValue({ recorded: true });
+  hooks.recordCoreAction.mockReset().mockResolvedValue(undefined);
+});
+
+describe("activation core actions", () => {
+  it("reports a completed logging flow once, with its owner and kind only", () => {
+    const track = vi.fn().mockResolvedValue({ recorded: true });
+    const milestones = {
+      recordCoreAction: vi.fn().mockResolvedValue(undefined),
+    };
+    const attempt = new LoggingFlowMeasurement(
+      "body_measurement",
+      { createFlowScope: () => ({ flowId: "flow-a" }), track },
+      0,
+      () => 10,
+      "owner-a",
+      milestones,
+    );
+    attempt.complete();
+    attempt.complete();
+    expect(milestones.recordCoreAction).toHaveBeenCalledExactlyOnceWith(
+      "owner-a",
+      "body_measurement",
+    );
+  });
+
+  it("does not report an exited or failed attempt as a core action", () => {
+    const milestones = {
+      recordCoreAction: vi.fn().mockResolvedValue(undefined),
+    };
+    const client = {
+      createFlowScope: () => ({ flowId: "flow-b" }),
+      track: vi.fn().mockResolvedValue({ recorded: true }),
+    };
+    const failed = new LoggingFlowMeasurement(
+      "meal",
+      client,
+      0,
+      () => 1,
+      "owner-a",
+      milestones,
+    );
+    failed.fail("submit", "network", true);
+    failed.exit("cancel");
+    expect(milestones.recordCoreAction).not.toHaveBeenCalled();
+  });
+
+  it("reports a finished bouldering session as a payload-free core record", async () => {
+    const track = vi.fn().mockResolvedValue({ recorded: true });
+    const milestones = {
+      recordCoreAction: vi.fn().mockResolvedValue(undefined),
+    };
+    recordCoreRecordSaved(
+      "bouldering_session",
+      "owner-a",
+      { track },
+      milestones,
+    );
+    expect(track).toHaveBeenCalledExactlyOnceWith({
+      name: "core_record_created",
+      properties: { recordKind: "bouldering_session" },
+    });
+    expect(milestones.recordCoreAction).toHaveBeenCalledWith(
+      "owner-a",
+      "bouldering_session",
+    );
+  });
+
+  it("never lets analytics failures escape a confirmed save", () => {
+    expect(() =>
+      recordCoreRecordSaved(
+        "bouldering_session",
+        "owner-a",
+        {
+          track: () => {
+            throw new Error("broken");
+          },
+        },
+        {
+          recordCoreAction: () => {
+            throw new Error("broken");
+          },
+        },
+      ),
+    ).not.toThrow();
+  });
 });
 
 describe("scoped logging attempt measurement", () => {

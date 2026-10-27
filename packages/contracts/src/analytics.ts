@@ -78,10 +78,15 @@ export const loggingFlowSchema = z.enum([
 ]);
 export type LoggingFlow = z.infer<typeof loggingFlowSchema>;
 
-export const coreRecordKindSchema = z.enum([
+/** Frozen record kinds accepted by build-10 and older event parsers. */
+export const legacyCoreRecordKindSchema = z.enum([
   "meal",
   "workout",
   "body_measurement",
+]);
+export const coreRecordKindSchema = z.enum([
+  ...legacyCoreRecordKindSchema.options,
+  "bouldering_session",
 ]);
 export type CoreRecordKind = z.infer<typeof coreRecordKindSchema>;
 
@@ -166,6 +171,45 @@ export type LoggingMode = z.infer<typeof loggingModeSchema>;
 
 export const loggingExitReasonSchema = z.enum(["cancel", "navigate_away"]);
 export type LoggingExitReason = z.infer<typeof loggingExitReasonSchema>;
+
+/** First-run "What do you want to log first?" options (GTM-04). */
+export const firstLogChoiceSchema = z.enum([
+  "climb",
+  "workout",
+  "meal",
+  "weight",
+]);
+export type FirstLogChoice = z.infer<typeof firstLogChoiceSchema>;
+/** A first-run outcome: a log choice or "Just look around". */
+export const firstRunChoiceSchema = z.enum([
+  ...firstLogChoiceSchema.options,
+  "explore",
+]);
+export type FirstRunChoice = z.infer<typeof firstRunChoiceSchema>;
+
+/** Fixed "How did you hear about Mizyun?" answers. No free-text option. */
+export const acquisitionSourceSchema = z.enum([
+  "friend_or_family",
+  "climbing_gym_or_club",
+  "instagram",
+  "tiktok",
+  "youtube",
+  "reddit",
+  "app_store_search",
+  "web_search",
+  "press_or_blog",
+  "other",
+  "prefer_not_to_say",
+]);
+export type AcquisitionSource = z.infer<typeof acquisitionSourceSchema>;
+
+export const returnMilestoneSchema = z.enum(["day_7", "day_28"]);
+export type ReturnMilestone = z.infer<typeof returnMilestoneSchema>;
+
+/** ISO-8601 week of the first confirmed record, e.g. "2026-W44". */
+export const cohortWeekSchema = z
+  .string()
+  .regex(/^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$/);
 
 const baseEventEnvelopeShape = {
   id: z.string().uuid(),
@@ -406,6 +450,87 @@ export const settingsSearchSelectedEventSchema = z
   })
   .strict();
 
+export const firstRunCompletedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("first_run_completed"),
+    properties: z
+      .object({ choice: firstRunChoiceSchema, duration: durationBucketSchema })
+      .strict(),
+  })
+  .strict();
+export type FirstRunCompletedEvent = z.infer<
+  typeof firstRunCompletedEventSchema
+>;
+
+export const acquisitionSourceSelectedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("acquisition_source_selected"),
+    properties: z.object({ source: acquisitionSourceSchema }).strict(),
+  })
+  .strict();
+export type AcquisitionSourceSelectedEvent = z.infer<
+  typeof acquisitionSourceSelectedEventSchema
+>;
+
+/** Emitted once per first-run account on this device; the kind only. */
+export const firstConfirmedRecordEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("first_confirmed_record"),
+    properties: z.object({ recordKind: coreRecordKindSchema }).strict(),
+  })
+  .strict();
+export type FirstConfirmedRecordEvent = z.infer<
+  typeof firstConfirmedRecordEventSchema
+>;
+
+/**
+ * A core action on local days 1-7 (`day_7`) or 22-28 (`day_28`) after the
+ * first confirmed record. The cohort week lets a later report attribute the
+ * return after the 30-day event retention has removed the activation event.
+ */
+export const returnMilestoneReachedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("return_milestone_reached"),
+    properties: z
+      .object({
+        milestone: returnMilestoneSchema,
+        cohortWeek: cohortWeekSchema,
+      })
+      .strict(),
+  })
+  .strict();
+export type ReturnMilestoneReachedEvent = z.infer<
+  typeof returnMilestoneReachedEventSchema
+>;
+
+const legacyCoreRecordCreatedEventSchema = coreRecordCreatedEventSchema.extend({
+  properties: z.object({ recordKind: legacyCoreRecordKindSchema }).strict(),
+});
+
+/** Frozen `dashboard-v1` catalog read by build 10 and earlier. */
+export const dashboardV1AnalyticsEventV2Schema = z.discriminatedUnion("name", [
+  appSessionStartedEventSchema,
+  screenViewedEventSchema,
+  onboardingStartedEventSchema,
+  onboardingStepCompletedEventSchema,
+  onboardingCompletedEventSchema,
+  onboardingFailedEventSchema,
+  onboardingExitedEventSchema,
+  loggingFlowStartedEventSchema,
+  loggingFlowCompletedEventSchema,
+  loggingFlowFailedEventSchema,
+  loggingFlowExitedEventSchema,
+  legacyCoreRecordCreatedEventSchema,
+  featureActionResultEventSchema,
+  dashboardControlClickedEventSchema,
+  settingsSearchUsedEventSchema,
+  settingsSearchSelectedEventSchema,
+]);
+
 export const analyticsEventV2Schema = z.discriminatedUnion("name", [
   appSessionStartedEventSchema,
   screenViewedEventSchema,
@@ -423,6 +548,10 @@ export const analyticsEventV2Schema = z.discriminatedUnion("name", [
   dashboardControlClickedEventSchema,
   settingsSearchUsedEventSchema,
   settingsSearchSelectedEventSchema,
+  firstRunCompletedEventSchema,
+  acquisitionSourceSelectedEventSchema,
+  firstConfirmedRecordEventSchema,
+  returnMilestoneReachedEventSchema,
 ]);
 
 export type AnalyticsEventV2 = z.infer<typeof analyticsEventV2Schema>;
@@ -440,7 +569,7 @@ export const legacyAnalyticsEventV2Schema = z.discriminatedUnion("name", [
   loggingFlowCompletedEventSchema,
   loggingFlowFailedEventSchema,
   loggingFlowExitedEventSchema,
-  coreRecordCreatedEventSchema,
+  legacyCoreRecordCreatedEventSchema,
   featureActionResultEventSchema,
 ]);
 export type LegacyAnalyticsEventV2 = z.infer<
@@ -451,10 +580,18 @@ export type LegacyAnalyticsEventV2 = z.infer<
  * Transport / API schemas
  */
 export const CURRENT_ANALYTICS_CONSENT_VERSION = "product-analytics-v2";
-export const ANALYTICS_DASHBOARD_CATALOG = "dashboard-v1";
+/** Catalog requested by build 10 and earlier; frozen. */
+export const ANALYTICS_DASHBOARD_V1_CATALOG = "dashboard-v1";
+/** Current catalog: adds first-run, acquisition and return events. */
+export const ANALYTICS_DASHBOARD_CATALOG = "activation-v1";
+export const analyticsCatalogSchema = z.enum([
+  ANALYTICS_DASHBOARD_V1_CATALOG,
+  ANALYTICS_DASHBOARD_CATALOG,
+]);
+export type AnalyticsCatalog = z.infer<typeof analyticsCatalogSchema>;
 export const analyticsEventsListQuerySchema = z
   .object({
-    catalog: z.literal(ANALYTICS_DASHBOARD_CATALOG).optional(),
+    catalog: analyticsCatalogSchema.optional(),
   })
   .strict();
 export type AnalyticsEventsListQuery = z.infer<
@@ -466,9 +603,12 @@ export function projectAnalyticsEventsForCatalog(
   events: readonly unknown[],
   catalog?: AnalyticsEventsListQuery["catalog"],
 ): { events: AnalyticsEventV2[]; omittedEventCount: number } {
-  const schema = catalog
-    ? analyticsEventV2Schema
-    : legacyAnalyticsEventV2Schema;
+  const schema =
+    catalog === ANALYTICS_DASHBOARD_CATALOG
+      ? analyticsEventV2Schema
+      : catalog === ANALYTICS_DASHBOARD_V1_CATALOG
+        ? dashboardV1AnalyticsEventV2Schema
+        : legacyAnalyticsEventV2Schema;
   const projected = events.flatMap((event) => {
     const parsed = schema.safeParse(event);
     return parsed.success ? [parsed.data] : [];

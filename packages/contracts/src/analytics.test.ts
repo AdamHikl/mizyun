@@ -9,6 +9,7 @@ import {
   analyticsConsentResponseSchema,
   analyticsEventV2Schema,
   analyticsEventsListQuerySchema,
+  dashboardV1AnalyticsEventV2Schema,
   legacyAnalyticsEventV2Schema,
   legacyAnalyticsEventsListResponseSchema,
   legacyOnboardingStepSchema,
@@ -38,6 +39,91 @@ const validBaseEnvelope = {
   platform: "ios" as const,
   appVersion: "1.0.0",
 };
+
+describe("activation scorecard telemetry (GTM-04)", () => {
+  const activationEvents = [
+    {
+      ...validBaseEnvelope,
+      name: "first_run_completed",
+      properties: { choice: "climb", duration: "under_30_seconds" },
+    },
+    {
+      ...validBaseEnvelope,
+      name: "acquisition_source_selected",
+      properties: { source: "climbing_gym_or_club" },
+    },
+    {
+      ...validBaseEnvelope,
+      name: "first_confirmed_record",
+      properties: { recordKind: "bouldering_session" },
+    },
+    {
+      ...validBaseEnvelope,
+      name: "return_milestone_reached",
+      properties: { milestone: "day_28", cohortWeek: "2026-W44" },
+    },
+    {
+      ...validBaseEnvelope,
+      name: "core_record_created",
+      properties: { recordKind: "bouldering_session" },
+    },
+  ];
+
+  it("accepts the payload-free activation events", () => {
+    for (const event of activationEvents)
+      expect(analyticsEventV2Schema.safeParse(event).success).toBe(true);
+  });
+
+  it.each([
+    ["free-text source", 1, { source: "my friend Anna" }],
+    ["extra source text", 1, { source: "other", detail: "a podcast" }],
+    ["food name", 2, { recordKind: "meal", name: "Porridge" }],
+    ["health value", 2, { recordKind: "body_measurement", weightKg: 70 }],
+    ["unknown kind", 2, { recordKind: "run" }],
+    ["exact day", 3, { milestone: "day_9", cohortWeek: "2026-W44" }],
+    ["exact date", 3, { milestone: "day_7", cohortWeek: "2026-10-26" }],
+    ["week 54", 3, { milestone: "day_7", cohortWeek: "2026-W54" }],
+    ["exact duration", 0, { choice: "meal", duration: 42 }],
+    ["unknown choice", 0, { choice: "run", duration: "under_30_seconds" }],
+  ] as const)("rejects %s", (_label, index, properties) => {
+    expect(
+      analyticsEventV2Schema.safeParse({
+        ...activationEvents[index],
+        properties,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps dashboard-v1 frozen for build 10 and serves new events only under activation-v1", () => {
+    expect(
+      dashboardV1AnalyticsEventV2Schema.options.map((s) => s.shape.name.value),
+    ).toHaveLength(16);
+    const v1 = projectAnalyticsEventsForCatalog(
+      activationEvents,
+      "dashboard-v1",
+    );
+    expect(v1.events).toEqual([]);
+    expect(v1.omittedEventCount).toBe(5);
+    const legacy = projectAnalyticsEventsForCatalog(activationEvents);
+    expect(legacy.omittedEventCount).toBe(5);
+    expect(
+      projectAnalyticsEventsForCatalog(activationEvents, "activation-v1")
+        .events,
+    ).toHaveLength(5);
+    const meal = {
+      ...validBaseEnvelope,
+      name: "core_record_created",
+      properties: { recordKind: "meal" },
+    };
+    expect(
+      projectAnalyticsEventsForCatalog([meal], "dashboard-v1").events,
+    ).toHaveLength(1);
+    expect(
+      analyticsEventsListQuerySchema.safeParse({ catalog: "activation-v1" })
+        .success,
+    ).toBe(true);
+  });
+});
 
 describe("closed developer-dashboard telemetry", () => {
   it("keeps a frozen eleven-event legacy catalog with the original six onboarding steps", () => {

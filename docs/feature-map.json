@@ -243,7 +243,7 @@
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
-      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278); its Fill in from description asks AI first for users with AI consent, with the on-device parser as fallback (ADR-0073). The Exercise library creates, edits and deletes custom exercises with a tracking type; logged sets fix the type and block deletion (ADR-0075, #308). History import (#333, ADR-0083) previews then imports Hevy, Strong, a generic workout CSV and runs from the user's own Strava activities.csv (never the Strava API) as idempotent, undoable batches with exercise mapping to the catalog or custom exercises. Completed bouldering sessions and workouts offer Share as image: a previewed 1080x1350 card built from a core allowlist (no food, weight, measurements, photos, notes or Coach text) handed to the system share sheet, without Community or network (ADR-0082, #334).",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations. Workouts hub offers one-tap repeat of the last completed workout and a dismissible save-as-routine suggestion for exercise sets completed 3+ times in 28 days; saving is always explicit (#255). Indoor bouldering sessions (BOULDER-001, ADR-0066) log Font-graded boulders with results, projects and explicit sharing. Exercises have a tracking mode (load/reps, duration, or duration+distance; ADR-0068), and Log activity saves a finished swim, ride or other timed activity as a completed workout (#278); its Fill in from description asks AI first for users with AI consent, with the on-device parser as fallback (ADR-0073). The Exercise library creates, edits and deletes custom exercises with a tracking type; logged sets fix the type and block deletion (ADR-0075, #308). History import (#333, ADR-0084) previews then imports Hevy, Strong, a generic workout CSV and runs from the user's own Strava activities.csv (never the Strava API) as idempotent, undoable batches with exercise mapping to the catalog or custom exercises. Completed bouldering sessions and workouts offer Share as image: a previewed 1080x1350 card built from a core allowlist (no food, weight, measurements, photos, notes or Coach text) handed to the system share sheet, without Community or network (ADR-0082, #334).",
       "aliases": [
         "workout",
         "exercise",
@@ -1487,7 +1487,10 @@
         "apps/mobile/src/features/analytics/local-analytics-storage.ts",
         "apps/mobile/src/features/analytics/network-analytics-client.ts",
         "apps/mobile/src/features/analytics/consent-reminder-prompt.tsx",
-        "apps/mobile/src/features/settings/analytics-card.tsx"
+        "apps/mobile/src/features/settings/analytics-card.tsx",
+        "apps/mobile/src/features/analytics/activation-milestones.ts",
+        "apps/mobile/src/features/analytics/analytics-consent-prompt.tsx",
+        "apps/mobile/src/features/dashboard/first-run-card.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/product-analytics-repository.ts"
@@ -1522,7 +1525,11 @@
         "apps/mobile/src/features/analytics/consent-reminder-preferences.test.ts",
         "apps/mobile/src/features/analytics/consent-reminder-prompt.test.tsx",
         "apps/mobile/src/composition/analytics-consent-reminder-bridge.test.tsx",
-        "apps/mobile/src/features/settings/analytics-discovery.test.ts"
+        "apps/mobile/src/features/settings/analytics-discovery.test.ts",
+        "apps/mobile/src/features/analytics/activation-milestones.test.ts",
+        "apps/mobile/src/features/dashboard/first-run-card.test.tsx",
+        "apps/api/src/release-compatibility.test.ts",
+        "scripts/analytics-dashboard/scorecard.test.mjs"
       ],
       "relations": [
         {
@@ -1551,7 +1558,9 @@
         "docs/DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md",
         "docs/ANALYTICS_REGISTRATION_ZERO_DAYS_2026-10-12.md",
         "docs/adr/0057-discoverable-analytics-consent-reminders.md",
-        "docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md"
+        "docs/ANALYTICS_CONSENT_REMINDERS_EVIDENCE_2026-10-12.md",
+        "docs/adr/0084-activation-scorecard-telemetry.md",
+        "docs/ACTIVATION_SCORECARD_2026-10-26.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/observability test",
@@ -1562,11 +1571,12 @@
         "node --test scripts/product-analytics.test.mjs",
         "pnpm test:analytics-dashboard",
         "pnpm analytics:dashboard:verify-db",
-        "pnpm analytics:dashboard:verify-metabase"
+        "pnpm analytics:dashboard:verify-metabase",
+        "pnpm analytics:scorecard:verify-db"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
-      "limitations": "Optional current-consent telemetry; aggregate-only dashboard; hosted access, store reports and native capture acceptance remain open under #186.",
+      "limitations": "Optional current-consent telemetry; aggregate-only dashboard and Monday scorecard (consenting accounts only, week-4 denominators from the weekly ledger); hosted access, store reports and native capture acceptance remain open under #186; first-run device acceptance open under #335.",
       "requirements": ["OBS-01", "OBS-002", "PRIV-01"],
       "openAcceptance": []
     },
