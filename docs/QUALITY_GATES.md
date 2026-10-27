@@ -93,6 +93,7 @@ As the repository grows, `pnpm check` should remain the fast local gate. Longer 
 - [ ] Account export and deletion complete within the documented behavior.
 - [ ] AI release checklist passes for every enabled AI feature.
 - [ ] iOS simulator/device and Android emulator/device matrices pass.
+- [ ] Android 15+ docked keyboard (API 35/36 emulator and device, gesture and three-button navigation): on Log meal, Edit meal, Log weight and a live workout set, focusing the lowest macro/measurement/set field and the note keeps the field and its caret visible above the keyboard, and the form scrolls to its last control while the keyboard is open. Forms with long inputs use `useAndroidKeyboardInset` (`apps/mobile/src/components/keyboard-inset.ts`), because `automaticallyAdjustKeyboardInsets` is iOS-only and edge-to-edge windows are not resized.
 - [ ] Crash/error reporting excludes sensitive payloads and has been tested.
 - [ ] Privacy policy, terms, consent, data-sharing, and retention screens match actual behavior.
 - [ ] If billing is enabled, purchase and restore succeed in both Apple and Google sandbox environments.
