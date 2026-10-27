@@ -34,6 +34,7 @@ import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { hasRunDraftContent, runDraftStore } from "@/features/log-run";
 import { useAiConsentController } from "@/features/coach/ai-consent-controller";
+import { announce } from "@/lib/announce";
 import {
   draftActivityWithAi,
   type ActivityAiDraftFailure,
@@ -460,6 +461,7 @@ export function LogActivityScreen() {
       if (result.ok) {
         invalidateSessionReads();
         noteTrainingSaved();
+        announce(plan.kind === "run" ? "Run saved." : "Activity saved.");
         router.back();
         return;
       }

@@ -43,6 +43,7 @@ import {
   type WeightSubmission,
 } from "./log-weight-data";
 import { markWeighInLoggedToday } from "./weigh-in-reminders";
+import { announce } from "@/lib/announce";
 
 export function LogWeightScreen() {
   const { profile, session } = useAuth();
@@ -252,7 +253,10 @@ export function LogWeightScreen() {
           measured.toDateString() === new Date().toDateString()
         )
           void markWeighInLoggedToday(userId).catch(() => {});
-        if (isCurrent()) router.back();
+        if (isCurrent()) {
+          announce("Weight saved.");
+          router.back();
+        }
         return;
       }
       hadFailure.current = true;

@@ -64,6 +64,7 @@ import {
   Spacing,
 } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { announce, useAnnouncement } from "@/lib/announce";
 
 import {
   clearLoggingDraft,
@@ -305,6 +306,17 @@ export function CoachSetupScreen() {
   // AI-MOB-002 — flag that toggles when a new assistant message
   // arrives so the screen-reader live region announces it.
   const [liveRegionTick, setLiveRegionTick] = useState(0);
+  // The live region above is Android-only; announce each new assistant
+  // reply on iOS once, never a restored or re-rendered message.
+  const announcedReply = useRef<string | null>(null);
+  useAnnouncement(message);
+  useEffect(() => {
+    const latest = messages.at(-1);
+    if (liveRegionTick === 0 || latest?.role !== "assistant") return;
+    if (announcedReply.current === latest.id) return;
+    announcedReply.current = latest.id;
+    announce(`New Coach message: ${latest.text?.slice(0, 200) ?? ""}`);
+  }, [liveRegionTick]);
   const [now, setNow] = useState(() => new Date());
   const lastHandledPrompt = useRef<string | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);

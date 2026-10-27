@@ -83,6 +83,7 @@ import {
 } from "./advanced-nutrition-data";
 
 import { filterFoodDayGroups } from "./meal-history-filter";
+import { useAnnouncement } from "@/lib/announce";
 import {
   clusterDayEntries,
   copyFoodEntry,
@@ -767,6 +768,8 @@ export function MealListScreen() {
     [searchQuery, state.groups],
   );
   const hasSearchQuery = searchQuery.trim().length > 0;
+  useAnnouncement(state.message);
+  useAnnouncement(hasSearchQuery ? serverSearch?.error?.message : null);
   const displayGroups = hasSearchQuery
     ? serverSearch !== null &&
       !serverSearch.loading &&

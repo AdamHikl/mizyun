@@ -21,6 +21,7 @@ import {
   sharedPhotoRead,
 } from "./meal-photo-memory";
 import { keepMealBackupOnDevice } from "./meal-photo-download";
+import { useAnnouncement } from "@/lib/announce";
 
 /** Signed URLs exist only in this account/request generation and never reach a disk cache. */
 export function PrivateMealPhoto({
@@ -146,6 +147,7 @@ export function PrivateMealPhoto({
           message: null,
         }
       : null;
+  useAnnouncement(visible?.message);
   if (!displayEnabled && !editable) return null;
   if (!hasPhoto && !visible?.photo && !visible?.pending)
     return displayEnabled ? fallback : null;

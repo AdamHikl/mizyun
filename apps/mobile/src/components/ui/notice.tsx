@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useAnnouncement } from "@/lib/announce";
 import { Icon, type IconName } from "./icon";
 
 type Tone = "info" | "warning" | "danger" | "success";
@@ -27,6 +28,8 @@ export function Notice({
   action?: ReactNode;
 }) {
   const theme = useTheme();
+  // iOS ignores the alert role and live regions; speak new notices.
+  useAnnouncement([title, message].filter(Boolean).join(". "));
   const tint = {
     info: theme.info,
     warning: theme.warning,
