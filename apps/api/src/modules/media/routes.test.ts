@@ -12,6 +12,8 @@ import { buildApp } from "../../app.js";
 import { InMemoryMediaAssetRepository } from "../../media-asset-repository.js";
 import { InMemoryMediaStorage } from "../../media-storage.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
+import type { MediaQuota } from "../../media-quota.js";
+import { MediaUploadRateLimiter } from "./upload-rate-limit.js";
 
 const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
 const userB: UserId = "00000000-0000-4000-8000-000000000002" as UserId;
@@ -38,6 +40,7 @@ const tokenVerifierFor = (
 const build = (
   verifier: AccessTokenVerifier,
   planTier: "paid" | "free" = "free",
+  extra: Partial<Parameters<typeof buildApp>[0]> = {},
 ) => {
   const mediaAssetRepository = new InMemoryMediaAssetRepository();
   const mediaStorage = new InMemoryMediaStorage();
@@ -59,6 +62,7 @@ const build = (
       defaultUnitSystem: "metric",
       defaultPlanTier: planTier,
     }),
+    ...extra,
   });
   apps.push(app);
   return { app, mediaAssetRepository, mediaStorage };
@@ -211,6 +215,121 @@ describe("POST /v1/media/upload-url", () => {
       },
     });
     expect(response.statusCode).toBe(401);
+  });
+});
+
+describe("POST /v1/media/upload-url limits (SEC-02)", () => {
+  const ticket = (
+    app: ReturnType<typeof buildApp>,
+    byteSize = 1024,
+    token = "valid",
+  ) =>
+    app.inject({
+      method: "POST",
+      url: "/v1/media/upload-url",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { purpose: "progress", mimeType: "image/jpeg", byteSize },
+    });
+
+  it("rate limits tickets per user per minute with a retry hint", async () => {
+    let now = Date.parse("2026-10-27T10:00:00Z");
+    const limiter = new MediaUploadRateLimiter(
+      { perMinute: 2, perDay: 100 },
+      () => now,
+    );
+    const { app, mediaStorage, mediaAssetRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+      "free",
+      { mediaUploadRateLimiter: limiter },
+    );
+    const sign = vi.spyOn(mediaStorage, "signUploadUrl");
+    const create = vi.spyOn(mediaAssetRepository, "create");
+    expect((await ticket(app)).statusCode).toBe(200);
+    expect((await ticket(app)).statusCode).toBe(200);
+    const limited = await ticket(app);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["retry-after"]).toBe("60");
+    expect(limited.json().error).toMatchObject({
+      code: "RATE_LIMITED",
+      reason: "minute_rate_limit",
+      retryAfterSeconds: 60,
+    });
+    // A rejected ticket neither signs nor records an asset.
+    expect(sign).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(2);
+    now += 60_001;
+    expect((await ticket(app)).statusCode).toBe(200);
+  });
+
+  it("enforces the daily cap until the next UTC day", async () => {
+    let now = Date.parse("2026-10-27T23:59:00Z");
+    const limiter = new MediaUploadRateLimiter(
+      { perMinute: 100, perDay: 1 },
+      () => now,
+    );
+    const { app } = build(tokenVerifierFor({ userId: userA }), "free", {
+      mediaUploadRateLimiter: limiter,
+    });
+    expect((await ticket(app)).statusCode).toBe(200);
+    const limited = await ticket(app);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json().error).toMatchObject({
+      code: "RATE_LIMITED",
+      reason: "daily_budget_exhausted",
+      retryAfterSeconds: 60,
+    });
+    now = Date.parse("2026-10-28T00:00:01Z");
+    expect((await ticket(app)).statusCode).toBe(200);
+  });
+
+  it("keeps each user's rate limit separate", async () => {
+    const now = Date.parse("2026-10-27T10:00:00Z");
+    const limiter = new MediaUploadRateLimiter(
+      { perMinute: 1, perDay: 100 },
+      () => now,
+    );
+    const verifier: AccessTokenVerifier = {
+      verify: async (token) =>
+        token === "a" || token === "b"
+          ? {
+              userId: token === "a" ? userA : userB,
+              role: "authenticated",
+              accessToken: `token-${token}`,
+            }
+          : null,
+    };
+    const { app } = build(verifier, "free", {
+      mediaUploadRateLimiter: limiter,
+    });
+    expect((await ticket(app, 1024, "a")).statusCode).toBe(200);
+    expect((await ticket(app, 1024, "a")).statusCode).toBe(429);
+    expect((await ticket(app, 1024, "b")).statusCode).toBe(200);
+  });
+
+  it("refuses a ticket with a clear error when the storage quota is full", async () => {
+    const allows = vi.fn<MediaQuota["allows"]>(
+      async (_userId, byteSize) => byteSize <= 500,
+    );
+    const { app, mediaStorage, mediaAssetRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+      "free",
+      { mediaQuota: { allows } },
+    );
+    const sign = vi.spyOn(mediaStorage, "signUploadUrl");
+    const create = vi.spyOn(mediaAssetRepository, "create");
+    expect((await ticket(app, 500)).statusCode).toBe(200);
+    const full = await ticket(app, 501);
+    expect(full.statusCode).toBe(413);
+    expect(full.json().error).toMatchObject({
+      code: "STORAGE_QUOTA_EXCEEDED",
+      message:
+        "Your photo storage is full. Remove some photos or backups, then try again.",
+    });
+    expect(allows).toHaveBeenLastCalledWith(userA, 501, {
+      accessToken: "test-token",
+    });
+    expect(sign).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });
 

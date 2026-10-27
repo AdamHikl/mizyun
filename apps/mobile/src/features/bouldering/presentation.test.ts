@@ -226,6 +226,7 @@ describe("error mapping", () => {
     expect(http(410, "BOULDER_REMOVED")).toBe("removed");
     expect(http(400, "VALIDATION_ERROR")).toBe("invalid");
     expect(http(503, "SERVICE_UNAVAILABLE")).toBe("unavailable");
+    expect(http(413, "STORAGE_QUOTA_EXCEEDED")).toBe("storage_full");
     expect(toBoulderFailure({ kind: "network_error", cause: null }).kind).toBe(
       "offline",
     );

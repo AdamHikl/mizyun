@@ -12,6 +12,7 @@ import {
 import { InMemoryMemoryStore } from "@mizyun/memory";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryBetaProRepository } from "../../beta-pro-repository.js";
+import type { MediaQuota } from "../../media-quota.js";
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const mealId = "00000000-0000-4000-8000-000000000003";
 const apps: ReturnType<typeof buildApp>[] = [];
@@ -22,6 +23,7 @@ const build = (
   enabled = true,
   planTier: "paid" | "free" = "paid",
   betaStatus?: "pending" | "approved" | "rejected",
+  mediaQuota?: MediaQuota,
 ) => {
   const profile = new InMemoryProfileRepository({
     defaultTimezone: "UTC",
@@ -61,6 +63,7 @@ const build = (
     mealPhotoService: service,
     profileRepository: profile,
     betaProRepository: beta,
+    ...(mediaQuota ? { mediaQuota } : {}),
   });
   apps.push(app);
   return { app, service, profile, beta };
@@ -200,6 +203,28 @@ describe("Dev private meal photos", () => {
         clientOperationId: mealId,
       }),
     );
+  });
+  it("refuses a full storage quota before the server upload (SEC-02)", async () => {
+    const allows = vi.fn<MediaQuota["allows"]>().mockResolvedValue(false);
+    const { app, service } = build(true, "paid", undefined, { allows });
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/food-entries/${mealId}/photo`,
+      headers: { authorization: "Bearer owner" },
+      payload,
+    });
+    expect(response.statusCode).toBe(413);
+    expect(response.json().error).toMatchObject({
+      code: "STORAGE_QUOTA_EXCEEDED",
+      message:
+        "Your photo storage is full. Remove some photos or backups, then try again.",
+    });
+    expect(allows).toHaveBeenCalledWith(
+      userId,
+      Buffer.from(payload.imageBase64, "base64").length,
+      { accessToken: "owner" },
+    );
+    expect(service.save).not.toHaveBeenCalled();
   });
   it("maps cross-account/missing meal identically", async () => {
     const { app, service } = build();

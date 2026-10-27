@@ -35,6 +35,8 @@ import { sendApiError } from "../../errors.js";
 import type { MediaStorage } from "../../media-storage.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { hasMealVisuals } from "../../meal-visual-access.js";
+import type { MediaQuota } from "../../media-quota.js";
+import type { MediaUploadRateLimiter } from "./upload-rate-limit.js";
 
 interface MediaRoutesOptions {
   readonly mediaAssetRepository: MediaAssetRepository;
@@ -43,6 +45,8 @@ interface MediaRoutesOptions {
   readonly profileRepository: ProfileRepository;
   readonly betaProRepository: BetaProRepository;
   readonly foodErasureStorage?: MediaStorage;
+  readonly mediaQuota: MediaQuota;
+  readonly uploadRateLimiter: MediaUploadRateLimiter;
 }
 
 const GENERIC_UUID =
@@ -186,10 +190,11 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
   // POST /v1/media/upload-url — issue a signed upload URL and
   // record the asset metadata. The route server-generates the
   // object path so a misconfigured client cannot place bytes
-  // outside its own folder.
+  // outside its own folder. Tickets are rate limited per user and
+  // refused up front when the owner's storage quota is full (SEC-02).
   app.post(
     "/media/upload-url",
-    { preHandler: app.authenticate },
+    { preHandler: [app.authenticate, options.uploadRateLimiter.check] },
     async (request, reply): Promise<MediaUploadUrlResponse | void> => {
       const principal = request.principal;
       if (!principal) {
@@ -230,6 +235,22 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
       }
       const now = new Date();
       if (!(await requireFoodPro(parsed.data.purpose, request, reply))) return;
+      if (
+        !(await options.mediaQuota.allows(
+          principal.userId as UserId,
+          parsed.data.byteSize,
+          { accessToken: principal.accessToken },
+        ))
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          413,
+          "STORAGE_QUOTA_EXCEEDED",
+          "Your photo storage is full. Remove some photos or backups, then try again.",
+        );
+        return;
+      }
       const id = crypto.randomUUID();
       const objectPath = buildObjectPath(
         principal.userId,

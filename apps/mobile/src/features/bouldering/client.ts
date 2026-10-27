@@ -46,6 +46,7 @@ export type BoulderFailureKind =
   | "invalid"
   | "signed_out"
   | "context_changed"
+  | "storage_full"
   | "unavailable";
 
 export interface BoulderFailure {
@@ -70,6 +71,8 @@ const MESSAGES: Record<BoulderFailureKind, string> = {
   invalid: "Check the boulder details and try again.",
   signed_out: "Your session expired. Sign in and try again.",
   context_changed: "Your account changed. Reopen bouldering.",
+  storage_full:
+    "Your photo storage is full. Remove some photos or backups, then try again.",
   unavailable: "Bouldering couldn't be reached. Try again in a moment.",
 };
 
@@ -90,6 +93,8 @@ export const toBoulderFailure = (error: ApiError): BoulderFailure => {
       return boulderFailure("context_changed");
     case "http_error":
       if (error.code === "FEATURE_DISABLED") return boulderFailure("disabled");
+      if (error.code === "STORAGE_QUOTA_EXCEEDED")
+        return boulderFailure("storage_full");
       if (error.code === "BOULDER_SESSION_ACTIVE")
         return boulderFailure("active_session");
       if (error.code === "BOULDER_PROJECT_UNAVAILABLE")
