@@ -100,6 +100,10 @@ import {
 import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminders";
 import { DailyNutrients } from "./daily-nutrients";
 import { proteinIdeasFor } from "./protein-ideas";
+import {
+  DAILY_NUTRITION_ACCESSIBILITY_HINT,
+  dailyNutritionAccessibilityLabel,
+} from "./daily-nutrition-accessibility";
 import { LoggingConsistencyCard } from "./logging-consistency-card";
 import { FirstRunCard } from "./first-run-card";
 import { EveningStretchHomeCard } from "@/features/evening-stretch";
@@ -1794,7 +1798,11 @@ function DailyNutritionCard(props: {
     <Card style={styles.dailyNutritionCard}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="View Meals Hub"
+        accessibilityLabel={dailyNutritionAccessibilityLabel(
+          display,
+          proteinIdeas,
+        )}
+        accessibilityHint={DAILY_NUTRITION_ACCESSIBILITY_HINT}
         onPress={onPress}
         style={({ pressed }) => [
           styles.dailyNutritionCardWrapper,
@@ -2240,7 +2248,8 @@ function MetricCard(props: {
       trailing={<ThemedText type="headline">{props.value}</ThemedText>}
       onPress={props.onPress}
       accessibilityLabel={
-        props.accessibilityLabel ?? `${props.label}: ${props.value}`
+        props.accessibilityLabel ??
+        `${props.label}: ${props.value}. ${props.detail}`
       }
     />
   );

@@ -659,7 +659,11 @@ describe("dashboard cached display and refresh status", () => {
     const panel = find(tree, (node) => node.type?.name === "DailyNutrients");
     const mealsButton = find(
       tree,
-      (node) => node.props?.accessibilityLabel === "View Meals Hub",
+      (node) => node.props?.accessibilityHint === "Opens Meals",
+    );
+    expect(mealsButton.props.accessibilityRole).toBe("button");
+    expect(mealsButton.props.accessibilityLabel).toBe(
+      "Calories today: 750 of 2,200 kcal, 1,450 left. Protein 40 grams, carbs 80, fat 30.",
     );
     expect(panel.props.summary).toEqual(summary);
     expect(panel.props.dailyTargetKcal).toBe(2200);
@@ -672,6 +676,26 @@ describe("dashboard cached display and refresh status", () => {
     card = nutrition(render());
     expect(card.key).not.toBe(priorKey);
     expect(card.props.summary).toBeNull();
+  });
+
+  it("speaks each Body & activity row's detail line with its value", async () => {
+    render();
+    focus();
+    await settle();
+    const row = (label: string) => {
+      const card = find(
+        render(),
+        (node) =>
+          node.type?.name === "MetricCard" && node.props.label === label,
+      );
+      return card.type(card.props);
+    };
+    expect(row("Training").props.accessibilityLabel).toBe(
+      "Training: 2. Workouts this week",
+    );
+    expect(row("Current weight").props.accessibilityLabel).toMatch(
+      /^Current weight: 81\.5 (kg|lb)\. Latest scale reading$/,
+    );
   });
 
   it("shows the single protein target and offers diet-aware ideas only while building (#293)", async () => {
@@ -704,6 +728,12 @@ describe("dashboard cached display and refresh status", () => {
       "Protein, 40 grams, target 140 grams",
     );
     expect(text(vegan)).toContain("Protein ideas for later today");
+    expect(
+      find(vegan, (node) => node.props?.accessibilityHint === "Opens Meals")
+        .props.accessibilityLabel,
+    ).toBe(
+      "Calories today: 750 of 2,200 kcal, 1,450 left. Protein 40 of 140 grams, carbs 80 of 220, fat 30 of 60. Protein ideas for later today: Tofu or tempeh, Lentils or chickpeas, Edamame, Seitan.",
+    );
     expect(text(vegan)).toContain("Tofu or tempeh");
     expect(text(vegan)).not.toContain("Eggs");
 
