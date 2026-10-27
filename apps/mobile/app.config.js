@@ -262,6 +262,15 @@ if (
   );
 }
 
+// Weight/workout Health preview and Health exports are Dev-only, so Production
+// purpose strings describe only Steps and Import runs and never name Mizyun Dev.
+const productionHealthInfoPlist = {
+  NSHealthShareUsageDescription:
+    "Mizyun reads steps when you enable Steps. Import runs reads your running workouts and their distance; only the runs you select are saved to your Mizyun account. Health records never change your targets.",
+  NSHealthUpdateUsageDescription:
+    "Mizyun does not currently write data to Apple Health.",
+};
+
 const disableIosPushNotifications = process.env.MIZYUN_IOS_DISABLE_PUSH === "1";
 const enableIosAppleAuth = process.env.MIZYUN_ENABLE_APPLE_AUTH === "1";
 
@@ -284,6 +293,7 @@ const plugins = [
     },
   ],
   "./plugins/with-android-workout-live-update",
+  ["./plugins/with-android-health-permissions", { variant: variantName }],
   ...(variantName === "dev" ? ["./plugins/with-workout-companion"] : []),
   ...(enableIosAppleAuth
     ? ["expo-apple-authentication"]
@@ -333,6 +343,10 @@ module.exports = {
     },
     ios: {
       ...baseIos,
+      infoPlist: {
+        ...baseIos.infoPlist,
+        ...(variantName === "production" ? productionHealthInfoPlist : {}),
+      },
       appleTeamId: "LQJNDVBL43",
       bundleIdentifier: variant.iosBundleIdentifier,
       usesAppleSignIn: enableIosAppleAuth,
