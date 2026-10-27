@@ -62,6 +62,7 @@ export interface ExportManifest {
     readonly privateMedia: number;
     readonly feedback: number;
     readonly aiConsents?: number;
+    readonly healthDataConsents?: number;
     readonly productAnalyticsEvents?: number;
   };
 }
@@ -122,6 +123,9 @@ export interface AccountExport {
   readonly privateMedia: ReadonlyArray<ExportedMediaAsset>;
   readonly feedback: ReadonlyArray<UserFeedback>;
   readonly aiConsent?: StoredAiConsent | null;
+  readonly healthDataConsent?: StoredHealthDataConsent | null;
+  /** Append-only grant/withdrawal history (Supabase path only). */
+  readonly healthDataConsentHistory?: readonly Record<string, unknown>[];
   /** Weekly calorie-review proposals and decisions (ENG-08). */
   readonly calorieAdjustmentProposals?: readonly Record<string, unknown>[];
   readonly recurringMeals?: {
@@ -302,4 +306,27 @@ export interface AiConsentRepository {
     },
     options?: { readonly accessToken?: string; readonly now?: Date },
   ): Promise<StoredAiConsent>;
+}
+
+/** Explicit health-data consent (GDPR Art. 9(2)(a), PRIV-01). */
+export interface StoredHealthDataConsent {
+  readonly userId: UserId;
+  readonly granted: boolean;
+  readonly consentVersion: string;
+  readonly consentedAt: Date | null;
+  readonly revokedAt: Date | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface HealthDataConsentRepository {
+  getConsent(
+    userId: UserId,
+    options?: { readonly accessToken?: string },
+  ): Promise<StoredHealthDataConsent | null>;
+  saveConsent(
+    userId: UserId,
+    consent: { readonly granted: boolean; readonly consentVersion: string },
+    options?: { readonly accessToken?: string; readonly now?: Date },
+  ): Promise<StoredHealthDataConsent>;
 }

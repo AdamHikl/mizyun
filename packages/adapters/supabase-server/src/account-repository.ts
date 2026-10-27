@@ -24,6 +24,8 @@ import {
   type MediaAssetRepository,
   type ProfileRepository,
   type AiConsentRepository,
+  type HealthDataConsentRepository,
+  type StoredHealthDataConsent,
   type ProductAnalyticsRepository,
   type StoredAiConsent,
   type StoredProductAnalyticsConsent,
@@ -60,6 +62,10 @@ import {
   aiConsentFromRow,
   type AiConsentRow,
 } from "./ai-consent-repository.js";
+import {
+  type HealthDataConsentRow,
+  healthDataConsentFromRow,
+} from "./health-data-consent-repository.js";
 import {
   type ProductAnalyticsConsentRow,
   type ProductAnalyticsEventRow,
@@ -123,6 +129,8 @@ export interface SupabaseAccountRepositoryOptions {
   readonly exportMediaStorage?: AccountMediaStorage | null | undefined;
   readonly memoryStore?: MemoryStore | null | undefined;
   readonly aiConsentRepository?: AiConsentRepository | null | undefined;
+  readonly healthDataConsentRepository?:
+    HealthDataConsentRepository | null | undefined;
   readonly productAnalyticsRepository?:
     ProductAnalyticsRepository | null | undefined;
   readonly serviceRoleClient?: RepositorySupabaseClient | null | undefined;
@@ -171,6 +179,7 @@ export class SupabaseAccountRepository implements AccountRepository {
   readonly #exportMediaStorage: AccountMediaStorage | null;
   readonly #memoryStore: MemoryStore | null;
   readonly #aiConsentRepository: AiConsentRepository | null;
+  readonly #healthDataConsentRepository: HealthDataConsentRepository | null;
   readonly #productAnalyticsRepository: ProductAnalyticsRepository | null;
   readonly #serviceRoleClient: RepositorySupabaseClient | null;
   readonly #clientFor:
@@ -197,6 +206,8 @@ export class SupabaseAccountRepository implements AccountRepository {
     this.#exportMediaStorage = options.exportMediaStorage ?? null;
     this.#memoryStore = options.memoryStore ?? null;
     this.#aiConsentRepository = options.aiConsentRepository ?? null;
+    this.#healthDataConsentRepository =
+      options.healthDataConsentRepository ?? null;
     this.#productAnalyticsRepository =
       options.productAnalyticsRepository ?? null;
     this.#serviceRoleClient = options.serviceRoleClient ?? null;
@@ -232,6 +243,8 @@ export class SupabaseAccountRepository implements AccountRepository {
     let feedback: ReadonlyArray<UserFeedback>;
     let privateMedia: ReadonlyArray<ExportedMediaAsset>;
     let aiConsent: StoredAiConsent | null = null;
+    let healthDataConsent: StoredHealthDataConsent | null = null;
+    let healthDataConsentHistory: AccountExport["healthDataConsentHistory"];
     let productAnalyticsConsent: StoredProductAnalyticsConsent | null = null;
     let productAnalyticsEvents: ReadonlyArray<StoredProductAnalyticsEvent> = [];
     let memoryCount = 0;
@@ -568,6 +581,32 @@ export class SupabaseAccountRepository implements AccountRepository {
         aiConsent = aiConsentFromRow(consentRow);
       }
 
+      const { data: healthConsentRow, error: healthConsentError } = await client
+        .from<HealthDataConsentRow>("user_health_data_consents")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (healthConsentError) {
+        throw new RepositoryError("Unable to export health data consent");
+      }
+      if (healthConsentRow) {
+        healthDataConsent = healthDataConsentFromRow(healthConsentRow);
+      }
+      healthDataConsentHistory = (
+        await fetchAllPaged(
+          client,
+          "user_health_data_consent_events",
+          "user_id",
+          userId,
+          "id",
+          true,
+        )
+      ).map((row) => ({
+        granted: row.granted,
+        consentVersion: row.consent_version,
+        recordedAt: row.recorded_at,
+      }));
+
       const { data: paConsentRow, error: paConsentError } = await client
         .from<ProductAnalyticsConsentRow>("product_analytics_consents")
         .select("*")
@@ -715,6 +754,12 @@ export class SupabaseAccountRepository implements AccountRepository {
           accessToken: token,
         });
       }
+      if (this.#healthDataConsentRepository) {
+        healthDataConsent = await this.#healthDataConsentRepository.getConsent(
+          userId,
+          { accessToken: token },
+        );
+      }
       if (this.#productAnalyticsRepository) {
         productAnalyticsConsent =
           await this.#productAnalyticsRepository.getConsent(userId, {
@@ -753,6 +798,7 @@ export class SupabaseAccountRepository implements AccountRepository {
         privateMedia: privateMedia.length,
         feedback: feedback.length,
         aiConsents: aiConsent ? 1 : 0,
+        healthDataConsents: healthDataConsent ? 1 : 0,
         productAnalyticsEvents: productAnalyticsEvents.length,
       },
     };
@@ -800,6 +846,8 @@ export class SupabaseAccountRepository implements AccountRepository {
       privateMedia,
       feedback,
       aiConsent,
+      healthDataConsent,
+      ...(healthDataConsentHistory ? { healthDataConsentHistory } : {}),
       productAnalytics:
         productAnalyticsConsent || productAnalyticsEvents.length > 0
           ? {

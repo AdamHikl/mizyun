@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import type { Profile } from "@mizyun/contracts";
 
+import { Turned18Question } from "@/components/turned-18-question";
 import { ThemedText } from "@/components/themed-text";
 import { Button, Card } from "@/components/ui";
 import { apiClient } from "@/composition/api-client";
@@ -53,7 +54,7 @@ export function ProfileSettingsCard({
   }, [profile]);
 
   const validation = useMemo(
-    () => validateProfileSettingsForm(form, new Date().getFullYear()),
+    () => validateProfileSettingsForm(form, new Date().getUTCFullYear()),
     [form],
   );
 
@@ -64,7 +65,14 @@ export function ProfileSettingsCard({
     ) => {
       setMessage(null);
       setIsSuccess(false);
-      setForm((current) => ({ ...current, [field]: value }));
+      setForm((current) => ({
+        ...current,
+        [field]: value,
+        // A new birth year needs a new answer to the turned-18 question.
+        ...(field === "birthYear" && value !== current.birthYear
+          ? { turned18: null }
+          : {}),
+      }));
     },
     [],
   );
@@ -159,6 +167,11 @@ export function ProfileSettingsCard({
             onChangeText={(value) => patch("birthYear", value)}
           />
         </FormField>
+        <Turned18Question
+          birthYear={form.birthYear}
+          value={form.turned18}
+          onChange={(value) => patch("turned18", value)}
+        />
 
         <FormField label="Formula sex input">
           <ChoiceGroup>

@@ -1,4 +1,5 @@
 import { clearLocalHealthExports } from "@/features/health-exports";
+import { clearHealthDataConsentCache } from "@/features/health-consent/health-data-consent";
 import {
   clearRecurringSuggestionRecovery,
   getRecurringSuggestionRetryStore,
@@ -448,6 +449,9 @@ export const clearLocalUserData = async (
     ),
     Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(routineSuggestionKeyFor(userId)),
+    ),
+    Promise.resolve().then(() =>
+      clearHealthDataConsentCache(userId, workoutStore),
     ),
     ...matchedFiles.map(async (file) => {
       await file.delete();

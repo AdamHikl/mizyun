@@ -5,6 +5,7 @@ import {
   type AccountRepository,
   type AccountDeletionCleanupContext,
   type AiConsentRepository,
+  type HealthDataConsentRepository,
   type ProfileRepository,
 } from "@mizyun/core";
 import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
@@ -23,6 +24,7 @@ import {
   type AnalyticsEventsListQuery,
   accountDeleteChallengeResponseSchema,
   aiConsentResponseSchema,
+  latestAdultBirthYear,
   updateAiConsentSchema,
   type AccountDeleteResponse,
   type AccountDeleteStatusResponse,
@@ -35,11 +37,16 @@ import { isAdultEligibleForAi } from "../../ai-eligibility.js";
 import { isLegacyClient } from "../../client-compat.js";
 import type { AppleDeletionCleanupOutcome } from "./apple-deletion.js";
 import { sendApiError } from "../../errors.js";
+import {
+  HEALTH_DATA_CONSENT_REQUIRED_MESSAGE,
+  healthDataWriteRefused,
+} from "../../health-data-consent.js";
 
 interface AccountRoutesOptions {
   readonly accountRepository: AccountRepository;
   readonly memoryStore: MemoryStore;
   readonly aiConsentRepository?: AiConsentRepository;
+  readonly healthDataConsentRepository?: HealthDataConsentRepository;
   readonly profileRepository?: ProfileRepository;
   /**
    * Disclosure versions a new grant may record (`AI_CONSENT_ACCEPTED_VERSIONS`);
@@ -337,6 +344,29 @@ const accountExportToWire = (
             updatedAt: exportDoc.aiConsent.updatedAt.toISOString(),
           }
         : null,
+      ...(exportDoc.healthDataConsent !== undefined
+        ? {
+            healthDataConsent: exportDoc.healthDataConsent
+              ? {
+                  granted: exportDoc.healthDataConsent.granted,
+                  consentVersion: exportDoc.healthDataConsent.consentVersion,
+                  consentedAt:
+                    exportDoc.healthDataConsent.consentedAt?.toISOString() ??
+                    null,
+                  revokedAt:
+                    exportDoc.healthDataConsent.revokedAt?.toISOString() ??
+                    null,
+                  createdAt:
+                    exportDoc.healthDataConsent.createdAt.toISOString(),
+                  updatedAt:
+                    exportDoc.healthDataConsent.updatedAt.toISOString(),
+                }
+              : null,
+          }
+        : {}),
+      ...(exportDoc.healthDataConsentHistory
+        ? { healthDataConsentHistory: exportDoc.healthDataConsentHistory }
+        : {}),
     },
   });
 };
@@ -662,6 +692,42 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
             403,
             "AI_AGE_RESTRICTED",
             "Mizyun AI features require confirmed adult status (18+).",
+          );
+          return;
+        }
+
+        if (
+          parsed.data.birthYear !== undefined &&
+          parsed.data.birthYear > latestAdultBirthYear(now)
+        ) {
+          // Refuse before saving: an under-18 birth year is never stored.
+          await sendApiError(
+            reply,
+            request,
+            403,
+            "AI_AGE_RESTRICTED",
+            "Mizyun AI features require adult eligibility (18 years or older) under provider terms.",
+          );
+          return;
+        }
+
+        if (
+          parsed.data.birthYear !== undefined &&
+          options.healthDataConsentRepository &&
+          healthDataWriteRefused(
+            request,
+            await options.healthDataConsentRepository.getConsent(
+              principal.userId,
+              { accessToken: principal.accessToken },
+            ),
+          )
+        ) {
+          await sendApiError(
+            reply,
+            request,
+            403,
+            "HEALTH_DATA_CONSENT_REQUIRED",
+            HEALTH_DATA_CONSENT_REQUIRED_MESSAGE,
           );
           return;
         }

@@ -301,6 +301,12 @@ export {
   type SupabaseAiConsentRepositoryOptions,
 } from "./ai-consent-repository.js";
 export {
+  SupabaseHealthDataConsentRepository,
+  healthDataConsentFromRow,
+  type HealthDataConsentRow,
+  type SupabaseHealthDataConsentRepositoryOptions,
+} from "./health-data-consent-repository.js";
+export {
   SupabaseMediaStorage,
   MediaStorageError,
   createSupabaseStorageClient,

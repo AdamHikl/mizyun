@@ -248,6 +248,30 @@ export type CoachingPreferences = z.infer<typeof coachingPreferencesSchema>;
 export const aiProviderSchema = z.enum(["gemini"]);
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 
+/**
+ * Mizyun is for adults only (PRIV-02). Only a birth year is collected, so a
+ * user born in `latestAdultBirthYear(now)` may still be 17 until their
+ * birthday; clients ask about that year separately and nothing finer is
+ * stored. See docs/legal-drafts/DPIA_DRAFT_2026-10-27.md.
+ */
+export const MINIMUM_USER_AGE_YEARS = 18;
+
+/** The most recent birth year that can belong to an adult in `now`'s UTC year. */
+export const latestAdultBirthYear = (now: Date = new Date()): number =>
+  now.getUTCFullYear() - MINIMUM_USER_AGE_YEARS;
+
+/** Message shown when a birth year is too recent for an adult account. */
+export const ADULT_ONLY_BIRTH_YEAR_MESSAGE = "Mizyun is for adults (18+).";
+
+/** A birth year this server accepts on writes: 1900 to the latest adult year. */
+export const adultBirthYearSchema = z
+  .number()
+  .int()
+  .gte(1900)
+  .refine((year) => year <= latestAdultBirthYear(), {
+    message: ADULT_ONLY_BIRTH_YEAR_MESSAGE,
+  });
+
 export const profileSchema = z.object({
   userId: z.string().uuid(),
   displayName: z.string().trim().min(1).max(80).nullable().optional(),
@@ -318,7 +342,8 @@ export const profilePatchSchema = z
     displayName: profileSchema.shape.displayName.optional(),
     unitSystem: unitSystemSchema.optional(),
     timezone: profileSchema.shape.timezone.optional(),
-    birthYear: profileSchema.shape.birthYear.optional(),
+    // Stricter than `profileSchema`, which still reads older stored years.
+    birthYear: adultBirthYearSchema.nullable().optional(),
     heightCm: profileSchema.shape.heightCm.optional(),
     activityLevel: profileSchema.shape.activityLevel.optional(),
     sexAtBirth: profileSchema.shape.sexAtBirth.optional(),
@@ -651,6 +676,14 @@ export {
   type ExportManifest,
   type ExportedMediaAsset,
   type UpdateAiConsent,
+  CURRENT_HEALTH_DATA_CONSENT_VERSION,
+  healthDataConsentResponseSchema,
+  healthDataConsentSchema,
+  isHealthDataConsentCurrent,
+  updateHealthDataConsentSchema,
+  type HealthDataConsent,
+  type HealthDataConsentResponse,
+  type UpdateHealthDataConsent,
 } from "./account";
 
 export {

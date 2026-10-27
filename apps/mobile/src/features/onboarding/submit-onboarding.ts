@@ -1,5 +1,6 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
+  ADULT_ONLY_BIRTH_YEAR_MESSAGE,
   bodyMeasurementCreateSchema,
   bodyMeasurementListResponseSchema,
   bodyMeasurementResponseSchema,
@@ -21,9 +22,11 @@ export type SubmitOnboardingResult =
     };
 
 /**
- * Apply the wizard in a retry-safe sequence. Goal and baseline measurement are
- * ensured first; the profile display name is written last because SessionGate
- * uses it as the onboarding completion marker. A retry reads existing goal and
+ * Apply the wizard in a retry-safe sequence. Body and age details are saved
+ * first, so a refusal (missing health-data consent, adults-only birth year)
+ * leaves nothing else behind; goal and baseline measurement follow; the
+ * display name is written last because Home uses it as the onboarding
+ * completion marker. A retry reads existing goal and
  * measurement authority before creating anything, avoiding duplicate records
  * after a partial network failure.
  *
@@ -59,6 +62,27 @@ export const submitOnboarding = async (
   );
   const goalWeightKg = displayWeightToKilograms(goalDisplay, form.unitSystem);
   const heightCm = displayLengthToCentimeters(heightDisplay, form.unitSystem);
+
+  // Body and age details first: if the server refuses them (no health-data
+  // consent, or an adults-only birth year), nothing else has been saved.
+  const healthResult = await client.request({
+    method: "PUT",
+    path: "/v1/profile",
+    body: {
+      unitSystem: form.unitSystem,
+      heightCm,
+      birthYear,
+      activityLevel: form.activityLevel,
+      sexAtBirth: form.sexAtBirth,
+    } satisfies ProfilePatch,
+    schema: profileResponseSchema,
+  });
+  if (!healthResult.ok) {
+    return {
+      ok: false,
+      message: profileErrorMessage(healthResult.error),
+    };
+  }
 
   const activeGoal = await client.request({
     method: "GET",
@@ -140,14 +164,7 @@ export const submitOnboarding = async (
     }
   }
 
-  const profilePatch: ProfilePatch = {
-    displayName: form.displayName.trim(),
-    unitSystem: form.unitSystem,
-    heightCm,
-    birthYear,
-    activityLevel: form.activityLevel,
-    sexAtBirth: form.sexAtBirth,
-  };
+  const profilePatch: ProfilePatch = { displayName: form.displayName.trim() };
   const profileResult = await client.request({
     method: "PUT",
     path: "/v1/profile",
@@ -165,6 +182,21 @@ export const submitOnboarding = async (
   }
 
   return { ok: true };
+};
+
+const profileErrorMessage = (error: ApiError): string => {
+  if (error.kind === "http_error") {
+    if (error.code === "HEALTH_DATA_CONSENT_REQUIRED") {
+      return "Agree to Mizyun storing your health data before saving these details.";
+    }
+    if (
+      error.status === 422 &&
+      error.message.includes(ADULT_ONLY_BIRTH_YEAR_MESSAGE)
+    ) {
+      return "Mizyun is for adults 18 and over, so we can't set this up for you.";
+    }
+  }
+  return humanizeError(error.kind, "Could not save your profile.");
 };
 
 const isNotFound = (error: ApiError): boolean =>

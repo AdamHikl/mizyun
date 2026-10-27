@@ -17,6 +17,7 @@ import {
 
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { GoogleIcon } from "@/components/google-icon";
+import { LegalLinks } from "@/components/legal-links";
 import { ThemedText } from "@/components/themed-text";
 import { Button, Card, FormTextInput, IconBadge } from "@/components/ui";
 import { authClient } from "@/composition/auth-client";
@@ -497,6 +498,16 @@ export function AuthScreen() {
           }
         />
       </View>
+
+      {mode !== "forgot" ? (
+        <LegalLinks
+          intro={
+            mode === "sign-up"
+              ? "By creating an account, you agree to the Terms of Service. The Privacy Policy explains how Mizyun handles your data. Mizyun is for adults 18 and over."
+              : undefined
+          }
+        />
+      ) : null}
 
       {getAppVariant() === "dev" ? (
         <Button

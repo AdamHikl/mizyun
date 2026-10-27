@@ -194,6 +194,8 @@ export {
   type StoredConversationStub,
   type StoredDeletionJob,
   type AiConsentRepository,
+  type HealthDataConsentRepository,
+  type StoredHealthDataConsent,
 } from "./account";
 
 export {

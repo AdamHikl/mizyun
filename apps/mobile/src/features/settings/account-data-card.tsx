@@ -20,6 +20,7 @@ import {
   saveExportToFile,
 } from "./account-data-management";
 import { useAiConsentController } from "@/features/coach/ai-consent-controller";
+import { useHealthDataConsent } from "@/features/health-consent/health-data-consent-context";
 
 type DeletionStage =
   | "idle"
@@ -152,6 +153,10 @@ export function AccountDataCard({
     };
   }, [session?.user.id, signOut]);
 
+  const healthDataConsent = useHealthDataConsent();
+  const [isWithdrawingHealthConsent, setIsWithdrawingHealthConsent] =
+    useState(false);
+
   const {
     consentGranted: aiConsentGranted,
     revokeConsent: executeRevokeAiConsent,
@@ -185,6 +190,27 @@ export function AccountDataCard({
             } finally {
               setIsRevokingConsent(false);
             }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleWithdrawHealthConsent = () => {
+    if (!healthDataConsent) return;
+    Alert.alert(
+      "Withdraw health data consent?",
+      "The app will stop collecting new health data and ask again before you can keep using it. Data you've already saved stays until you delete it; you can export it or delete your account from that screen.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Withdraw",
+          style: "destructive",
+          onPress: async () => {
+            setIsWithdrawingHealthConsent(true);
+            const error = await healthDataConsent.withdraw();
+            setIsWithdrawingHealthConsent(false);
+            if (error) setFeedbackMessage(error);
           },
         },
       ],
@@ -434,6 +460,30 @@ export function AccountDataCard({
           export).
         </ThemedText>
       </Card>
+
+      {healthDataConsent?.status === "granted" ? (
+        <>
+          <SectionHeader title="Health data consent" />
+          <Card>
+            <ThemedText type="small" themeColor="textSecondary">
+              You agreed that Mizyun may store and use your health data. If you
+              withdraw, the app stops collecting new health data and asks again
+              before you can continue; you can still export your data or delete
+              your account. Data you've already saved stays until you delete it
+              or your account.
+            </ThemedText>
+            <Button
+              label="Withdraw health data consent"
+              variant="secondary"
+              block
+              accessibilityLabel="Withdraw health data consent"
+              loading={isWithdrawingHealthConsent}
+              disabled={disabled || isExporting || isDeleting}
+              onPress={handleWithdrawHealthConsent}
+            />
+          </Card>
+        </>
+      ) : null}
 
       <SectionHeader title="Third-party AI & consent" />
       <Card>

@@ -3,6 +3,7 @@ import {
   applyProfilePatch,
   validateProfilePatch,
   type ProfilePatch,
+  type HealthDataConsentRepository,
   type ProfileRepository,
   type ProfileValidationError,
   type StoredProfile,
@@ -14,9 +15,21 @@ import {
 } from "@mizyun/contracts";
 
 import { sendApiError } from "../../errors.js";
+import {
+  HEALTH_DATA_CONSENT_REQUIRED_MESSAGE,
+  changedHealthFields,
+  healthDataWriteRefused,
+  patchStoresHealthData,
+} from "../../health-data-consent.js";
 
 interface ProfileRoutesOptions {
   readonly profileRepository: ProfileRepository;
+  /**
+   * When set, storing birth year, height, sex at birth or activity level is
+   * refused after a recorded withdrawal, and without a current grant for
+   * clients that ask for health-data consent.
+   */
+  readonly healthDataConsentRepository?: HealthDataConsentRepository;
 }
 
 /**
@@ -221,6 +234,27 @@ export const profileRoutes: FastifyPluginAsync<ProfileRoutesOptions> = async (
         principal.userId,
         { now: new Date(), accessToken: principal.accessToken },
       );
+      // Only new values count: an older build re-sending unchanged height or
+      // birth year (e.g. with a display-name edit) is not refused.
+      if (
+        options.healthDataConsentRepository &&
+        patchStoresHealthData(changedHealthFields(patch, stored))
+      ) {
+        const consent = await options.healthDataConsentRepository.getConsent(
+          principal.userId,
+          { accessToken: principal.accessToken },
+        );
+        if (healthDataWriteRefused(request, consent)) {
+          await sendApiError(
+            reply,
+            request,
+            403,
+            "HEALTH_DATA_CONSENT_REQUIRED",
+            HEALTH_DATA_CONSENT_REQUIRED_MESSAGE,
+          );
+          return;
+        }
+      }
       const next = applyProfilePatch(stored, patch, new Date());
       const saved = await options.profileRepository.update(
         principal.userId,

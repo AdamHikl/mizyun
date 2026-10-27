@@ -6,6 +6,7 @@ import {
   type ProfilePatch,
 } from "@mizyun/contracts";
 
+import { checkAdultBirthYear } from "@/lib/adult-age";
 import {
   centimetersToDisplayLength,
   displayLengthToCentimeters,
@@ -14,6 +15,8 @@ import {
 export interface EnergyProfileForm {
   readonly height: string;
   readonly birthYear: string;
+  /** Asked only for the birth year in which the user may be 17; never saved. */
+  readonly turned18: boolean | null;
   readonly activityLevel: Profile["activityLevel"];
   readonly sexAtBirth: Profile["sexAtBirth"];
 }
@@ -32,6 +35,7 @@ export const energyProfileFormFromProfile = (
           centimetersToDisplayLength(profile.heightCm, profile.unitSystem),
         ),
   birthYear: profile.birthYear == null ? "" : String(profile.birthYear),
+  turned18: null,
   activityLevel: profile.activityLevel ?? null,
   sexAtBirth: profile.sexAtBirth ?? null,
 });
@@ -53,16 +57,8 @@ export const validateEnergyProfileForm = (
       message: "Height is outside the supported adult range.",
     };
   }
-  if (
-    !Number.isInteger(birthYear) ||
-    birthYear < 1900 ||
-    birthYear > currentYear - 13
-  ) {
-    return {
-      ok: false,
-      message: `Birth year must be between 1900 and ${currentYear - 13}.`,
-    };
-  }
+  const age = checkAdultBirthYear(form.birthYear, form.turned18, currentYear);
+  if (age.kind !== "ok") return { ok: false, message: age.message };
   if (form.sexAtBirth == null) {
     return {
       ok: false,
@@ -72,15 +68,17 @@ export const validateEnergyProfileForm = (
   if (form.activityLevel == null) {
     return { ok: false, message: "Choose an activity level." };
   }
-  return {
-    ok: true,
-    patch: profilePatchSchema.parse({
-      heightCm,
-      birthYear,
-      activityLevel: form.activityLevel,
-      sexAtBirth: form.sexAtBirth,
-    }),
-  };
+  // The schema checks the adult birth year against its own clock, which
+  // can differ from `currentYear` at the new year; never throw here.
+  const parsed = profilePatchSchema.safeParse({
+    heightCm,
+    birthYear,
+    activityLevel: form.activityLevel,
+    sexAtBirth: form.sexAtBirth,
+  });
+  return parsed.success
+    ? { ok: true, patch: parsed.data }
+    : { ok: false, message: "Check your details and try again." };
 };
 
 export const saveEnergyProfile = async (

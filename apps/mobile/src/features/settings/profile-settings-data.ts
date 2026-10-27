@@ -6,6 +6,7 @@ import {
   type ProfilePatch,
 } from "@mizyun/contracts";
 
+import { checkAdultBirthYear } from "@/lib/adult-age";
 import {
   centimetersToDisplayLength,
   displayLengthToCentimeters,
@@ -16,6 +17,8 @@ export interface ProfileSettingsForm {
   readonly unitSystem: Profile["unitSystem"];
   readonly height: string;
   readonly birthYear: string;
+  /** Asked only for the birth year in which the user may be 17; never saved. */
+  readonly turned18: boolean | null;
   readonly activityLevel: Profile["activityLevel"];
   readonly sexAtBirth: Profile["sexAtBirth"];
 }
@@ -36,6 +39,7 @@ export const profileSettingsFormFromProfile = (
           centimetersToDisplayLength(profile.heightCm, profile.unitSystem),
         ),
   birthYear: profile.birthYear == null ? "" : String(profile.birthYear),
+  turned18: null,
   activityLevel: profile.activityLevel ?? null,
   sexAtBirth: profile.sexAtBirth ?? null,
 });
@@ -67,17 +71,9 @@ export const validateProfileSettingsForm = (
     };
   }
 
-  const birthYear = Number(form.birthYear.trim());
-  if (
-    !Number.isInteger(birthYear) ||
-    birthYear < 1900 ||
-    birthYear > currentYear - 13
-  ) {
-    return {
-      ok: false,
-      message: `Birth year must be between 1900 and ${currentYear - 13}.`,
-    };
-  }
+  const age = checkAdultBirthYear(form.birthYear, form.turned18, currentYear);
+  if (age.kind !== "ok") return { ok: false, message: age.message };
+  const birthYear = age.birthYear;
 
   if (form.sexAtBirth == null) {
     return {
@@ -90,17 +86,19 @@ export const validateProfileSettingsForm = (
     return { ok: false, message: "Choose an activity level." };
   }
 
-  return {
-    ok: true,
-    patch: profilePatchSchema.parse({
-      displayName: trimmedName,
-      unitSystem: form.unitSystem,
-      heightCm,
-      birthYear,
-      activityLevel: form.activityLevel,
-      sexAtBirth: form.sexAtBirth,
-    }),
-  };
+  // The schema checks the adult birth year against its own clock, which
+  // can differ from `currentYear` at the new year; never throw here.
+  const parsed = profilePatchSchema.safeParse({
+    displayName: trimmedName,
+    unitSystem: form.unitSystem,
+    heightCm,
+    birthYear,
+    activityLevel: form.activityLevel,
+    sexAtBirth: form.sexAtBirth,
+  });
+  return parsed.success
+    ? { ok: true, patch: parsed.data }
+    : { ok: false, message: "Check your details and try again." };
 };
 
 export const saveProfileSettings = async (
