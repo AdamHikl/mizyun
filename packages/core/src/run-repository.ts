@@ -16,6 +16,8 @@ export interface RunListOptions {
   readonly accessToken: string;
   /** Imported Health runs are opt-in so Coach and older clients see manual runs only. */
   readonly includeImports?: boolean | undefined;
+  /** History file imports (ADR-0083); only newer clients parse that origin. */
+  readonly includeFileImports?: boolean | undefined;
 }
 export interface RunImportResult {
   readonly workout: StoredWorkout;

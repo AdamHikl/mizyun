@@ -59,6 +59,10 @@ import { RevenueCatSubscriberClient } from "@mizyun/adapter-revenuecat-server";
 import { billingRoutes } from "./modules/billing/routes.js";
 import { InMemorySubscriptionEntitlementRepository } from "./modules/billing/in-memory-repository.js";
 import type { EntitlementReader } from "./modules/billing/service.js";
+import type { HistoryImportRepository } from "@mizyun/core";
+import { SupabaseHistoryImportRepository } from "@mizyun/adapter-supabase-server";
+import { InMemoryHistoryImportRepository } from "./history-import-repository.js";
+import { historyImportRoutes } from "./modules/history-imports/routes.js";
 import {
   boulderingEnabled,
   loadBillingConfig,
@@ -66,6 +70,7 @@ import {
   type BillingConfigResult,
   loadMealPhotosEnabled,
   runHealthImportsEnabled,
+  historyImportsEnabled,
 } from "@mizyun/config";
 import {
   SupabaseMealPhotoService,
@@ -421,6 +426,9 @@ export interface AppDependencies {
   /** Overrides the Dev-only Health run import switch (tests). */
   readonly runHealthImportsEnabled?: boolean;
   readonly boulderingRepository?: BoulderingRepository;
+  readonly historyImportRepository?: HistoryImportRepository;
+  /** Overrides `historyImportsEnabled(process.env)` (tests). */
+  readonly historyImportsEnabled?: boolean;
   /** Overrides `MIZYUN_BOULDERING_ENABLED` (tests). */
   readonly boulderingEnabled?: boolean;
   readonly photoBackupRepository?: PhotoBackupRepository;
@@ -952,6 +960,15 @@ export const buildApp = (
     (sp
       ? new SupabaseWorkoutSetRepository({ clientFor: sp.clientFor })
       : new InMemoryWorkoutSetRepository());
+  const historyImportRepository =
+    dependencies.historyImportRepository ??
+    (sp
+      ? new SupabaseHistoryImportRepository(sp.clientFor)
+      : new InMemoryHistoryImportRepository(
+          workoutRepository,
+          workoutSetRepository,
+          exerciseRepository,
+        ));
   const bodyMeasurementRepository =
     dependencies.bodyMeasurementRepository ??
     (sp
@@ -1216,6 +1233,7 @@ export const buildApp = (
             : {}),
           runRepository,
           boulderingRepository,
+          historyImportRepository,
           profileRepository,
           goalRepository,
           foodEntryRepository,
@@ -1750,6 +1768,12 @@ export const buildApp = (
     healthImportsEnabled:
       dependencies.runHealthImportsEnabled ??
       runHealthImportsEnabled(process.env),
+  });
+  void app.register(historyImportRoutes, {
+    prefix: "/v1/history-imports",
+    repository: historyImportRepository,
+    enabled:
+      dependencies.historyImportsEnabled ?? historyImportsEnabled(process.env),
   });
   void app.register(boulderingRoutes, {
     prefix: "/v1/bouldering",

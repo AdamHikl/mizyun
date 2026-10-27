@@ -48,9 +48,18 @@ export const runHealthImportOriginSchema = z
     externalId: healthIdentifierSchema,
   })
   .strict();
+/** A run from the user's own Strava account export (ADR-0083); never the Strava API. */
+export const runFileImportOriginSchema = z
+  .object({
+    kind: z.literal("file_import"),
+    format: z.literal("strava"),
+    externalId: healthIdentifierSchema,
+  })
+  .strict();
 export const runOriginSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("manual") }).strict(),
   runHealthImportOriginSchema,
+  runFileImportOriginSchema,
 ]);
 export type RunOrigin = z.infer<typeof runOriginSchema>;
 
@@ -86,7 +95,9 @@ export const runSummarySchema = z
     if (
       value.origin.kind === "manual"
         ? value.durationBasis !== "elapsed"
-        : value.timePrecision !== "instant"
+        : value.timePrecision !== "instant" ||
+          (value.origin.kind === "file_import" &&
+            value.durationBasis !== "elapsed")
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -137,8 +148,11 @@ export const runListQuerySchema = z
     to: activityDateSchema.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
     cursor: z.string().min(1).max(500).optional(),
-    /** Older clients parse only manual runs, so imported runs are opt-in. */
-    include: z.literal("imports").optional(),
+    /**
+     * Older clients parse only manual runs, so imported runs are opt-in:
+     * `imports` adds Health imports, `all_imports` also history file imports.
+     */
+    include: z.enum(["imports", "all_imports"]).optional(),
   })
   .strict()
   .refine(

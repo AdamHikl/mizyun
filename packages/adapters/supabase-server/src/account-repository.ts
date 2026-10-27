@@ -241,6 +241,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     let runOperationReceipts: AccountExport["runOperationReceipts"];
     let subscriptionEntitlements: AccountExport["subscriptionEntitlements"];
     let bouldering: AccountExport["bouldering"];
+    let historyImports: AccountExport["historyImports"];
     let mealImagePaths: AccountExport["mealImagePaths"];
 
     if (this.#clientFor !== null) {
@@ -278,6 +279,34 @@ export class SupabaseAccountRepository implements AccountRepository {
         true,
         "user_id",
       );
+      historyImports = {
+        batches: await fetchAllPaged(
+          client,
+          "history_import_batches",
+          "user_id",
+          userId,
+          "created_at",
+        ),
+        // Provenance columns only; the records themselves export as workouts.
+        records: (
+          await fetchAllPaged(
+            client,
+            "workouts",
+            "user_id",
+            userId,
+            "id",
+            true,
+            "id",
+            "id,import_batch_id,import_key",
+          )
+        )
+          .filter((row) => typeof row.import_key === "string")
+          .map((row) => ({
+            workout_id: row.id,
+            import_batch_id: row.import_batch_id,
+            import_key: row.import_key,
+          })),
+      };
       bouldering = {
         ascents: await fetchAllPaged(
           client,
@@ -757,6 +786,7 @@ export class SupabaseAccountRepository implements AccountRepository {
       ...(runOperationReceipts ? { runOperationReceipts } : {}),
       ...(subscriptionEntitlements ? { subscriptionEntitlements } : {}),
       ...(bouldering ? { bouldering } : {}),
+      ...(historyImports ? { historyImports } : {}),
       userId,
       generatedAt: now,
       profile,

@@ -12,8 +12,8 @@ grant select on summary,manual to authenticated;grant all on run_ids to authenti
 select ok(not has_function_privilege('anon','public.run_import(uuid,text,jsonb)','EXECUTE'),'Anon has no import grant');
 select ok(not has_function_privilege('service_role','public.run_import(uuid,text,jsonb)','EXECUTE'),'Service role has no import grant');
 select ok(has_function_privilege('authenticated','public.run_import(uuid,text,jsonb)','EXECUTE'),'Authenticated can import through the RPC');
-select ok(not has_function_privilege('anon','public.run_list(text,text,text,integer,boolean)','EXECUTE'),'Anon has no list grant');
-select ok(has_function_privilege('authenticated','public.run_list(text,text,text,integer,boolean)','EXECUTE'),'Authenticated keeps list grant');
+select ok(not has_function_privilege('anon','public.run_list(text,text,text,integer,boolean,boolean)','EXECUTE'),'Anon has no list grant');
+select ok(has_function_privilege('authenticated','public.run_list(text,text,text,integer,boolean,boolean)','EXECUTE'),'Authenticated keeps list grant');
 select is((select count(*) from pg_catalog.pg_proc where proname='run_list' and pronamespace='public'::regnamespace),1::bigint,'Old list overload is replaced, not left ambiguous');
 set local role authenticated;
 set local request.jwt.claim.role='authenticated';

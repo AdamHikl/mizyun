@@ -169,6 +169,13 @@ export const accountExportSchema = z.object({
       projects: z.array(z.record(z.unknown())).optional(),
     })
     .optional(),
+  /** History import batches and per-record provenance (ADR-0083). */
+  historyImports: z
+    .object({
+      batches: z.array(z.record(z.unknown())),
+      records: z.array(z.record(z.unknown())),
+    })
+    .optional(),
   workouts: z.array(z.unknown()),
   workoutSets: z.array(z.unknown()),
   bodyMeasurements: z.array(z.unknown()),

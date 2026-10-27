@@ -352,6 +352,7 @@ export * from "./community-media.js";
 export { SupabaseRecurringMealRepository } from "./recurring-meal-repository.js";
 
 export { SupabaseRunRepository } from "./run-repository.js";
+export { SupabaseHistoryImportRepository } from "./history-import-repository.js";
 export {
   SupabaseBoulderingRepository,
   boulderAscentFromRow,

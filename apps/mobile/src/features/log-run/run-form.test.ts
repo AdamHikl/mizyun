@@ -144,6 +144,21 @@ describe("imported run edits", () => {
       },
     });
   });
+  it("locks file-imported metrics exactly like Health imports", () => {
+    const fileRun = {
+      ...imported,
+      summary: {
+        ...imported.summary,
+        origin: { kind: "file_import", format: "strava", externalId: "123" },
+      },
+    } as unknown as typeof imported;
+    const form = formFromRun(fileRun, "km");
+    expect(form.metricsLocked).toBe(true);
+    expect(parseRunForm({ ...form, notes: "Easy" }, id)).toMatchObject({
+      ok: true,
+      body: { startedAt: "2026-10-15T05:00:00Z", durationSeconds: 1800 },
+    });
+  });
   it("leaves manual runs editable", () =>
     expect(
       formFromRun(

@@ -8,8 +8,16 @@ export interface RunHealthImportOriginCore {
   readonly sourceAppName: string | null;
   readonly externalId: string;
 }
+/** A run from the user's own Strava account export (ADR-0083), never the API. */
+export interface RunFileImportOriginCore {
+  readonly kind: "file_import";
+  readonly format: "strava";
+  readonly externalId: string;
+}
 export type RunOriginCore =
-  { readonly kind: "manual" } | RunHealthImportOriginCore;
+  | { readonly kind: "manual" }
+  | RunHealthImportOriginCore
+  | RunFileImportOriginCore;
 export interface RunSummaryCore {
   readonly version: 1;
   readonly activityDate: string;
@@ -64,6 +72,13 @@ const validRunOrigin = (value: unknown): value is RunOriginCore => {
   if (!object(value)) return false;
   const keys = Object.keys(value);
   if (value.kind === "manual") return keys.length === 1;
+  if (value.kind === "file_import")
+    return (
+      keys.length === 3 &&
+      ["kind", "format", "externalId"].every((key) => keys.includes(key)) &&
+      value.format === "strava" &&
+      boundedText(value.externalId, 255)
+    );
   const importKeys = [
     "kind",
     "provider",
@@ -82,10 +97,12 @@ const validRunOrigin = (value: unknown): value is RunOriginCore => {
     (value.sourceAppName === null || boundedText(value.sourceAppName, 200))
   );
 };
+/** Health or file imports: their recorded facts are read-only. */
 export const isImportedRunSummary = (
   summary: RunSummaryCore,
-): summary is RunSummaryCore & { readonly origin: RunHealthImportOriginCore } =>
-  summary.origin.kind === "health_import";
+): summary is RunSummaryCore & {
+  readonly origin: RunHealthImportOriginCore | RunFileImportOriginCore;
+} => summary.origin.kind !== "manual";
 export const hasRunningActivity = (
   details: Readonly<Record<string, unknown>>,
 ): boolean => details.activityType === "running";
@@ -127,7 +144,8 @@ export const readRunSummary = (
   if (
     s.origin.kind === "manual"
       ? s.durationBasis !== "elapsed"
-      : s.timePrecision !== "instant"
+      : s.timePrecision !== "instant" ||
+        (s.origin.kind === "file_import" && s.durationBasis !== "elapsed")
   )
     return null;
   if (
@@ -263,25 +281,69 @@ export const createImportedRunSummary = (
     throw new Error("Invalid imported running summary");
   return summary;
 };
+/**
+ * Build the summary for one run from the user's own Strava export (ADR-0083).
+ * The start is kept to the second, as the SQL import stores it.
+ */
+export const createFileImportedRunSummary = (input: {
+  readonly externalId: string;
+  readonly startedAt: string;
+  readonly recordingTimezone: string;
+  readonly durationSeconds: number;
+  readonly distanceMeters: number | null;
+  readonly environment: RunSummaryCore["environment"];
+}): RunSummaryCore => {
+  const ms = Date.parse(input.startedAt);
+  if (!Number.isFinite(ms)) throw new Error("Invalid imported run start");
+  const start = new Date(Math.floor(ms / 1000) * 1000);
+  const summary: RunSummaryCore = {
+    version: 1,
+    activityDate: runningDate(start, input.recordingTimezone),
+    recordingTimezone: input.recordingTimezone,
+    timePrecision: "instant",
+    startedAt: `${start.toISOString().slice(0, 19)}Z`,
+    durationSeconds: input.durationSeconds,
+    durationBasis: "elapsed",
+    distanceMeters: input.distanceMeters,
+    environment: input.environment,
+    perceivedExertion: null,
+    origin: {
+      kind: "file_import",
+      format: "strava",
+      externalId: input.externalId,
+    },
+    timestampEnvelope: "observed",
+    revision: 1,
+  };
+  if (!readRunSummary({ activityType: "running", runSummary: summary }))
+    throw new Error("Invalid imported running summary");
+  return summary;
+};
 /** Provider facts an imported run keeps for its whole life. */
 export const sameImportedRunMetrics = (
   a: RunSummaryCore,
   b: RunSummaryCore,
 ): boolean => {
-  if (a.origin.kind !== "health_import" || b.origin.kind !== "health_import")
-    return false;
+  if (a.origin.kind === "manual" || b.origin.kind === "manual") return false;
+  const sameOrigin =
+    a.origin.kind === "health_import" && b.origin.kind === "health_import"
+      ? a.origin.provider === b.origin.provider &&
+        a.origin.sourceAppId === b.origin.sourceAppId &&
+        a.origin.sourceAppName === b.origin.sourceAppName &&
+        a.origin.externalId === b.origin.externalId
+      : a.origin.kind === "file_import" && b.origin.kind === "file_import"
+        ? a.origin.format === b.origin.format &&
+          a.origin.externalId === b.origin.externalId
+        : false;
   return (
+    sameOrigin &&
     a.activityDate === b.activityDate &&
     a.recordingTimezone === b.recordingTimezone &&
     a.timePrecision === b.timePrecision &&
     a.startedAt === b.startedAt &&
     a.durationSeconds === b.durationSeconds &&
     a.durationBasis === b.durationBasis &&
-    a.distanceMeters === b.distanceMeters &&
-    a.origin.provider === b.origin.provider &&
-    a.origin.sourceAppId === b.origin.sourceAppId &&
-    a.origin.sourceAppName === b.origin.sourceAppName &&
-    a.origin.externalId === b.origin.externalId
+    a.distanceMeters === b.distanceMeters
   );
 };
 /** Apply the user-editable fields to a stored imported run, keeping its provider facts. */
@@ -293,7 +355,7 @@ export const reviseImportedRunSummary = (
   },
   revision: number,
 ): RunSummaryCore => {
-  if (stored.origin.kind !== "health_import")
+  if (stored.origin.kind === "manual")
     throw new Error("Only imported runs keep provider metrics");
   const summary: RunSummaryCore = {
     ...stored,

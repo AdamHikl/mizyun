@@ -107,6 +107,7 @@ export class SupabaseRunRepository implements RunRepository {
       p_cursor: options.cursor ?? null,
       p_limit: options.limit,
       p_include_imports: options.includeImports === true,
+      p_include_file_imports: options.includeFileImports === true,
     });
     if (rows.some((row) => row.user_id !== userId))
       throw new RunRepositoryError("not_found");

@@ -127,6 +127,20 @@ describe("run import candidates", () => {
     expect(rejectedCount).toBe(7);
   });
 
+  it("flags a Health candidate that overlaps a file-imported run", () => {
+    const fileRun = storedRun({
+      startedAt: "2026-10-15T05:05:00.000Z",
+      durationSeconds: 1800,
+      durationBasis: "elapsed",
+      origin: { kind: "file_import", format: "strava", externalId: "999" },
+    });
+    const [candidate] = build([healthRun()], [fileRun]).candidates;
+    expect(candidate).toMatchObject({
+      alreadyImported: false,
+      possibleDuplicate: true,
+    });
+  });
+
   it("marks exact re-imports and flags overlapping or date-only runs", () => {
     const imported = storedRun({
       startedAt: "2026-10-15T05:00:00.000Z",

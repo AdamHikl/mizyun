@@ -1,0 +1,6 @@
+Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Weight Unit,Distance Unit
+2026-10-20 08:00:00,Mixed,30m,Bench Press (Barbell),1,135,5,0,0,lbs,
+2026-10-20 08:00:00,Mixed,30m,Bench Press (Barbell),2,60,5,0,0,kg,
+2026-10-20 08:00:00,Mixed,30m,Running,1,0,0,5,1500,,km
+2026-10-20 08:00:00,Mixed,30m,Running,2,0,0,1,400,,mi
+2026-10-20 08:00:00,Mixed,30m,Sled Push,1,0,0,50,30,,m

@@ -160,6 +160,7 @@ const accountExportToWire = (
       runOperationReceipts: exportDoc.runOperationReceipts,
       subscriptionEntitlements: exportDoc.subscriptionEntitlements,
       bouldering: exportDoc.bouldering,
+      historyImports: exportDoc.historyImports,
       productAnalytics: analytics
         ? {
             catalog: catalog ?? "legacy-v2",

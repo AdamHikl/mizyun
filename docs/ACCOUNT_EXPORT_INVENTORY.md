@@ -129,6 +129,14 @@ The Mizyun account export delivers a versioned JSON document of the implemented 
 - **Erasure**: all three tables cascade from `auth.users`; ascents also cascade with their session, and a project without linked boulders is deleted. Photo bytes are swept with the account's `media_assets`. ([ADR-0066](adr/0066-indoor-bouldering-sessions.md))
 - **Community cards**: a shared session exports under `community.activities` with `activity_kind = "bouldering"`, the private `source_workout_id` and the published `bouldering_details` allowlist (local day, top grade, sends, flashes, optional per-grade sends). The card is deleted with its session or account. ([ADR-0067](adr/0067-explicit-community-bouldering-publication.md))
 
+### 2.5b History imports (`public.history_import_batches`, `workouts.import_batch_id`, `workouts.import_key`)
+
+- **Records** export as ordinary `workouts` and `workoutSets` rows. Imported strength workouts carry `details.entryMode = "history_import"` and `details.importSource.format` (`hevy`, `strong` or `generic`); Strava runs carry `runSummary.origin = { kind: "file_import", format: "strava", externalId }` (the Strava Activity ID). The uploaded file text is never stored.
+- **`historyImports.batches`**: every batch row (`format`, `file_name`, `request_digest` (SHA-256 of the request, not the file), `status`, `chunks_done`, workout/set/run/duplicate/overlap counts, first/last start, `created_exercise_ids`, timestamps), ordered by `created_at`, `id`.
+- **`historyImports.records`**: per imported workout or run, `workout_id`, `import_batch_id` and `import_key` (`<format>:<externalId>`). Optional in the document shape so older exports still parse.
+- **Undo**: deleting a batch removes its remaining workouts and runs (sets cascade) and the exercises it created that no set references any more.
+- **Erasure**: batches cascade from `auth.users`; imported workouts cascade from `auth.users` and from their batch. ([ADR-0083](adr/0083-history-import-batches.md))
+
 ### 2.6 Body Measurements & Weight (`public.body_measurements`)
 
 - **Table**: `public.body_measurements`

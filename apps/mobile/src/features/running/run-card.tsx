@@ -26,7 +26,7 @@ export function RunCard({ run, unit }: { run: RunRecord; unit: "km" | "mi" }) {
           <ThemedText type="headline">{run.name}</ThemedText>
           <ThemedText type="footnote" themeColor="textSecondary">
             {run.summary.activityDate}
-            {run.summary.origin.kind === "health_import"
+            {run.summary.origin.kind !== "manual"
               ? ` · ${runSourceLabel(run)}`
               : ""}
           </ThemedText>
