@@ -1,4 +1,4 @@
-# ADR-0085 — Community Production privacy maintenance and report alerts
+# ADR-0086 — Community Production privacy maintenance and report alerts
 
 - Status: accepted for implementation, 2026-10-27 (review findings PRIV-03 and TNS-01; #153, #319). Not installed on Hetzner by this ADR: Adam installs the units after the migration reaches Production.
 - Amends: ADR-0078 (Production feature release), which opened Community to every Production user without a Production maintenance runner or a reachable moderator.

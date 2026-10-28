@@ -824,7 +824,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
       }
 
       // Acquire a durable slot via the AI-OPS-001 limiter service. Users are
-      // metered in messages (ADR-0085); `tokensEstimated` is only the
+      // metered in messages (ADR-0087); `tokensEstimated` is only the
       // admission estimate for the hidden token ceiling, which records the
       // real count afterwards. We clamp to the ceiling so a misconfigured
       // tiny budget (e.g. test fixture = 1) does not make every request
@@ -1166,7 +1166,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             : undefined;
         const totalTokens = reportedTokens ?? 0;
         // Canned app help and an input safety screen make no model call and
-        // use no Coach message (ADR-0085). A reply replaced by output
+        // use no Coach message (ADR-0087). A reply replaced by output
         // moderation followed a model call and still counts.
         const localReply =
           reportedTokens === undefined &&

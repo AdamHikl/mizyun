@@ -1,6 +1,6 @@
-# ADR-0085 — Coach messages per day and a smaller Coach prompt
+# ADR-0087 — Coach messages per day and a smaller Coach prompt
 
-- Status: accepted for Dev implementation, 2026-10-27 (review finding AI-02, with AI-06). Production release needs migration `20261027120000_coach_message_allowance.sql` and a separate release decision.
+- Status: accepted for Dev implementation, 2026-10-27 (review finding AI-02, with AI-06). Production release needs migration `20261027120200_coach_message_allowance.sql` and a separate release decision.
 - Amends: ADR-0081 §4 ("Coach tokens stay at 100k paid and 10k free") and ADR-0017 §3. The ADR-0081 cost allowance is unchanged and stays the spend guard.
 
 ## Context

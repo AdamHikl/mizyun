@@ -170,7 +170,7 @@ describe("buildCoachSystemPolicy", () => {
       "What's my bench PR?",
     ].map((text) => ask(text).systemPolicy.length);
     // 0.56 and 0.47, not 0.55 and 0.46, since the 2026-10-28 brevity rule
-    // (about 400 characters, cached) roughly halved reply tokens (ADR-0085).
+    // (about 400 characters, cached) roughly halved reply tokens (ADR-0087).
     for (const size of sizes) {
       expect(size).toBeLessThan(PREVIOUS_FULL_POLICY_CHARS * 0.56);
     }

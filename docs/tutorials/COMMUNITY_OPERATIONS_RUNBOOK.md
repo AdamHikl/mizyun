@@ -40,7 +40,7 @@ Install only `mizyun-community-dev-maintenance.service` and `.timer` from this c
 
 Keep deliveryfalse for this phase. Use **Account → Privacy & data → Community**, read the rules, deliberately join, then **View following feed**. Private workout saving remains separate from explicit sharing. Add a testing partner only after Adam identifies that Dev account; self-only cohort cannot prove approved-friend journeys.
 
-## Production activation — privacy maintenance and moderation (ADR-0085, 2026-10-27)
+## Production activation — privacy maintenance and moderation (ADR-0086, 2026-10-27)
 
 Founder steps for #153 (PRIV-03) and #319 (TNS-01). Do them after the commit carrying migration `20261027130000_community_operations_alert_counts` is promoted with `pnpm deploy:production <sha>`. Nothing below is done by the source change. Record redacted evidence (timestamps, SHA, unit status, counts) in `status.md`.
 

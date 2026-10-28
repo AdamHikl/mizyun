@@ -72,7 +72,7 @@ describe("ai-usage-cost-report", () => {
     assert.equal(parseArgs(["--no-coach-ledger"]).coachLedger, false);
   });
 
-  it("prices Coach tokens from their own columns (ADR-0085)", () => {
+  it("prices Coach tokens from their own columns (ADR-0087)", () => {
     const base = {
       ledger_tokens: 10_000,
       recipe_tokens: 10_000,

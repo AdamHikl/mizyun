@@ -1,4 +1,4 @@
--- AI-02 (ADR-0085): meter Coach chat in messages per UTC day.
+-- AI-02 (ADR-0087): meter Coach chat in messages per UTC day.
 --
 -- The Coach token budget let a free user send about one real message a day:
 -- one turn with the app guide is 9,000 to 14,000 tokens and the free budget

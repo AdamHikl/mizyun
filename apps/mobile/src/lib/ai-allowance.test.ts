@@ -22,7 +22,7 @@ describe("monthlyAllowanceMessage", () => {
   });
 });
 
-describe("Coach message allowance copy (ADR-0085)", () => {
+describe("Coach message allowance copy (ADR-0087)", () => {
   const resetsAt = "2026-10-28T00:00:00.000Z";
 
   it("shows the reset in the device's own time, never UTC", () => {

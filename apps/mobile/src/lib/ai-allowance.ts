@@ -20,7 +20,7 @@ export const monthlyAllowanceMessage = (
 
 /**
  * The device's local clock time of a daily reset, e.g. "01:00" or "1:00 AM".
- * Counts renew at midnight UTC (ADR-0085); users see their own time.
+ * Counts renew at midnight UTC (ADR-0087); users see their own time.
  */
 export const localResetTime = (
   resetAt: string,

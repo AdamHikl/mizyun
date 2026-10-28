@@ -749,7 +749,7 @@
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260714103000_private_media.sql",
         "supabase/migrations/20261008100000_body_measurement_retry_identity.sql",
-        "supabase/migrations/20261027120000_private_media_quota.sql"
+        "supabase/migrations/20261027120100_private_media_quota.sql"
       ],
       "tests": [
         "apps/api/src/modules/body-measurements/routes.test.ts",
@@ -1623,7 +1623,7 @@
         "user_health_data_consent_events"
       ],
       "migrationPaths": [
-        "supabase/migrations/20261027120000_health_data_consent.sql"
+        "supabase/migrations/20261027120300_health_data_consent.sql"
       ],
       "tests": [
         "apps/api/src/modules/legal/routes.test.ts",
@@ -1642,7 +1642,7 @@
         "docs/PRIVACY_POLICY.md",
         "docs/TERMS_OF_SERVICE.md",
         "docs/STORE_LISTING_DISCLOSURES.md",
-        "docs/adr/0085-health-data-consent-and-adults-only.md",
+        "docs/adr/0088-health-data-consent-and-adults-only.md",
         "docs/legal-drafts/DPIA_DRAFT_2026-10-27.md",
         "docs/legal-drafts/PRIVACY_POLICY_HEALTH_CONSENT_DRAFT_2026-10-27.md"
       ],
@@ -2188,7 +2188,7 @@
         "docs/COMMUNITY_CLOSURE_MATERIALS_2026-10-08.md",
         "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md",
         "docs/adr/0067-explicit-community-bouldering-publication.md",
-        "docs/adr/0085-community-production-privacy-maintenance-and-report-alerts.md"
+        "docs/adr/0086-community-production-privacy-maintenance-and-report-alerts.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",

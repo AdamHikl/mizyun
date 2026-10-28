@@ -3677,7 +3677,7 @@ Checked the Storage API source shipped in the local `supabase_storage_mizyun` co
 - **Matching:** JavaScript `\b` treats accented letters as non-word characters, so Slovak patterns such as `\bsamovražd…\b` never matched. `safety-screen.ts` folds text with NFKD, removes combining marks (`\p{M}`), drops invisible characters and uses `u`-flag lookarounds over `\p{L}\p{N}` as boundaries (ES2018 features, exercised by the suite on Node 25.3). Patterns are ASCII, so input with and without diacritics matches the same rule.
 - **Thresholds:** daily intake of 1000 kcal or less (with thousands separators such as "1 500" parsed), fasts of 48 hours or more and planned loss above 1.5 kg a week are blocked as dangerous targets. These are conservative screening cut-offs for a deterministic layer, not clinical guidance; the Coach's model-side policy still applies to everything that passes.
 
-## 2026-10-27 — Coach message allowance and prompt caching (AI-02/AI-06, ADR-0085)
+## 2026-10-27 — Coach message allowance and prompt caching (AI-02/AI-06, ADR-0087)
 
 - Source: Anthropic prompt caching documentation as bundled in the Claude API reference skill (checked 2026-10-27). Caching is a prefix match in the order tools, system, messages. `cache_control: { type: "ephemeral" }` on a system text block marks the breakpoint; the default lifetime is 5 minutes. The minimum cacheable prefix for `claude-haiku-5-5` is 512 tokens (Haiku 4.5 needed 4,096). Usage reports `cache_creation_input_tokens` (about 1.25× input price) and `cache_read_input_tokens` (about 0.1×) separately from `input_tokens`.
 - Consequences: the fixed Coach policy (about 2,600 tokens) is above the Haiku 5.5 minimum, so it is cached with the tool definitions in front of it. The per-question catalog excerpt goes after the breakpoint. `usageOf` already adds cache reads and writes to the total, and `ai-cost.ts` prices them at the full input price, which overstates cost.
@@ -3685,7 +3685,7 @@ Checked the Storage API source shipped in the local `supabase_storage_mizyun` co
 
 ## 2026-10-27 — Health-data consent and adults-only (PRIV-01/PRIV-02)
 
-Checked on 2026-10-27 for [ADR-0085](adr/0085-health-data-consent-and-adults-only.md):
+Checked on 2026-10-27 for [ADR-0088](adr/0088-health-data-consent-and-adults-only.md):
 
 - **Explicit consent:** [EDPB Guidelines 05/2020 on consent](https://edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-052020-consent-under-regulation-2016679_ga) (chapter 4, explicit consent) and the [EDPB consent summary](https://www.edpb.europa.eu/system/files/2026-04/edpb-summary-consent_en.pdf): health data needs an express statement, and the controller must be able to show it was given. Consequence: a separate unticked checkbox, a versioned record and an append-only grant/withdrawal history.
 - **Apple age ratings:** [App Store Connect age ratings](https://developer.apple.com/help/app-store-connect/reference/age-ratings) now use 4+, 9+, 13+, 16+ and 18+, and developers may set a higher minimum age. Secondary reports disagree about whether 12+/17+ remain; the current listing's "12+" (docs/STORE_PRIVACY_CHECKLIST_2026-10-21.md) must be re-checked in the console. Consequence (superseded 2026-10-28): App Store rating 16+, with 18+ in the Terms. See the entry below.

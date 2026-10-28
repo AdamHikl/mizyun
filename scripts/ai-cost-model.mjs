@@ -135,7 +135,7 @@ export const COST_SHARE_LIMIT = 0.3;
 /**
  * Worst-case monthly USD for a user who reaches every daily cap on each of
  * `days` days: every Coach message at the design turn size, bounded by the
- * hidden Coach token ceiling plus one overshooting turn (ADR-0085), every
+ * hidden Coach token ceiling plus one overshooting turn (ADR-0087), every
  * draft slot at the most expensive draft, every refine at its design size,
  * and the monthly illustration allowance.
  */

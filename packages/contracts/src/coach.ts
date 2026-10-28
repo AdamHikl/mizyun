@@ -293,7 +293,7 @@ export const coachThreadResponseSchema = z.object({
 });
 
 /**
- * Coach messages left today (ADR-0085), sent with a new reply. Absent on
+ * Coach messages left today (ADR-0087), sent with a new reply. Absent on
  * replays, local fallbacks and older servers.
  */
 export const coachMessageUsageSchema = z.object({

@@ -4,7 +4,7 @@ export const aiUsageResponseSchema = z.object({
   planTier: z.enum(["free", "paid"]),
   resetsAt: z.string().datetime(),
   coach: z.object({
-    /** Messages per UTC day (ADR-0085); absent on older servers. */
+    /** Messages per UTC day (ADR-0087); absent on older servers. */
     dailyMessageLimit: z.number().optional(),
     messagesUsed: z.number().optional(),
     messagesRemaining: z.number().optional(),

@@ -260,7 +260,7 @@ export function CoachSetupScreen() {
     false,
     currentUser,
   );
-  // Messages left today from the latest reply (ADR-0085); shown when few.
+  // Messages left today from the latest reply (ADR-0087); shown when few.
   const [messageUsage, setMessageUsage] = useUserOwnedCoachState<{
     readonly messagesRemaining: number;
     readonly resetsAt: string;

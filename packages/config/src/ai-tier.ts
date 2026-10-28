@@ -5,7 +5,7 @@
  * call is charged its estimated cost (`ai-cost.ts`), and the daily and
  * monthly allowances keep a user's AI cost under the share of
  * subscription revenue set in docs/AI_UNIT_ECONOMICS_2026-10-26.md. The
- * count caps stay as burst limits. ADR-0085 meters Coach chat in messages
+ * count caps stay as burst limits. ADR-0087 meters Coach chat in messages
  * per day; the Coach token budget stays only as a hidden safety ceiling
  * sized to real turns. Lookup is O(1).
  *
@@ -21,11 +21,11 @@ export interface AiTierCaps {
   /** Daily token budget for routes other than Coach chat (recipes). */
   readonly dailyTokenBudget: number;
   /**
-   * Coach chat hidden token ceiling per UTC day (ADR-0085). Users see
+   * Coach chat hidden token ceiling per UTC day (ADR-0087). Users see
    * messages, never tokens; this only stops runaway turns.
    */
   readonly coachDailyTokenBudget: number;
-  /** Coach chat messages per UTC day (ADR-0085). */
+  /** Coach chat messages per UTC day (ADR-0087). */
   readonly coachDailyMessageLimit: number;
   /** Photo meal draft daily count limit (separated from Coach chat). */
   readonly photoDraftDailyLimit: number;

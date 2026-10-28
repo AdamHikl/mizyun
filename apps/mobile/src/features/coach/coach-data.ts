@@ -36,7 +36,7 @@ export type CoachThreadResult =
       readonly ok: true;
       readonly conversation: CoachConversation;
       readonly messages: readonly CoachMessage[];
-      /** Messages left today, sent with a new reply (ADR-0085). */
+      /** Messages left today, sent with a new reply (ADR-0087). */
       readonly usage?: CoachMessageUsage;
     }
   | {

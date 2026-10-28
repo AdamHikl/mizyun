@@ -572,7 +572,7 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
         clock: () => new Date(currentTime),
       });
 
-      // Free tier hidden Coach ceiling is 320,000 tokens (ADR-0085).
+      // Free tier hidden Coach ceiling is 320,000 tokens (ADR-0087).
       // Acquire slot reserving 1,200 tokens.
       const first = await service.acquireSlot(
         buildRequest({ tokensEstimated: 1_200 }),
@@ -1158,7 +1158,7 @@ describe("AI cost allowance and refine cap (#336, ADR-0081)", () => {
   });
 });
 
-describe("Coach message allowance (AI-02, ADR-0085)", () => {
+describe("Coach message allowance (AI-02, ADR-0087)", () => {
   const answer = async (
     service: InMemoryCoachLimitService,
     key: string,
@@ -1271,7 +1271,7 @@ describe("Coach message allowance (AI-02, ADR-0085)", () => {
   });
 });
 
-describe("SupabaseCoachLimitService — Coach message RPCs (ADR-0085)", () => {
+describe("SupabaseCoachLimitService — Coach message RPCs (ADR-0087)", () => {
   it("returns the reserved message when a later admission step denies", async () => {
     const f = sharedCounterFixture(1, "ai_reserve_cost");
     const denied = await f.coach.acquireSlot(buildRequest());

@@ -21,7 +21,7 @@
  *   pnpm ai:cost-report --verify-local         # synthetic rows, rolled back
  *   options: --days <1-90> --per-user --ssh <alias> --year <2026|2027>
  *            --no-cost-ledger  (database without migration 20261026150000)
- *            --no-coach-ledger (database without migration 20261027120000)
+ *            --no-coach-ledger (database without migration 20261027120200)
  */
 
 import { spawnSync } from "node:child_process";
@@ -197,9 +197,9 @@ export const COST_LEDGER_MIGRATION = new URL(
   import.meta.url,
 );
 
-/** Coach message and token columns (ADR-0085). */
+/** Coach message and token columns (ADR-0087). */
 export const COACH_LEDGER_MIGRATION = new URL(
-  "../supabase/migrations/20261027120000_coach_message_allowance.sql",
+  "../supabase/migrations/20261027120200_coach_message_allowance.sql",
   import.meta.url,
 );
 
@@ -280,7 +280,7 @@ export function checkLocalVerification(raw) {
  */
 export function estimateUserCost(row, year) {
   const recipeTokens = Number(row.recipe_tokens);
-  // Coach tokens have their own columns since ADR-0085; before that they
+  // Coach tokens have their own columns since ADR-0087; before that they
   // shared tokens_used with recipes.
   const coachTokens =
     Number(row.coach_tokens ?? 0) +

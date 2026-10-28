@@ -41,7 +41,7 @@ The coordinating session chose a per-call cost ledger on 2026-10-26 over lower c
 4. **Count caps stay as burst limits.**
    - The paid photo/draft cap drops from 100 to 15 a day, and the in-memory food-draft limiter takes its defaults from the tier caps.
    - Coach tokens stay at 100k paid and 10k free; a Haiku Coach month at that cap is about USD 0.60.
-   - Superseded for Coach by [ADR-0085](0085-coach-message-allowance.md) (2026-10-27): Coach is metered in messages (free 5, paid 50 a day) under a hidden 320k/3.2M token ceiling.
+   - Superseded for Coach by [ADR-0087](0087-coach-message-allowance.md) (2026-10-27): Coach is metered in messages (free 5, paid 50 a day) under a hidden 320k/3.2M token ceiling.
    - Daily-limit messages read the caps instead of hard-coded numbers.
 5. **Denials.**
    - The API answers 429 `RATE_LIMITED` with `reason: daily_budget_exhausted` and a `resetAt`: next UTC midnight for the day, the first of the next month for the month.

@@ -155,7 +155,7 @@ export function AiUsageCard() {
   const { usage, betaPro } = state;
   const isPaid = usage.planTier === "paid";
 
-  // Coach is metered in messages (ADR-0085). An older server only reports
+  // Coach is metered in messages (ADR-0087). An older server only reports
   // its token ceiling, which is shown as a share, never as tokens.
   const coachMessages =
     usage.coach.dailyMessageLimit !== undefined &&

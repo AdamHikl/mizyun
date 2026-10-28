@@ -73,7 +73,7 @@ export type ReserveSlotResult =
       readonly cap: AiTierCaps;
       readonly day: string;
       readonly providerCallId: string;
-      /** Coach messages taken today before this one (ADR-0085). */
+      /** Coach messages taken today before this one (ADR-0087). */
       readonly messagesUsed: number;
     }
   | {
@@ -407,7 +407,7 @@ class PendingCosts {
 
 /**
  * Coach messages held between admission and settlement, keyed by provider
- * call, so each one is counted or returned exactly once (ADR-0085).
+ * call, so each one is counted or returned exactly once (ADR-0087).
  */
 interface HeldMessage {
   readonly userId: UserId;
@@ -612,7 +612,7 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       });
 
     // Step 3: daily Coach messages and the hidden Coach token ceiling
-    // (ADR-0085), reserved together in their own ledger columns.
+    // (ADR-0087), reserved together in their own ledger columns.
     const message = await orRelease(
       rpcSingle<{
         allowed: boolean;
@@ -1235,7 +1235,7 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       ),
     );
 
-    // Step 3: daily Coach messages (ADR-0085).
+    // Step 3: daily Coach messages (ADR-0087).
     const messageRow = this.#messageUsage.get(request.userId);
     const messages =
       messageRow?.day === day ? messageRow : { day, used: 0, reserved: 0 };
