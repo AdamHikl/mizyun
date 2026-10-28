@@ -1,0 +1,16 @@
+[Unit]
+Description=Mizyun failure notification for %i
+After=network-online.target
+Wants=network-online.target
+# OnFailure also fires on each automatic restart of a crashing unit
+# (RestartMode=normal). Cap the per-unit alert rate; once the cap is hit, the
+# host watch keeps reporting the crash loop hourly.
+StartLimitIntervalSec=30min
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/mizyun-send-alert "%i" "Unit %i failed on %H; inspect journalctl -u %i"
+Nice=10
+UMask=0077

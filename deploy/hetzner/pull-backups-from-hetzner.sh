@@ -151,3 +151,9 @@ printf '{"lastVerified":"%s","verifiedAt":"%s","ageSeconds":%s}\n' \
   > "$destination/last-success.json"
 chmod 600 "$destination/last-success.json"
 echo "Verified VM backup on Pi: $latest_name"
+
+# Optional dead-man ping after a fresh, verified pull.
+heartbeat_command="${MIZYUN_HEARTBEAT_COMMAND:-/usr/local/sbin/mizyun-heartbeat}"
+if [[ -x "$heartbeat_command" ]]; then
+  "$heartbeat_command" backup-pull || true
+fi
