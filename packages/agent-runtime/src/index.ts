@@ -16,6 +16,12 @@ import {
   isRecurringMealHelp,
   recurringMealHelp,
 } from "./app-capabilities.js";
+import {
+  COACH_SAFETY_RESPONSES,
+  type SafetyDecision,
+  screenCoachInput,
+  screenCoachOutput,
+} from "./safety-screen.js";
 export {
   COACH_APP_CAPABILITIES,
   COACH_APP_KNOWLEDGE_VERSION,
@@ -511,135 +517,22 @@ export class DisabledAgentProvider implements AgentProvider {
   }
 }
 
-export type SafetyDecision =
-  | { readonly allowed: true }
-  | {
-      readonly allowed: false;
-      readonly category:
-        | "emergency"
-        | "self_harm"
-        | "eating_disorder"
-        | "medical"
-        | "dangerous_target"
-        | "prompt_injection";
-      readonly response: string;
-    };
-
-const matches = (text: string, patterns: readonly RegExp[]): boolean =>
-  patterns.some((pattern) => pattern.test(text));
-
-/**
- * Deterministic first-line safety boundary. This is intentionally narrow and
- * conservative: it protects critical fixed cases even when the provider is
- * disabled or its moderation endpoint is unavailable. Provider moderation and
- * the versioned evaluation corpus remain additional layers.
- */
-export const screenCoachInput = (rawText: string): SafetyDecision => {
-  const text = rawText
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-  if (
-    matches(text, [
-      /\b(chest pain|cannot breathe|can't breathe|unconscious|overdose)\b/,
-      /\b(severe bleeding|medical emergency)\b/,
-      /\b(bolesť na hrudi|nemôžem dýchať|bezvedom)/,
-    ])
-  ) {
-    return {
-      allowed: false,
-      category: "emergency",
-      response:
-        "This may need urgent medical help. Stop exercising and contact your local emergency service or a qualified medical professional now. Mizyun cannot assess emergencies.",
-    };
-  }
-  if (
-    matches(text, [
-      /\b(kill myself|suicide|end my life|self[- ]harm|hurt myself)\b/,
-      /\b(zabiť sa|samovražd|ublížiť si)\b/,
-    ])
-  ) {
-    return {
-      allowed: false,
-      category: "self_harm",
-      response:
-        "I’m sorry you’re dealing with this. Mizyun cannot safely support a self-harm crisis. Please contact local emergency services or a crisis professional, and reach out to someone you trust who can stay with you.",
-    };
-  }
-  if (
-    matches(text, [
-      /\b(purge|vomit after eating|starve myself|anorexia|bulimia)\b/,
-      /\b(earn my food|punish myself with exercise)\b/,
-      /(vyvracať|hladovať|anorexi|bulími|cvičením sa potrestať)/,
-    ])
-  ) {
-    return {
-      allowed: false,
-      category: "eating_disorder",
-      response:
-        "I can’t help with restriction, purging, or exercise used as punishment. A qualified clinician or registered dietitian can provide appropriate support. Mizyun can continue with neutral logging without targets.",
-    };
-  }
-  if (
-    matches(text, [
-      /\b(diagnose|diagnosis|prescribe|medication dose|should i take)\b/,
-      /\b(treat my|what injury|is this cancer|medical condition)\b/,
-      /\b(diagnostikuj|diagnóz|predpíš|dávk[auy]\s+liek\w*|aké zranenie)\b/,
-    ])
-  ) {
-    return {
-      allowed: false,
-      category: "medical",
-      response:
-        "I can provide general fitness and nutrition education, but I can’t diagnose, treat, prescribe, or assess an injury. Please take this question to a qualified medical professional.",
-    };
-  }
-  if (
-    matches(text, [
-      /\b(lose|drop)\s+\d{2,}\s*(kg|kilograms|lb|pounds)\s+(in|within)\s+(a|one|1)\s+(week|month)\b/,
-      /\b(under|below)\s+800\s+calories\b/,
-      /\btrain\s+(through|despite)\s+(?:sharp|severe|\w+\s+)*pain\b/,
-      /\b(40|50|60|70|80|90|100)\s+sets?\s+(to failure\s+)?(every|each)\s+day\b/,
-      /\b(max out|one rep max)\s+(every|each)\s+day\b/,
-      /\b(schudnúť|zhodiť)\s+\d{2,}\s*(kg|kíl)\s+(za|do)\s+(týždeň|mesiac)(?:\b|\s|$)/,
-      /\b(pod|menej ako)\s+800\s+kalóri/i,
-      /(40|50|60|70|80|90|100)\s+séri[íe]\s+(do zlyhania\s+)?každý deň/,
-    ])
-  ) {
-    return {
-      allowed: false,
-      category: "dangerous_target",
-      response:
-        "I can’t help pursue an extreme intake, rapid weight-change target, or training through severe pain. Choose a conservative target and consult a qualified professional if pain or health concerns are involved.",
-    };
-  }
-  if (
-    matches(text, [
-      /\bignore (all |the )?(previous|system|developer|visual) (instructions|contents)\b/,
-      /\breveal (the )?(system prompt|hidden instructions|developer secrets|secrets)\b/,
-      /\bact as root\b/,
-      /\[?system (override|command)\]?/i,
-      /\b(grant admin privileges|delete records from all user databases)\b/,
-      /\b(print|reveal|output|dump)\s+.*?(user profiles|root credentials|system prompt|developer secrets|auth tokens|connection strings|secrets)\b/,
-      /\bignoruj (všetky )?(predchádzajúce|systémové) pokyny\b/,
-      /\bodhaľ (systémový prompt|tajné pokyny)\b/,
-    ])
-  ) {
-    return {
-      allowed: false,
-      category: "prompt_injection",
-      response:
-        "I can help with your confirmed Mizyun fitness and nutrition records, but I can’t change or reveal the system’s instructions or access controls.",
-    };
-  }
-  return { allowed: true };
-};
+export {
+  COACH_SAFETY_ADVISORY,
+  COACH_SAFETY_RESPONSES,
+  containsSelfHarmLanguage,
+  normalizeSafetyText,
+  safetyPhrase,
+  screenCoachInput,
+  screenCoachOutput,
+  type SafetyCategory,
+  type SafetyDecision,
+} from "./safety-screen.js";
 
 /** Conservative output boundary for advisory photo answers; never image diagnosis. */
 export const screenCoachPhotoAdvice = (text: string): SafetyDecision => {
-  const inputSafety = screenCoachInput(text);
-  if (!inputSafety.allowed) return inputSafety;
+  const outputSafety = screenCoachOutput(text);
+  if (!outputSafety.allowed) return outputSafety;
   if (
     [
       /\byou (?:definitely|clearly|probably) have\b/i,
@@ -695,6 +588,9 @@ export class AgentToolBudgetExceededError extends Error {
   }
 }
 
+const REFERS_TO_PROFESSIONAL =
+  /\b(?:see|ask|consult|talk to|speak (?:to|with)|check with|contact|visit)\s+(?:a|an|your)\s+(?:doctor|physician|physio\w*|physical therapist|clinician|pharmacist|medical professional|healthcare professional|gp)\b/i;
+
 export class AgentOrchestrator {
   readonly #provider: AgentProvider;
   readonly #memories: MemoryStore;
@@ -734,7 +630,7 @@ export class AgentOrchestrator {
         message: {
           role: "assistant",
           text: selfHarm
-            ? "I’m sorry you’re dealing with this. Mizyun cannot safely support a self-harm crisis. Please contact local emergency services or a crisis professional, and reach out to someone you trust who can stay with you."
+            ? COACH_SAFETY_RESPONSES.self_harm
             : "Mizyun could not safely answer that request. Please rephrase it as a general fitness or nutrition wellness question.",
         },
         provider: "mizyun-safety",
@@ -922,10 +818,19 @@ export class AgentOrchestrator {
       throw new AgentToolBudgetExceededError(this.#maxToolCalls);
     }
 
-    const finalText =
+    const answerText =
       response.message.text.trim().length > 0
         ? response.message.text
         : "I can only help with fitness and nutrition questions. Ask me something gym-related!";
+    // Soft redirect: pain, injury, medication or condition questions are
+    // answered, with a fixed see-a-professional note unless the answer
+    // already points to one.
+    const advisory =
+      safety.advisory !== undefined && !REFERS_TO_PROFESSIONAL.test(answerText)
+        ? safety.advisory
+        : undefined;
+    const finalText =
+      advisory === undefined ? answerText : `${answerText}\n\n${advisory}`;
     const finalResponse: AgentResponse = {
       ...response,
       message: {
@@ -935,6 +840,7 @@ export class AgentOrchestrator {
       providerMetadata: {
         ...(response.providerMetadata ?? {}),
         ...(this.#tools ? { toolCallsUsed } : {}),
+        ...(advisory === undefined ? {} : { safetyAdvisory: true }),
         promptVersion: COACH_PROMPT_VERSION,
       },
     };

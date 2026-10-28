@@ -10,7 +10,7 @@ Mizyun has used Gemini as its only AI vendor since 2026-09-03. Model research ([
 
 ## Decision
 
-1. **Provider package.** `packages/providers/anthropic` implements the existing ports: `AgentProvider` (Coach), `ContentModerator` (the same local heuristic), `VisionDraftProvider` (photo, text and refine drafts), `RecipeGenerationProvider` and `IngredientRecognitionProvider`. It uses the official `@anthropic-ai/sdk`, pinned to 0.131.0, which was more than two weeks old when adopted.
+1. **Provider package.** `packages/providers/anthropic` implements the existing ports: `AgentProvider` (Coach), `ContentModerator` (the same local keyword screen, `AnthropicKeywordContentScreen` since 2026-10-27), `VisionDraftProvider` (photo, text and refine drafts), `RecipeGenerationProvider` and `IngredientRecognitionProvider`. It uses the official `@anthropic-ai/sdk`, pinned to 0.131.0, which was more than two weeks old when adopted.
 2. **Selection.** Three settings together route Coach, drafts, recipes and ingredient recognition to Claude: `AGENT_PROVIDER=anthropic`, a non-empty `ANTHROPIC_API_KEY` and `ANTHROPIC_DEV_TESTING=true`.
    - Dev and Production both run `NODE_ENV=production`. Config therefore fails to load if the acknowledgement is missing, so a copied env file cannot silently switch Production.
    - `ANTHROPIC_MODEL` accepts only `claude-haiku-5-5`.

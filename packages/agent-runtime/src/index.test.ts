@@ -11,6 +11,7 @@ import {
   coachSafetyEvaluationCases,
   createAgentToolRegistryFromList,
   extractAssistantText,
+  COACH_SAFETY_ADVISORY,
   screenCoachInput,
   type AgentProvider,
   type AgentResponse,
@@ -546,6 +547,47 @@ describe("coach safety boundary", () => {
     expect(calls).toBe(0);
     expect(response.provider).toBe("mizyun-safety");
   });
+
+  it.each([
+    ["Is it ok to squat with mild knee pain?", "Keep the load light.", true],
+    [
+      "Is it ok to squat with mild knee pain?",
+      "Keep it light and ask a physiotherapist if it persists.",
+      false,
+    ],
+    ["Should I take creatine?", "Creatine is well studied.", false],
+  ])(
+    "appends the see-a-professional advisory to %s only when needed",
+    async (question, answer, expectAdvisory) => {
+      const orchestrator = new AgentOrchestrator({
+        provider: {
+          status: async () => ({
+            ready: true,
+            provider: "fake",
+            externalAccess: true,
+          }),
+          respond: async () => ({
+            message: { role: "assistant", text: answer },
+            provider: "fake",
+            evidence: [],
+          }),
+        },
+        memories: new InMemoryMemoryStore(),
+      });
+      const response = await orchestrator.respond({
+        userId: "00000000-0000-4000-8000-000000000001" as UserId,
+        conversationId:
+          "00000000-0000-4000-8000-000000000002" as ConversationId,
+        messages: [{ role: "user", text: question }],
+      });
+      expect(response.message.text).toBe(
+        expectAdvisory ? `${answer}\n\n${COACH_SAFETY_ADVISORY}` : answer,
+      );
+      expect(response.providerMetadata?.safetyAdvisory).toBe(
+        expectAdvisory ? true : undefined,
+      );
+    },
+  );
 
   it("uses external moderation before memory recall and provider access", async () => {
     let providerCalls = 0;

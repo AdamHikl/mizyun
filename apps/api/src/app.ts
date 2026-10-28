@@ -24,7 +24,7 @@ import {
 import { GeminiMealIllustrationProvider } from "@mizyun/provider-gemini";
 import {
   AnthropicAgentProvider,
-  AnthropicContentModerator,
+  AnthropicKeywordContentScreen,
   AnthropicIngredientRecognitionProvider,
   AnthropicRecipeAssistantProvider,
   AnthropicRecipeGenerationProvider,
@@ -181,7 +181,7 @@ import {
 } from "@mizyun/identity";
 import {
   GeminiAgentProvider,
-  GeminiContentModerator,
+  GeminiKeywordContentScreen,
   GeminiVisionProvider,
 } from "@mizyun/provider-gemini";
 import { CURRENT_AI_CONSENT_VERSION, type AiProvider } from "@mizyun/contracts";
@@ -671,17 +671,17 @@ const defaultDependencies = (): AppDependencies => {
     ...(anthropicConfig !== null
       ? {
           moderator: consentGatedContentModerator({
-            consented: new AnthropicContentModerator({
+            consented: new AnthropicKeywordContentScreen({
               externalAccess: config.aiExternalAccess,
             }),
-            fallback: new GeminiContentModerator({
+            fallback: new GeminiKeywordContentScreen({
               externalAccess: config.aiExternalAccess,
             }),
           }),
         }
       : geminiConfig !== null && config.agentProvider !== "disabled"
         ? {
-            moderator: new GeminiContentModerator({
+            moderator: new GeminiKeywordContentScreen({
               externalAccess: config.aiExternalAccess,
             }),
           }
@@ -1479,10 +1479,10 @@ export const buildApp = (
             fallback: geminiCoachAgentProvider ?? new DisabledAgentProvider(),
           }),
           consentGatedContentModerator({
-            consented: new AnthropicContentModerator({
+            consented: new AnthropicKeywordContentScreen({
               externalAccess: externalModerationAccess,
             }),
-            fallback: new GeminiContentModerator({
+            fallback: new GeminiKeywordContentScreen({
               externalAccess: externalModerationAccess,
             }),
           }),
@@ -1490,7 +1490,7 @@ export const buildApp = (
       : aiRouting.coach === "gemini" && geminiCoachAgentProvider !== null
         ? coachModelAgent(
             geminiCoachAgentProvider,
-            new GeminiContentModerator({
+            new GeminiKeywordContentScreen({
               externalAccess: externalModerationAccess,
             }),
           )

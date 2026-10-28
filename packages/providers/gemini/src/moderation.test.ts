@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { GeminiContentModerator } from "./index.js";
+import { GeminiKeywordContentScreen } from "./index.js";
 
-describe("GeminiContentModerator", () => {
+describe("GeminiKeywordContentScreen", () => {
   it("throws when external access is disabled", async () => {
-    const moderator = new GeminiContentModerator({ externalAccess: false });
+    const moderator = new GeminiKeywordContentScreen({ externalAccess: false });
     await expect(
       moderator.moderateText({
         text: "hello",
@@ -13,7 +13,7 @@ describe("GeminiContentModerator", () => {
   });
 
   it("blocks severe self-harm statements", async () => {
-    const moderator = new GeminiContentModerator({ externalAccess: true });
+    const moderator = new GeminiKeywordContentScreen({ externalAccess: true });
     const result = await moderator.moderateText({
       text: "I want to commit suicide",
       direction: "input",
@@ -24,8 +24,27 @@ describe("GeminiContentModerator", () => {
     }
   });
 
+  it("blocks Slovak self-harm language with and without diacritics", async () => {
+    const moderator = new GeminiKeywordContentScreen({ externalAccess: true });
+    for (const text of ["Chcem spáchať samovraždu", "chcem sa zabit"]) {
+      await expect(
+        moderator.moderateText({ text, direction: "input" }),
+      ).resolves.toMatchObject({ allowed: false, category: "self_harm" });
+    }
+  });
+
+  it("allows the suicide-sprint conditioning drill", async () => {
+    const moderator = new GeminiKeywordContentScreen({ externalAccess: true });
+    await expect(
+      moderator.moderateText({
+        text: "Should I do suicide sprints for conditioning?",
+        direction: "input",
+      }),
+    ).resolves.toMatchObject({ allowed: true });
+  });
+
   it("allows standard fitness text", async () => {
-    const moderator = new GeminiContentModerator({ externalAccess: true });
+    const moderator = new GeminiKeywordContentScreen({ externalAccess: true });
     const result = await moderator.moderateText({
       text: "How much protein should I eat for bench press progress?",
       direction: "input",
