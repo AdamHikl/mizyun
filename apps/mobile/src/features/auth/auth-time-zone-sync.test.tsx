@@ -108,6 +108,19 @@ vi.mock("./reset-password-screen", () => ({
 vi.mock("@/features/onboarding/onboarding-screen", () => ({
   OnboardingScreen: "OnboardingScreen",
 }));
+vi.mock("@/features/health-consent/age-restricted-screen", () => ({
+  AgeRestrictedScreen: "AgeRestrictedScreen",
+}));
+vi.mock("@/features/health-consent/consent-unavailable-screen", () => ({
+  ConsentUnavailableScreen: "ConsentUnavailableScreen",
+}));
+vi.mock("@/features/health-consent/health-data-consent-screen", () => ({
+  HealthDataConsentScreen: "HealthDataConsentScreen",
+}));
+vi.mock("@/features/health-consent/health-data-consent-context", () => ({
+  HealthDataConsentProvider: "HealthDataConsentProvider",
+  useHealthDataConsent: () => null,
+}));
 import { AuthProvider } from "./auth-context";
 
 const USER = "00000000-0000-4000-8000-000000000001";
