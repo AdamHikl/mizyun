@@ -84,9 +84,12 @@ case "$action" in
     # That is the same model the founder iOS build uses on Adam's
     # personal team — it is fine for a single-founder sideload to
     # Adam's own device, not a Play Store release.
-    exec "$repo_root/apps/mobile/android/gradlew" \
+    # Never let a stale merged manifest satisfy the Health Connect check.
+    rm -f "$repo_root/apps/mobile/android/app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml"
+    "$repo_root/apps/mobile/android/gradlew" \
       --project-dir "$repo_root/apps/mobile/android" \
       :app:assembleRelease "$@"
+    node "$repo_root/scripts/check-android-health-permissions.mjs" production
     ;;
   bundleRelease)
     shift
@@ -113,11 +116,15 @@ case "$action" in
         exit 1
       fi
     fi
+    aab_path="$repo_root/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab"
+    metadata_path="$aab_path.build.json"
+    # Never let stale provenance or a stale merged manifest describe this build.
+    rm -f "$metadata_path" "$repo_root/apps/mobile/android/app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml"
     "$repo_root/apps/mobile/android/gradlew" \
       --project-dir "$repo_root/apps/mobile/android" \
       :app:bundleRelease "$@"
-    aab_path="$repo_root/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab"
-    metadata_path="$aab_path.build.json"
+    # Play rejects unused Health Connect permissions; refuse to record provenance.
+    node "$repo_root/scripts/check-android-health-permissions.mjs" production
     if [[ ! -f "$aab_path" ]]; then
       echo "ERROR: Gradle completed without producing $aab_path" >&2
       exit 1

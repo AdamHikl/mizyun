@@ -497,9 +497,12 @@ install_android() {
   # Build standalone release APK
   echo "Building standalone Release APK via Gradle assembleRelease..."
   export MIZYUN_ALLOW_DEBUG_KEYSTORE_IN_RELEASE=true
+  # Never let a stale merged manifest satisfy the Health Connect check.
+  rm -f "$repo_root/apps/mobile/android/app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml"
   "$repo_root/apps/mobile/android/gradlew" \
     --project-dir "$repo_root/apps/mobile/android" \
     :app:assembleRelease
+  node "$repo_root/scripts/check-android-health-permissions.mjs" "$variant"
 
   if [[ ! -f "$apk_path" ]]; then
     echo "ERROR: Built APK not found at $apk_path" >&2

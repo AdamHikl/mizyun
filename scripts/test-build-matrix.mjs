@@ -221,6 +221,52 @@ console.log(
   "✓ All iOS profiles include HealthKit read and update purpose strings",
 );
 
+// Production must not describe Dev-only Health preview/export or name Mizyun Dev.
+const baseInfoPlist = JSON.parse(
+  readFileSync(resolve(repoRoot, "apps/mobile/app.json"), "utf-8"),
+).expo.ios.infoPlist;
+for (const key of [
+  "NSHealthShareUsageDescription",
+  "NSHealthUpdateUsageDescription",
+]) {
+  const description = prodConfig.expo.ios.infoPlist[key];
+  if (/Mizyun Dev|preview|nutrition/i.test(description)) {
+    throw new Error(
+      `production ${key} describes Dev-only Health features: ${description}`,
+    );
+  }
+  for (const [profileName, config] of [
+    ["development", devConfig],
+    ["preview", previewConfig],
+  ]) {
+    if (config.expo.ios.infoPlist[key] !== baseInfoPlist[key]) {
+      throw new Error(`${profileName} profile changed Dev ${key}`);
+    }
+  }
+}
+console.log(
+  "✓ Production HealthKit purpose strings omit Dev-only preview and export",
+);
+
+// Every variant passes its own name to the Health Connect permission filter.
+for (const [profileName, config, variant] of [
+  ["development", devConfig, "dev"],
+  ["preview", previewConfig, "dev"],
+  ["production", prodConfig, "production"],
+]) {
+  const healthPlugins = config.expo.plugins.filter(
+    (plugin) =>
+      Array.isArray(plugin) &&
+      plugin[0] === "./plugins/with-android-health-permissions",
+  );
+  if (healthPlugins.length !== 1 || healthPlugins[0][1]?.variant !== variant) {
+    throw new Error(
+      `${profileName} profile must apply the Health Connect permission plugin once for variant "${variant}"`,
+    );
+  }
+}
+console.log("✓ All profiles filter Health Connect permissions by variant");
+
 const hasPlugin = (config, pluginName) =>
   config.expo.plugins.some((plugin) =>
     Array.isArray(plugin) ? plugin[0] === pluginName : plugin === pluginName,
