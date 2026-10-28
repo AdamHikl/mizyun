@@ -10,6 +10,7 @@ import {
   type FoodEntry,
 } from "@mizyun/contracts";
 
+import { useAndroidKeyboardInset } from "@/components/keyboard-inset";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
@@ -182,6 +183,8 @@ export function EditMealScreen() {
   const editVersion = useRef(0);
   const aiRequestInFlight = useRef(false);
   const saveInFlight = useRef(false);
+  const formScrollRef = useRef<ScrollView>(null);
+  const formKeyboardInset = useAndroidKeyboardInset(formScrollRef);
 
   useEffect(() => {
     if (entryId === null || userId === null || draftKind === null) {
@@ -653,6 +656,8 @@ export function EditMealScreen() {
       <Stack.Screen options={{ title: "Edit meal" }} />
       <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
         <ScrollView
+          ref={formScrollRef}
+          style={formKeyboardInset}
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
           keyboardDismissMode="on-drag"

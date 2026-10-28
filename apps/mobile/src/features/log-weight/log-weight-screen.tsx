@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as Crypto from "expo-crypto";
 import { useLoggingFlowMeasurement } from "@/features/analytics/flow-measurement";
 
+import { useAndroidKeyboardInset } from "@/components/keyboard-inset";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
@@ -66,6 +67,8 @@ export function LogWeightScreen() {
   const pendingRef = useRef<WeightSubmission | null>(null);
   const submittingRef = useRef(false);
   const completedRef = useRef(false);
+  const formScrollRef = useRef<ScrollView>(null);
+  const formKeyboardInset = useAndroidKeyboardInset(formScrollRef);
   const mountedRef = useRef(true);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
@@ -288,6 +291,8 @@ export function LogWeightScreen() {
       <Stack.Screen options={{ title: "Add weight" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
+          ref={formScrollRef}
+          style={formKeyboardInset}
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
           keyboardDismissMode="on-drag"

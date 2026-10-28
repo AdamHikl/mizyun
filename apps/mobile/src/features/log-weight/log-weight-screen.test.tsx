@@ -65,6 +65,9 @@ vi.mock("react-native", () => ({
   View: "View",
   StyleSheet: { create: (value: unknown) => value },
 }));
+vi.mock("@/components/keyboard-inset", () => ({
+  useAndroidKeyboardInset: () => undefined,
+}));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));

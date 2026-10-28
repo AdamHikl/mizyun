@@ -17,6 +17,7 @@ import {
   type FoodDraftCandidate,
 } from "@mizyun/contracts";
 
+import { useAndroidKeyboardInset } from "@/components/keyboard-inset";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
@@ -183,6 +184,7 @@ export function LogMealScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const formScrollRef = useRef<ScrollView>(null);
+  const formKeyboardInset = useAndroidKeyboardInset(formScrollRef);
   useEffect(() => {
     if (error !== null) {
       Keyboard.dismiss();
@@ -1589,6 +1591,7 @@ export function LogMealScreen() {
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
           ref={formScrollRef}
+          style={formKeyboardInset}
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
           keyboardDismissMode="on-drag"

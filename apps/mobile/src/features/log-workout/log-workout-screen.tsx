@@ -39,6 +39,7 @@ import {
   type TrackedDistanceUnit,
 } from "@mizyun/core";
 
+import { useAndroidKeyboardInset } from "@/components/keyboard-inset";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
@@ -310,6 +311,8 @@ export function LogWorkoutScreen() {
   );
 
   const hadFailure = useRef(false);
+  const formScrollRef = useRef<ScrollView>(null);
+  const formKeyboardInset = useAndroidKeyboardInset(formScrollRef);
   const setSaveInFlight = useRef(false);
   const exerciseMutationInFlight = useRef(false);
   const currentWorkoutOwner = useRef("");
@@ -2156,6 +2159,8 @@ export function LogWorkoutScreen() {
           style={styles.keyboardContainer}
         >
           <ScrollView
+            ref={formScrollRef}
+            style={formKeyboardInset}
             automaticallyAdjustKeyboardInsets
             contentContainerStyle={[
               styles.content,
