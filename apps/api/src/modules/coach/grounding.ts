@@ -263,7 +263,6 @@ export const buildCoachGrounding = async (
       : null;
 
   const loggedMealsToday = todayEntries.slice(0, 20).map((entry) => ({
-    id: entry.id,
     name: entry.name,
     caloriesKcal: entry.caloriesKcal,
     proteinG: entry.proteinG,
@@ -317,18 +316,6 @@ export const buildCoachGrounding = async (
         carbohydrateG: todayNutrition?.carbohydrateG ?? null,
         fatG: todayNutrition?.fatG ?? null,
         loggedMealsToday,
-        today: {
-          entryCount: todayNutrition?.entryCount ?? 0,
-          consumedCaloriesKcal: consumedCaloriesKcal ?? 0,
-          targetCaloriesKcal: dailyTargetKcal,
-          remainingCaloriesKcal,
-          consumedProteinG: consumedProteinG ?? 0,
-          targetProteinG: dailyProteinTargetG,
-          remainingProteinG,
-          consumedCarbohydrateG: todayNutrition?.carbohydrateG ?? null,
-          consumedFatG: todayNutrition?.fatG ?? null,
-          loggedMeals: loggedMealsToday,
-        },
         last7Days: {
           loggedDaysCount: sevenDaysNutrition.length,
           averageCaloriesKcal: avgCalories7d,

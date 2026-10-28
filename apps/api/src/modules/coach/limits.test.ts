@@ -113,6 +113,17 @@ const sharedCounterFixture = (
       case "ai_reserve_draft":
         row = { allowed: name !== deniedRpc, retry_after: 60 };
         break;
+      case "ai_reserve_coach_message":
+        row = {
+          allowed: name !== deniedRpc,
+          messages_used: 0,
+          retry_after: 60,
+        };
+        break;
+      case "ai_settle_coach_message":
+      case "ai_release_token_reservation":
+        row = {};
+        break;
       case "ai_reserve_provider_call":
         row = { outcome: "reserved", call_id: crypto.randomUUID() };
         break;
@@ -196,7 +207,8 @@ describe("SupabaseCoachLimitService — shared recipe concurrency", () => {
   );
 
   it.each([
-    { kind: "chat", deniedRpc: "ai_reserve_tokens", reason: "tokens" },
+    { kind: "chat", deniedRpc: "ai_reserve_coach_message", reason: "messages" },
+    { kind: "chat", deniedRpc: "ai_reserve_cost", reason: "cost" },
     { kind: "draft", deniedRpc: "ai_register_request", reason: "minute" },
     { kind: "draft", deniedRpc: "ai_reserve_draft", reason: "drafts" },
   ] as const)(
@@ -220,7 +232,7 @@ describe("SupabaseCoachLimitService — shared recipe concurrency", () => {
 });
 
 describe("InMemoryCoachLimitService — per-tier caps", () => {
-  it("honours the free-tier daily budget (10k tokens)", async () => {
+  it("keeps the free-tier hidden Coach token ceiling (320k tokens)", async () => {
     const service = new InMemoryCoachLimitService({
       clock: fixedClock("2026-07-23T10:00:00.000Z"),
     });
@@ -228,18 +240,18 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
     const first = await service.acquireSlot(buildRequest({ planTier: "free" }));
     expect(first.kind).toBe("reserved");
     if (first.kind !== "reserved") return;
-    expect(first.cap.dailyTokenBudget).toBe(10_000);
+    expect(first.cap.coachDailyTokenBudget).toBe(320_000);
 
-    // Commit 9_900 tokens. Used = 9_900. Budget remaining = 100.
+    // Commit 319_900 tokens. Used = 319_900. Ceiling remaining = 100.
     await service.commitTokens({
       userId,
       providerCallId: first.providerCallId,
       finalStatus: "succeeded",
       messageId: "msg-1",
-      tokensUsed: 9_900,
+      tokensUsed: 319_900,
     });
 
-    // Next request with tokensEstimated=1200: used 9900 + 1200 > 10000.
+    // Next request with tokensEstimated=1200: 319_900 + 1_200 > 320_000.
     const blocked = await service.acquireSlot(
       buildRequest({ idempotencyKey: "key-0002" }),
     );
@@ -560,7 +572,7 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
         clock: () => new Date(currentTime),
       });
 
-      // Free tier budget is 10,000 tokens.
+      // Free tier hidden Coach ceiling is 320,000 tokens (ADR-0085).
       // Acquire slot reserving 1,200 tokens.
       const first = await service.acquireSlot(
         buildRequest({ tokensEstimated: 1_200 }),
@@ -571,7 +583,7 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
       // Usage snapshot should show 1,200 tokens in use (reserved).
       let usage = await service.getAiUsage(userId, "free");
       expect(usage.coach.tokensUsed).toBe(1_200);
-      expect(usage.coach.tokensRemaining).toBe(8_800);
+      expect(usage.coach.tokensRemaining).toBe(318_800);
 
       // Commit actual usage of only 300 tokens out of 1,200 estimated.
       await service.commitTokens({
@@ -586,7 +598,7 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
       // After settlement, exactly 300 tokens should be counted as used, leaving 9,700 remaining.
       usage = await service.getAiUsage(userId, "free");
       expect(usage.coach.tokensUsed).toBe(300);
-      expect(usage.coach.tokensRemaining).toBe(9_700);
+      expect(usage.coach.tokensRemaining).toBe(319_700);
     });
 
     it("releaseSlot frees reserved tokens so provider failure does not penalize daily budget", async () => {
@@ -612,10 +624,10 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
         tokensEstimated: 1_200,
       });
 
-      // Tokens should be fully restored to 0 used / 10,000 remaining.
+      // Tokens should be fully restored to 0 used / 320,000 remaining.
       const usage = await service.getAiUsage(userId, "free");
       expect(usage.coach.tokensUsed).toBe(0);
-      expect(usage.coach.tokensRemaining).toBe(10_000);
+      expect(usage.coach.tokensRemaining).toBe(320_000);
     });
 
     it("photo drafts and chat tokens maintain independent counters without cross-consumption", async () => {
@@ -640,7 +652,7 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
       // Verify photo exhaustion does NOT affect chat token budget.
       let usage = await service.getAiUsage(userId, "free");
       expect(usage.photos.draftsRemaining).toBe(0);
-      expect(usage.coach.tokensRemaining).toBe(10_000);
+      expect(usage.coach.tokensRemaining).toBe(320_000);
 
       // Chat request still succeeds under full token budget.
       const chatSlot = await service.acquireSlot(
@@ -660,7 +672,7 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
       // Verify chat tokens do not consume or alter photo draft counters.
       usage = await service.getAiUsage(userId, "free");
       expect(usage.coach.tokensUsed).toBe(1_200);
-      expect(usage.coach.tokensRemaining).toBe(8_800);
+      expect(usage.coach.tokensRemaining).toBe(318_800);
       expect(usage.photos.draftsUsed).toBe(5);
       expect(usage.photos.draftsRemaining).toBe(0);
     });
@@ -695,7 +707,7 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
 
       usage = await service.getAiUsage(userId, "free");
       expect(usage.coach.tokensUsed).toBe(0);
-      expect(usage.coach.tokensRemaining).toBe(10_000);
+      expect(usage.coach.tokensRemaining).toBe(320_000);
       expect(usage.resetsAt).toBe("2026-07-25T00:00:00.000Z");
     });
   });
@@ -1143,5 +1155,197 @@ describe("AI cost allowance and refine cap (#336, ADR-0081)", () => {
     ).rejects.toThrow(/transient/);
     expect(settled).toEqual([expect.objectContaining({ p_actual: 0 })]);
     expect(fixture.active()).toBe(0);
+  });
+});
+
+describe("Coach message allowance (AI-02, ADR-0085)", () => {
+  const answer = async (
+    service: InMemoryCoachLimitService,
+    key: string,
+    tokensUsed: number,
+    provider = "gemini",
+  ) => {
+    const slot = await service.acquireSlot(
+      buildRequest({ idempotencyKey: key }),
+    );
+    if (slot.kind === "reserved") {
+      await service.commitTokens({
+        userId,
+        providerCallId: slot.providerCallId,
+        finalStatus: "succeeded",
+        messageId: `msg-${key}`,
+        tokensUsed,
+        tokensEstimated: 1_200,
+        provider,
+        costTokensUsed: tokensUsed,
+      });
+    }
+    return slot;
+  };
+
+  it("admits five free messages at realistic turn sizes, then denies by message count", async () => {
+    let now = Date.parse("2026-10-27T09:00:00.000Z");
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(now),
+    });
+    const used: number[] = [];
+    for (let turn = 0; turn < 5; turn += 1) {
+      now += 61_000;
+      const slot = await answer(service, `turn-${turn}`, 9_000);
+      expect(slot.kind).toBe("reserved");
+      if (slot.kind === "reserved") used.push(slot.messagesUsed);
+    }
+    expect(used).toEqual([0, 1, 2, 3, 4]);
+    now += 61_000;
+    const denied = await service.acquireSlot(
+      buildRequest({ idempotencyKey: "turn-5" }),
+    );
+    expect(denied).toMatchObject({ kind: "limited", reason: "messages" });
+    const usage = await service.getAiUsage(userId, "free");
+    expect(usage.coach).toMatchObject({
+      dailyMessageLimit: 5,
+      messagesUsed: 5,
+      messagesRemaining: 0,
+    });
+  });
+
+  it("keeps the cost allowance as the spend guard for oversized turns", async () => {
+    let now = Date.parse("2026-10-27T09:00:00.000Z");
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(now),
+    });
+    // 30k-token Gemini turns cost about 0.028 USD each in 2026.
+    now += 61_000;
+    expect((await answer(service, "big-0", 30_000)).kind).toBe("reserved");
+    now += 61_000;
+    expect((await answer(service, "big-1", 30_000)).kind).toBe("reserved");
+    now += 61_000;
+    const denied = await service.acquireSlot(
+      buildRequest({ idempotencyKey: "big-2" }),
+    );
+    expect(denied).toMatchObject({ kind: "limited", reason: "cost" });
+    const usage = await service.getAiUsage(userId, "free");
+    expect(usage.coach.messagesUsed).toBe(2);
+  });
+
+  it("returns a failed call's message once and never counts a replayed key", async () => {
+    let now = Date.parse("2026-10-27T09:00:00.000Z");
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(now),
+      capOverrides: { coachDailyMessageLimit: 1 },
+    });
+    const failed = await service.acquireSlot(
+      buildRequest({ idempotencyKey: "fail" }),
+    );
+    if (failed.kind !== "reserved") throw new Error("expected reservation");
+    await service.releaseSlot({
+      userId,
+      providerCallId: failed.providerCallId,
+      finalStatus: "failed",
+      messageId: null,
+      tokensUsed: 0,
+    });
+    // A second finalization of the same call never counts or returns twice.
+    await service.commitTokens({
+      userId,
+      providerCallId: failed.providerCallId,
+      finalStatus: "succeeded",
+      messageId: "late",
+      tokensUsed: 10,
+    });
+    expect((await service.getAiUsage(userId, "free")).coach.messagesUsed).toBe(
+      0,
+    );
+
+    now += 61_000;
+    expect((await answer(service, "ok", 9_000)).kind).toBe("reserved");
+    now += 61_000;
+    const replay = await service.acquireSlot(
+      buildRequest({ idempotencyKey: "ok" }),
+    );
+    expect(replay.kind).toBe("limited");
+    expect(replay).toMatchObject({ reason: "messages" });
+    expect((await service.getAiUsage(userId, "free")).coach.messagesUsed).toBe(
+      1,
+    );
+  });
+});
+
+describe("SupabaseCoachLimitService — Coach message RPCs (ADR-0085)", () => {
+  it("returns the reserved message when a later admission step denies", async () => {
+    const f = sharedCounterFixture(1, "ai_reserve_cost");
+    const denied = await f.coach.acquireSlot(buildRequest());
+    expect(denied).toMatchObject({ kind: "limited", reason: "cost" });
+    const calls = f.rpc.mock.calls.map(([name, args]) => [name, args]);
+    expect(calls).toContainEqual([
+      "ai_settle_coach_message",
+      expect.objectContaining({
+        p_counted: false,
+        p_day: "2026-10-13",
+        p_tokens_reserved: 1_200,
+        p_tokens_used: 0,
+      }),
+    ]);
+    // Coach no longer touches the recipe token columns.
+    expect(calls.map(([name]) => name)).not.toContain("ai_reserve_tokens");
+    expect(f.active()).toBe(0);
+  });
+
+  it("maps a Coach token-ceiling refusal from the message RPC", async () => {
+    const f = sharedCounterFixture();
+    f.rpc.mockImplementationOnce(async () => ({
+      data: [{ allowed: true, retry_after: 0 }],
+      error: null,
+    }));
+    f.rpc.mockImplementationOnce(async (name: string, args) => {
+      if (name !== "ai_acquire_in_flight") throw new Error(name);
+      void args;
+      return { data: [{ allowed: true }], error: null };
+    });
+    f.rpc.mockImplementationOnce(async () => ({
+      data: [
+        { allowed: false, reason: "tokens", messages_used: 2, retry_after: 90 },
+      ],
+      error: null,
+    }));
+    const denied = await f.coach.acquireSlot(buildRequest());
+    expect(denied).toEqual({
+      kind: "limited",
+      reason: "tokens",
+      retryAfter: 90,
+    });
+  });
+
+  it("counts the message once when the reply is stored", async () => {
+    const f = sharedCounterFixture();
+    const slot = await f.coach.acquireSlot(buildRequest());
+    if (slot.kind !== "reserved") throw new Error("expected reservation");
+    f.rpc.mockClear();
+    const finalize = {
+      userId,
+      providerCallId: slot.providerCallId,
+      finalStatus: "succeeded" as const,
+      messageId: "msg-1",
+      tokensUsed: 9_000,
+    };
+    await f.coach.commitTokens(finalize).catch(() => undefined);
+    await f.coach.releaseSlot(finalize).catch(() => undefined);
+    const settles = f.rpc.mock.calls.filter(
+      ([name]) => name === "ai_settle_coach_message",
+    );
+    expect(settles).toEqual([
+      [
+        "ai_settle_coach_message",
+        expect.objectContaining({
+          p_counted: true,
+          p_day: "2026-10-13",
+          p_tokens_reserved: 1_200,
+          p_tokens_used: 9_000,
+        }),
+      ],
+    ]);
+    expect(f.rpc.mock.calls.map(([name]) => name)).not.toContain(
+      "ai_commit_tokens",
+    );
   });
 });

@@ -65,7 +65,14 @@ latency/cost. Reconcile those results here before changing
   5. **Body Photo Non-Diagnostic Policy**: 4/4 (100.0%) passed enforcing strict prohibition of body fat % calculations and dermatological diagnoses, with mandatory subjective-record disclosures.
 - **Simulated Latency & Token Economics**:
   - Latency: 85% in under-one-second bucket, 15% in 1–3s bucket, 0% exceeding 3s.
-  - Average Token Consumption: ~320 tokens per turn, comfortably within the durable free (20k) and paid (100k) daily token budgets.
+  - Average Token Consumption (simulated, superseded): ~320 tokens per turn. This was a simulated value, not a provider count. See the correction below.
+
+### 2026-10-27 correction: real Coach turn sizes and limits (AI-02, ADR-0085)
+
+- **Measured (review of a3947503, 2026-10-26):** a simple Coach turn used about 9,000 input tokens on Gemini and 14,000 on Haiku, because the 23,787-character system prompt (policy plus the full app catalog) was sent on every call and every tool round. The free daily Coach budget was 10,000 tokens, not 20k, so a free user got about one message a day.
+- **Prompt after ADR-0085:** fixed policy 10,548 characters; a typical turn 10,700 to 12,700 characters (45 to 53 % of before); whole-app questions still get the full catalog (24,785). On Anthropic the fixed policy is a cached prefix.
+- **Estimated turn after the cut:** about 6,000 tokens on Gemini (prompt characters ÷ 4 plus the measured non-prompt share). This is an estimate; no live provider call was made for this correction. Re-measure with the `run-ai-eval` suite before relying on it.
+- **Limits now:** Coach is metered in messages (free 5, paid 50 a UTC day). Tokens are a hidden ceiling (320k free, 3.2M paid), and the ADR-0081 cost allowance (free USD 0.05 a day and 0.50 a month, paid 0.15 and 1.00) stays the spend guard.
 
 ### 2026-07-26 live development checkpoint (Historical Mistral)
 

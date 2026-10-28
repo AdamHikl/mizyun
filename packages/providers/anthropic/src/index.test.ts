@@ -103,6 +103,39 @@ describe("AnthropicAgentProvider", () => {
     });
   });
 
+  it("caches the fixed Coach policy and sends the question's excerpt after it (AI-06)", async () => {
+    const client = fakeClient([message([text("Open Log.")])]);
+    await provider(client).respond(
+      request({
+        systemPolicy: "Fixed rules.\nCatalog excerpt.",
+        systemPolicyParts: {
+          fixed: "Fixed rules.",
+          variable: "Catalog excerpt.",
+        },
+      }),
+    );
+    const system = client.calls[0]!.system as Anthropic.TextBlockParam[];
+    expect(system).toHaveLength(2);
+    expect(system[0]).toEqual({
+      type: "text",
+      text: "Fixed rules.",
+      cache_control: { type: "ephemeral" },
+    });
+    expect(system[1]?.text.startsWith("Catalog excerpt.")).toBe(true);
+    expect(system[1]?.text).toMatch(/Never wrap the reply in JSON/);
+    expect(system[1]).not.toHaveProperty("cache_control");
+    expect(JSON.stringify(system)).not.toMatch(/"answer"/);
+  });
+
+  it("sends one uncached system block without the policy split", async () => {
+    const client = fakeClient([message([text("Fine.")])]);
+    await provider(client).respond(request());
+    const system = client.calls[0]!.system as Anthropic.TextBlockParam[];
+    expect(system).toHaveLength(1);
+    expect(system[0]?.text.startsWith("Coach policy.")).toBe(true);
+    expect(system[0]).not.toHaveProperty("cache_control");
+  });
+
   it("returns tool calls and replays them as tool_use/tool_result blocks", async () => {
     const tools = [
       {
@@ -161,6 +194,62 @@ describe("AnthropicAgentProvider", () => {
         },
       ],
     });
+  });
+
+  it("sends this round's tool evidence once, keeping earlier rounds in grounding", async () => {
+    const client = fakeClient([message([text("Done.")])]);
+    const earlier = {
+      kind: "training",
+      label: "Exercise library search results",
+      confirmed: true,
+      freshness: "now",
+      data: { marker: "earlier-round" },
+    } as const;
+    const current = {
+      kind: "tool",
+      label: "Plan proposal",
+      confirmed: true,
+      freshness: "now",
+      data: { marker: "current-round" },
+    } as const;
+    await provider(client).respond(
+      request({
+        // The orchestrator appends every round's evidence to grounding.
+        grounding: [...request().grounding, earlier, current],
+        requestedToolCalls: [
+          { id: "toolu_2", name: "propose_workout_plan", args: {} },
+        ],
+        toolResults: [
+          { id: "toolu_2", name: "propose_workout_plan", evidence: current },
+        ],
+      }),
+    );
+    const sent = JSON.stringify(client.calls[0]!.messages);
+    expect(sent.split("current-round")).toHaveLength(2);
+    expect(sent).toContain("earlier-round");
+    expect(String(client.calls[0]!.messages[0]!.content)).not.toContain(
+      "current-round",
+    );
+  });
+
+  it("keeps tool evidence in grounding when no tool_result block is sent", async () => {
+    const client = fakeClient([message([text("Done.")])]);
+    const evidence = {
+      kind: "goal",
+      label: "Goal",
+      confirmed: true,
+      freshness: "now",
+      data: { marker: "unsent-result" },
+    } as const;
+    await provider(client).respond(
+      request({
+        grounding: [evidence],
+        toolResults: [{ id: "toolu_3", name: "get_active_goal", evidence }],
+      }),
+    );
+    expect(String(client.calls[0]!.messages[0]!.content)).toContain(
+      "unsent-result",
+    );
   });
 
   it("declares replayed tools with tool_choice none once the budget is spent", async () => {

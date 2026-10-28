@@ -80,7 +80,7 @@ Overshoot: the last admitted call can finish above the allowance. At most two ca
 
 Normal paid day (one Coach conversation of four median Haiku turns, three photo drafts) at 2027 prices: $0.028. Thirty such days cost $0.83, under the $1.00 allowance; a test checks this. In 2026 the same month costs about $0.42.
 
-Count caps stay as burst limits, set at the coordinator's decision of 2026-10-26: paid 100k Coach tokens, **15 drafts** (was 100) and **30 draft changes** a day (was unlimited); free 10k, 5 and 10.
+Count caps stay as burst limits, set at the coordinator's decision of 2026-10-26: paid 100k Coach tokens, **15 drafts** (was 100) and **30 draft changes** a day (was unlimited); free 10k, 5 and 10. Since 2026-10-27 ([ADR-0085](adr/0085-coach-message-allowance.md)) Coach is counted in messages instead: free 5 and paid 50 a day, under a hidden 320k/3.2M token ceiling; the cost allowance is unchanged.
 
 ## 5. Limits of the model
 

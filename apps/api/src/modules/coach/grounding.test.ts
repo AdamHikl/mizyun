@@ -537,9 +537,9 @@ describe("buildCoachGrounding — remaining calories and macro targets", () => {
     const loggedMealsToday = data.loggedMealsToday as unknown[];
     expect(loggedMealsToday).toHaveLength(20);
 
-    const today = data.today as Record<string, unknown>;
-    const todayLoggedMeals = today.loggedMeals as unknown[];
-    expect(todayLoggedMeals).toHaveLength(20);
+    // Today's meals are listed once, without row ids (token cost).
+    expect(data).not.toHaveProperty("today");
+    expect(loggedMealsToday[0]).not.toHaveProperty("id");
   });
 
   it("surfaces latestCircumferences under kind: 'body' when tape measurements are logged", async () => {

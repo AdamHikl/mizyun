@@ -42,7 +42,13 @@ import type { ConversationId, PlanTier, UserId } from "@mizyun/core";
  * code first, copy second.
  */
 export type LimitReason =
-  "tokens" | "drafts" | "minute" | "inflight" | "lock_busy" | "cost";
+  | "messages"
+  | "tokens"
+  | "drafts"
+  | "minute"
+  | "inflight"
+  | "lock_busy"
+  | "cost";
 
 export type ProviderCallStatus =
   "attempting" | "succeeded" | "failed" | "replayed";
@@ -67,6 +73,8 @@ export type ReserveSlotResult =
       readonly cap: AiTierCaps;
       readonly day: string;
       readonly providerCallId: string;
+      /** Coach messages taken today before this one (ADR-0085). */
+      readonly messagesUsed: number;
     }
   | {
       readonly kind: "replayed";
@@ -103,6 +111,11 @@ export interface FinalizeRequest {
    * charged; `tokensUsed` may then be a 0 fallback for the token ledger.
    */
   readonly costTokensUsed?: number | undefined;
+  /**
+   * False when the stored reply came from Mizyun itself (safety screen or
+   * canned app help) without a model call, so it uses no Coach message.
+   */
+  readonly countMessage?: boolean;
 }
 
 export type DraftKind = "text" | "photo" | "refine";
@@ -392,10 +405,39 @@ class PendingCosts {
   }
 }
 
+/**
+ * Coach messages held between admission and settlement, keyed by provider
+ * call, so each one is counted or returned exactly once (ADR-0085).
+ */
+interface HeldMessage {
+  readonly userId: UserId;
+  /** UTC day of admission; settlement goes to the same row. */
+  readonly day: string;
+  readonly tokensReserved: number;
+}
+
+class PendingMessages {
+  readonly #byCall = new Map<string, HeldMessage>();
+
+  set(callId: string, held: HeldMessage): void {
+    this.#byCall.set(callId, held);
+  }
+
+  take(callId: string): HeldMessage | undefined {
+    const held = this.#byCall.get(callId);
+    this.#byCall.delete(callId);
+    return held;
+  }
+}
+
 export interface AiUsageSnapshot {
   readonly planTier: PlanTier;
   readonly resetsAt: string;
   readonly coach: {
+    readonly dailyMessageLimit: number;
+    readonly messagesUsed: number;
+    readonly messagesRemaining: number;
+    /** Hidden token ceiling; kept for older app builds. */
     readonly dailyTokenBudget: number;
     readonly tokensUsed: number;
     readonly tokensRemaining: number;
@@ -486,6 +528,7 @@ export class SupabaseCoachLimitService implements CoachLimitService {
   readonly #resolveCap: (planTier: PlanTier) => AiTierCaps;
   readonly costLedger: AiCostLedger;
   readonly #costs = new PendingCosts();
+  readonly #messages = new PendingMessages();
 
   constructor(options: SupabaseCoachLimitServiceOptions) {
     this.#client = options.serviceClient;
@@ -546,60 +589,60 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       return { kind: "limited", reason: "inflight", retryAfter: 1 };
     }
 
-    // Step 3: daily token gate.
-    const tokens = await rpcSingle<{
-      allowed: boolean;
-      retry_after: number;
-    }>(this.#client, "ai_reserve_tokens", {
-      p_user_id: request.userId,
-      p_day: day,
-      p_budget: cap.dailyTokenBudget,
-      p_needed: request.tokensEstimated,
-    });
-    if (tokens.allowed !== true) {
+    // Each later step returns what the earlier steps took before it exits.
+    let holdsMessage = false;
+    const releaseHeld = async (): Promise<void> => {
       await runQuiet(() =>
         this.#client.rpc("ai_release_in_flight", {
           p_user_id: request.userId,
         }),
       );
-      return {
-        kind: "limited",
-        reason: "tokens",
-        retryAfter: tokens.retry_after,
-      };
-    }
-
-    // Step 3b: cost allowance (ADR-0081).
-    const cost = await this.costLedger
-      .reserve(request.userId, cap, "coach")
-      .catch(async (error: unknown) => {
-        await runQuiet(() =>
-          this.#client.rpc("ai_release_in_flight", {
-            p_user_id: request.userId,
-          }),
-        );
-        await runQuiet(() =>
-          this.#client.rpc("ai_release_token_reservation", {
-            p_user_id: request.userId,
-            p_day: day,
-            p_tokens: request.tokensEstimated,
-          }),
-        );
+      if (holdsMessage) {
+        await settleCoachMessageRpc(this.#client, {
+          userId: request.userId,
+          day,
+          tokensReserved: request.tokensEstimated,
+        });
+      }
+    };
+    const orRelease = <T>(step: Promise<T>): Promise<T> =>
+      step.catch(async (error: unknown) => {
+        await releaseHeld();
         throw error;
       });
+
+    // Step 3: daily Coach messages and the hidden Coach token ceiling
+    // (ADR-0085), reserved together in their own ledger columns.
+    const message = await orRelease(
+      rpcSingle<{
+        allowed: boolean;
+        reason: string | null;
+        messages_used: number;
+        retry_after: number;
+      }>(this.#client, "ai_reserve_coach_message", {
+        p_user_id: request.userId,
+        p_day: day,
+        p_message_limit: cap.coachDailyMessageLimit,
+        p_token_budget: cap.coachDailyTokenBudget,
+        p_tokens_needed: request.tokensEstimated,
+      }),
+    );
+    if (message.allowed !== true) {
+      await releaseHeld();
+      return {
+        kind: "limited",
+        reason: message.reason === "tokens" ? "tokens" : "messages",
+        retryAfter: message.retry_after,
+      };
+    }
+    holdsMessage = true;
+
+    // Step 3b: cost allowance (ADR-0081).
+    const cost = await orRelease(
+      this.costLedger.reserve(request.userId, cap, "coach"),
+    );
     if (!cost.allowed) {
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", {
-          p_user_id: request.userId,
-        }),
-      );
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_token_reservation", {
-          p_user_id: request.userId,
-          p_day: day,
-          p_tokens: request.tokensEstimated,
-        }),
-      );
+      await releaseHeld();
       return {
         kind: "limited",
         reason: "cost",
@@ -619,53 +662,24 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       },
     ).catch(async (error: unknown) => {
       await runQuiet(() => this.costLedger.settle(cost.reservation, 0));
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", {
-          p_user_id: request.userId,
-        }),
-      );
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_token_reservation", {
-          p_user_id: request.userId,
-          p_day: day,
-          p_tokens: request.tokensEstimated,
-        }),
-      );
+      await releaseHeld();
       throw error;
     });
     if (reserve.outcome === "conflict" || reserve.outcome === "replayed") {
       await runQuiet(() => this.costLedger.settle(cost.reservation, 0));
+      await releaseHeld();
     } else {
       this.#costs.set(reserve.call_id, cost.reservation);
+      this.#messages.set(reserve.call_id, {
+        userId: request.userId,
+        day,
+        tokensReserved: request.tokensEstimated,
+      });
     }
     if (reserve.outcome === "conflict") {
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", {
-          p_user_id: request.userId,
-        }),
-      );
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_token_reservation", {
-          p_user_id: request.userId,
-          p_day: day,
-          p_tokens: request.tokensEstimated,
-        }),
-      );
       return { kind: "conflict", retryAfter: 1 };
     }
     if (reserve.outcome === "replayed") {
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", {
-          p_user_id: request.userId,
-        }),
-      );
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_token_reservation", {
-          p_user_id: request.userId,
-          p_day: day,
-          p_tokens: request.tokensEstimated,
-        }),
-      );
       return {
         kind: "replayed",
         providerCallId: reserve.call_id,
@@ -679,24 +693,27 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       cap,
       day,
       providerCallId: reserve.call_id,
+      messagesUsed: message.messages_used,
     };
   }
 
   async commitTokens(request: FinalizeRequest): Promise<void> {
-    await this.#settleCoachCost(request, true);
-    const day = sqlDay(this.#clock());
-    const tokensReserved = request.tokensEstimated ?? request.tokensUsed;
-    const commitResult = await this.#client.rpc("ai_commit_tokens", {
-      p_user_id: request.userId,
-      p_day: day,
-      p_tokens_used: request.tokensUsed,
-      p_tokens_reserved: tokensReserved,
-    });
-    if (commitResult.error) {
-      throw new LimitsError(
-        `rpc ai_commit_tokens failed: ${commitResult.error.message}`,
-      );
+    // Message and Coach tokens settle once, on the admission day.
+    const held = this.#messages.take(request.providerCallId);
+    if (held !== undefined) {
+      await settleCoachMessageRpc(this.#client, {
+        userId: held.userId,
+        day: held.day,
+        tokensReserved: held.tokensReserved,
+        ...(request.finalStatus === "succeeded"
+          ? {
+              counted: request.countMessage !== false,
+              tokensUsed: request.tokensUsed,
+            }
+          : {}),
+      });
     }
+    await this.#settleCoachCost(request, true);
     const completeResult = await this.#client.rpc("ai_complete_provider_call", {
       p_provider_call_id: request.providerCallId,
       p_status: request.finalStatus,
@@ -719,16 +736,11 @@ export class SupabaseCoachLimitService implements CoachLimitService {
   }
 
   async releaseSlot(request: FinalizeRequest): Promise<void> {
+    const held = this.#messages.take(request.providerCallId);
+    if (held !== undefined) {
+      await settleCoachMessageRpc(this.#client, held);
+    }
     await this.#settleCoachCost(request, false);
-    const day = sqlDay(this.#clock());
-    const tokensReserved = request.tokensEstimated ?? 1_200;
-    await runQuiet(() =>
-      this.#client.rpc("ai_release_token_reservation", {
-        p_user_id: request.userId,
-        p_day: day,
-        p_tokens: tokensReserved,
-      }),
-    );
     const completeResult = await this.#client.rpc("ai_complete_provider_call", {
       p_provider_call_id: request.providerCallId,
       p_status: request.finalStatus,
@@ -996,22 +1008,30 @@ export class SupabaseCoachLimitService implements CoachLimitService {
     ).toISOString();
 
     let tokensUsed = 0;
+    let messagesUsed = 0;
     try {
       const tokenRow = await this.#client
         .from<{
           readonly user_id?: string;
           readonly day?: string;
-          readonly tokens_used?: number;
-          readonly reserved_tokens?: number;
+          readonly messages_used?: number;
+          readonly reserved_messages?: number;
+          readonly coach_tokens_used?: number;
+          readonly coach_reserved_tokens?: number;
         }>("ai_daily_token_ledger")
-        .select("tokens_used, reserved_tokens")
+        .select(
+          "messages_used, reserved_messages, coach_tokens_used, coach_reserved_tokens",
+        )
         .eq("user_id", userId)
         .eq("day", day)
         .maybeSingle();
       if (tokenRow.data) {
         tokensUsed =
-          (tokenRow.data.tokens_used ?? 0) +
-          (tokenRow.data.reserved_tokens ?? 0);
+          Number(tokenRow.data.coach_tokens_used ?? 0) +
+          Number(tokenRow.data.coach_reserved_tokens ?? 0);
+        messagesUsed =
+          (tokenRow.data.messages_used ?? 0) +
+          (tokenRow.data.reserved_messages ?? 0);
       }
     } catch {
       // Fall back to 0 on missing/new row
@@ -1039,13 +1059,19 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       // Fall back to 0 on missing/new row
     }
 
-    const tokenBudget = cap.coachDailyTokenBudget ?? cap.dailyTokenBudget;
+    const tokenBudget = cap.coachDailyTokenBudget;
     const draftBudget = cap.photoDraftDailyLimit;
 
     return {
       planTier,
       resetsAt,
       coach: {
+        dailyMessageLimit: cap.coachDailyMessageLimit,
+        messagesUsed,
+        messagesRemaining: Math.max(
+          0,
+          cap.coachDailyMessageLimit - messagesUsed,
+        ),
         dailyTokenBudget: tokenBudget,
         tokensUsed,
         tokensRemaining: Math.max(0, tokenBudget - tokensUsed),
@@ -1116,9 +1142,14 @@ export class InMemoryCoachLimitService implements CoachLimitService {
   >();
   readonly #inFlight = new Map<UserId, number>();
   readonly #calls = new Map<string, InMemoryProviderCall>();
+  readonly #messageUsage = new Map<
+    UserId,
+    { readonly day: string; used: number; reserved: number }
+  >();
   readonly #capOverrides: Partial<AiTierCaps>;
   readonly costLedger: AiCostLedger;
   readonly #costs = new PendingCosts();
+  readonly #messages = new PendingMessages();
 
   constructor(options: InMemoryCoachLimitServiceOptions) {
     this.#clock = options.clock;
@@ -1137,8 +1168,14 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       tier: base.tier,
       dailyTokenBudget:
         this.#capOverrides.dailyTokenBudget ?? base.dailyTokenBudget,
+      // `dailyUserTokenBudget` test knob also sets the Coach ceiling.
       coachDailyTokenBudget:
-        this.#capOverrides.coachDailyTokenBudget ?? base.coachDailyTokenBudget,
+        this.#capOverrides.coachDailyTokenBudget ??
+        this.#capOverrides.dailyTokenBudget ??
+        base.coachDailyTokenBudget,
+      coachDailyMessageLimit:
+        this.#capOverrides.coachDailyMessageLimit ??
+        base.coachDailyMessageLimit,
       photoDraftDailyLimit:
         this.#capOverrides.photoDraftDailyLimit ?? base.photoDraftDailyLimit,
       refineDailyLimit:
@@ -1190,24 +1227,37 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       return { kind: "limited", reason: "inflight", retryAfter: 1 };
     }
     this.#inFlight.set(request.userId, active + 1);
+    const untilMidnight = Math.max(
+      1,
+      Math.ceil(
+        (Date.parse(`${day}T00:00:00.000Z`) + 86_400_000 - now.getTime()) /
+          1_000,
+      ),
+    );
 
-    // Step 3: daily token gate.
+    // Step 3: daily Coach messages (ADR-0085).
+    const messageRow = this.#messageUsage.get(request.userId);
+    const messages =
+      messageRow?.day === day ? messageRow : { day, used: 0, reserved: 0 };
+    const messagesUsed = messages.used + messages.reserved;
+    if (messagesUsed + 1 > cap.coachDailyMessageLimit) {
+      this.#inFlight.set(request.userId, Math.max(0, active));
+      return { kind: "limited", reason: "messages", retryAfter: untilMidnight };
+    }
+    messages.reserved += 1;
+    this.#messageUsage.set(request.userId, messages);
+    const returnMessage = (): void => {
+      messages.reserved = Math.max(0, messages.reserved - 1);
+    };
+
+    // Step 3a: hidden daily token ceiling.
     const usage = this.#usage.get(request.userId);
     const used = usage?.day === day ? usage.tokens : 0;
     const reserved = usage?.day === day ? usage.reservedTokens : 0;
-    if (used + reserved + request.tokensEstimated > cap.dailyTokenBudget) {
+    if (used + reserved + request.tokensEstimated > cap.coachDailyTokenBudget) {
       this.#inFlight.set(request.userId, Math.max(0, active));
-      return {
-        kind: "limited",
-        reason: "tokens",
-        retryAfter: Math.max(
-          1,
-          Math.ceil(
-            (Date.parse(`${day}T00:00:00.000Z`) + 86_400_000 - now.getTime()) /
-              1_000,
-          ),
-        ),
-      };
+      returnMessage();
+      return { kind: "limited", reason: "tokens", retryAfter: untilMidnight };
     }
     this.#usage.set(request.userId, {
       day,
@@ -1219,6 +1269,7 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     const cost = await this.costLedger.reserve(request.userId, cap, "coach");
     if (!cost.allowed) {
       this.#inFlight.set(request.userId, Math.max(0, active));
+      returnMessage();
       this.#usage.set(request.userId, {
         day,
         tokens: used,
@@ -1238,6 +1289,7 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     if (priorCall !== undefined) {
       await this.costLedger.settle(cost.reservation, 0);
       this.#inFlight.set(request.userId, Math.max(0, active));
+      returnMessage();
       this.#usage.set(request.userId, {
         day,
         tokens: used,
@@ -1255,6 +1307,11 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     }
     const providerCallId = crypto.randomUUID();
     this.#costs.set(providerCallId, cost.reservation);
+    this.#messages.set(providerCallId, {
+      userId: request.userId,
+      day,
+      tokensReserved: request.tokensEstimated,
+    });
     this.#calls.set(key, {
       providerCallId,
       status: "attempting",
@@ -1267,10 +1324,25 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       cap,
       day,
       providerCallId,
+      messagesUsed,
     };
   }
 
+  /** Count (reply stored) or return the call's message, at most once. */
+  #settleCoachMessage(providerCallId: string, counted: boolean): void {
+    const held = this.#messages.take(providerCallId);
+    if (held === undefined) return;
+    const row = this.#messageUsage.get(held.userId);
+    if (row === undefined || row.day !== held.day) return;
+    row.reserved = Math.max(0, row.reserved - 1);
+    if (counted) row.used += 1;
+  }
+
   async commitTokens(request: FinalizeRequest): Promise<void> {
+    this.#settleCoachMessage(
+      request.providerCallId,
+      request.finalStatus === "succeeded" && request.countMessage !== false,
+    );
     await this.#settleCoachCost(request, true);
     const row = this.#findCall(request.providerCallId);
     if (row !== undefined) {
@@ -1295,6 +1367,7 @@ export class InMemoryCoachLimitService implements CoachLimitService {
   }
 
   async releaseSlot(request: FinalizeRequest): Promise<void> {
+    this.#settleCoachMessage(request.providerCallId, false);
     await this.#settleCoachCost(request, false);
     const row = this.#findCall(request.providerCallId);
     if (row !== undefined) {
@@ -1492,17 +1565,26 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     const usage = this.#usage.get(userId);
     const tokensUsed =
       usage?.day === day ? usage.tokens + (usage.reservedTokens ?? 0) : 0;
+    const messageUsage = this.#messageUsage.get(userId);
+    const messagesUsed =
+      messageUsage?.day === day ? messageUsage.used + messageUsage.reserved : 0;
 
     const draftUsage = this.#draftUsage.get(userId);
     const draftsUsed = draftUsage?.day === day ? draftUsage.drafts : 0;
 
-    const tokenBudget = cap.coachDailyTokenBudget ?? cap.dailyTokenBudget;
+    const tokenBudget = cap.coachDailyTokenBudget;
     const draftBudget = cap.photoDraftDailyLimit;
 
     return {
       planTier,
       resetsAt,
       coach: {
+        dailyMessageLimit: cap.coachDailyMessageLimit,
+        messagesUsed,
+        messagesRemaining: Math.max(
+          0,
+          cap.coachDailyMessageLimit - messagesUsed,
+        ),
         dailyTokenBudget: tokenBudget,
         tokensUsed,
         tokensRemaining: Math.max(0, tokenBudget - tokensUsed),
@@ -1544,6 +1626,38 @@ const rpcSingle = async <TRow extends Record<string, unknown>>(
     throw new LimitsError(`rpc ${name} returned no row`);
   }
   return row;
+};
+
+/**
+ * Count (`counted`) or return one held Coach message with its token
+ * reservation. A failed settle is retried once, because a lost return keeps
+ * a free user's message reserved until the UTC day ends. It never throws.
+ */
+const settleCoachMessageRpc = async (
+  client: RepositorySupabaseClient,
+  held: {
+    readonly userId: UserId;
+    readonly day: string;
+    readonly tokensReserved: number;
+    readonly counted?: boolean;
+    readonly tokensUsed?: number;
+  },
+): Promise<void> => {
+  const args = {
+    p_user_id: held.userId,
+    p_day: held.day,
+    p_counted: held.counted === true,
+    p_tokens_reserved: held.tokensReserved,
+    p_tokens_used: held.tokensUsed ?? 0,
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const result = await client.rpc("ai_settle_coach_message", args);
+      if (!result.error) return;
+    } catch {
+      // Retry once, then give up: settlement never blocks finalization.
+    }
+  }
 };
 
 const runQuiet = async (fn: () => Promise<unknown>): Promise<void> => {

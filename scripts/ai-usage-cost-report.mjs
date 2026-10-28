@@ -21,6 +21,7 @@
  *   pnpm ai:cost-report --verify-local         # synthetic rows, rolled back
  *   options: --days <1-90> --per-user --ssh <alias> --year <2026|2027>
  *            --no-cost-ledger  (database without migration 20261026150000)
+ *            --no-coach-ledger (database without migration 20261027120000)
  */
 
 import { spawnSync } from "node:child_process";
@@ -53,6 +54,7 @@ export function parseArgs(argv) {
     sshAlias: process.env.MIZYUN_SSH_ALIAS || "mizyun-hetzner-ops",
     verifyLocal: false,
     costLedger: true,
+    coachLedger: true,
     help: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -66,6 +68,7 @@ export function parseArgs(argv) {
     else if (arg === "--per-user") options.perUser = true;
     else if (arg === "--verify-local") options.verifyLocal = true;
     else if (arg === "--no-cost-ledger") options.costLedger = false;
+    else if (arg === "--no-coach-ledger") options.coachLedger = false;
     else if (arg === "--env") options.env = next().toLowerCase();
     else if (arg === "--ssh") options.sshAlias = next();
     else if (arg === "--days") {
@@ -97,7 +100,10 @@ export function parseArgs(argv) {
  * One row per user with any AI usage in the window. Paid follows the
  * limiter: profiles.plan_tier = 'paid' or an approved Beta Pro pass.
  */
-export function buildReportSelect(days, { costLedger = true } = {}) {
+export function buildReportSelect(
+  days,
+  { costLedger = true, coachLedger = true } = {},
+) {
   if (!Number.isInteger(days) || days < 1 || days > 90) {
     throw new Error("days must be an integer between 1 and 90");
   }
@@ -107,6 +113,7 @@ WITH win AS (
 ),
 ledger AS (
   SELECT user_id, sum(tokens_used)::bigint AS ledger_tokens,
+         ${coachLedger ? "sum(coach_tokens_used)::bigint" : "0::bigint"} AS coach_tokens,
          count(DISTINCT day)::int AS token_days
   FROM public.ai_daily_token_ledger, win
   WHERE day >= win.since GROUP BY user_id
@@ -159,6 +166,7 @@ SELECT json_build_object(
       'user_id', u.user_id,
       'tier', coalesce(t.tier, 'free'),
       'ledger_tokens', coalesce(l.ledger_tokens, 0),
+      'coach_tokens', coalesce(l.coach_tokens, 0),
       'recipe_tokens', coalesce(r.recipe_tokens, 0),
       'recipe_calls', coalesce(r.recipe_calls, 0),
       'drafts_used', coalesce(d.drafts_used, 0),
@@ -189,6 +197,12 @@ export const COST_LEDGER_MIGRATION = new URL(
   import.meta.url,
 );
 
+/** Coach message and token columns (ADR-0085). */
+export const COACH_LEDGER_MIGRATION = new URL(
+  "../supabase/migrations/20261027120000_coach_message_allowance.sql",
+  import.meta.url,
+);
+
 /**
  * Local-only self-check: applies the (idempotent) cost-ledger migration,
  * inserts three synthetic users and usage rows, runs the report query, then
@@ -197,7 +211,9 @@ export const COST_LEDGER_MIGRATION = new URL(
  */
 export const buildLocalVerificationSql = (
   days,
-  migrationSql = readFileSync(COST_LEDGER_MIGRATION, "utf8"),
+  migrationSql = readFileSync(COST_LEDGER_MIGRATION, "utf8") +
+    "\n" +
+    readFileSync(COACH_LEDGER_MIGRATION, "utf8"),
 ) => `BEGIN;
 ${migrationSql}
 INSERT INTO auth.users (id, aud, role, email) VALUES
@@ -210,6 +226,8 @@ INSERT INTO public.ai_daily_token_ledger (user_id, day, tokens_used) VALUES
   ('${SEED_IDS[0]}', timezone('utc', now())::date - 1, 40000),
   ('${SEED_IDS[0]}', timezone('utc', now())::date - ${days + 5}, 99999),
   ('${SEED_IDS[1]}', timezone('utc', now())::date, 8000);
+UPDATE public.ai_daily_token_ledger SET coach_tokens_used = 30000
+  WHERE user_id = '${SEED_IDS[1]}' AND day = timezone('utc', now())::date;
 INSERT INTO public.ai_daily_draft_ledger (user_id, day, drafts_used, refines_used) VALUES
   ('${SEED_IDS[0]}', timezone('utc', now())::date, 12, 4),
   ('${SEED_IDS[2]}', timezone('utc', now())::date, 3, 0);
@@ -229,7 +247,12 @@ export const LOCAL_VERIFICATION_EXPECTED = {
     refines_used: 4,
     cost_micros: 125000,
   },
-  [SEED_IDS[1]]: { tier: "free", ledger_tokens: 8000, drafts_used: 0 },
+  [SEED_IDS[1]]: {
+    tier: "free",
+    ledger_tokens: 8000,
+    coach_tokens: 30000,
+    drafts_used: 0,
+  },
   [SEED_IDS[2]]: { tier: "free", ledger_tokens: 0, drafts_used: 3 },
 };
 
@@ -257,7 +280,11 @@ export function checkLocalVerification(raw) {
  */
 export function estimateUserCost(row, year) {
   const recipeTokens = Number(row.recipe_tokens);
-  const coachTokens = Math.max(0, Number(row.ledger_tokens) - recipeTokens);
+  // Coach tokens have their own columns since ADR-0085; before that they
+  // shared tokens_used with recipes.
+  const coachTokens =
+    Number(row.coach_tokens ?? 0) +
+    Math.max(0, Number(row.ledger_tokens) - recipeTokens);
   const otherDrafts = Math.max(
     0,
     Number(row.drafts_used) - Number(row.recipe_calls),
@@ -269,7 +296,7 @@ export function estimateUserCost(row, year) {
     recipeTokens * recipeUsdPerToken +
     Number(row.illustrations) * illustrationCostUsd();
   return {
-    tokens: Number(row.ledger_tokens),
+    tokens: Number(row.ledger_tokens) + Number(row.coach_tokens ?? 0),
     ledgerUsd: Number(row.cost_micros ?? 0) / 1_000_000,
     low:
       shared +
@@ -429,7 +456,7 @@ function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     console.log(
-      "Usage: pnpm ai:cost-report [--env local|dev|prod] [--days 30] [--year 2026|2027] [--per-user] [--json] [--ssh alias] [--no-cost-ledger] [--verify-local]",
+      "Usage: pnpm ai:cost-report [--env local|dev|prod] [--days 30] [--year 2026|2027] [--per-user] [--json] [--ssh alias] [--no-cost-ledger] [--no-coach-ledger] [--verify-local]",
     );
     return;
   }
@@ -449,7 +476,10 @@ function main() {
   }
   const raw = runPsql(
     options.env,
-    buildSql(options.days, { costLedger: options.costLedger }),
+    buildSql(options.days, {
+      costLedger: options.costLedger,
+      coachLedger: options.coachLedger,
+    }),
     options.sshAlias,
   );
   const report = summarise(raw, options);

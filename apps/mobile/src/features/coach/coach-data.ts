@@ -10,12 +10,17 @@ import {
   coachWeeklyAdaptationAcceptResponseSchema,
   type CoachConversation,
   type CoachMessage,
+  type CoachMessageResponse,
+  type CoachMessageUsage,
   type CoachProviderStatus,
   type CoachWeeklyAdaptationAcceptResponse,
 } from "@mizyun/contracts";
 
 import { apiClient, peekSessionRead } from "@/composition/api-client";
-import { monthlyAllowanceMessage } from "@/lib/ai-allowance";
+import {
+  coachDailyLimitMessage,
+  monthlyAllowanceMessage,
+} from "@/lib/ai-allowance";
 
 export type CoachLoadResult =
   | {
@@ -31,8 +36,15 @@ export type CoachThreadResult =
       readonly ok: true;
       readonly conversation: CoachConversation;
       readonly messages: readonly CoachMessage[];
+      /** Messages left today, sent with a new reply (ADR-0085). */
+      readonly usage?: CoachMessageUsage;
     }
-  | { readonly ok: false; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly message: string;
+      /** The day's or month's Coach allowance is used up. */
+      readonly limitReached?: true;
+    };
 
 // =========================================================================
 // AI-MOB-002 — Thread list + preview helpers.
@@ -97,17 +109,9 @@ const humanize = (error: ApiError): string => {
         const reason = error.reason;
         if (reason === "daily_budget_exhausted") {
           const resetAt = error.resetAt;
-          const monthly = monthlyAllowanceMessage(resetAt);
-          if (monthly) return monthly;
-          if (resetAt) {
-            const resetDate = new Date(resetAt);
-            const hours = Math.max(
-              0,
-              Math.ceil((resetDate.getTime() - Date.now()) / 3600000),
-            );
-            return `Daily Coach limit reached. Resets in ~${hours}h.`;
-          }
-          return "Daily Coach limit reached. Resets at midnight UTC.";
+          return (
+            monthlyAllowanceMessage(resetAt) ?? coachDailyLimitMessage(resetAt)
+          );
         }
         if (reason === "concurrent_in_flight") {
           return "Coach is thinking about your previous message. Wait a moment.";
@@ -295,11 +299,7 @@ export const sendCoachMessageWith = async (
   text: string,
   idempotencyKey: string,
 ): Promise<CoachThreadResult> => {
-  const result = await client.request<{
-    conversation: CoachConversation;
-    userMessage: CoachMessage;
-    assistantMessage: CoachMessage;
-  }>({
+  const result = await client.request<CoachMessageResponse>({
     method: "POST",
     path: `/v1/coach/conversations/${encodeURIComponent(conversationId)}/messages`,
     headers: { "idempotency-key": idempotencyKey },
@@ -311,8 +311,19 @@ export const sendCoachMessageWith = async (
         ok: true,
         conversation: result.value.conversation,
         messages: [result.value.userMessage, result.value.assistantMessage],
+        ...(result.value.usage !== undefined
+          ? { usage: result.value.usage }
+          : {}),
       }
-    : { ok: false, message: humanize(result.error) };
+    : {
+        ok: false,
+        message: humanize(result.error),
+        ...(result.error.kind === "http_error" &&
+        result.error.status === 429 &&
+        result.error.reason === "daily_budget_exhausted"
+          ? { limitReached: true as const }
+          : {}),
+      };
 };
 
 export const sendCoachMealPhoto = async (

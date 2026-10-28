@@ -65,6 +65,27 @@ describe("ai-usage-cost-report", () => {
     assert.equal(parseArgs(["--no-cost-ledger"]).costLedger, false);
   });
 
+  it("can omit the Coach ledger columns for databases without their migration", () => {
+    const sql = buildSql(30, { coachLedger: false });
+    assert.doesNotMatch(sql, /coach_tokens_used/);
+    assert.match(buildSql(30), /sum\(coach_tokens_used\)/);
+    assert.equal(parseArgs(["--no-coach-ledger"]).coachLedger, false);
+  });
+
+  it("prices Coach tokens from their own columns (ADR-0085)", () => {
+    const base = {
+      ledger_tokens: 10_000,
+      recipe_tokens: 10_000,
+      recipe_calls: 0,
+      drafts_used: 0,
+      illustrations: 0,
+    };
+    const withoutCoach = estimateUserCost({ ...base, coach_tokens: 0 }, 2026);
+    const withCoach = estimateUserCost({ ...base, coach_tokens: 50_000 }, 2026);
+    assert.ok(withCoach.low > withoutCoach.low);
+    assert.equal(withCoach.tokens, 60_000);
+  });
+
   it("reports self-check mismatches", () => {
     assert.equal(checkLocalVerification({ users: [] }).length, 3);
   });

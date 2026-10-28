@@ -4,8 +4,10 @@ import {
   AgentOrchestrator,
   AgentToolBudgetExceededError,
   COACH_SAFETY_DATASET_VERSION,
+  COACH_FIXED_POLICY,
   COACH_SYSTEM_POLICY,
   COACH_APP_CAPABILITIES,
+  buildCoachSystemPolicy,
   DisabledAgentProvider,
   StubVisionProvider,
   coachSafetyEvaluationCases,
@@ -239,6 +241,7 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
 
   it("executes one tool batch, folds results into grounding, and returns the final answer", async () => {
     let providerCalls = 0;
+    const policies: string[] = [];
     const toolExecutions: Array<{
       readonly name: string;
       readonly userId: string;
@@ -251,12 +254,18 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
       }),
       respond: async (request): Promise<AgentResponse> => {
         providerCalls += 1;
-        // Catalog facts must survive the real initial AND tool continuation boundary.
-        for (const capability of COACH_APP_CAPABILITIES) {
-          expect(request.systemPolicy).toContain(capability.guidance);
-        }
+        // Selected catalog facts must survive the initial AND tool continuation boundary.
+        policies.push(request.systemPolicy);
+        expect(request.systemPolicy).toContain(
+          COACH_APP_CAPABILITIES.find(({ id }) => id === "home-energy")!
+            .guidance,
+        );
         expect(request.systemPolicy).toContain(
           "cannot confirm current availability",
+        );
+        expect(request.systemPolicyParts?.fixed).toBe(COACH_FIXED_POLICY);
+        expect(request.systemPolicy).toBe(
+          `${request.systemPolicyParts?.fixed}\n${request.systemPolicyParts?.variable}`,
         );
         if (providerCalls === 1) {
           // First call: ask for the active goal.
@@ -295,6 +304,9 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
             `expected 1 grounding item, got ${request.grounding.length}`,
           );
         }
+        // The same object, not a copy: the provider adapters rely on this
+        // identity to send the current round's evidence only once.
+        expect(request.grounding).toContain(request.toolResults[0]!.evidence);
         return {
           message: {
             role: "assistant",
@@ -337,6 +349,9 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
       accessToken: "token",
     });
     expect(providerCalls).toBe(2);
+    // One policy per turn keeps the cacheable prefix identical across rounds.
+    expect(policies).toHaveLength(2);
+    expect(policies[1]).toBe(policies[0]);
     expect(toolExecutions).toEqual([
       {
         name: "get_active_goal",
@@ -842,65 +857,70 @@ describe("extractAssistantText", () => {
   });
 });
 
-describe("COACH_SYSTEM_POLICY — in-app navigation and remaining nutrition guidance", () => {
+describe("COACH_FIXED_POLICY — in-app navigation and remaining nutrition guidance", () => {
   it("includes canonical guidance for all 5 primary bottom navigation tabs", () => {
-    expect(COACH_SYSTEM_POLICY).toContain("'Home' tab");
-    expect(COACH_SYSTEM_POLICY).toContain("'Workouts' tab");
-    expect(COACH_SYSTEM_POLICY).toContain("'Meals' tab");
-    expect(COACH_SYSTEM_POLICY).toContain("'Coach' tab");
-    expect(COACH_SYSTEM_POLICY).toContain("'Community' tab");
-    expect(COACH_SYSTEM_POLICY).toContain("Open settings");
+    expect(COACH_FIXED_POLICY).toContain("'Home' tab");
+    expect(COACH_FIXED_POLICY).toContain("'Workouts' tab");
+    expect(COACH_FIXED_POLICY).toContain("'Meals' tab");
+    expect(COACH_FIXED_POLICY).toContain("'Coach' tab");
+    expect(COACH_FIXED_POLICY).toContain("'Community' tab");
+    expect(COACH_FIXED_POLICY).toContain("Open settings");
   });
 
   it("guides in-app feature discovery and prohibits hallucinated UI elements", () => {
-    expect(COACH_SYSTEM_POLICY).toContain(
+    expect(COACH_FIXED_POLICY).toContain(
       "using or navigating the Mizyun app itself",
     );
-    expect(COACH_SYSTEM_POLICY).toContain(
+    expect(COACH_FIXED_POLICY).toContain(
       "NEVER hallucinate non-existent navigation elements",
     );
-    expect(COACH_SYSTEM_POLICY).toContain("hamburger menus");
+    expect(COACH_FIXED_POLICY).toContain("hamburger menus");
   });
 
   it("guides remaining calories and protein from confirmed nutrition grounding", () => {
-    expect(COACH_SYSTEM_POLICY).toContain("remaining calories");
-    expect(COACH_SYSTEM_POLICY).toContain("remaining protein");
-    expect(COACH_SYSTEM_POLICY).toContain("kind: 'nutrition'");
-    expect(COACH_SYSTEM_POLICY).toContain("daily target calories");
+    expect(COACH_FIXED_POLICY).toContain("remaining calories");
+    expect(COACH_FIXED_POLICY).toContain("remaining protein");
+    expect(COACH_FIXED_POLICY).toContain("kind: 'nutrition'");
+    expect(COACH_FIXED_POLICY).toContain("daily target calories");
   });
 
   it("guides itemized meal lookups and meal history tool usage", () => {
-    expect(COACH_SYSTEM_POLICY).toContain("loggedMealsToday");
-    expect(COACH_SYSTEM_POLICY).toContain("get_meal_history");
+    expect(COACH_FIXED_POLICY).toContain("loggedMealsToday");
+    expect(COACH_FIXED_POLICY).toContain("get_meal_history");
   });
 
   it("guides exercise performance history, PR lookups, and progressive overload", () => {
-    expect(COACH_SYSTEM_POLICY).toContain("get_exercise_history");
-    expect(COACH_SYSTEM_POLICY).toContain("personal records (PRs)");
-    expect(COACH_SYSTEM_POLICY).toContain("progressive overload");
+    expect(COACH_FIXED_POLICY).toContain("get_exercise_history");
+    expect(COACH_FIXED_POLICY).toContain("personal records (PRs)");
+    expect(COACH_FIXED_POLICY).toContain("progressive overload");
   });
 
   it("guides body measurements, waist progress, and body recomposition", () => {
-    expect(COACH_SYSTEM_POLICY).toContain("latestCircumferences");
-    expect(COACH_SYSTEM_POLICY).toContain("get_recent_measurements");
-    expect(COACH_SYSTEM_POLICY).toContain("body recomposition");
-    expect(COACH_SYSTEM_POLICY).toContain("waist circumferences decreasing");
+    expect(COACH_FIXED_POLICY).toContain("latestCircumferences");
+    expect(COACH_FIXED_POLICY).toContain("get_recent_measurements");
+    expect(COACH_FIXED_POLICY).toContain("body recomposition");
+    expect(COACH_FIXED_POLICY).toContain("waist circumferences decreasing");
   });
 
   it("guides completed workout session history and duration", () => {
-    expect(COACH_SYSTEM_POLICY).toContain("recentCompletedWorkouts");
-    expect(COACH_SYSTEM_POLICY).toContain("get_recent_workouts");
-    expect(COACH_SYSTEM_POLICY).toContain(
+    expect(COACH_FIXED_POLICY).toContain("recentCompletedWorkouts");
+    expect(COACH_FIXED_POLICY).toContain("get_recent_workouts");
+    expect(COACH_FIXED_POLICY).toContain(
       "workout history or completed sessions",
     );
   });
 
   it("preserves workout planning, routine review, and safety constraints", () => {
-    expect(COACH_SYSTEM_POLICY).toContain("propose_workout_plan");
-    expect(COACH_SYSTEM_POLICY).toContain("availableRoutines");
-    expect(COACH_SYSTEM_POLICY).toContain("Never diagnose");
-    expect(COACH_SYSTEM_POLICY).toContain(
-      "format your final answer as a JSON object",
-    );
+    expect(COACH_FIXED_POLICY).toContain("propose_workout_plan");
+    expect(COACH_FIXED_POLICY).toContain("availableRoutines");
+    expect(COACH_FIXED_POLICY).toContain("Never diagnose");
+  });
+
+  it("leaves the JSON answer envelope to the Gemini adapter", () => {
+    expect(COACH_FIXED_POLICY).not.toContain("JSON object");
+    expect(COACH_SYSTEM_POLICY).not.toContain('{"answer"');
+    expect(
+      buildCoachSystemPolicy([{ role: "user", text: "hi" }]).systemPolicy,
+    ).not.toContain('{"answer"');
   });
 });

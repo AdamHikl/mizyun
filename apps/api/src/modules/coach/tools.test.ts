@@ -789,6 +789,34 @@ describe("CoachTools — search_exercises", () => {
     expect(data.count).toBeGreaterThan(0);
     expect(data.exercises[0]?.name.toLowerCase()).toContain("incline");
   });
+
+  it("returns how-to steps only when asked for them", async () => {
+    const deps = buildDeps();
+    const tool = buildSearchExercisesTool(deps);
+    const search = async (include_instructions?: boolean) =>
+      (
+        (
+          await tool.execute({
+            principalUserId: userId,
+            args: {
+              query: "squat",
+              limit: 2,
+              ...(include_instructions === undefined
+                ? {}
+                : { include_instructions }),
+            },
+            accessToken: "token",
+            clock: { now: clock },
+          })
+        ).data as { exercises: Array<Record<string, unknown>> }
+      ).exercises;
+
+    expect((await search())[0]).not.toHaveProperty("instructions");
+    expect((await search(false))[0]).not.toHaveProperty("instructions");
+    const withSteps = (await search(true))[0]?.instructions as string[];
+    expect(withSteps.length).toBeGreaterThan(0);
+    expect(withSteps.length).toBeLessThanOrEqual(3);
+  });
 });
 
 describe("CoachTools — propose_workout_plan", () => {
