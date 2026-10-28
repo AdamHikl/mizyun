@@ -5,6 +5,7 @@ import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { BetaProStatus } from "@mizyun/contracts";
 
+import { Turned18Question } from "@/components/turned-18-question";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
@@ -507,6 +508,11 @@ function EnergyProfileBody(props: {
           onChangeText={(value) => onPatch({ field: "birthYear", value })}
         />
       </FormField>
+      <Turned18Question
+        birthYear={form.birthYear}
+        value={form.turned18}
+        onChange={(value) => onPatch({ field: "turned18", value })}
+      />
       <FormField label="Formula sex input">
         <ChoiceGroup>
           <ChoiceChip

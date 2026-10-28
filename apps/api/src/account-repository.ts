@@ -10,6 +10,7 @@ import {
   type AccountRepository,
   type AccountDeletionCleanupContext,
   type AiConsentRepository,
+  type HealthDataConsentRepository,
   type BodyMeasurementRepository,
   type ConversationRepository,
   type DeletionJobStage,
@@ -70,6 +71,7 @@ export interface InMemoryAccountRepositoryOptions {
   readonly mediaStorage?: MediaStorage;
   readonly memoryStore?: MemoryStore;
   readonly aiConsentRepository?: AiConsentRepository;
+  readonly healthDataConsentRepository?: HealthDataConsentRepository;
   readonly productAnalyticsRepository?: ProductAnalyticsRepository;
   /**
    * Clock; defaults to `() => new Date()`. Production callers
@@ -100,6 +102,7 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #mediaStorage: MediaStorage | null;
   readonly #memoryStore: MemoryStore | null;
   readonly #aiConsentRepository: AiConsentRepository | null;
+  readonly #healthDataConsentRepository: HealthDataConsentRepository | null;
   readonly #productAnalyticsRepository: ProductAnalyticsRepository | null;
   readonly #clock: { readonly now: () => Date };
   readonly #jobs: StoredDeletionJob[] = [];
@@ -127,6 +130,8 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#mediaStorage = options.mediaStorage ?? null;
     this.#memoryStore = options.memoryStore ?? null;
     this.#aiConsentRepository = options.aiConsentRepository ?? null;
+    this.#healthDataConsentRepository =
+      options.healthDataConsentRepository ?? null;
     this.#productAnalyticsRepository =
       options.productAnalyticsRepository ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
@@ -257,6 +262,12 @@ export class InMemoryAccountRepository implements AccountRepository {
         : await this.#aiConsentRepository.getConsent(userId, {
             accessToken: token,
           });
+    const healthDataConsent =
+      this.#healthDataConsentRepository === null
+        ? null
+        : await this.#healthDataConsentRepository.getConsent(userId, {
+            accessToken: token,
+          });
     const productAnalyticsConsent =
       this.#productAnalyticsRepository === null
         ? null
@@ -286,6 +297,7 @@ export class InMemoryAccountRepository implements AccountRepository {
         privateMedia: privateMedia.length,
         feedback: feedback.length,
         aiConsents: aiConsent ? 1 : 0,
+        healthDataConsents: healthDataConsent ? 1 : 0,
         productAnalyticsEvents: productAnalyticsEvents.length,
       },
     };
@@ -367,6 +379,7 @@ export class InMemoryAccountRepository implements AccountRepository {
       privateMedia,
       feedback,
       aiConsent,
+      healthDataConsent,
       productAnalytics:
         productAnalyticsConsent || productAnalyticsEvents.length > 0
           ? {

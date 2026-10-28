@@ -8,6 +8,8 @@
  * rendering, validation, and network handling.
  */
 
+import { checkAdultBirthYear } from "@/lib/adult-age";
+
 /**
  * Closed set of wizard steps. The user advances forward only; the
  * back action is implemented at the screen layer (the reducer just
@@ -36,6 +38,8 @@ export interface OnboardingForm {
   readonly baselineWeight: string;
   readonly height: string;
   readonly birthYear: string;
+  /** Asked only for the birth year in which the user may be 17; never saved. */
+  readonly turned18: boolean | null;
   readonly activityLevel:
     | "sedentary"
     | "lightly_active"
@@ -65,6 +69,7 @@ export const freshOnboardingForm = (now: Date): OnboardingForm => {
     baselineWeight: "",
     height: "",
     birthYear: "",
+    turned18: null,
     activityLevel: null,
     sexAtBirth: null,
     goalKind: null,
@@ -122,21 +127,21 @@ const validateWeight = (
 export const validateBaselineWeight = (form: OnboardingForm): string | null =>
   validateWeight(form.baselineWeight, form.unitSystem, "Baseline weight");
 
-export const validateEnergyProfile = (form: OnboardingForm): string | null => {
+export const validateEnergyProfile = (
+  form: OnboardingForm,
+  now: Date = new Date(),
+): string | null => {
   const height = parseNumericInput(form.height);
   if (!Number.isFinite(height) || height <= 0) return "Enter a valid height.";
   const heightCm = form.unitSystem === "imperial" ? height * 2.54 : height;
   if (heightCm < 50 || heightCm > 260)
     return "Height is outside the supported adult range.";
-  const birthYear = parseNumericInput(form.birthYear);
-  const maxBirthYear = new Date().getFullYear() - 13;
-  if (
-    !Number.isInteger(birthYear) ||
-    birthYear < 1900 ||
-    birthYear > maxBirthYear
-  ) {
-    return `Birth year must be between 1900 and ${maxBirthYear}.`;
-  }
+  const age = checkAdultBirthYear(
+    form.birthYear,
+    form.turned18,
+    now.getUTCFullYear(),
+  );
+  if (age.kind !== "ok") return age.message;
   if (form.activityLevel === null) return "Choose an activity level.";
   if (form.sexAtBirth === null)
     return "Choose a sex-at-birth input for the formula.";
@@ -194,6 +199,7 @@ export type OnboardingPatch =
   | { readonly field: "baselineWeight"; readonly value: string }
   | { readonly field: "height"; readonly value: string }
   | { readonly field: "birthYear"; readonly value: string }
+  | { readonly field: "turned18"; readonly value: boolean }
   | {
       readonly field: "activityLevel";
       readonly value: OnboardingForm["activityLevel"];
@@ -229,7 +235,11 @@ export const applyOnboardingPatch = (
     case "height":
       return { ...form, height: patch.value };
     case "birthYear":
-      return { ...form, birthYear: patch.value };
+      return patch.value === form.birthYear
+        ? form
+        : { ...form, birthYear: patch.value, turned18: null };
+    case "turned18":
+      return { ...form, turned18: patch.value };
     case "activityLevel":
       return { ...form, activityLevel: patch.value };
     case "sexAtBirth":

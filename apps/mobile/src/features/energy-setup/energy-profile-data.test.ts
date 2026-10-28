@@ -38,6 +38,7 @@ describe("energy profile form", () => {
       {
         height: "70",
         birthYear: "1990",
+        turned18: null,
         activityLevel: "moderately_active",
         sexAtBirth: "female",
       },
@@ -60,6 +61,7 @@ describe("energy profile form", () => {
       {
         height: "175",
         birthYear: "1990",
+        turned18: null,
         activityLevel: null,
         sexAtBirth: "male",
       },
@@ -67,5 +69,36 @@ describe("energy profile form", () => {
       2026,
     );
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("energy profile adults-only rule (PRIV-02)", () => {
+  const form = (birthYear: string, turned18: boolean | null = null) => ({
+    height: "175",
+    birthYear,
+    turned18,
+    activityLevel: "moderately_active" as const,
+    sexAtBirth: "male" as const,
+  });
+
+  it("refuses an under-18 birth year with a kind message", () => {
+    const result = validateEnergyProfileForm(form("2010"), "metric", 2026);
+    expect(result).toEqual({
+      ok: false,
+      message: expect.stringContaining("adults 18 and over"),
+    });
+  });
+
+  it("asks about the boundary year and refuses 'not yet'", () => {
+    expect(validateEnergyProfileForm(form("2008"), "metric", 2026)).toEqual({
+      ok: false,
+      message: expect.stringContaining("Have you turned 18 yet?"),
+    });
+    expect(
+      validateEnergyProfileForm(form("2008", false), "metric", 2026).ok,
+    ).toBe(false);
+    expect(
+      validateEnergyProfileForm(form("2008", true), "metric", 2026).ok,
+    ).toBe(true);
   });
 });

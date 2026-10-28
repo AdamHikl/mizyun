@@ -74,6 +74,7 @@ export const exportManifestSchema = z.object({
     privateMedia: z.number().int().nonnegative(),
     feedback: z.number().int().nonnegative(),
     aiConsents: z.number().int().nonnegative().optional(),
+    healthDataConsents: z.number().int().nonnegative().optional(),
     productAnalyticsEvents: z.number().int().nonnegative().optional(),
   }),
 });
@@ -185,6 +186,8 @@ export const accountExportSchema = z.object({
   privateMedia: z.array(exportedMediaAssetSchema),
   feedback: z.array(z.unknown()).default([]),
   aiConsent: z.unknown().nullable().optional(),
+  healthDataConsent: z.unknown().nullable().optional(),
+  healthDataConsentHistory: z.array(z.record(z.unknown())).optional(),
   community: communityAccountExportSchema.optional(),
   calorieAdjustmentProposals: z.array(z.record(z.unknown())).optional(),
   /**
@@ -417,3 +420,51 @@ export type AiConsentResponse = z.infer<typeof aiConsentResponseSchema>;
  * reason about export slicing by date in a future segment.
  */
 export { isoDateSchema };
+
+/**
+ * Explicit consent to store and use health data (GDPR Art. 9(2)(a), PRIV-01):
+ * weight, body measurements, height, sex at birth, birth year, meals and
+ * workouts. Separate from the Terms, AI consent and analytics. Bump the
+ * version when the in-app explanation changes materially.
+ */
+export const CURRENT_HEALTH_DATA_CONSENT_VERSION = "2026-10-27";
+
+export const healthDataConsentSchema = z.object({
+  granted: z.boolean(),
+  consentVersion: z.string(),
+  consentedAt: z.string().datetime().nullable(),
+  revokedAt: z.string().datetime().nullable(),
+});
+
+export type HealthDataConsent = z.infer<typeof healthDataConsentSchema>;
+
+export const updateHealthDataConsentSchema = z
+  .object({
+    granted: z.boolean(),
+    consentVersion: z.string().trim().min(1).max(32),
+  })
+  .strict();
+
+export type UpdateHealthDataConsent = z.infer<
+  typeof updateHealthDataConsentSchema
+>;
+
+export const healthDataConsentResponseSchema = z.object({
+  consent: healthDataConsentSchema,
+});
+
+export type HealthDataConsentResponse = z.infer<
+  typeof healthDataConsentResponseSchema
+>;
+
+/** True for a granted, unrevoked consent to the current explanation. */
+export const isHealthDataConsentCurrent = (
+  consent: Pick<
+    HealthDataConsent,
+    "granted" | "consentVersion" | "revokedAt"
+  > | null,
+): boolean =>
+  consent !== null &&
+  consent.granted &&
+  consent.revokedAt === null &&
+  consent.consentVersion === CURRENT_HEALTH_DATA_CONSENT_VERSION;

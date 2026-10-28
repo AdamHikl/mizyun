@@ -144,6 +144,51 @@ describe("validateEnergyProfile", () => {
   });
 });
 
+describe("validateEnergyProfile adults only (PRIV-02)", () => {
+  const adultInputs = (birthYear: string): OnboardingForm => ({
+    ...fresh(),
+    height: "170",
+    birthYear,
+    activityLevel: "lightly_active",
+    sexAtBirth: "male",
+  });
+
+  it("blocks an under-18 birth year with a kind message", () => {
+    expect(validateEnergyProfile(adultInputs("2012"), NOW)).toMatch(
+      /adults 18 and over.*Nothing you entered has been saved/,
+    );
+    expect(validateStep("energyProfile", adultInputs("2012"))).not.toBeNull();
+  });
+
+  it("asks the boundary year whether the user has turned 18", () => {
+    const boundary = adultInputs("2008");
+    expect(validateEnergyProfile(boundary, NOW)).toMatch(/turned 18/);
+    const notYet = applyOnboardingPatch(boundary, {
+      field: "turned18",
+      value: false,
+    });
+    expect(validateEnergyProfile(notYet, NOW)).toMatch(/adults 18 and over/);
+    const yes = applyOnboardingPatch(boundary, {
+      field: "turned18",
+      value: true,
+    });
+    expect(validateEnergyProfile(yes, NOW)).toBeNull();
+  });
+
+  it("forgets the turned-18 answer when the birth year changes", () => {
+    const answered = applyOnboardingPatch(adultInputs("2008"), {
+      field: "turned18",
+      value: true,
+    });
+    const changed = applyOnboardingPatch(answered, {
+      field: "birthYear",
+      value: "2009",
+    });
+    expect(changed.turned18).toBeNull();
+    expect(validateEnergyProfile(changed, NOW)).toMatch(/adults 18 and over/);
+  });
+});
+
 describe("validateStep", () => {
   it("routes welcome and units to no-op validators", () => {
     expect(validateStep("welcome", fresh())).toBeNull();

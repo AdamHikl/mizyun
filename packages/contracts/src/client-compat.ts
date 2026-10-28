@@ -12,7 +12,7 @@
 export const API_COMPAT_HEADER = "x-mizyun-api-compat";
 
 /** Compatibility level sent by this source tree's API client. */
-export const API_COMPAT_VERSION = "2026-10-21";
+export const API_COMPAT_VERSION = "2026-10-27";
 
 /**
  * REL-01: the phone's current IANA zone, sent by the current API client on
@@ -21,3 +21,10 @@ export const API_COMPAT_VERSION = "2026-10-21";
  * stored zone.
  */
 export const DEVICE_TIME_ZONE_HEADER = "x-mizyun-time-zone";
+
+/**
+ * First level whose app asks for health-data consent before collecting
+ * health data. Older builds never show that step, so the server enforces the
+ * consent on profile writes only for clients at this level or later.
+ */
+export const API_COMPAT_HEALTH_DATA_CONSENT = "2026-10-27";

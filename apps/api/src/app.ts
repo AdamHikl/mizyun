@@ -147,6 +147,7 @@ import {
   type AccountRepository,
   type AccountProviderRevocationRepository,
   type AiConsentRepository,
+  type HealthDataConsentRepository,
   type BodyMeasurementRepository,
   type CommunityRepository,
   type CommunityNotificationRepository,
@@ -188,6 +189,8 @@ import { CURRENT_AI_CONSENT_VERSION, type AiProvider } from "@mizyun/contracts";
 
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryAiConsentRepository } from "./ai-consent-repository.js";
+import { InMemoryHealthDataConsentRepository } from "./health-data-consent-repository.js";
+import { healthDataConsentRoutes } from "./modules/account/health-data-consent-routes.js";
 import {
   resolveAcceptedAiConsentVersions,
   withAcceptedAiConsentVersions,
@@ -290,6 +293,7 @@ import {
   SupabaseAccountRepository,
   SupabaseAccountProviderRevocationRepository,
   SupabaseAiConsentRepository,
+  SupabaseHealthDataConsentRepository,
   SupabaseCommunityRepository,
   SupabaseMediaStorage,
   createSupabaseServiceRoleClient,
@@ -453,6 +457,7 @@ export interface AppDependencies {
   readonly communityRepository?: CommunityRepository;
   readonly communityNotifications?: CommunityNotificationRepository;
   readonly aiConsentRepository?: AiConsentRepository;
+  readonly healthDataConsentRepository?: HealthDataConsentRepository;
   /** Overrides `AI_CONSENT_ACCEPTED_VERSIONS` (tests). */
   readonly aiConsentAcceptedVersions?: readonly string[];
   readonly productAnalyticsRepository?: ProductAnalyticsRepository;
@@ -1094,6 +1099,11 @@ export const buildApp = (
       `AI_CONSENT_ACCEPTED_VERSIONS omits the current disclosure ${CURRENT_AI_CONSENT_VERSION}; current builds cannot record AI consent.`,
     );
   }
+  const healthDataConsentRepository =
+    dependencies.healthDataConsentRepository ??
+    (sp
+      ? new SupabaseHealthDataConsentRepository({ clientFor: sp.clientFor })
+      : new InMemoryHealthDataConsentRepository());
   const aiConsentRepository = withAcceptedAiConsentVersions(
     storedAiConsentRepository,
     acceptedAiConsentVersions,
@@ -1231,6 +1241,7 @@ export const buildApp = (
             : {}),
           memoryStore: resolveMemoryStore(dependencies),
           aiConsentRepository: storedAiConsentRepository,
+          healthDataConsentRepository,
           productAnalyticsRepository,
           ...(mealIllustrationRepository ? { mealIllustrationRepository } : {}),
           serviceRoleClient: sp.serviceRoleClient ?? null,
@@ -1258,6 +1269,7 @@ export const buildApp = (
           mediaStorage,
           memoryStore: resolveMemoryStore(dependencies),
           aiConsentRepository: storedAiConsentRepository,
+          healthDataConsentRepository,
           productAnalyticsRepository,
           ...(mealIllustrationRepository ? { mealIllustrationRepository } : {}),
         }));
@@ -1619,6 +1631,11 @@ export const buildApp = (
   void app.register(profileRoutes, {
     prefix: "/v1/profile",
     profileRepository,
+    healthDataConsentRepository,
+  });
+  void app.register(healthDataConsentRoutes, {
+    prefix: "/v1",
+    healthDataConsentRepository,
   });
   void app.register(goalsRoutes, {
     prefix: "/v1/goals",
@@ -1923,6 +1940,7 @@ export const buildApp = (
     accountRepository,
     memoryStore,
     aiConsentRepository,
+    healthDataConsentRepository,
     acceptedAiConsentVersions,
     profileRepository,
     appleDeletionCleanup,

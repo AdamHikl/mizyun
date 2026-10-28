@@ -7,7 +7,15 @@ import {
   accountExportSchema,
   aiConsentDisclosesAnthropic,
   updateAiConsentSchema,
+  CURRENT_HEALTH_DATA_CONSENT_VERSION,
+  isHealthDataConsentCurrent,
+  updateHealthDataConsentSchema,
 } from "./account.js";
+import {
+  latestAdultBirthYear,
+  profilePatchSchema,
+  profileSchema,
+} from "./index.js";
 
 const record = {
   requestId: "83000000-0000-4000-8000-000000000002",
@@ -73,5 +81,55 @@ describe("AI consent versions", () => {
     ]) {
       expect(aiConsentDisclosesAnthropic(version)).toBe(false);
     }
+  });
+});
+
+describe("health data consent contract (PRIV-01)", () => {
+  it("treats only a granted, unrevoked, current-version consent as current", () => {
+    const base = {
+      granted: true,
+      consentVersion: CURRENT_HEALTH_DATA_CONSENT_VERSION,
+      revokedAt: null,
+    };
+    expect(isHealthDataConsentCurrent(base)).toBe(true);
+    expect(isHealthDataConsentCurrent(null)).toBe(false);
+    expect(isHealthDataConsentCurrent({ ...base, granted: false })).toBe(false);
+    expect(
+      isHealthDataConsentCurrent({
+        ...base,
+        revokedAt: "2026-10-27T00:00:00.000Z",
+      }),
+    ).toBe(false);
+    expect(
+      isHealthDataConsentCurrent({ ...base, consentVersion: "2026-01-01" }),
+    ).toBe(false);
+  });
+
+  it("rejects unknown fields in the consent update body", () => {
+    expect(
+      updateHealthDataConsentSchema.safeParse({
+        granted: true,
+        consentVersion: CURRENT_HEALTH_DATA_CONSENT_VERSION,
+        userId: "someone-else",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("adult-only profile writes (PRIV-02)", () => {
+  it("rejects an under-18 birth year but still reads older stored profiles", () => {
+    const latest = latestAdultBirthYear();
+    expect(profilePatchSchema.safeParse({ birthYear: latest }).success).toBe(
+      true,
+    );
+    expect(
+      profilePatchSchema.safeParse({ birthYear: latest + 1 }).success,
+    ).toBe(false);
+    expect(profilePatchSchema.safeParse({ birthYear: null }).success).toBe(
+      true,
+    );
+    expect(profileSchema.shape.birthYear.safeParse(latest + 1).success).toBe(
+      true,
+    );
   });
 });

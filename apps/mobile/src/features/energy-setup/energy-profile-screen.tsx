@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Turned18Question } from "@/components/turned-18-question";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { apiClient } from "@/composition/api-client";
@@ -37,6 +38,7 @@ import {
 const EMPTY_FORM: EnergyProfileForm = {
   height: "",
   birthYear: "",
+  turned18: null,
   activityLevel: null,
   sexAtBirth: null,
 };
@@ -64,7 +66,8 @@ export function EnergyProfileScreen() {
   }, [loadedUserId, profile]);
 
   const validation = useMemo(
-    () => validateEnergyProfileForm(form, unitSystem, new Date().getFullYear()),
+    () =>
+      validateEnergyProfileForm(form, unitSystem, new Date().getUTCFullYear()),
     [form, unitSystem],
   );
 
@@ -72,7 +75,15 @@ export function EnergyProfileScreen() {
     <K extends keyof EnergyProfileForm>(
       field: K,
       value: EnergyProfileForm[K],
-    ) => setForm((current) => ({ ...current, [field]: value })),
+    ) =>
+      setForm((current) => ({
+        ...current,
+        [field]: value,
+        // A new birth year needs a new answer to the turned-18 question.
+        ...(field === "birthYear" && value !== current.birthYear
+          ? { turned18: null }
+          : {}),
+      })),
     [],
   );
 
@@ -117,6 +128,11 @@ export function EnergyProfileScreen() {
               label="Birth year"
               value={form.birthYear}
               onChangeText={(value) => patch("birthYear", value)}
+            />
+            <Turned18Question
+              birthYear={form.birthYear}
+              value={form.turned18}
+              onChange={(value) => patch("turned18", value)}
             />
             <FormField label="Formula sex input">
               <ChoiceGroup>

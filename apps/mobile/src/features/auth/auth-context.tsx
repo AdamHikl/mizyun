@@ -36,6 +36,13 @@ import { LoadingScreen } from "./loading-screen";
 import { OnboardingScreen } from "@/features/onboarding/onboarding-screen";
 import { ResetPasswordScreen } from "./reset-password-screen";
 import { resolveSessionGateTarget } from "./session-gate-state";
+import { AgeRestrictedScreen } from "@/features/health-consent/age-restricted-screen";
+import { ConsentUnavailableScreen } from "@/features/health-consent/consent-unavailable-screen";
+import {
+  HealthDataConsentProvider,
+  useHealthDataConsent,
+} from "@/features/health-consent/health-data-consent-context";
+import { HealthDataConsentScreen } from "@/features/health-consent/health-data-consent-screen";
 import { signOutCapturedSession } from "./session-bound-sign-out";
 import {
   forgetMealVisualMemory,
@@ -466,10 +473,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function SessionGate({ children }: { children: ReactNode }) {
   const context = useContext(AuthContext);
   if (!context) return null;
+  const userId = context.session?.user.id;
+  if (userId === undefined || context.recoveryState) {
+    return (
+      <SessionGateContent context={context}>{children}</SessionGateContent>
+    );
+  }
+  return (
+    <HealthDataConsentProvider
+      userId={userId}
+      preview={userId === PREVIEW_USER_ID}
+    >
+      <SessionGateContent context={context}>{children}</SessionGateContent>
+    </HealthDataConsentProvider>
+  );
+}
+
+function SessionGateContent({
+  context,
+  children,
+}: {
+  readonly context: AuthContextValue;
+  readonly children: ReactNode;
+}) {
+  const healthDataConsent = useHealthDataConsent();
   const target = resolveSessionGateTarget({
     hasSession: context.session !== null,
     recoveryState: context.recoveryState,
     profile: context.profile,
+    healthDataConsent: healthDataConsent?.status ?? "loading",
+    currentYear: new Date().getUTCFullYear(),
   });
   if (target === "content" && context.isOnboardingActive) {
     return (
@@ -487,6 +520,27 @@ export function SessionGate({ children }: { children: ReactNode }) {
       return <ResetPasswordScreen />;
     case "auth":
       return <AuthScreen />;
+    case "age_restricted":
+      return <AgeRestrictedScreen onSignOut={() => void context.signOut()} />;
+    case "loading":
+      return <LoadingScreen />;
+    case "consent_unavailable":
+      return (
+        <ConsentUnavailableScreen
+          onRetry={() => healthDataConsent?.retry()}
+          onSignOut={() => void context.signOut()}
+        />
+      );
+    case "health_consent":
+      return (
+        <HealthDataConsentScreen
+          withdrawn={healthDataConsent?.withdrawn ?? false}
+          onAgree={() =>
+            healthDataConsent?.grant() ?? Promise.resolve("Try again.")
+          }
+          onSignOut={() => void context.signOut()}
+        />
+      );
     case "content":
       return <>{children}</>;
   }

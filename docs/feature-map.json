@@ -1593,16 +1593,41 @@
       "title": "Legal, Privacy Policy & Terms of Service",
       "summary": "Public terms of service, GDPR privacy policies, store listing disclosures, and legal compliance endpoint routes.",
       "aliases": ["legal", "privacy", "terms", "tos", "disclosures"],
-      "entryPoints": ["apps/api/src/modules/legal/routes.ts"],
-      "ownedPaths": ["apps/api/src/modules/legal"],
+      "entryPoints": [
+        "apps/api/src/modules/legal/routes.ts",
+        "apps/api/src/modules/account/health-data-consent-routes.ts"
+      ],
+      "ownedPaths": [
+        "apps/api/src/modules/legal",
+        "apps/mobile/src/features/health-consent"
+      ],
       "contracts": [],
       "domainPort": [],
-      "api": ["apps/api/src/modules/legal/routes.ts"],
-      "ui": [],
-      "adapters": [],
-      "dataTables": [],
-      "migrationPaths": [],
-      "tests": ["apps/api/src/modules/legal/routes.test.ts"],
+      "api": [
+        "apps/api/src/modules/legal/routes.ts",
+        "apps/api/src/modules/account/health-data-consent-routes.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/features/health-consent/health-data-consent-screen.tsx",
+        "apps/mobile/src/features/health-consent/health-data-consent-controller.ts",
+        "apps/mobile/src/features/health-consent/age-restricted-screen.tsx"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/health-data-consent-repository.ts"
+      ],
+      "dataTables": [
+        "user_health_data_consents",
+        "user_health_data_consent_events"
+      ],
+      "migrationPaths": [
+        "supabase/migrations/20261027120000_health_data_consent.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/legal/routes.test.ts",
+        "apps/api/src/modules/account/health-data-consent-routes.test.ts",
+        "apps/mobile/src/features/health-consent/health-data-consent-controller.test.ts",
+        "supabase/tests/database/0056_health_data_consent.test.sql"
+      ],
       "relations": [
         {
           "type": "relatedTo",
@@ -1613,16 +1638,22 @@
       "docs": [
         "docs/PRIVACY_POLICY.md",
         "docs/TERMS_OF_SERVICE.md",
-        "docs/STORE_LISTING_DISCLOSURES.md"
+        "docs/STORE_LISTING_DISCLOSURES.md",
+        "docs/adr/0085-health-data-consent-and-adults-only.md",
+        "docs/legal-drafts/DPIA_DRAFT_2026-10-27.md",
+        "docs/legal-drafts/PRIVACY_POLICY_HEALTH_CONSENT_DRAFT_2026-10-27.md"
       ],
       "verificationCommands": [
-        "pnpm --filter @mizyun/api test src/modules/legal"
+        "pnpm --filter @mizyun/api test src/modules/legal",
+        "pnpm --filter @mizyun/api test src/modules/account/health-data-consent-routes.test.ts"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
       "limitations": "Static legal markdown rendered publicly via API endpoints",
-      "requirements": ["LEGAL-01", "REL-AUD-004"],
-      "openAcceptance": []
+      "requirements": ["LEGAL-01", "REL-AUD-004", "PRIV-01", "PRIV-02"],
+      "openAcceptance": [
+        "Health-data consent and 18+ device acceptance; Adam/legal approval of policy and DPIA drafts; Store age rating 18+"
+      ]
     },
     {
       "id": "health-steps",
