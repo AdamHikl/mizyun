@@ -280,7 +280,8 @@ export const buildCoachGrounding = async (
       freshness: profile.updatedAt.toISOString(),
       data: {
         unitSystem: profile.unitSystem,
-        timezone: profile.timezone,
+        // REL-01: no zone name (coarse location) for the provider; meal
+        // times carry the local offset.
         heightCm: profile.heightCm,
         activityLevel: profile.activityLevel,
         coachingPreferences: profile.coachingPreferences,

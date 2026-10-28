@@ -1,10 +1,34 @@
 import { runCreateSchema, type RunRecord } from "@mizyun/contracts";
 import {
+  DEFAULT_TIMEZONE,
+  effectiveProfileTimeZone,
   runningDate,
   metresFromDistance,
   distanceFromMetres,
 } from "@mizyun/core";
 import type { RunForm } from "./run-draft";
+function runtimeTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Zone for a new run's date. REL-01: profiles read `UTC` until the app saves
+ * the phone's zone, so the device zone wins over that default.
+ */
+export function newRunTimeZone(
+  profileTimeZone: string | null | undefined,
+  deviceTimeZone: string | null = runtimeTimeZone(),
+): string {
+  return effectiveProfileTimeZone(
+    profileTimeZone || DEFAULT_TIMEZONE,
+    deviceTimeZone,
+  );
+}
+
 export const quickDistances = [
   { label: "5K", meters: 5000, spoken: "5 kilometres" },
   { label: "10K", meters: 10000, spoken: "10 kilometres" },

@@ -21,6 +21,7 @@ import {
   distancePatch,
   formFromRun,
   lastRunPatch,
+  newRunTimeZone,
   parseRunForm,
   quickDistances,
 } from "./run-form";
@@ -146,10 +147,7 @@ export function LogRunScreen() {
           pending: null,
         });
       } else {
-        const zone =
-          profile?.timezone ||
-          Intl.DateTimeFormat().resolvedOptions().timeZone ||
-          "UTC";
+        const zone = newRunTimeZone(profile?.timezone);
         setDraft({
           version: 1,
           form: emptyForm(unit, zone),

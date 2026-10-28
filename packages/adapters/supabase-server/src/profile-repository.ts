@@ -3,6 +3,7 @@ import type {
   CoachingPreferences,
   PlanTier,
   ProfileActivityLevel,
+  ProfilePatchField,
   ProfileRepository,
   ProfileSexAtBirth,
   StoredProfile,
@@ -63,6 +64,18 @@ const fromRow = (row: ProfileRow): StoredProfile => ({
   updatedAt: new Date(row.updated_at),
 });
 
+const COLUMN_BY_FIELD: Record<ProfilePatchField, keyof ProfileRow> = {
+  displayName: "display_name",
+  unitSystem: "unit_system",
+  timezone: "timezone",
+  birthYear: "birth_year",
+  heightCm: "height_cm",
+  activityLevel: "activity_level",
+  sexAtBirth: "sex_at_birth",
+  coachingPreferences: "coaching_preferences",
+  aiProvider: "ai_provider",
+};
+
 export interface SupabaseProfileRepositoryOptions {
   /**
    * Factory that produces a Supabase client bound to the verified
@@ -116,22 +129,33 @@ export class SupabaseProfileRepository implements ProfileRepository {
   async update(
     userId: UserId,
     next: StoredProfile,
-    options: { readonly accessToken: string },
+    options: {
+      readonly accessToken: string;
+      readonly fields?: ReadonlyArray<ProfilePatchField>;
+    },
   ): Promise<StoredProfile> {
     const client = this.#clientFor(options.accessToken);
+    const columns: Record<ProfilePatchField, unknown> = {
+      displayName: next.displayName,
+      unitSystem: next.unitSystem,
+      timezone: next.timezone,
+      birthYear: next.birthYear,
+      heightCm: next.heightCm,
+      activityLevel: next.activityLevel,
+      sexAtBirth: next.sexAtBirth,
+      coachingPreferences: next.coachingPreferences,
+      aiProvider: next.aiProvider,
+    };
+    const fields =
+      options.fields ?? (Object.keys(columns) as ProfilePatchField[]);
+    if (fields.length === 0) {
+      throw new RepositoryError("profile update named no fields");
+    }
+    const row: Record<string, unknown> = {};
+    for (const field of fields) row[COLUMN_BY_FIELD[field]] = columns[field];
     const updated = await client
       .from<ProfileRow>("profiles")
-      .update({
-        display_name: next.displayName,
-        unit_system: next.unitSystem,
-        timezone: next.timezone,
-        birth_year: next.birthYear,
-        height_cm: next.heightCm,
-        activity_level: next.activityLevel,
-        sex_at_birth: next.sexAtBirth,
-        coaching_preferences: next.coachingPreferences,
-        ai_provider: next.aiProvider,
-      })
+      .update(row as Partial<ProfileRow>)
       .eq("id", userId)
       .select("*")
       .single();

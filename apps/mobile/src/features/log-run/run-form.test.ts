@@ -3,6 +3,7 @@ import {
   parseRunForm,
   formFromRun,
   distancePatch,
+  newRunTimeZone,
   quickDistances,
 } from "./run-form";
 import type { RunForm } from "./run-draft";
@@ -169,4 +170,26 @@ describe("imported run edits", () => {
         "km",
       ).metricsLocked,
     ).toBeUndefined());
+});
+
+describe("newRunTimeZone (REL-01)", () => {
+  it("uses the device zone while the profile still has the UTC default", () => {
+    expect(newRunTimeZone("UTC", "America/Los_Angeles")).toBe(
+      "America/Los_Angeles",
+    );
+    expect(newRunTimeZone(undefined, "America/Los_Angeles")).toBe(
+      "America/Los_Angeles",
+    );
+  });
+
+  it("keeps a saved profile zone", () => {
+    expect(newRunTimeZone("Europe/Bratislava", "America/Los_Angeles")).toBe(
+      "Europe/Bratislava",
+    );
+  });
+
+  it("falls back to UTC without a usable device zone", () => {
+    expect(newRunTimeZone("UTC", null)).toBe("UTC");
+    expect(newRunTimeZone(null, "Not/AZone")).toBe("UTC");
+  });
 });

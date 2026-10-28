@@ -147,6 +147,73 @@ describe("SupabaseProfileRepository.getOrCreate", () => {
 });
 
 describe("SupabaseProfileRepository.update", () => {
+  it("writes only the listed columns when fields are given (REL-01)", async () => {
+    const writes: unknown[] = [];
+    const row = {
+      id: "00000000-0000-4000-8000-000000000001",
+      display_name: null,
+      unit_system: "metric",
+      timezone: "America/Los_Angeles",
+      birth_year: null,
+      height_cm: null,
+      activity_level: null,
+      sex_at_birth: null,
+      coaching_preferences: {},
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-07-17T12:00:00.000Z",
+      ai_provider: "gemini",
+    };
+    const client = {
+      from: () => {
+        const builder = {
+          update: (values: unknown) => {
+            writes.push(values);
+            return builder;
+          },
+          eq: () => builder,
+          select: () => builder,
+          single: async () => ({ data: row, error: null }),
+        };
+        return builder;
+      },
+    } as unknown as RepositorySupabaseClient;
+    const repo = new SupabaseProfileRepository({ clientFor: () => client });
+    const userId =
+      "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"];
+    const next = {
+      userId,
+      displayName: "Stale name",
+      unitSystem: "metric",
+      timezone: "America/Los_Angeles",
+      birthYear: null,
+      heightCm: null,
+      activityLevel: null,
+      sexAtBirth: null,
+      coachingPreferences: {},
+      planTier: "free",
+      aiProvider: "gemini",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as unknown as StoredProfile;
+    await repo.update(userId, next, {
+      accessToken: "token",
+      fields: ["timezone"],
+    });
+    await repo.update(userId, next, { accessToken: "token" });
+    expect(writes[0]).toEqual({ timezone: "America/Los_Angeles" });
+    expect(Object.keys(writes[1] as object).sort()).toEqual([
+      "activity_level",
+      "ai_provider",
+      "birth_year",
+      "coaching_preferences",
+      "display_name",
+      "height_cm",
+      "sex_at_birth",
+      "timezone",
+      "unit_system",
+    ]);
+  });
+
   it("returns the updated row on success", async () => {
     const client = fakeClient({
       updateSingle: {
