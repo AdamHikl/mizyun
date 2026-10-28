@@ -426,20 +426,23 @@ describe("GeminiAgentProvider", () => {
       thoughtSignature: "sig_abc123_xyz",
     });
 
+    const prescription = {
+      kind: "training",
+      label: "Prescription",
+      confirmed: true,
+      freshness: "2026-08-25T00:00:00Z",
+      data: { sessions: 3, marker: "current-round" },
+    } as const;
     const res2 = await provider.respond({
       ...request,
+      // The orchestrator appends each round's evidence to grounding too.
+      grounding: [...request.grounding, prescription],
       requestedToolCalls: res1.toolCalls,
       toolResults: [
         {
           id: "call_999",
           name: "get_training_prescription",
-          evidence: {
-            kind: "training",
-            label: "Prescription",
-            confirmed: true,
-            freshness: "2026-08-25T00:00:00Z",
-            data: { sessions: 3 },
-          },
+          evidence: prescription,
         },
       ],
     });
@@ -467,6 +470,10 @@ describe("GeminiAgentProvider", () => {
 
     expect(turn2Req.tools).toBeDefined();
     expect(turn2Req.generationConfig?.responseSchema).toBeUndefined();
+    // Sent once, in the function response, not again in the grounding JSON.
+    expect(
+      JSON.stringify(turn2Req.contents).split("current-round"),
+    ).toHaveLength(2);
   });
 
   it("falls back to fallbackModel when primary model encounters high demand (429/503)", async () => {

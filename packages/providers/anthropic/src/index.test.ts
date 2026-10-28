@@ -196,6 +196,62 @@ describe("AnthropicAgentProvider", () => {
     });
   });
 
+  it("sends this round's tool evidence once, keeping earlier rounds in grounding", async () => {
+    const client = fakeClient([message([text("Done.")])]);
+    const earlier = {
+      kind: "training",
+      label: "Exercise library search results",
+      confirmed: true,
+      freshness: "now",
+      data: { marker: "earlier-round" },
+    } as const;
+    const current = {
+      kind: "tool",
+      label: "Plan proposal",
+      confirmed: true,
+      freshness: "now",
+      data: { marker: "current-round" },
+    } as const;
+    await provider(client).respond(
+      request({
+        // The orchestrator appends every round's evidence to grounding.
+        grounding: [...request().grounding, earlier, current],
+        requestedToolCalls: [
+          { id: "toolu_2", name: "propose_workout_plan", args: {} },
+        ],
+        toolResults: [
+          { id: "toolu_2", name: "propose_workout_plan", evidence: current },
+        ],
+      }),
+    );
+    const sent = JSON.stringify(client.calls[0]!.messages);
+    expect(sent.split("current-round")).toHaveLength(2);
+    expect(sent).toContain("earlier-round");
+    expect(String(client.calls[0]!.messages[0]!.content)).not.toContain(
+      "current-round",
+    );
+  });
+
+  it("keeps tool evidence in grounding when no tool_result block is sent", async () => {
+    const client = fakeClient([message([text("Done.")])]);
+    const evidence = {
+      kind: "goal",
+      label: "Goal",
+      confirmed: true,
+      freshness: "now",
+      data: { marker: "unsent-result" },
+    } as const;
+    await provider(client).respond(
+      request({
+        grounding: [evidence],
+        toolResults: [{ id: "toolu_3", name: "get_active_goal", evidence }],
+      }),
+    );
+    expect(String(client.calls[0]!.messages[0]!.content)).toContain(
+      "unsent-result",
+    );
+  });
+
   it("declares replayed tools with tool_choice none once the budget is spent", async () => {
     const client = fakeClient([message([text("Done.")])]);
     await provider(client).respond(

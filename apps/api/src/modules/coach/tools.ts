@@ -1264,6 +1264,7 @@ export interface SearchExercisesArgs {
   readonly movement_pattern?: string;
   readonly category?: string;
   readonly limit?: number;
+  readonly include_instructions?: boolean;
 }
 
 export const buildSearchExercisesTool = (
@@ -1271,7 +1272,7 @@ export const buildSearchExercisesTool = (
 ): AgentTool<SearchExercisesArgs> => ({
   name: "search_exercises",
   description:
-    "Search through the 888 verified exercises in the Mizyun library by name, keyword (e.g. 'incline bench', 'cable fly', 'lateral raise', 'curl', 'squat', 'romanian deadlift', 'pullup', 'tricep pushdown', 'bicep', 'quads'), movement pattern, or category.",
+    "Search through the 888 verified exercises in the Mizyun library, optionally with how-to steps, by name, keyword (e.g. 'incline bench', 'cable fly', 'lateral raise', 'curl', 'squat', 'romanian deadlift', 'pullup', 'tricep pushdown', 'bicep', 'quads'), movement pattern, or category.",
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -1308,6 +1309,11 @@ export const buildSearchExercisesTool = (
         description:
           "Maximum number of exercise results to return (default 10).",
       },
+      include_instructions: {
+        type: "boolean",
+        description:
+          "Include up to three how-to steps per exercise. Set true only when the user asks how to perform an exercise; leave it off when choosing exercises for a plan.",
+      },
     },
   },
   execute: async ({ clock, args }) => {
@@ -1333,7 +1339,10 @@ export const buildSearchExercisesTool = (
           movementPattern: ex.movementPattern,
           equipment: ex.equipment,
           primaryMuscles: ex.primaryMuscles,
-          instructions: ex.instructions.slice(0, 3),
+          // How-to steps are about half of each result; plans do not need them.
+          ...(typedArgs.include_instructions === true
+            ? { instructions: ex.instructions.slice(0, 3) }
+            : {}),
         })),
       },
     } satisfies AgentGroundingItem;

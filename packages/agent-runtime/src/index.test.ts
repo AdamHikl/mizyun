@@ -303,6 +303,9 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
             `expected 1 grounding item, got ${request.grounding.length}`,
           );
         }
+        // The same object, not a copy: the provider adapters rely on this
+        // identity to send the current round's evidence only once.
+        expect(request.grounding).toContain(request.toolResults[0]!.evidence);
         return {
           message: {
             role: "assistant",

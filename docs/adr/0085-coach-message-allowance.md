@@ -45,7 +45,7 @@ AI-06 found two related problems. There was no prompt caching. The shared policy
 - A free user can send five real turns a day. A route test sends five 9,000-token Gemini turns and five 14,000-token Haiku turns, and refuses the sixth by message count. With the old 10,000-token budget the same test fails on the second turn.
 - Estimated cost per typical turn after the prompt cut (about 6,000 tokens on Gemini, characters ÷ 4 for the prompt, not a provider measurement): about USD 0.006 in 2026 and 0.011 from 2027-01-01, at 0.0007 on Haiku.
   - **Free day:** 5 Gemini turns cost about USD 0.028 in 2026. In 2027 they reach the USD 0.05 daily allowance at about the fifth turn, which the last-call overshoot rule still admits. The USD 0.50 month then covers about 9 full Gemini days, or the whole month on Haiku.
-  - **Paid day:** USD 0.15 covers about 27 Gemini turns in 2026 and 13 in 2027, so a paid user on Gemini meets the cost allowance before 50 messages. On Haiku 50 messages cost about USD 0.04.
+  - **Paid day:** Coach runs on Haiku (`claude-haiku-5-5`), where 50 messages cost about USD 0.04, well under USD 0.15. Gemini serves Coach only as the fallback, for users whose saved consent predates the Anthropic disclosure or when no Anthropic key is configured. Only those users meet the cost allowance before 50 messages (about 27 Gemini turns in 2026, 13 in 2027).
 - The message count is a ceiling, not a promise. When cost ends the day early, the app shows the same daily-limit copy with the same reset time.
 - Cached Anthropic prompt tokens are still priced at the full input price in `ai-cost.ts`. That overstates cost, which is the safe direction.
 - A message reserved by a request that crashes before settling stays reserved until the UTC day ends. It holds one message, like the ADR-0081 cost reservation.
@@ -56,5 +56,29 @@ AI-06 found two related problems. There was no prompt caching. The shared policy
 - Admission still runs before the safety screen, so a user who has used every message gets the limit copy, not a safety reply, for any text. This is unchanged from the token budget, but it now happens after five messages instead of one. Moving the deterministic screen before admission belongs with the `screenCoachInput` rewrite (follow-up).
 - On the last allowed tool round the Anthropic adapter sends stub tool definitions, so that round misses the prompt cache (follow-up).
 - Selection misses cost knowledge, not safety. A question that matches no entry still gets the catalog rules and the index, which tell Coach to say it cannot confirm exact steps rather than deny a feature. Slovak coverage is a small set of stems.
-- The persisted `promptVersion` is `coach-system-v4-app-v6` and the app knowledge version is `mizyun-app-v6`.
+- The persisted `promptVersion` is `coach-system-v5-app-v6` (v5: the 2026-10-28 token reduction below) and the app knowledge version is `mizyun-app-v6`.
 - Older app builds keep working. They ignore `usage` and the new usage fields, show their own daily-limit copy, and show the hidden token ceiling in Settings.
+
+## Token reduction (2026-10-28)
+
+Measured on Haiku 5.5 with the `run-ai-eval` Coach suite (8 cases, effort none). The baseline was commit 823d1e79; there were two runs after the change.
+
+- Per typical turn, about 8,000 input tokens (tools plus the fixed policy) are read from the prompt cache, and about 2,400 are new. The new part is the per-user context JSON (about 2,200), the catalog excerpt and the question.
+- **Replies.** The fixed policy now asks for brief replies:
+  - lead with the answer and its numbers, then one concrete suggestion (the existing "at most one next action" rule still applies);
+  - most replies under 100 words, with at most three bullets;
+  - longer only for a weekly review, a routine review or edit, or when asked;
+  - no restating the question or closing offers.
+    The nutrition rule also asks, when a gap remains, for one or two foods that would close it. Output tokens on single-round turns fell from 2,070 to 970–1,070 across the six single-round model cases (48–53 %).
+- **Context JSON.** The nutrition item no longer repeats today's meals and totals in a second `today` object, and meals no longer carry row ids. That is about 450 fewer uncached tokens per turn.
+- **Tool rounds.** The orchestrator appends each round's tool evidence to the grounding, and the adapters also send it as the tool result. The Anthropic and Gemini adapters now leave the current round's evidence out of the grounding JSON. It is still sent once as the tool result, and earlier rounds' evidence stays in the grounding.
+- **Exercise search.** `search_exercises` returns how-to steps only with `include_instructions: true`. The steps were about half of each result, and plans do not use them.
+- **Result.** A three-round workout turn (search, propose, reply) went from about 46,000 to 37,000 input tokens. A two-round run took 22,000.
+  - Judged Coach score: 89.4 on the baseline, 98.1, 96.2 and 96.9 after (the last with the final wording). The baseline lost points on a pace reading and on a workout without a plan card. Both of those vary between runs, so the honest conclusion is "no quality loss", not a gain.
+  - Median latency: 2.4 s before, 1.6–1.9 s after.
+  - The suite has no routine-review case, so the exception for routine reviews is not measured.
+- **Estimated provider cost for a typical single-round turn on Haiku**, with cache reads at a tenth of the input price: about USD 0.00048 before and 0.00035 after (−27 %). The app's cost ledger prices cached tokens at the full input price, so it records about USD 0.0012 before and 0.0011 after.
+- **Not done.**
+  - Trimming the tool definitions (about 4,400 tokens, cached).
+  - Pricing cache reads in the ledger.
+  - Caching the conversation history. The per-question catalog excerpt sits before the messages, so the history cannot share a cached prefix.
