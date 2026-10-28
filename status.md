@@ -1,12 +1,13 @@
 # Mizyun status
 
-> Updated 2026-10-27 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
+> Updated 2026-10-28 (Claude Code). [History][handoffs]; historical actions are not instructions. [Earlier detail](docs/archive/status/STATUS_PRE_WORKOUT_COMPANIONS_2026-10-09.md).
 
 ## Current authority and delivery
 
 - **Oct8 ten/main:**10closed per Adam/pushed; gates/SQL/replay PASS. [Proof](docs/MAIN_DEV_DELIVERY_2026-10-08.md). Native/provider/release open.
 
 - **GTM (Oct26–27):** [plan](docs/GO_TO_MARKET_PLAN_2026-10-26.md) adopted. #332–#336 merged on main Oct27: billing ADR0080, AI cost ADR0081, share card ADR0082, import ADR0083, activation ADR0084; migrations 20261026140000/150000/160000. ece07bd3 gatePASS(3818mobile/1442API+15skips); db:verify unrun. Pushed; Dev b06e3700 Oct27 17:02Z, 3 migrations, health200. iPhone Dev b46c6e2f Release 1.0.10(10) launched 17:10Z PID2508; acceptance open. Next: Adam Store products/webhook, device acceptance. [Entries](docs/archive/status/STATUS_GTM_PACKAGES_2026-10-27.md)
+- **Review fixes (Oct27–28):** 17 high findings fixed in 12 branches, merged on local main 081724f3 (unpushed, undeployed): AI-01/L10N-01 Coach safety, AI-02/06 Coach messages ADR0087, TNS-01/PRIV-03 Community Prod maintenance ADR0086, PRIV-01/02 health consent+18+ ADR0088, OPS-01 alerts (ADR0085 draft), REL-01 TZ, REL-02 sets #290/#291, SEC-02 quota, A11Y-01/02, HLTH-01/03, DROID-03; migrations 20261027120000/120100/120200/120300/130000. gatePASS(3911mobile/1496API+15skips); db:verify unrun. Next: Adam #345/legal drafts, push+Dev, device, Hetzner setup, AAB rebuild. [Handoff](docs/REVIEW_FIXES_MERGE_2026-10-28.md)
 - **Issues:** #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
@@ -24,14 +25,9 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#265 Community lifetime (Oct23):** own previews no deadline; others 60s+renewal (Adam). ca9a0955 3 reviews, gatePASS(3656mobile/1365API+15skips); Dev 13:24Z health200; iPhone 13:56Z PID85043. Next: Adam device. #324. [Handoff](docs/COMMUNITY_READ_LIFETIME_2026-10-23.md)
-- **Overnight fixes (Oct23):** #316/#310/#317/#284/#285/#286/#315/#301/#320/#318/#245 Dev 8823fa47 08:20Z health200 (AGENT_PROVIDER=gemini); gatePASS(3614mobile/1365API). iPhone Release installed 08:21Z; launch blocked (locked). Next: Adam device checks. [Handoff](docs/OVERNIGHT_FIXES_2026-10-23.md)
-- **#321 local-first photos (Oct22, ADR0079):** photos on device, optional backup; reviewed; gatePASS; Dev 8823fa47; device open. #322/#323. [Handoff](docs/LOCAL_FIRST_PHOTOS_2026-10-22.md)
-- **Home flash (Oct22-23):** no "Couldn't update" on retired reads; #326 Today rows saved (purged cache); 79934e21 review/gatePASS; iPhone 16:30Z. Next: Adam.
+- **#265/#324, Oct23 overnight fixes, #321/#322/#323, #326 Home flash, #320 join, #298/#325 stretch (Oct22–23):** Dev/iPhone; Adam device exits open. [Moved entries](docs/archive/status/STATUS_OCT22_23_FOLLOWUPS_2026-10-28.md)
 - **#327/#329 offline cache (Oct23):** targeted invalidation, keep across background/token, shared weight read, 30min goals, API ETag/304 + no-store. Budget resume 19→2, meal write 20→7, cold 19→17. Reviewed; gatePASS(3707mobile/1377API+15skips/88client). 7c58761d; Dev 20806d8d 17:40Z health200, no-store+ETag live; iPhone 17:41Z; Adam device checks PASS (Oct23). Prod not released. Visuals 20s poll kept (ADR-0053, Adam). #328/#330. [P1](docs/OFFLINE_CACHE_PHASE1_2026-10-23.md) [P2](docs/OFFLINE_CACHE_PHASE2_2026-10-23.md)
 - **#331 offline meal icons (Oct23):** ADR-0053 amended per Adam: bundled icons stay up to 48h after last Pro check when unreachable (incl. Auth refresh failure); denial hides now. Opus review + fixes; gatePASS(3723mobile/1377API). 6e86ea3c; iPhone 18:53Z; Adam offline check PASS (Oct23). [Handoff](docs/OFFLINE_MEAL_ICONS_2026-10-23.md)
-- **Community join redesign (Oct22):** 6045ee7c Dev+Prod; fix: non-members saw a status error (cache-wrapped 404), @undefined; Opus review ship; #320. Next: Adam Join/leave on Prod iPhone. [Handoff](docs/COMMUNITY_JOIN_REDESIGN_2026-10-22.md)
-- **#298 evening stretch (Oct23):** AI plans cover top 3 muscles (biceps via chest); no list swap on tailoring. dc64d2bd review/gatePASS; Dev 15:35Z health200; iPhone 15:29Z. Next: Adam device. #325. [Handoff](docs/EVENING_STRETCH_AI_COVERAGE_2026-10-23.md)
 - **#303, #314:** iPhone/Android device exits open. [Moved entries](docs/archive/status/STATUS_OCT12_15_ENTRIES_2026-10-23.md)
 - **#290, #295/#297, #307/#313:** device exits open. [Moved entries](docs/archive/status/STATUS_OCT12_15_ENTRIES_2026-10-23.md)
 - **#288/#299/#304 Log activity:** #288 gatePASS, Dev 47c814e5 ([evidence](docs/LOG_ACTIVITY_DRAFTING_EVIDENCE_2026-10-17.md)). #299 ADR0073 Gemini drafts; gatePASS; Dev 4/4 ([evidence](docs/LOG_ACTIVITY_AI_DRAFTS_EVIDENCE_2026-10-19.md)); iPhone 10:23Z. #300/#302 fixed, #301. #304 ADR0074 on-device, Haiku fallback on failure (Oct21), notes removed; Dev. Next: Adam iPhone; #304 latency+gate; #305/#306.
