@@ -3657,5 +3657,19 @@ Research for [the go-to-market plan](GO_TO_MARKET_PLAN_2026-10-26.md); two resea
 Checked on 2026-10-27 for [ADR-0085](adr/0085-health-data-consent-and-adults-only.md):
 
 - **Explicit consent:** [EDPB Guidelines 05/2020 on consent](https://edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-052020-consent-under-regulation-2016679_ga) (chapter 4, explicit consent) and the [EDPB consent summary](https://www.edpb.europa.eu/system/files/2026-04/edpb-summary-consent_en.pdf): health data needs an express statement, and the controller must be able to show it was given. Consequence: a separate unticked checkbox, a versioned record and an append-only grant/withdrawal history.
-- **Apple age ratings:** [App Store Connect age ratings](https://developer.apple.com/help/app-store-connect/reference/age-ratings) now use 4+, 9+, 13+, 16+ and 18+, and developers may set a higher minimum age. Secondary reports disagree about whether 12+/17+ remain; the current listing's "12+" (docs/STORE_PRIVACY_CHECKLIST_2026-10-21.md) must be re-checked in the console. Consequence: Adam sets 18+ in App Store Connect.
+- **Apple age ratings:** [App Store Connect age ratings](https://developer.apple.com/help/app-store-connect/reference/age-ratings) now use 4+, 9+, 13+, 16+ and 18+, and developers may set a higher minimum age. Secondary reports disagree about whether 12+/17+ remain; the current listing's "12+" (docs/STORE_PRIVACY_CHECKLIST_2026-10-21.md) must be re-checked in the console. Consequence (superseded 2026-10-28): App Store rating 16+, with 18+ in the Terms. See the entry below.
 - **Google Play:** [Target audience and content](https://support.google.com/googleplay/android-developer/answer/9867159) lets an app target 18+ only; apps not aimed at children are outside the Families Policy but must still answer accurately. Consequence: Adam selects 18 and over only.
+
+## 2026-10-28 — Store ratings and minimum ages of comparable apps
+
+Checked on 2026-10-28 from US App Store pages, Google Play pages and each app's Terms:
+
+- **MyFitnessPal:** App Store 16+, Play Everyone, Terms 18+ ([terms](https://www.myfitnesspal.com/terms-of-service)).
+- **Lose It!:** App Store 18+, Play Everyone, privacy policy 18+.
+- **Noom:** App Store 18+, Play Everyone, Terms 18+ (not read directly).
+- **MacroFactor:** App Store 9+, Play Everyone 10+, Terms 18+ ([terms](https://macrofactor.com/terms/)).
+- **Fitbod:** App Store 9+, Play Everyone, Terms 18+ ([terms](https://fitbod.me/terms-conditions/)).
+- **Yazio:** App Store 9+, Play Everyone, Terms 16+ ([terms](https://www.yazio.com/en/terms)).
+- **Cronometer, Lifesum, FatSecret, Strava and Cal AI:** App Store 13+ (Cal AI 9+); Terms 13+, mostly with parental consent for minors.
+- **Gemini API:** the [Additional Terms](https://ai.google.dev/gemini-api/terms) require API users to be 18+ and restrict services likely to be accessed by under-18s. The second clause is paraphrased, so re-read the wording before relying on it.
+- **Consequence (Adam, 2026-10-28):** follow MyFitnessPal. The App Store rating is 16+, the Google Play content rating is whatever the IARC questionnaire gives (expected Everyone), the Play target audience is 18+, and the Terms and in-app check stay 18+. No code change; the store rating is a console setting.

@@ -87,16 +87,18 @@ After the measures above, the draft assessment is that residual risk is **medium
 
 Do these when the 18+ / consent build is submitted. Cited lines are in `docs/STORE_PRIVACY_CHECKLIST_2026-10-21.md`.
 
+**Decision (Adam, 2026-10-28):** follow MyFitnessPal's model, which is App Store **16+**, Google Play content rating **Everyone**, and **18+** in the Terms. The 18+ minimum is enforced by the Terms, the in-app birth-year check and the API; the Store labels describe content and do not set the minimum age. The 2026-10-28 comparison is in `docs/RESEARCH_LOG.md`.
+
 **App Store Connect**
 
-- **Line 41** (Age Rating, "current rating is 12+ … the rest of the app has no age gate"): the rating and the sentence become outdated. Re-run the Age Rating questionnaire and choose **18+** (Apple's tiers are 4+, 9+, 13+, 16+, 18+; confirm the actual options in the console). Update the checklist wording.
+- **Line 41** (Age Rating, "current rating is 12+ … the rest of the app has no age gate"): the rating and the sentence become outdated. Re-run the Age Rating questionnaire, answering honestly (health and wellness topics; medical or treatment information; user-generated content and messaging for Community; AI features). If it calculates lower than **16+**, use the option to set a higher age rating and choose **16+** (Apple's tiers are 4+, 9+, 13+, 16+, 18+; confirm the actual options in the console). If honest answers calculate 18+, keep 18+. Update the checklist wording.
 - **Lines 19 to 25** (Health & Fitness: Health, Fitness): keep, and make sure the health-data purposes and the in-app consent are reflected in review notes. Add to App Review Notes (STORE_LISTING_DISCLOSURES.md section 4) that the app is 18+ and requires explicit health-data consent after sign-up.
 - Check the Privacy Policy URL shows the new version (line 36).
 
 **Google Play Console**
 
-- **Line 77** (Target audience: "keep the current age groups … choosing 18+ is simplest"): choose **18 and over** only, and remove any under-18 groups.
-- **Line 76** (Content rating questionnaire): re-answer after the change; keep user interaction / user-generated content "Yes".
+- **Line 77** (Target audience: "keep the current age groups … choosing 18+ is simplest"): choose **18 and over** only, and remove any under-18 groups. Target audience is separate from the content rating and should match the Terms.
+- **Line 76** (Content rating questionnaire): re-answer honestly after the change and keep user interaction / user-generated content "Yes". The IARC rating (expected **Everyone** / PEGI 3, as for MyFitnessPal) comes from the answers and can't be chosen directly. Accept whatever the answers produce.
 - **Lines 57 and 70** (Health info, Fitness info collected, required): keep; check the Data safety answers match the policy, including that health data is collected with the user's explicit in-app consent and can be deleted.
 - **Lines 73 to 75** (Health apps declaration, Health Connect permissions): re-check that the declaration matches the final behaviour.
 - Update the privacy policy URL in Play Console after publishing the new policy.

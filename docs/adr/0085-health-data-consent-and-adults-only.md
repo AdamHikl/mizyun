@@ -22,4 +22,4 @@ Weight, body measurements, height, sex at birth, birth year and diet logs are he
 - Release gate: apply the migration and deploy the API to an environment before any build at compat `2026-10-27` uses it; otherwise users without a cached answer see "Can't reach Mizyun".
 - Installed 1.0.9/1.0.10 builds now get a generic error for a 13–17 birth year (transitional; they also write goal and weight first).
 - Logging reminders (first meal, weigh-in, evening stretch) run outside the gate and can still fire after a withdrawal (follow-up).
-- Store listings must change (age rating / target audience 18+, health data declarations); see the DPIA draft.
+- Store listings must change (App Store 16+, Play target audience 18+ with the content rating from the questionnaire, health data declarations; Adam 2026-10-28, following MyFitnessPal); see the DPIA draft.
