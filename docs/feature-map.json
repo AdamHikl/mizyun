@@ -734,13 +734,19 @@
         "packages/adapters/supabase-server/src/body-measurement-repository.ts",
         "packages/adapters/supabase-server/src/media-asset-repository.ts",
         "packages/adapters/supabase-server/src/media-storage.ts",
-        "packages/adapters/supabase-server/src/photo-backup-repository.ts"
+        "packages/adapters/supabase-server/src/photo-backup-repository.ts",
+        "packages/adapters/supabase-server/src/media-quota.ts"
       ],
-      "dataTables": ["body_measurements", "media_assets"],
+      "dataTables": [
+        "body_measurements",
+        "media_assets",
+        "private_media_quota_settings"
+      ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260714103000_private_media.sql",
-        "supabase/migrations/20261008100000_body_measurement_retry_identity.sql"
+        "supabase/migrations/20261008100000_body_measurement_retry_identity.sql",
+        "supabase/migrations/20261027120000_private_media_quota.sql"
       ],
       "tests": [
         "apps/api/src/modules/body-measurements/routes.test.ts",
@@ -754,7 +760,9 @@
         "apps/mobile/src/composition/weigh-in-reminder-runtime.test.ts",
         "apps/api/src/modules/photo-backups/routes.test.ts",
         "apps/mobile/src/features/private-photos/local-photo-library.test.ts",
-        "apps/mobile/src/features/private-photos/photo-backup-sync.test.ts"
+        "apps/mobile/src/features/private-photos/photo-backup-sync.test.ts",
+        "supabase/tests/database/0056_private_media_quota.test.sql",
+        "packages/adapters/supabase-server/src/media-quota.test.ts"
       ],
       "relations": [
         {

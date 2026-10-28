@@ -13,11 +13,13 @@ import {
 import { sendApiError } from "../../errors.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { hasMealVisuals } from "../../meal-visual-access.js";
+import type { MediaQuota } from "../../media-quota.js";
 export const mealPhotoRoutes: FastifyPluginAsync<{
   enabled: boolean;
   service: MealPhotoService | null;
   profileRepository: ProfileRepository;
   betaProRepository: BetaProRepository;
+  mediaQuota?: MediaQuota;
 }> = async (app, options) => {
   const requirePro = async (
     request: Parameters<typeof sendApiError>[1],
@@ -113,6 +115,25 @@ export const mealPhotoRoutes: FastifyPluginAsync<{
           422,
           "VALIDATION_ERROR",
           "Invalid meal photo bytes.",
+        );
+        return;
+      }
+      // SEC-02: the Storage trigger is authoritative; this turns a full
+      // quota into a clear error instead of a failed server upload.
+      if (
+        options.mediaQuota &&
+        !(await options.mediaQuota.allows(
+          principal.userId as UserId,
+          bytes.length,
+          { accessToken: principal.accessToken },
+        ))
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          413,
+          "STORAGE_QUOTA_EXCEEDED",
+          "Your photo storage is full. Remove some photos or backups, then try again.",
         );
         return;
       }

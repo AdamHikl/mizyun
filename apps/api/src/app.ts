@@ -229,6 +229,8 @@ import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
 import { legalRoutes } from "./modules/legal/routes.js";
 import { mediaRoutes } from "./modules/media/routes.js";
+import { MediaUploadRateLimiter } from "./modules/media/upload-rate-limit.js";
+import { UnboundedMediaQuota, type MediaQuota } from "./media-quota.js";
 import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
 import { workoutsRoutes } from "./modules/workouts/routes.js";
@@ -283,6 +285,7 @@ import {
   SupabaseBodyMeasurementRepository,
   SupabaseConversationRepository,
   SupabaseMediaAssetRepository,
+  SupabaseMediaQuota,
   SupabaseAccountRepository,
   SupabaseAccountProviderRevocationRepository,
   SupabaseAiConsentRepository,
@@ -454,6 +457,8 @@ export interface AppDependencies {
   readonly productAnalyticsRepository?: ProductAnalyticsRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
+  readonly mediaQuota?: MediaQuota;
+  readonly mediaUploadRateLimiter?: MediaUploadRateLimiter;
   readonly emailSender?: EmailSender;
   readonly appleAuthConfig?: ServerAppleAuthConfiguration | undefined;
   readonly appleAuthClient?: AppleAuthClient | undefined;
@@ -989,6 +994,11 @@ export const buildApp = (
     (sp
       ? new SupabaseMediaAssetRepository({ clientFor: sp.clientFor })
       : new InMemoryMediaAssetRepository());
+  const mediaQuota =
+    dependencies.mediaQuota ??
+    (sp
+      ? new SupabaseMediaQuota({ clientFor: sp.clientFor })
+      : new UnboundedMediaQuota());
   const boulderingRepository =
     dependencies.boulderingRepository ??
     (sp
@@ -1617,6 +1627,7 @@ export const buildApp = (
     service: mealPhotoService,
     profileRepository,
     betaProRepository,
+    mediaQuota,
   });
   void app.register(mealVisualRoutes, {
     prefix: "/v1/food-entries",
@@ -1930,6 +1941,9 @@ export const buildApp = (
     bucketId: MEDIA_BUCKET_ID,
     profileRepository,
     betaProRepository,
+    mediaQuota,
+    uploadRateLimiter:
+      dependencies.mediaUploadRateLimiter ?? new MediaUploadRateLimiter(),
     ...(foodLifecycleStorage
       ? { foodErasureStorage: foodLifecycleStorage }
       : {}),
