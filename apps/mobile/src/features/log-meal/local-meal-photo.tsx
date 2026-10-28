@@ -6,6 +6,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { removeLocalPhoto } from "@/features/private-photos/local-photo-library";
 import { deleteMealPhoto } from "./meal-photo-retention";
 import { mealPhotoScope, rememberPhoto } from "./meal-photo-memory";
+import { useAnnouncement } from "@/lib/announce";
 
 /** A meal photo shown from this device's copy (ADR-0079); no network, no disk cache. */
 export function LocalMealPhoto({
@@ -27,6 +28,7 @@ export function LocalMealPhoto({
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  useAnnouncement(message);
   const remove = async () => {
     if (busy) return;
     setBusy(true);

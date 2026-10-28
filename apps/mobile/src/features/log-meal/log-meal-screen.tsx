@@ -109,6 +109,7 @@ import {
   type PendingAiAction,
 } from "@/features/coach/ai-consent-controller";
 import { AiConsentModal } from "@/features/coach/ai-consent-modal";
+import { announce } from "@/lib/announce";
 
 const draftEvidenceLines = (
   draft: import("@mizyun/contracts").FoodDraftCandidate,
@@ -953,10 +954,12 @@ export function LogMealScreen() {
           !reminderSettings.enabled &&
           !reminderSettings.promptDismissed
         ) {
+          announce("Meal saved.");
           setShowRoutineModal(true);
           return;
         }
       }
+      announce("Meal saved.");
       router.back();
       return;
     }

@@ -2,6 +2,13 @@ vi.mock("@/features/workout-companion", () => ({
   WatchWorkoutControls: "WatchWorkoutControls",
 }));
 import { beforeEach, expect, it, vi } from "vitest";
+
+// VoiceOver announcements are covered by src/lib/announce.test.ts.
+vi.mock("@/lib/announce", () => ({
+  announce: vi.fn(),
+  useAnnouncement: vi.fn(),
+  textOfChildren: () => "",
+}));
 const mocks = vi.hoisted(() => ({
   refs: [] as any[],
   index: 0,

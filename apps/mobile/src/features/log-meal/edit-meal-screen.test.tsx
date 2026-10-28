@@ -2,6 +2,13 @@ vi.mock("@/composition/app-variant", () => ({
   getAppVariant: () => "production",
 }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// VoiceOver announcements are covered by src/lib/announce.test.ts.
+vi.mock("@/lib/announce", () => ({
+  announce: vi.fn(),
+  useAnnouncement: vi.fn(),
+  textOfChildren: () => "",
+}));
 import type { FoodDraftCandidate, FoodEntry } from "@mizyun/contracts";
 
 const mocks = vi.hoisted(() => ({

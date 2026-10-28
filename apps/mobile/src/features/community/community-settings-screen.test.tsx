@@ -34,6 +34,7 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("./ui", () => ({ CommunityPage: "CommunityPage" }));
 vi.mock("react-native", () => ({
+  AccessibilityInfo: { announceForAccessibility: vi.fn() },
   ActivityIndicator: "ActivityIndicator",
   Alert: { alert: vi.fn() },
   AppState: { addEventListener: vi.fn() },

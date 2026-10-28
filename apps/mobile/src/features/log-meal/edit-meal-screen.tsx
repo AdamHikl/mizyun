@@ -53,6 +53,7 @@ import {
   type MealFormStrings,
 } from "./meal-form";
 import { fetchFoodEntry, updateFoodEntry } from "./meal-lifecycle-data";
+import { announce } from "@/lib/announce";
 import {
   extractGramsFromName,
   getEntryGrams,
@@ -623,6 +624,7 @@ export function EditMealScreen() {
       if (userId !== null && draftKind !== null) {
         await clearLoggingDraft(userId, draftKind);
       }
+      announce("Meal updated.");
       router.back();
     } finally {
       saveInFlight.current = false;

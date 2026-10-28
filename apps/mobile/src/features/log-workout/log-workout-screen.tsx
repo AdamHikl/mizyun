@@ -138,6 +138,7 @@ import {
   weightLoadableEntries,
 } from "./timed-set-input";
 import { plannedSetTypeForSequence } from "@/features/workouts/planned-set-types";
+import { announce, useAnnouncement } from "@/lib/announce";
 
 interface WorkoutDraft {
   readonly name: string;
@@ -231,6 +232,7 @@ export function LogWorkoutScreen() {
   const [busy, setBusy] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  useAnnouncement(message);
   const measurement = useLoggingFlowMeasurement(
     "workout",
     userId,
@@ -1613,7 +1615,10 @@ export function LogWorkoutScreen() {
                 },
               ],
             );
-          } else if (!watchCommand) router.back();
+          } else if (!watchCommand) {
+            announce("Workout saved.");
+            router.back();
+          }
 
           return "saved";
         } catch {
@@ -2627,6 +2632,7 @@ function LiveExerciseCard(props: {
         )
       : "0";
   const timeError = props.pendingInput.timeError || null;
+  useAnnouncement(timeError);
 
   return (
     <Card style={styles.exerciseCard}>

@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/themed-text";
 import { Chip } from "./segmented";
 import { MinTouchTarget, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { textOfChildren, useAnnouncement } from "@/lib/announce";
 
 /**
  * Form presentation primitives: a labelled field,
@@ -82,6 +83,8 @@ export function FormStatus({
   readonly tone: "error" | "success" | "neutral";
   readonly children: ReactNode;
 }) {
+  // iOS ignores the alert role and live regions; speak new statuses.
+  useAnnouncement(textOfChildren(children));
   return (
     <ThemedText
       type="footnote"

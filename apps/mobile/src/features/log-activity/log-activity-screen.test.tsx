@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// VoiceOver announcements are covered by src/lib/announce.test.ts.
+vi.mock("@/lib/announce", () => ({
+  announce: vi.fn(),
+  useAnnouncement: vi.fn(),
+  textOfChildren: () => "",
+}));
+
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   saveRun: vi.fn(),

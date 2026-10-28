@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   saveDraft: vi.fn(),
   clearDraft: vi.fn(),
   alert: vi.fn(),
+  announce: vi.fn(),
   permission: vi.fn(),
   picker: vi.fn(),
   normalize: vi.fn(),
@@ -80,6 +81,7 @@ vi.mock("react-native", () => ({
     height: 852,
     fontScale: mocks.fontScale,
   }),
+  AccessibilityInfo: { announceForAccessibility: mocks.announce },
   ActivityIndicator: "ActivityIndicator",
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Pressable: "Pressable",
@@ -428,6 +430,66 @@ describe("Coach conversation hierarchy", () => {
       labelled(render(), "Toggle training plan & advisory info").props
         .accessibilityState.expanded,
     ).toBe(true);
+  });
+});
+
+describe("Coach VoiceOver announcements", () => {
+  const reply = {
+    id: "announced-reply",
+    role: "assistant",
+    text: "Try a short walk after lunch.",
+    evidenceKinds: [],
+  };
+  const sendReply = async () => {
+    mocks.send.mockResolvedValue({ ok: true, conversation, messages: [reply] });
+    const pending = typeMessage().props.onPress();
+    await settle();
+    await vi.advanceTimersByTimeAsync(500);
+    await pending;
+    render();
+  };
+  beforeEach(() => {
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation],
+    });
+  });
+
+  it("announces a new reply once on iOS but not restored history", async () => {
+    mocks.thread.mockResolvedValue({
+      ok: true,
+      conversation,
+      messages: [{ ...reply, id: "history-reply", text: "Earlier advice" }],
+    });
+    await open();
+    render();
+    expect(mocks.announce).not.toHaveBeenCalled();
+    await sendReply();
+    render();
+    render();
+    expect(mocks.announce.mock.calls).toEqual([
+      ["New Coach message: Try a short walk after lunch."],
+    ]);
+  });
+
+  it("announces a send failure on iOS", async () => {
+    await open();
+    mocks.send.mockResolvedValue({ ok: false, message: "Coach is busy." });
+    const pending = typeMessage().props.onPress();
+    await settle();
+    await vi.advanceTimersByTimeAsync(500);
+    await pending;
+    render();
+    render();
+    expect(mocks.announce.mock.calls).toEqual([["Coach is busy."]]);
+  });
+
+  it("leaves Android replies to the live region", async () => {
+    mocks.platform = "android";
+    await open();
+    await sendReply();
+    expect(mocks.announce).not.toHaveBeenCalled();
   });
 });
 

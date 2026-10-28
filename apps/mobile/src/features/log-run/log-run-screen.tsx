@@ -45,6 +45,7 @@ import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { useTheme } from "@/hooks/use-theme";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { getRun, listRuns } from "@/features/running/client";
+import { useAnnouncement } from "@/lib/announce";
 import {
   runDraftStore,
   hasRunDraftContent,
@@ -84,6 +85,7 @@ export function LogRunScreen() {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useAnnouncement(error);
   const [conflict, setConflict] = useState(false);
   const [more, setMore] = useState(false);
   const [otherDraft, setOtherDraft] = useState(false);

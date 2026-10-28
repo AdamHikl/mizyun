@@ -12,4 +12,8 @@ export const AppState = {
   addEventListener: (): { remove: () => void } => ({ remove: () => undefined }),
 };
 
-export default { Platform, AppState };
+export const AccessibilityInfo = {
+  announceForAccessibility: (_message: string): void => undefined,
+};
+
+export default { Platform, AppState, AccessibilityInfo };
