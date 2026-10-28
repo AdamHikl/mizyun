@@ -11,6 +11,8 @@ export type LoggingDraftKind =
   | "past-workout"
   /** Indoor bouldering pending ascent commands (ADR-0066). */
   | "bouldering"
+  /** Live-workout sets waiting to sync (REL-02). */
+  | "workout-sets"
   | `meal-edit-${string}`
   | `meal-photo-${string}`;
 

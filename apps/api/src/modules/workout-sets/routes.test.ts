@@ -4,12 +4,13 @@ import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
-import type {
-  StoredExercise,
-  StoredWorkout,
-  StoredWorkoutSet,
-  UserId,
-  WorkoutSource,
+import {
+  WorkoutSetSequenceCollisionError,
+  type StoredExercise,
+  type StoredWorkout,
+  type StoredWorkoutSet,
+  type UserId,
+  type WorkoutSource,
 } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
@@ -662,5 +663,292 @@ describe("past workout entry (log a workout after the fact)", () => {
     // The backdated set was inserted last but performed earlier.
     expect(recent.json().sets[0].workoutId).toBe(WORKOUT_ID);
     expect(recent.json().summary.lastSessionVolumeKg).toBe(500);
+  });
+});
+
+describe("POST /v1/workouts/:workoutId/sets retry identity (REL-02 / REL-04)", () => {
+  const OPERATION = "0000000A-0000-4000-8000-00000000E0A1";
+  const headers = {
+    authorization: "Bearer valid",
+    "content-type": "application/json",
+  };
+  const keyedBody = {
+    clientOperationId: OPERATION,
+    exerciseId: EXERCISE_ID,
+    sequence: 1,
+    repetitions: 8,
+    loadKg: 82.125,
+    perceivedExertion: 8,
+    completedAt: "2026-07-10T08:30:00.000+02:00",
+  };
+  const post = (
+    app: ReturnType<typeof buildApp>,
+    payload: unknown,
+    authorization = headers.authorization,
+  ) =>
+    app.inject({
+      method: "POST",
+      url: `/v1/workouts/${WORKOUT_ID}/sets`,
+      headers: { ...headers, authorization },
+      payload: payload as Record<string, unknown>,
+    });
+
+  const setup = () => {
+    const built = build(tokenVerifierFor({ userId: userA }));
+    seedWorkout(built.workoutRepository);
+    seedExercise(built.exerciseRepository);
+    return built;
+  };
+
+  it("returns the saved set for an identical replay without a second row", async () => {
+    const { app, workoutSetRepository } = setup();
+    const first = await post(app, keyedBody);
+    expect(first.statusCode).toBe(200);
+    const replay = await post(app, keyedBody);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(first.json().workoutSet).not.toHaveProperty("clientOperationId");
+    const rows = await workoutSetRepository.listForWorkout(WORKOUT_ID, {
+      accessToken: "test-token",
+    });
+    expect(rows).toHaveLength(1);
+    // Stored lowercase so differently cased replays share one identity.
+    expect(rows[0]?.clientOperationId).toBe(OPERATION.toLowerCase());
+    const lowerReplay = await post(app, {
+      ...keyedBody,
+      clientOperationId: OPERATION.toLowerCase(),
+      completedAt: "2026-07-10T06:30:00.000Z",
+    });
+    expect(lowerReplay.json().workoutSet.id).toBe(first.json().workoutSet.id);
+  });
+
+  it("rejects a replay whose payload changed with a 409 CONFLICT", async () => {
+    const { app, workoutSetRepository } = setup();
+    await post(app, keyedBody);
+    for (const change of [
+      { loadKg: 82.5 },
+      { repetitions: 9 },
+      { setType: "warmup" },
+      { completedAt: "2026-07-10T06:31:00.000Z" },
+      { perceivedExertion: null },
+    ]) {
+      const response = await post(app, { ...keyedBody, ...change });
+      expect(response.statusCode).toBe(409);
+      expect(response.json().error.code).toBe("CONFLICT");
+    }
+    expect(
+      await workoutSetRepository.listForWorkout(WORKOUT_ID, {
+        accessToken: "test-token",
+      }),
+    ).toHaveLength(1);
+  });
+
+  it("requires a non-null completedAt for keyed creates", async () => {
+    const { app } = setup();
+    for (const completedAt of [undefined, null]) {
+      const response = await post(app, { ...keyedBody, completedAt });
+      expect(response.statusCode).toBe(422);
+      expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    }
+  });
+
+  it("keeps keyless older-client appends unchanged", async () => {
+    const { app, workoutSetRepository } = setup();
+    const body = { exerciseId: EXERCISE_ID, repetitions: 8, loadKg: 60 };
+    const a = await post(app, body);
+    const b = await post(app, body);
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    expect(a.json().workoutSet.id).not.toBe(b.json().workoutSet.id);
+    expect(b.json().workoutSet.sequence).toBe(2);
+    expect(
+      await workoutSetRepository.listForWorkout(WORKOUT_ID, {
+        accessToken: "test-token",
+      }),
+    ).toHaveLength(2);
+    // A keyless sequence collision is still rejected.
+    const collision = await post(app, { ...body, sequence: 1 });
+    expect(collision.statusCode).toBe(409);
+  });
+
+  it("moves a keyed set to the next free sequence when its number is taken, and replays it", async () => {
+    const { app, workoutSetRepository } = setup();
+    seedSet(workoutSetRepository, { sequence: 1 });
+    seedSet(workoutSetRepository, {
+      id: "00000000-0000-4000-8000-00000000d002",
+      sequence: 2,
+    });
+    const saved = await post(app, keyedBody);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().workoutSet.sequence).toBe(3);
+    const replay = await post(app, keyedBody);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().workoutSet.id).toBe(saved.json().workoutSet.id);
+    expect(replay.json().workoutSet.sequence).toBe(3);
+    expect(
+      await workoutSetRepository.listForWorkout(WORKOUT_ID, {
+        accessToken: "test-token",
+      }),
+    ).toHaveLength(3);
+  });
+
+  it("returns the concurrent winner when another replay saved the identity mid-retry", async () => {
+    const { app, workoutSetRepository } = setup();
+    seedSet(workoutSetRepository, { sequence: 1 });
+    const originalCreate =
+      workoutSetRepository.create.bind(workoutSetRepository);
+    const find =
+      workoutSetRepository.findByClientOperationId.bind(workoutSetRepository);
+    let lookups = 0;
+    workoutSetRepository.findByClientOperationId = async (...args) => {
+      lookups += 1;
+      return find(...args);
+    };
+    let first = true;
+    workoutSetRepository.create = async (userId, set, options) => {
+      if (first) {
+        first = false;
+        // A concurrent replay of the same operation wins at sequence 2
+        // while this request's insert reports only the sequence 1
+        // collision (Postgres may report either unique violation).
+        await originalCreate(
+          userId,
+          { ...set, id: "00000000-0000-4000-8000-00000000d0aa", sequence: 2 },
+          options,
+        );
+        throw new WorkoutSetSequenceCollisionError(set.workoutId, set.sequence);
+      }
+      return originalCreate(userId, set, options);
+    };
+    const response = await post(app, keyedBody);
+    expect(response.statusCode).toBe(200);
+    expect(response.json().workoutSet.id).toBe(
+      "00000000-0000-4000-8000-00000000d0aa",
+    );
+    // Initial lookup plus the re-check before moving the sequence.
+    expect(lookups).toBe(2);
+    expect(
+      await workoutSetRepository.listForWorkout(WORKOUT_ID, {
+        accessToken: "test-token",
+      }),
+    ).toHaveLength(2);
+  });
+
+  it("keeps a keyed create retryable when the database fails, never a discardable 409", async () => {
+    const { app, workoutSetRepository } = setup();
+    const originalCreate =
+      workoutSetRepository.create.bind(workoutSetRepository);
+    workoutSetRepository.create = async () => {
+      throw new Error("connection terminated");
+    };
+    const failed = await post(app, keyedBody);
+    expect(failed.statusCode).toBeGreaterThanOrEqual(500);
+    workoutSetRepository.create = originalCreate;
+    const replay = await post(app, keyedBody);
+    expect(replay.statusCode).toBe(200);
+    expect(
+      await workoutSetRepository.listForWorkout(WORKOUT_ID, {
+        accessToken: "test-token",
+      }),
+    ).toHaveLength(1);
+  });
+
+  it("answers a retryable 503, not a discardable 409, when keyed renumbering is exhausted", async () => {
+    const { app, workoutSetRepository } = setup();
+    workoutSetRepository.create = async (_userId, set) => {
+      throw new WorkoutSetSequenceCollisionError(set.workoutId, set.sequence);
+    };
+    const response = await post(app, keyedBody);
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.code).toBe("SERVICE_UNAVAILABLE");
+  });
+
+  it("rejects a concurrent winner with a different payload", async () => {
+    const { app, workoutSetRepository } = setup();
+    const originalCreate =
+      workoutSetRepository.create.bind(workoutSetRepository);
+    workoutSetRepository.create = async (userId, set, options) => {
+      await originalCreate(
+        userId,
+        {
+          ...set,
+          id: "00000000-0000-4000-8000-00000000d0bb",
+          sequence: 5,
+          loadKg: 90,
+        },
+        options,
+      );
+      return originalCreate(userId, set, options);
+    };
+    const response = await post(app, keyedBody);
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("CONFLICT");
+  });
+
+  it("rejects an identity already used in a different workout", async () => {
+    const { app, workoutRepository } = setup();
+    const otherWorkout = "00000000-0000-4000-8000-00000000b002";
+    seedWorkout(workoutRepository, { id: otherWorkout });
+    await post(app, keyedBody);
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${otherWorkout}/sets`,
+      headers,
+      payload: keyedBody,
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("CONFLICT");
+  });
+
+  it("returns 404 for a replay after the workout was deleted", async () => {
+    const { app } = setup();
+    expect((await post(app, keyedBody)).statusCode).toBe(200);
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: `/v1/workouts/${WORKOUT_ID}`,
+      headers: { authorization: headers.authorization },
+    });
+    expect(deleted.statusCode).toBe(204);
+    const replay = await post(app, keyedBody);
+    expect(replay.statusCode).toBe(404);
+  });
+
+  it("treats another user's identical UUID as an independent operation", async () => {
+    const verifier: AccessTokenVerifier = {
+      verify: async (token) =>
+        token === "valid" || token === "valid-b"
+          ? {
+              userId: token === "valid" ? userA : userB,
+              role: "authenticated",
+              accessToken: "test-token",
+            }
+          : null,
+    };
+    const { app, workoutRepository, exerciseRepository, workoutSetRepository } =
+      build(verifier);
+    seedWorkout(workoutRepository);
+    seedExercise(exerciseRepository);
+    const workoutB = "00000000-0000-4000-8000-00000000b0b0";
+    const exerciseB = "00000000-0000-4000-8000-00000000c0b0";
+    seedWorkout(workoutRepository, { id: workoutB, userId: userB });
+    seedExercise(exerciseRepository, { id: exerciseB, userId: userB });
+    const a = await post(app, keyedBody);
+    const b = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${workoutB}/sets`,
+      headers: { ...headers, authorization: "Bearer valid-b" },
+      payload: { ...keyedBody, exerciseId: exerciseB },
+    });
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    expect(b.json().workoutSet.id).not.toBe(a.json().workoutSet.id);
+    expect(b.json().workoutSet.userId).toBe(userB);
+    expect(
+      await workoutSetRepository.findByClientOperationId(
+        userA,
+        OPERATION.toLowerCase(),
+        { accessToken: "test-token" },
+      ),
+    ).toMatchObject({ id: a.json().workoutSet.id });
   });
 });

@@ -175,6 +175,7 @@ export {
   summariseExerciseSets,
   validateWorkoutSetCreate,
   VALID_WORKOUT_SET_TYPES,
+  WorkoutSetSequenceCollisionError,
   type ExerciseRecentSetsSummary,
   type StoredWorkoutSet,
   type WorkoutSetCore,

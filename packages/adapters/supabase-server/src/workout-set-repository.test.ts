@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { StoredWorkoutSet, UserId } from "@mizyun/core";
+import {
+  WorkoutSetSequenceCollisionError,
+  type StoredWorkoutSet,
+  type UserId,
+} from "@mizyun/core";
 
+import { RepositoryError } from "./repository-error.js";
 import { SupabaseWorkoutSetRepository } from "./workout-set-repository.js";
 import type {
   RepositorySupabaseClient,
@@ -119,6 +124,163 @@ describe("SupabaseWorkoutSetRepository.create", () => {
         accessToken: "token",
       }),
     ).rejects.toThrow(/sequence collision/);
+  });
+});
+
+describe("SupabaseWorkoutSetRepository retry identity (REL-02 / REL-04)", () => {
+  const owner = "00000000-0000-4000-8000-000000000001" as UserId;
+  const operation = "00000000-0000-4000-8000-00000000e001";
+  const keyed = (
+    overrides: Partial<StoredWorkoutSet> = {},
+  ): StoredWorkoutSet => ({
+    id: "00000000-0000-4000-8000-00000000d009",
+    userId: owner,
+    workoutId: setRow.workout_id,
+    clientOperationId: operation,
+    exerciseId: setRow.exercise_id,
+    sequence: 2,
+    setType: "normal",
+    repetitions: 8,
+    loadKg: 60,
+    durationSeconds: null,
+    distanceMeters: null,
+    perceivedExertion: 7.5,
+    completedAt: new Date("2026-07-15T09:00:00.000Z"),
+    createdAt: new Date(),
+    ...overrides,
+  });
+
+  it("writes and reads client_operation_id", async () => {
+    const insert = vi.fn();
+    const client = fakeClient({
+      insertSingle: {
+        data: { ...setRow, client_operation_id: operation },
+        error: null,
+      },
+    });
+    const originalFrom = client.from.bind(client);
+    const spied: RepositorySupabaseClient = {
+      ...client,
+      from: ((t?: string) => {
+        const b = originalFrom(t as never) as unknown as Record<
+          string,
+          unknown
+        >;
+        b.insert = insert.mockReturnValue(b);
+        return b as never;
+      }) as RepositorySupabaseClient["from"],
+    };
+    const repo = new SupabaseWorkoutSetRepository({ clientFor: () => spied });
+    const saved = await repo.create(owner, keyed(), { accessToken: "token" });
+    expect(insert.mock.calls[0]?.[0]).toMatchObject({
+      client_operation_id: operation,
+    });
+    expect(saved.clientOperationId).toBe(operation);
+  });
+
+  it("maps a missing column to a null identity for keyless rows", async () => {
+    const repo = new SupabaseWorkoutSetRepository({
+      clientFor: () =>
+        fakeClient({ selectMaybeSingle: { data: setRow, error: null } }),
+    });
+    const found = await repo.getById(setRow.id, { accessToken: "token" });
+    expect(found?.clientOperationId).toBeNull();
+  });
+
+  it("returns the saved row when the keyed insert hits 23505", async () => {
+    const repo = new SupabaseWorkoutSetRepository({
+      clientFor: () =>
+        fakeClient({
+          insertSingle: {
+            data: null,
+            error: {
+              code: "23505",
+              message:
+                'duplicate key value violates unique constraint "workout_sets_user_client_op_idx"',
+            },
+          },
+          selectMaybeSingle: {
+            data: { ...setRow, client_operation_id: operation },
+            error: null,
+          },
+        }),
+    });
+    const saved = await repo.create(owner, keyed(), { accessToken: "token" });
+    expect(saved.id).toBe(setRow.id);
+    expect(saved.clientOperationId).toBe(operation);
+  });
+
+  it("reports a sequence collision as a typed error when the identity is unused", async () => {
+    const repo = new SupabaseWorkoutSetRepository({
+      clientFor: () =>
+        fakeClient({
+          insertSingle: {
+            data: null,
+            error: {
+              code: "23505",
+              message:
+                'duplicate key value violates unique constraint "workout_sets_workout_id_sequence_key"',
+            },
+          },
+          selectMaybeSingle: { data: null, error: null },
+        }),
+    });
+    await expect(
+      repo.create(owner, keyed(), { accessToken: "token" }),
+    ).rejects.toBeInstanceOf(WorkoutSetSequenceCollisionError);
+  });
+
+  it("does not disguise an unresolved identity violation as a sequence collision", async () => {
+    const repo = new SupabaseWorkoutSetRepository({
+      clientFor: () =>
+        fakeClient({
+          insertSingle: {
+            data: null,
+            error: {
+              code: "23505",
+              message:
+                'duplicate key value violates unique constraint "workout_sets_user_client_op_idx"',
+            },
+          },
+          selectMaybeSingle: { data: null, error: null },
+        }),
+    });
+    const failure = repo.create(owner, keyed(), { accessToken: "token" });
+    await expect(failure).rejects.toBeInstanceOf(RepositoryError);
+    await expect(failure).rejects.not.toBeInstanceOf(
+      WorkoutSetSequenceCollisionError,
+    );
+  });
+
+  it("looks the identity up by owner and operation", async () => {
+    const eq = vi.fn();
+    const client = fakeClient({
+      selectMaybeSingle: {
+        data: { ...setRow, client_operation_id: operation },
+        error: null,
+      },
+    });
+    const originalFrom = client.from.bind(client);
+    const spied: RepositorySupabaseClient = {
+      ...client,
+      from: ((t?: string) => {
+        const b = originalFrom(t as never) as unknown as Record<
+          string,
+          unknown
+        >;
+        b.eq = eq.mockReturnValue(b);
+        return b as never;
+      }) as RepositorySupabaseClient["from"],
+    };
+    const repo = new SupabaseWorkoutSetRepository({ clientFor: () => spied });
+    const found = await repo.findByClientOperationId(owner, operation, {
+      accessToken: "token",
+    });
+    expect(found?.id).toBe(setRow.id);
+    expect(eq.mock.calls).toEqual([
+      ["user_id", owner],
+      ["client_operation_id", operation],
+    ]);
   });
 });
 

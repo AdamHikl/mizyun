@@ -1,7 +1,8 @@
-import type {
-  StoredWorkoutSet,
-  UserId,
-  WorkoutSetRepository,
+import {
+  WorkoutSetSequenceCollisionError,
+  type StoredWorkoutSet,
+  type UserId,
+  type WorkoutSetRepository,
 } from "@mizyun/core";
 
 /**
@@ -9,8 +10,11 @@ import type {
  *
  * Used by `apps/api` until the Supabase adapter lands. Behaviour:
  *   - `create` enforces the per-workout sequence uniqueness
- *     invariant (`unique (workout_id, sequence)`). Throws when
- *     the supplied sequence collides.
+ *     invariant (`unique (workout_id, sequence)`). Throws
+ *     `WorkoutSetSequenceCollisionError` when the supplied
+ *     sequence collides. A set whose owner already used its
+ *     `clientOperationId` returns the existing row instead
+ *     (mirrors `workout_sets_user_client_op_idx`).
  *   - `listForWorkout` returns sets ordered by `sequence`
  *     ascending.
  *   - `recentForExercise` filters by tenant and exercise id,
@@ -39,15 +43,38 @@ export class InMemoryWorkoutSetRepository implements WorkoutSetRepository {
     if (this.#byId.has(set.id)) {
       throw new Error(`workout set id collision ${set.id}`);
     }
+    if (set.clientOperationId) {
+      const replay = this.#findByOperation(userId, set.clientOperationId);
+      if (replay !== null) return replay;
+    }
     const existing = this.#byWorkout.get(set.workoutId) ?? [];
     if (existing.some((s) => s.sequence === set.sequence)) {
-      throw new Error(
-        `workout set sequence collision: workout=${set.workoutId} sequence=${set.sequence}`,
-      );
+      throw new WorkoutSetSequenceCollisionError(set.workoutId, set.sequence);
     }
     this.#byWorkout.set(set.workoutId, [...existing, set]);
     this.#byId.set(set.id, set);
     return set;
+  }
+
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkoutSet | null> {
+    void options.accessToken;
+    return this.#findByOperation(userId, clientOperationId);
+  }
+
+  #findByOperation(
+    userId: UserId,
+    clientOperationId: string,
+  ): StoredWorkoutSet | null {
+    for (const s of this.#byId.values()) {
+      if (s.userId === userId && s.clientOperationId === clientOperationId) {
+        return s;
+      }
+    }
+    return null;
   }
 
   async listForWorkout(

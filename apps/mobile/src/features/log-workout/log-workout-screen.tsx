@@ -108,19 +108,30 @@ import {
 
 import {
   abandonWorkout,
-  addWorkoutSet,
   applyCompletedWorkoutProgressions,
   completeWorkout,
   createExercise,
   deleteWorkoutSet,
   extractPlannedExercises,
+  loadPendingWorkoutSets,
   loadRecentPerformance,
   loadWorkoutWorkspace,
+  queueWorkoutSet,
   reorderWorkoutExercises,
   startWorkout,
+  syncPendingWorkoutSets,
   type PlannedExercise,
   type WorkoutWorkspace,
 } from "./log-workout-data";
+import {
+  droppedSetMessage,
+  mergePendingSets,
+  pendingSetOperationId,
+  pendingSetsNotice,
+  sameSet,
+  type PendingSetCommand,
+  type PendingSetFlush,
+} from "./pending-sets";
 import {
   WatchWorkoutControls,
   type CompanionOutcome,
@@ -279,6 +290,25 @@ export function LogWorkoutScreen() {
     useState<boolean>(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  // Sets saved on this device that the server has not confirmed (REL-02).
+  const [pendingSets, setPendingSets] = useState<readonly PendingSetCommand[]>(
+    [],
+  );
+  const pendingSetsRef = useRef<readonly PendingSetCommand[]>([]);
+  pendingSetsRef.current = pendingSets;
+  const [pendingSetsBlocked, setPendingSetsBlocked] =
+    useState<PendingSetFlush["blocked"]>(null);
+  const pendingSetIds = useMemo(
+    () => new Set(pendingSets.map(pendingSetOperationId)),
+    [pendingSets],
+  );
+  const pendingSetsText = pendingSetsNotice(
+    workspace.workout === null
+      ? 0
+      : pendingSets.filter((c) => c.workoutId === workspace.workout!.id).length,
+    pendingSetsBlocked,
+  );
+
   const hadFailure = useRef(false);
   const setSaveInFlight = useRef(false);
   const exerciseMutationInFlight = useRef(false);
@@ -335,6 +365,17 @@ export function LogWorkoutScreen() {
             message: next.message,
           };
         }
+        // Sets still waiting on this device stay visible after a reload.
+        if (next.workout !== null && userId !== null)
+          return {
+            ...next,
+            sets: mergePendingSets(
+              next.sets,
+              pendingSetsRef.current,
+              next.workout.id,
+              userId,
+            ),
+          };
         return next;
       });
       setMessage(next.message);
@@ -345,12 +386,149 @@ export function LogWorkoutScreen() {
       }
       setLoading(false);
     },
-    [workoutId],
+    [userId, workoutId],
   );
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const pendingSetsRun = useRef<Promise<
+    readonly PendingSetCommand[] | null
+  > | null>(null);
+  const pendingSetsRerun = useRef(false);
+  /**
+   * One replay pass. The screen's list keeps every set it did not settle, so
+   * a set logged while this pass was in flight is never forgotten.
+   */
+  const syncPendingSetsOnce = useCallback(async (): Promise<
+    readonly PendingSetCommand[] | null
+  > => {
+    const owner = userId;
+    if (owner === null) return null;
+    // Same account and screen still mounted (cleared on unmount).
+    const isCurrent = () => currentWorkoutOwner.current.startsWith(`${owner}:`);
+    if (!isCurrent()) return null;
+    const outcome = await syncPendingWorkoutSets(owner, isCurrent);
+    if (!isCurrent()) return null;
+    const settled = new Set(
+      [...outcome.synced, ...outcome.dropped].map((s) =>
+        pendingSetOperationId(s.command),
+      ),
+    );
+    const known = new Set(pendingSetsRef.current.map(pendingSetOperationId));
+    const next = [
+      ...pendingSetsRef.current.filter(
+        (c) => !settled.has(pendingSetOperationId(c)),
+      ),
+      // Waiting on the device but not yet shown (a load still in flight).
+      ...outcome.remaining.filter((c) => !known.has(pendingSetOperationId(c))),
+    ];
+    pendingSetsRef.current = next;
+    setPendingSets(next);
+    setPendingSetsBlocked(outcome.blocked);
+    if (outcome.synced.length > 0 || outcome.dropped.length > 0) {
+      setWorkspace((current) => {
+        let sets = [...current.sets];
+        for (const { command, workoutSet } of outcome.synced) {
+          const id = pendingSetOperationId(command);
+          sets =
+            workoutSet === null ||
+            sets.some((s) => s.id === workoutSet.id && s.id !== id)
+              ? sets.filter((s) => s.id !== id)
+              : sets.map((s) => (s.id === id ? workoutSet : s));
+        }
+        for (const { command } of outcome.dropped) {
+          const id = pendingSetOperationId(command);
+          sets = sets.filter((s) => s.id !== id);
+        }
+        return { ...current, sets };
+      });
+    }
+    // Show the server's copy (also when the reply was unreadable).
+    if (outcome.synced.length > 0) void refresh();
+    if (outcome.dropped.length > 0)
+      setMessage(outcome.dropped.map(droppedSetMessage).join("\n"));
+    return next;
+  }, [refresh, userId]);
+
+  /**
+   * Replays waiting sets in order. A call made while a pass runs joins it
+   * and asks for one more pass, so the caller's set is always attempted.
+   */
+  const syncPendingSets = useCallback((): Promise<
+    readonly PendingSetCommand[] | null
+  > => {
+    if (pendingSetsRun.current) {
+      pendingSetsRerun.current = true;
+      return pendingSetsRun.current;
+    }
+    const run = (async () => {
+      let remaining: readonly PendingSetCommand[] | null;
+      do {
+        pendingSetsRerun.current = false;
+        remaining = await syncPendingSetsOnce();
+      } while (pendingSetsRerun.current && remaining !== null);
+      return remaining;
+    })().finally(() => {
+      pendingSetsRun.current = null;
+    });
+    pendingSetsRun.current = run;
+    return run;
+  }, [syncPendingSetsOnce]);
+
+  const syncPendingSetsRef = useRef(syncPendingSets);
+  syncPendingSetsRef.current = syncPendingSets;
+  // Sets saved on this device survive restarts: show them, then replay.
+  // Runs once per account, so a route change never empties the list.
+  useEffect(() => {
+    setPendingSets([]);
+    pendingSetsRef.current = [];
+    setPendingSetsBlocked(null);
+    if (userId === null) return;
+    let active = true;
+    void loadPendingWorkoutSets(userId).then((commands) => {
+      if (!active) return;
+      if (commands === null) {
+        setPendingSetsBlocked("storage");
+        return;
+      }
+      setPendingSets(commands);
+      pendingSetsRef.current = commands;
+      if (commands.length === 0) return;
+      setWorkspace((current) =>
+        current.workout === null
+          ? current
+          : {
+              ...current,
+              sets: mergePendingSets(
+                current.sets,
+                commands,
+                current.workout.id,
+                userId,
+              ),
+            },
+      );
+      void syncPendingSetsRef.current();
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  // Retry while sets wait: on return to the app and every 15 seconds.
+  const hasPendingSets = pendingSets.length > 0;
+  useEffect(() => {
+    if (!hasPendingSets) return;
+    const interval = setInterval(() => void syncPendingSets(), 15_000);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") void syncPendingSets();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [hasPendingSets, syncPendingSets]);
 
   // Reads are retired while the app is locked or in the background. Recover
   // automatically on return instead of leaving the failure on screen.
@@ -1265,28 +1443,37 @@ export function LogWorkoutScreen() {
         setBusy(true);
         setMessage(null);
         const setTypeVal = pendingSetType(currentInput, entry, completedSets);
-        const result = await addWorkoutSet(workspace.workout.id, {
-          exerciseId: resolvedExerciseId,
-          repetitions: repsVal,
-          load: loadVal,
-          durationSeconds: timedFields
-            ? timedFields.durationSeconds
-            : currentInput.durationSeconds,
-          distanceMeters: timedFields
-            ? timedFields.distanceMeters
-            : currentInput.distanceMeters,
-          perceivedExertion: currentInput.rpe,
-          setType: setTypeVal,
-          unitSystem,
-          ...(watchInput
-            ? {
-                sequence:
-                  Math.max(0, ...workspace.sets.map((set) => set.sequence)) + 1,
-                completedAt: new Date(watchInput.createdAtMs).toISOString(),
-                canonicalLoadKg: Math.round(watchInput.loadKg * 1000) / 1000,
-              }
-            : {}),
-        });
+        const nextSequence =
+          Math.max(0, ...workspace.sets.map((set) => set.sequence)) + 1;
+        const result = await queueWorkoutSet(
+          workspace.workout.id,
+          {
+            exerciseId: resolvedExerciseId,
+            repetitions: repsVal,
+            load: loadVal,
+            durationSeconds: timedFields
+              ? timedFields.durationSeconds
+              : currentInput.durationSeconds,
+            distanceMeters: timedFields
+              ? timedFields.distanceMeters
+              : currentInput.distanceMeters,
+            perceivedExertion: currentInput.rpe,
+            setType: setTypeVal,
+            unitSystem,
+            sequence: nextSequence,
+            ...(watchInput
+              ? {
+                  completedAt: new Date(watchInput.createdAtMs).toISOString(),
+                  canonicalLoadKg: Math.round(watchInput.loadKg * 1000) / 1000,
+                }
+              : {}),
+          },
+          {
+            userId: userId ?? "",
+            isCurrent: () =>
+              userId !== null && currentWorkoutOwner.current === mutationOwner,
+          },
+        );
         setBusy(false);
         if (currentWorkoutOwner.current !== mutationOwner) {
           if (!result.ok)
@@ -1431,8 +1618,17 @@ export function LogWorkoutScreen() {
           });
         }
 
-        // Silently reconcile with backend in the background without unmounting or resetting scroll
-        void refresh();
+        // The set is safe on this device; send it (and any earlier ones) now.
+        // A confirmed send reconciles with the server without resetting scroll.
+        const command = result.command;
+        if (command !== null) {
+          setPendingSets((current) => {
+            const next = [...current, command];
+            pendingSetsRef.current = next;
+            return next;
+          });
+          void syncPendingSets();
+        } else void refresh();
         return "saved";
       } catch {
         setMessage("We couldn't save this set. Please try again.");
@@ -1450,8 +1646,10 @@ export function LogWorkoutScreen() {
       pendingInputs,
       refresh,
       restTimer?.notificationId,
+      syncPendingSets,
       unitSystem,
       updatePendingInput,
+      userId,
       workspace.exercises,
       workspace.sets,
       workspace.workout,
@@ -1463,6 +1661,18 @@ export function LogWorkoutScreen() {
     (set: WorkoutSet) => {
       if (workspace.workout === null || workspace.workout.completedAt !== null)
         return;
+      // Also a saved row whose replay is still queued (a lost response):
+      // deleting it now would let the replay bring it back.
+      if (
+        pendingSetsRef.current.some(
+          (c) => pendingSetOperationId(c) === set.id || sameSet(set, c),
+        )
+      ) {
+        setMessage(
+          "This set is still waiting to sync. You can delete it once it's saved.",
+        );
+        return;
+      }
       Alert.alert("Delete Set?", `Remove set ${set.sequence}?`, [
         { text: "Cancel", style: "cancel" },
         {
@@ -1550,6 +1760,27 @@ export function LogWorkoutScreen() {
         const mutationOwner = currentWorkoutOwner.current;
         setSaveInFlight.current = true;
         try {
+          // Never finish while logged sets are only on this device.
+          const workoutIdToFinish = workspace.workout!.id;
+          if (
+            pendingSetsRef.current.some(
+              (c) => c.workoutId === workoutIdToFinish,
+            )
+          ) {
+            // The save lock stays held, so no set can be logged meanwhile.
+            const remaining = await syncPendingSets();
+            if (currentWorkoutOwner.current !== mutationOwner)
+              return "rejected";
+            const waiting = (remaining ?? pendingSetsRef.current).filter(
+              (c) => c.workoutId === workoutIdToFinish,
+            ).length;
+            if (remaining === null || waiting > 0) {
+              setMessage(
+                `${waiting === 1 ? "1 set is" : `${Math.max(waiting, 1)} sets are`} still waiting to sync. Connect to the internet, then finish.`,
+              );
+              return "uncertain";
+            }
+          }
           restNotificationGeneration.current += 1;
           if (restTimer?.notificationId) {
             await cancelRestNotification(restTimer.notificationId);
@@ -1633,7 +1864,11 @@ export function LogWorkoutScreen() {
 
       Alert.alert(
         "Finish Workout?",
-        `Completed in ${formattedDuration} with ${totalSets} saved sets.${progressionSummary}`,
+        `Completed in ${formattedDuration} with ${totalSets} saved sets.${progressionSummary}${
+          pendingSetsBlocked === "storage"
+            ? "\n\nSets saved on this device can't be read, so any that were not sent will not be included."
+            : ""
+        }`,
         [
           { text: "Keep Logging", style: "cancel" },
           {
@@ -1653,9 +1888,11 @@ export function LogWorkoutScreen() {
       autoAdvanceTargetWeights,
       clearContextRestTimer,
       elapsedSeconds,
+      pendingSetsBlocked,
       plannedExercises,
       restTimer?.notificationId,
       setContextActiveWorkout,
+      syncPendingSets,
       unitSystem,
       userId,
       workspace.exercises,
@@ -1994,6 +2231,7 @@ export function LogWorkoutScreen() {
                 exercises={exerciseEntries}
                 allExercises={workspace.exercises}
                 savedSets={workspace.sets}
+                pendingSetIds={pendingSetIds}
                 recentPerformanceMap={recentPerformanceMap}
                 pendingInputs={pendingInputs}
                 unitSystem={unitSystem}
@@ -2024,6 +2262,18 @@ export function LogWorkoutScreen() {
                 view={companionView}
                 execute={executeCompanionCommand}
               />
+            ) : null}
+
+            {pendingSetsText !== null ? (
+              <ThemedText
+                type="footnote"
+                themeColor="textSecondary"
+                accessibilityRole="text"
+                accessibilityLiveRegion="polite"
+                style={styles.pendingSetsNotice}
+              >
+                {pendingSetsText}
+              </ThemedText>
             ) : null}
 
             {message !== null ? (
@@ -2312,6 +2562,7 @@ function ActiveWorkoutFeed(props: {
   readonly exercises: ReadonlyArray<ExerciseEntry>;
   readonly allExercises: ReadonlyArray<Exercise>;
   readonly savedSets: ReadonlyArray<WorkoutSet>;
+  readonly pendingSetIds: ReadonlySet<string>;
   readonly recentPerformanceMap: Record<
     string,
     ExerciseRecentSetsResponse | null
@@ -2412,6 +2663,7 @@ function ActiveWorkoutFeed(props: {
               index={index}
               totalExercises={props.exercises.length}
               completedSets={completedSets}
+              pendingSetIds={props.pendingSetIds}
               recentPerformance={recentPerf}
               pendingInput={{
                 ...(props.pendingInputs[entry.id] ??
@@ -2546,6 +2798,7 @@ function LiveExerciseCard(props: {
   readonly index: number;
   readonly totalExercises: number;
   readonly completedSets: ReadonlyArray<WorkoutSet>;
+  readonly pendingSetIds: ReadonlySet<string>;
   readonly recentPerformance: ExerciseRecentSetsResponse | null;
   readonly pendingInput: PendingSetInput;
   readonly unitSystem: "metric" | "imperial";
@@ -2765,7 +3018,16 @@ function LiveExerciseCard(props: {
           return (
             <View
               key={set.id}
-              style={[styles.setRow, { backgroundColor: theme.successLight }]}
+              style={[
+                styles.setRow,
+                { backgroundColor: theme.successLight },
+                props.pendingSetIds.has(set.id) && styles.pendingSetRow,
+              ]}
+              accessibilityHint={
+                props.pendingSetIds.has(set.id)
+                  ? "Saved on this device, waiting to sync"
+                  : undefined
+              }
             >
               <View style={styles.colSetWrapper}>
                 {renderSetBadge(set.setType, i + 1)}
@@ -3193,6 +3455,12 @@ const COL_INPUT = 64;
 const COL_CHECK = 48;
 
 const styles = StyleSheet.create({
+  pendingSetsNotice: {
+    marginBottom: Spacing.two,
+  },
+  pendingSetRow: {
+    opacity: 0.6,
+  },
   timerValueRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   page: { flex: 1 },
   safeArea: { flex: 1 },

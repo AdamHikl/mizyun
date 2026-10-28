@@ -104,9 +104,16 @@ export type WorkoutSetListResponse = z.infer<
  * (`repetitions`, `loadKg`, `durationSeconds`, `distanceMeters`)
  * must be present and non-null (null counts as absent). A "set" of nothing has no practical value and
  * is rejected at the wire layer.
+ *
+ * `clientOperationId` (REL-02 / REL-04) is an optional client-generated
+ * retry identity. A replay with the same identity and canonical payload
+ * returns the already-saved set; older clients omit it and keep keyless
+ * append behaviour. Keyed creates must send a non-null `completedAt` so the
+ * replayed payload is canonical. Responses never echo the identity.
  */
 export const workoutSetCreateSchema = z
   .object({
+    clientOperationId: z.string().uuid().optional(),
     exerciseId: z.string().uuid(),
     sequence: z.number().int().gte(1).lte(MAX_SEQUENCE).optional(),
     setType: workoutSetTypeSchema.optional(),
