@@ -7,7 +7,8 @@ A read-only multi-agent review of the app at `a3947503` (2026-10-26) produced 17
 - Local `main` at `081724f35879dc8964dcf019fad5172c12cb7709`, 29 commits ahead of `origin/main`. **Not pushed, not deployed.**
 - Integration branch `claude/integration-high-fixes` (worktree `.claude/worktrees/integration-high-fixes`), fast-forwarded into `main`.
 - `pnpm check` PASS on the merged tree (input SHA-256 `d1013f7caa13615aa3bda5bf27cb844ef74ac23e7e51721c594142484bbb52fe`): mobile 3911, API 1496 passed + 15 skipped, all package and tooling gates.
-- `pnpm db:verify` **not run** on the combined migrations. Session SQL tests ran in rolled-back transactions on the shared local database only.
+- 2026-10-29: `pnpm db:verify` PASS on `45e8d8ea` (local disposable database, 61 files / 2002 tests).
+- 2026-10-29: `45e8d8ea` pushed to `origin/main` and deployed to Hetzner Dev via `pnpm deploy:dev` (its own `pnpm check` PASS, input SHA-256 `4e61022d…`; applied migrations `20261027120000`, `120100`, `120200`, `120300`, `130000`); public Dev health HTTP 200 at 07:29Z. Mizyun Dev Release build installed on Adam's iPhone 16 Pro and launched at 07:35Z (PID 9461); install needed one retry after a CoreDevice connection reset. Device acceptance not yet performed.
 
 ## Branches merged
 
@@ -35,7 +36,6 @@ A read-only multi-agent review of the app at `a3947503` (2026-10-26) produced 17
 ## Open gates and founder steps
 
 - **Decisions:** #345 safeguarding wording and cut-offs; legal drafts in `docs/legal-drafts/`; cached-token pricing in the AI cost ledger.
-- **Before any deploy:** push decision; `pnpm db:verify` on the merged tree.
 - **Servers (after deploy):** OPS-01 monitoring setup ([guide](tutorials/HETZNER_BACKEND_GUIDE.md)); ADR-0086 Production activation ([runbook](tutorials/COMMUNITY_OPERATIONS_RUNBOOK.md)) including moderator MFA; storage gateway block for unfinished resumable uploads (SEC-02).
 - **Stores:** rebuild and re-sign the 1.0.10 AAB (HLTH-01); App Store 16+, Play content rating from IARC, Play target audience 18+.
 - **Device acceptance:** workout lock/airplane/force-quit, VoiceOver and TalkBack announcements, Home card VoiceOver, Android 15+ keyboard, Coach "today" vs Home.
