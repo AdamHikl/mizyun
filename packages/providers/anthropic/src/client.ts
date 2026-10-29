@@ -142,22 +142,30 @@ export const textOf = (message: Anthropic.Message): string =>
     .join("")
     .trim();
 
+/**
+ * Token counts of one response. Anthropic reports cache reads and writes
+ * apart from `input_tokens`; they are added into the prompt and total and
+ * also kept separately, so the cost ledger can price them at their own rates.
+ */
 export const usageOf = (
   message: Anthropic.Message,
 ): {
   readonly promptTokens: number;
   readonly completionTokens: number;
   readonly totalTokens: number;
+  readonly cacheReadTokens: number;
+  readonly cacheWriteTokens: number;
 } => {
   const usage = message.usage;
-  const prompt =
-    usage.input_tokens +
-    (usage.cache_read_input_tokens ?? 0) +
-    (usage.cache_creation_input_tokens ?? 0);
+  const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
+  const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0;
+  const prompt = usage.input_tokens + cacheReadTokens + cacheWriteTokens;
   return {
     promptTokens: prompt,
     completionTokens: usage.output_tokens,
     totalTokens: prompt + usage.output_tokens,
+    cacheReadTokens,
+    cacheWriteTokens,
   };
 };
 

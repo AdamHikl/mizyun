@@ -431,6 +431,26 @@ describe("AnthropicAgentProvider", () => {
   });
 });
 
+describe("Anthropic usage counts (#347)", () => {
+  it("keeps cache reads and writes apart and inside the total", async () => {
+    const cached = message([text("Open Log.")]);
+    (cached.usage as unknown as Record<string, number>) = {
+      input_tokens: 2_400,
+      output_tokens: 900,
+      cache_read_input_tokens: 8_000,
+      cache_creation_input_tokens: 500,
+    };
+    const response = await provider(fakeClient([cached])).respond(request());
+    expect(response.providerMetadata).toMatchObject({
+      promptTokens: 10_900,
+      completionTokens: 900,
+      totalTokens: 11_800,
+      cacheReadTokens: 8_000,
+      cacheWriteTokens: 500,
+    });
+  });
+});
+
 describe("AnthropicKeywordContentScreen", () => {
   it("blocks self-harm language locally", async () => {
     const moderator = new AnthropicKeywordContentScreen({

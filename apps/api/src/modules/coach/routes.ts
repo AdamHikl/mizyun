@@ -1165,6 +1165,21 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             ? response.providerMetadata.totalTokens
             : undefined;
         const totalTokens = reportedTokens ?? 0;
+        const reportedCount = (key: string): number | undefined => {
+          const value = response.providerMetadata?.[key];
+          return typeof value === "number" && Number.isFinite(value)
+            ? value
+            : undefined;
+        };
+        // Output-priced tokens: the total less the prompt also covers
+        // thinking tokens a provider leaves out of its completion count.
+        const promptTokens = reportedCount("promptTokens");
+        const outputTokens = Math.max(
+          reportedCount("completionTokens") ?? 0,
+          reportedTokens !== undefined && promptTokens !== undefined
+            ? reportedTokens - promptTokens
+            : 0,
+        );
         // Canned app help and an input safety screen make no model call and
         // use no Coach message (ADR-0087). A reply replaced by output
         // moderation followed a model call and still counts.
@@ -1209,6 +1224,11 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           tokensEstimated,
           provider: response.provider,
           costTokensUsed: reportedTokens,
+          costCacheReadTokens: reportedCount("cacheReadTokens"),
+          costCacheWriteTokens: reportedCount("cacheWriteTokens"),
+          costOutputTokens: outputTokens,
+          costIncomplete:
+            response.providerMetadata?.tokenCountsIncomplete === true,
           countMessage: !localReply,
         });
         const latestConversation =

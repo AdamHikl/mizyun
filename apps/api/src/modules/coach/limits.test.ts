@@ -10,6 +10,7 @@ import { AI_COST_RESERVATION_MICROS } from "@mizyun/config";
 import {
   InMemoryAiCostLedger,
   InMemoryCoachLimitService,
+  type FinalizeRequest,
   SupabaseCoachLimitService,
   type ReserveSlotRequest,
 } from "./limits.js";
@@ -1139,6 +1140,88 @@ describe("AI cost allowance and refine cap (#336, ADR-0081)", () => {
     expect(ledger.usedMicros(userId, "2026-10-26")).toBe(
       AI_COST_RESERVATION_MICROS.coach,
     );
+  });
+
+  it("settles a Coach turn with its cache reads and writes at their own rates (#347)", async () => {
+    const clock = { now: Date.parse("2026-10-26T10:00:00.000Z") };
+    const ledger = new InMemoryAiCostLedger({
+      clock: () => new Date(clock.now),
+    });
+    const service = new InMemoryCoachLimitService({
+      clock: () => new Date(clock.now),
+      costLedger: ledger,
+    });
+    const settle = async (
+      key: string,
+      cache: { read?: number; write?: number },
+    ) => {
+      const before = ledger.usedMicros(userId, "2026-10-26");
+      const slot = await service.acquireSlot(
+        buildRequest({ planTier: "paid", idempotencyKey: key }),
+      );
+      if (slot.kind !== "reserved") throw new Error("expected reserved");
+      await service.commitTokens({
+        userId,
+        providerCallId: slot.providerCallId,
+        finalStatus: "succeeded",
+        messageId: `msg-${key}`,
+        tokensUsed: 11_400,
+        provider: "anthropic",
+        costTokensUsed: 11_400,
+        costCacheReadTokens: cache.read,
+        costCacheWriteTokens: cache.write,
+      });
+      clock.now += 61_000;
+      return ledger.usedMicros(userId, "2026-10-26") - before;
+    };
+    const uncached = Math.ceil(11_400 * (0.94 * 0.1 + 0.06 * 0.5));
+    expect(await settle("no-cache-counts", {})).toBe(uncached);
+    expect(await settle("cache-read", { read: 8_000, write: 0 })).toBe(
+      Math.ceil(2_716 * 0.1 + 684 * 0.5 + 8_000 * 0.01),
+    );
+    expect(await settle("cache-write", { read: 0, write: 8_000 })).toBe(
+      Math.ceil(2_716 * 0.1 + 684 * 0.5 + 8_000 * 0.125),
+    );
+  });
+
+  it("settles the durable Coach cost with cache, output and incomplete counts (#347)", async () => {
+    const fixture = sharedCounterFixture();
+    const original = fixture.rpc.getMockImplementation()!;
+    const settled: number[] = [];
+    fixture.rpc.mockImplementation(async (name, args) => {
+      if (name === "ai_settle_cost") settled.push(Number(args.p_actual));
+      if (name === "ai_complete_provider_call") {
+        return { data: [{}], error: null };
+      }
+      return original(name, args);
+    });
+    const turn = async (extra: Partial<FinalizeRequest>) => {
+      const slot = await fixture.coach.acquireSlot(
+        buildRequest({ planTier: "paid", idempotencyKey: crypto.randomUUID() }),
+      );
+      if (slot.kind !== "reserved") throw new Error("expected reserved");
+      await fixture.coach.commitTokens({
+        userId,
+        providerCallId: slot.providerCallId,
+        finalStatus: "succeeded",
+        messageId: crypto.randomUUID(),
+        tokensUsed: 11_400,
+        provider: "anthropic",
+        costTokensUsed: 11_400,
+        ...extra,
+      });
+    };
+    await turn({
+      costCacheReadTokens: 8_000,
+      costCacheWriteTokens: 0,
+      costOutputTokens: 1_000,
+    });
+    // A tool round without a count: never below the reservation.
+    await turn({ costCacheReadTokens: 8_000, costIncomplete: true });
+    expect(settled).toEqual([
+      Math.ceil(2_400 * 0.1 + 1_000 * 0.5 + 8_000 * 0.01),
+      AI_COST_RESERVATION_MICROS.coach,
+    ]);
   });
 
   it("returns the cost reservation and slot when a count RPC fails after it", async () => {

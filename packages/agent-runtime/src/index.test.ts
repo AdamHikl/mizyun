@@ -924,3 +924,190 @@ describe("COACH_FIXED_POLICY — in-app navigation and remaining nutrition guida
     ).not.toContain('{"answer"');
   });
 });
+
+describe("Coach turn token usage across tool rounds (#347)", () => {
+  const goalTool = createAgentToolRegistryFromList([
+    {
+      name: "get_active_goal",
+      description: "Returns the active goal.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => ({
+        kind: "goal",
+        label: "Active goal",
+        confirmed: true,
+        freshness: new Date().toISOString(),
+        data: { active: true },
+      }),
+    },
+  ]);
+
+  const twoRoundTurn = async (
+    rounds: readonly Readonly<Record<string, unknown>>[],
+  ): Promise<AgentResponse> => {
+    let calls = 0;
+    const provider: AgentProvider = {
+      status: async () => ({
+        ready: true,
+        provider: "fake",
+        externalAccess: true,
+      }),
+      respond: async (): Promise<AgentResponse> => {
+        calls += 1;
+        return calls === 1
+          ? {
+              message: { role: "assistant", text: "" },
+              provider: "fake",
+              evidence: [],
+              toolCalls: [{ id: "call-1", name: "get_active_goal", args: {} }],
+              providerMetadata: rounds[0]!,
+            }
+          : {
+              message: { role: "assistant", text: "Goal acknowledged." },
+              provider: "fake",
+              evidence: [],
+              providerMetadata: rounds[1]!,
+            };
+      },
+    };
+    return new AgentOrchestrator({
+      provider,
+      memories: new InMemoryMemoryStore(),
+      tools: goalTool,
+      maxToolCalls: 1,
+    }).respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "What is my goal?" }],
+      accessToken: "token",
+    });
+  };
+
+  it("reports the token and cache counts of every round, not only the last", async () => {
+    const response = await twoRoundTurn([
+      {
+        promptTokens: 9_000,
+        completionTokens: 100,
+        totalTokens: 9_100,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 8_000,
+        resolvedModel: "first",
+      },
+      {
+        promptTokens: 9_500,
+        completionTokens: 400,
+        totalTokens: 9_900,
+        cacheReadTokens: 8_000,
+        cacheWriteTokens: 0,
+        resolvedModel: "second",
+      },
+    ]);
+    expect(response.providerMetadata).toMatchObject({
+      promptTokens: 18_500,
+      completionTokens: 500,
+      totalTokens: 19_000,
+      cacheReadTokens: 8_000,
+      cacheWriteTokens: 8_000,
+      resolvedModel: "second",
+      toolCallsUsed: 1,
+    });
+  });
+
+  it("keeps the known total and flags a turn with a round that reported none", async () => {
+    const response = await twoRoundTurn([
+      { totalTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      { totalTokens: 20_000, cacheWriteTokens: 0 },
+    ]);
+    // The cost ledger charges at least the reservation for a flagged turn.
+    expect(response.providerMetadata).toMatchObject({
+      totalTokens: 20_000,
+      tokenCountsIncomplete: true,
+    });
+    // Cache counts of a round without a total cannot be checked against it.
+    expect(response.providerMetadata).not.toHaveProperty("cacheReadTokens");
+    expect(response.providerMetadata).not.toHaveProperty("cacheWriteTokens");
+  });
+
+  it.each([
+    [
+      "a round without a total",
+      { totalTokens: 0, cacheReadTokens: 80_000, cacheWriteTokens: 0 },
+      { totalTokens: 100_000, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    ],
+    [
+      "a round whose cache counts exceed its total",
+      { totalTokens: 1_000, cacheReadTokens: 5_000, cacheWriteTokens: 0 },
+      { totalTokens: 10_000, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    ],
+  ])("drops the turn's cache counts after %s", async (_case, first, second) => {
+    const response = await twoRoundTurn([first, second]);
+    expect(response.providerMetadata).not.toHaveProperty("cacheReadTokens");
+    expect(response.providerMetadata).not.toHaveProperty("cacheWriteTokens");
+    expect(response.providerMetadata?.totalTokens).toBe(
+      first.totalTokens + second.totalTokens,
+    );
+  });
+
+  it("reports every round's counts when a later tool fails", async () => {
+    let calls = 0;
+    let executions = 0;
+    const provider: AgentProvider = {
+      status: async () => ({
+        ready: true,
+        provider: "fake",
+        externalAccess: true,
+      }),
+      respond: async (): Promise<AgentResponse> => {
+        calls += 1;
+        return {
+          message: { role: "assistant", text: "Checking." },
+          provider: "fake",
+          evidence: [],
+          toolCalls: [
+            { id: `call-${calls}`, name: "get_active_goal", args: {} },
+          ],
+          providerMetadata: {
+            totalTokens: 1_000 * calls,
+            cacheReadTokens: 500,
+          },
+        };
+      },
+    };
+    const response = await new AgentOrchestrator({
+      provider,
+      memories: new InMemoryMemoryStore(),
+      tools: createAgentToolRegistryFromList([
+        {
+          name: "get_active_goal",
+          description: "Returns the active goal.",
+          parameters: { type: "object", properties: {} },
+          execute: async () => {
+            executions += 1;
+            if (executions > 1) throw new Error("goal store unavailable");
+            return {
+              kind: "goal",
+              label: "Active goal",
+              confirmed: true,
+              freshness: new Date().toISOString(),
+              data: { active: true },
+            };
+          },
+        },
+      ]),
+      maxToolCalls: 2,
+    }).respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "What is my goal?" }],
+      accessToken: "token",
+    });
+    expect(calls).toBe(2);
+    expect(response.providerMetadata).toMatchObject({
+      finishReason: "tool_error",
+      totalTokens: 3_000,
+      cacheReadTokens: 1_000,
+    });
+    expect(response.providerMetadata).not.toHaveProperty(
+      "tokenCountsIncomplete",
+    );
+  });
+});

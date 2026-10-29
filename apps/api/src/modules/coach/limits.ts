@@ -111,6 +111,14 @@ export interface FinalizeRequest {
    * charged; `tokensUsed` may then be a 0 fallback for the token ledger.
    */
   readonly costTokensUsed?: number | undefined;
+  /** Part of `costTokensUsed` the provider read from its prompt cache. */
+  readonly costCacheReadTokens?: number | undefined;
+  /** Part of `costTokensUsed` the provider wrote to its prompt cache. */
+  readonly costCacheWriteTokens?: number | undefined;
+  /** Part of `costTokensUsed` priced as output. */
+  readonly costOutputTokens?: number | undefined;
+  /** Some provider calls of the turn reported no count (reservation floor). */
+  readonly costIncomplete?: boolean | undefined;
   /**
    * False when the stored reply came from Mizyun itself (safety screen or
    * canned app help) without a model call, so it uses no Coach message.
@@ -970,6 +978,10 @@ export class SupabaseCoachLimitService implements CoachLimitService {
                 "costTokensUsed" in request
                   ? request.costTokensUsed
                   : request.tokensUsed,
+              cacheReadTokens: request.costCacheReadTokens,
+              cacheWriteTokens: request.costCacheWriteTokens,
+              outputTokens: request.costOutputTokens,
+              incomplete: request.costIncomplete,
               provider: request.provider,
             })
           : reservation.reservedMicros,
@@ -1525,6 +1537,10 @@ export class InMemoryCoachLimitService implements CoachLimitService {
                 "costTokensUsed" in request
                   ? request.costTokensUsed
                   : request.tokensUsed,
+              cacheReadTokens: request.costCacheReadTokens,
+              cacheWriteTokens: request.costCacheWriteTokens,
+              outputTokens: request.costOutputTokens,
+              incomplete: request.costIncomplete,
               provider: request.provider,
             })
           : reservation.reservedMicros,

@@ -651,6 +651,82 @@ export class AgentToolBudgetExceededError extends Error {
   }
 }
 
+/** Provider-neutral token counts a provider may report per call. */
+const TOKEN_COUNT_KEYS = [
+  "promptTokens",
+  "completionTokens",
+  "cacheReadTokens",
+  "cacheWriteTokens",
+] as const;
+
+const isTokenCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+const isReportedTotal = (value: unknown): value is number =>
+  isTokenCount(value) && value > 0;
+
+const CACHE_COUNT_KEYS = new Set(["cacheReadTokens", "cacheWriteTokens"]);
+
+/** Cache counts that fit inside a reported total. */
+const consistentCacheCounts = (
+  usage: Readonly<Record<string, unknown>> | undefined,
+): boolean => {
+  const total = usage?.totalTokens;
+  const read = usage?.cacheReadTokens ?? 0;
+  const write = usage?.cacheWriteTokens ?? 0;
+  return (
+    isReportedTotal(total) &&
+    isTokenCount(read) &&
+    isTokenCount(write) &&
+    read + write <= total
+  );
+};
+
+/**
+ * Adds the token counts of a later tool round to the turn so far, so the
+ * turn reports every provider call it made, not only the last one. The
+ * total sums the rounds that reported one; when a round reported none,
+ * `tokenCountsIncomplete` is set and the cost ledger charges at least the
+ * reservation. Any other count a round did not report is dropped for the
+ * whole turn, and so are the cache counts when a round's do not fit inside
+ * its own total.
+ */
+const combineRoundUsage = (
+  turn: Readonly<Record<string, unknown>> | undefined,
+  round: Readonly<Record<string, unknown>> | undefined,
+): Readonly<Record<string, unknown>> => {
+  const combined: Record<string, unknown> = { ...(round ?? {}) };
+  for (const key of TOKEN_COUNT_KEYS) {
+    const earlier = turn?.[key];
+    const latest = round?.[key];
+    const trusted =
+      !CACHE_COUNT_KEYS.has(key) ||
+      (consistentCacheCounts(turn) && consistentCacheCounts(round));
+    if (trusted && isTokenCount(earlier) && isTokenCount(latest)) {
+      combined[key] = earlier + latest;
+    } else {
+      delete combined[key];
+    }
+  }
+  const earlierTotal = turn?.totalTokens;
+  const latestTotal = round?.totalTokens;
+  const total =
+    (isReportedTotal(earlierTotal) ? earlierTotal : 0) +
+    (isReportedTotal(latestTotal) ? latestTotal : 0);
+  if (total > 0) combined.totalTokens = total;
+  else delete combined.totalTokens;
+  if (
+    turn?.tokenCountsIncomplete === true ||
+    !isReportedTotal(earlierTotal) ||
+    !isReportedTotal(latestTotal)
+  ) {
+    combined.tokenCountsIncomplete = true;
+  } else {
+    delete combined.tokenCountsIncomplete;
+  }
+  return combined;
+};
+
 const REFERS_TO_PROFESSIONAL =
   /\b(?:see|ask|consult|talk to|speak (?:to|with)|check with|contact|visit)\s+(?:a|an|your)\s+(?:doctor|physician|physio\w*|physical therapist|clinician|pharmacist|medical professional|healthcare professional|gp)\b/i;
 
@@ -807,6 +883,7 @@ export class AgentOrchestrator {
       promptVersion: COACH_PROMPT_VERSION,
       ...(this.#tools ? { tools: this.#tools.list() } : {}),
     });
+    let turnMetadata = response.providerMetadata;
 
     while (
       response.toolCalls !== undefined &&
@@ -847,7 +924,7 @@ export class AgentOrchestrator {
           provider: response.provider,
           evidence: response.evidence,
           providerMetadata: {
-            ...(response.providerMetadata ?? {}),
+            ...(turnMetadata ?? {}),
             toolCallError: reason,
             toolCallsUsed,
             finishReason: "tool_error",
@@ -877,6 +954,7 @@ export class AgentOrchestrator {
           ? { tools: this.#tools.list() }
           : {}),
       });
+      turnMetadata = combineRoundUsage(turnMetadata, response.providerMetadata);
     }
 
     if (
@@ -907,7 +985,7 @@ export class AgentOrchestrator {
         text: finalText,
       },
       providerMetadata: {
-        ...(response.providerMetadata ?? {}),
+        ...(turnMetadata ?? {}),
         ...(this.#tools ? { toolCallsUsed } : {}),
         ...(advisory === undefined ? {} : { safetyAdvisory: true }),
         promptVersion: COACH_PROMPT_VERSION,

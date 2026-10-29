@@ -9,7 +9,7 @@
  * scripts/ai-cost-model.mjs carry the same numbers.
  */
 
-export const AI_PRICES_CHECKED_ON = "2026-10-26";
+export const AI_PRICES_CHECKED_ON = "2026-10-29";
 
 /** What a call is for; sets its output share and reservation. */
 export type AiCostKind =
@@ -20,14 +20,39 @@ interface TokenPrice {
   readonly input: number;
   /** USD per million output tokens. */
   readonly output: number;
+  /** USD per million input tokens read from the prompt cache. */
+  readonly cacheRead: number;
+  /** USD per million input tokens written to the prompt cache. */
+  readonly cacheWrite: number;
 }
 
-/** claude-haiku-5-5, prompts up to 100,000 tokens. */
-export const HAIKU_PRICE: TokenPrice = { input: 0.1, output: 0.5 };
-/** gemini-3.8-flash / 3.6-flash through 2026-12-31. */
-export const GEMINI_PRICE_2026: TokenPrice = { input: 0.75, output: 3.75 };
+/**
+ * claude-haiku-5-5, prompts up to 100,000 tokens. Cache writes use the
+ * default 5-minute TTL, the only one the Anthropic adapter sends.
+ */
+export const HAIKU_PRICE: TokenPrice = {
+  input: 0.1,
+  output: 0.5,
+  cacheRead: 0.01,
+  cacheWrite: 0.125,
+};
+/**
+ * gemini-3.8-flash / 3.6-flash through 2026-12-31. Implicit caching has no
+ * write fee, so a cache write costs the input price.
+ */
+export const GEMINI_PRICE_2026: TokenPrice = {
+  input: 0.75,
+  output: 3.75,
+  cacheRead: 0.075,
+  cacheWrite: 0.75,
+};
 /** gemini-3.8-flash / 3.6-flash from 2027-01-01. */
-export const GEMINI_PRICE_2027: TokenPrice = { input: 1.5, output: 7.5 };
+export const GEMINI_PRICE_2027: TokenPrice = {
+  input: 1.5,
+  output: 7.5,
+  cacheRead: 0.15,
+  cacheWrite: 1.5,
+};
 const GEMINI_2027_FROM = Date.UTC(2027, 0, 1);
 
 /** Anthropic web search, per search. */
@@ -68,6 +93,26 @@ export const AI_COST_RESERVATION_MICROS: Readonly<Record<AiCostKind, number>> =
 export interface AiCallUsage {
   /** Total tokens the provider reported (input, cache and output). */
   readonly tokensUsed?: number | undefined;
+  /**
+   * Part of `tokensUsed` read from the provider's prompt cache. Without it
+   * every input token is priced as uncached.
+   */
+  readonly cacheReadTokens?: number | undefined;
+  /**
+   * Part of `tokensUsed` written to the provider's prompt cache. Without it
+   * those tokens are priced as uncached input.
+   */
+  readonly cacheWriteTokens?: number | undefined;
+  /**
+   * Part of `tokensUsed` priced as output, when the provider reported it.
+   * The kind's output share is the floor either way.
+   */
+  readonly outputTokens?: number | undefined;
+  /**
+   * True when some provider calls of a multi-round turn reported no count:
+   * the charge is then at least the reservation.
+   */
+  readonly incomplete?: boolean | undefined;
   /** Provider name from the response or draft provenance, e.g. "anthropic". */
   readonly provider?: string | undefined;
   /** Web searches or grounded requests the call made. */
@@ -112,6 +157,10 @@ const nonNegative = (value: number | undefined): number =>
 /**
  * Estimated micro-USD of one finished call. Without a reported token count
  * the reservation is charged, so a missing count never makes a call free.
+ * Cache reads and writes are priced at their own rates, and output at the
+ * larger of the reported count and the kind's output share of the total. A
+ * missing or inconsistent count never prices a call below the rule that
+ * priced every non-output token as uncached input.
  */
 export const estimateAiCallCostMicros = (
   kind: AiCostKind,
@@ -128,15 +177,35 @@ export const estimateAiCallCostMicros = (
     (provider === "anthropic"
       ? ANTHROPIC_WEB_SEARCH_MICROS
       : GEMINI_GROUNDING_MICROS);
+  const reservation = Math.max(AI_COST_RESERVATION_MICROS[kind], searchMicros);
   if (usage.tokensUsed === undefined || !Number.isFinite(usage.tokensUsed)) {
-    return Math.max(AI_COST_RESERVATION_MICROS[kind], searchMicros);
+    return reservation;
   }
-  const share = AI_COST_OUTPUT_SHARE[kind];
+  const total = nonNegative(usage.tokensUsed);
+  let cacheRead = nonNegative(usage.cacheReadTokens);
+  let cacheWrite = nonNegative(usage.cacheWriteTokens);
+  // Cache counts larger than the total are inconsistent: price every input
+  // token as uncached, as before cache pricing.
+  if (cacheRead + cacheWrite > total) {
+    cacheRead = 0;
+    cacheWrite = 0;
+  }
+  const uncached = total - cacheRead - cacheWrite;
+  const output = Math.min(
+    uncached,
+    Math.max(
+      nonNegative(usage.outputTokens),
+      AI_COST_OUTPUT_SHARE[kind] * total,
+    ),
+  );
   // tokens × USD per million tokens = micro-USD.
   const tokenMicros =
-    nonNegative(usage.tokensUsed) *
-    ((1 - share) * price.input + share * price.output);
-  return Math.ceil(tokenMicros + searchMicros);
+    (uncached - output) * price.input +
+    output * price.output +
+    cacheRead * price.cacheRead +
+    cacheWrite * price.cacheWrite;
+  const micros = Math.ceil(tokenMicros + searchMicros);
+  return usage.incomplete === true ? Math.max(micros, reservation) : micros;
 };
 
 /** First instant of the next UTC month, when the monthly allowance renews. */

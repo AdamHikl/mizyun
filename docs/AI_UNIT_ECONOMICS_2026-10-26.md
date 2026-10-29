@@ -14,16 +14,16 @@ Net = price × (1 − 15 % Store fee) ÷ months. USD uses the ECB rate of 2026-1
 
 The annual plan sets the limit: **USD 1.19 per user per month**.
 
-## 2. Prices (USD, checked 2026-10-26)
+## 2. Prices (USD, checked 2026-10-26, rechecked 2026-10-29)
 
-| Item                                                                                                           | Price                                                                    |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `claude-haiku-5-5` (Coach, typed meals, draft changes, Log activity fallback)                                  | $0.10 input / $0.50 output per MTok (prompts ≤ 100k tokens)              |
-| `gemini-3.8-flash` / `gemini-3.6-flash` (photo drafts, stretch, recipes, cooking assistant, old-consent users) | $0.75 / $3.75 per MTok to 2026-12-31; **$1.50 / $7.50 from 2027-01-01**  |
-| `gemini-3.1-flash-lite-image` (illustrations)                                                                  | $30 per MTok of image output; one 1K image is 1,120 tokens, about $0.034 |
-| Anthropic web search                                                                                           | $0.01 per search; typed meals use up to 3                                |
-| Gemini Google Search grounding                                                                                 | $0.014 per request after 5,000 free a month per project                  |
-| Image input (Gemini 3)                                                                                         | 1,120 tokens per photo at default resolution                             |
+| Item                                                                                                           | Price                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `claude-haiku-5-5` (Coach, typed meals, draft changes, Log activity fallback)                                  | $0.10 input / $0.50 output per MTok (prompts ≤ 100k tokens); cache read $0.01, 5-minute cache write $0.125      |
+| `gemini-3.8-flash` / `gemini-3.6-flash` (photo drafts, stretch, recipes, cooking assistant, old-consent users) | $0.75 / $3.75 per MTok to 2026-12-31; **$1.50 / $7.50 from 2027-01-01**; implicit-cache hits $0.075, then $0.15 |
+| `gemini-3.1-flash-lite-image` (illustrations)                                                                  | $30 per MTok of image output; one 1K image is 1,120 tokens, about $0.034                                        |
+| Anthropic web search                                                                                           | $0.01 per search; typed meals use up to 3                                                                       |
+| Gemini Google Search grounding                                                                                 | $0.014 per request after 5,000 free a month per project                                                         |
+| Image input (Gemini 3)                                                                                         | 1,120 tokens per photo at default resolution                                                                    |
 
 Annual subscriptions bought now are mostly served in 2027, so the model prices Gemini at 2027 rates.
 
@@ -86,10 +86,12 @@ Count caps stay as burst limits, set at the coordinator's decision of 2026-10-26
 
 - The founding-year price (EUR 34.99) is not covered: its worst case is about 41 % of net. Holding 30 % for founders would need a $0.70 allowance, which squeezes a normal 2027 month.
 - Estimates err high:
+  - The worst-case and normal-month figures price every input token as uncached. Since 2026-10-29 (#347) the ledger charges Coach cache reads at a tenth of the input price, and output at the larger of the reported count and the 6 % share. A typical single-round Haiku turn (8,000 cached, 2,400 new and 1,000 output tokens) is charged its list cost of about $0.00082 instead of $0.0014.
   - A call that fails after admission, including a lost response, is charged its reservation.
   - The 5,000 free Gemini grounding requests are ignored.
   - An Anthropic search request that errors is charged 3 searches when Anthropic reports no count.
 - Gemini's 2027-01-01 price doubling is a dated risk. A normal paid month goes from about $0.42 at 2026 prices to $0.83 at 2027 prices. Heavy photo users then reach the $1.00 allowance about twice as fast. Revisit the allowance with the report's p95 before the change.
+- Haiku prompts above 100,000 tokens cost five times more, cache included. The ledger does not price that tier. Coach rounds measured so far stay under 62,000 tokens.
 - Provider names are matched by substring. An unknown provider is priced as Gemini, and an on-device or rules result costs nothing.
 - Prices change. Update `packages/config/src/ai-cost.ts`, `scripts/ai-cost-model.mjs` (a test keeps them equal), the research log and this document together.
 

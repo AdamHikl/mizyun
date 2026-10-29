@@ -7,19 +7,19 @@
  * price changes.
  */
 
-export const PRICES_CHECKED_ON = "2026-10-26";
+export const PRICES_CHECKED_ON = "2026-10-29";
 
 /** ECB euro reference rate, 2026-10-26: 1 EUR = 1.1188 USD. */
 export const USD_PER_EUR = 1.1188;
 
 /** USD per million tokens, or per call where named. */
 export const PRICES = {
-  /** claude-haiku-5-5, prompts up to 100,000 tokens. */
-  haiku: { input: 0.1, output: 0.5 },
-  /** gemini-3.8-flash (and 3.6 fallback), list price through 2026-12-31. */
-  gemini2026: { input: 0.75, output: 3.75 },
+  /** claude-haiku-5-5, prompts up to 100,000 tokens; 5-minute cache writes. */
+  haiku: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  /** gemini-3.8-flash (and 3.6 fallback), list price through 2026-12-31; implicit cache, no write fee. */
+  gemini2026: { input: 0.75, output: 3.75, cacheRead: 0.075, cacheWrite: 0.75 },
   /** gemini-3.8-flash from 2027-01-01 (doubles). */
-  gemini2027: { input: 1.5, output: 7.5 },
+  gemini2027: { input: 1.5, output: 7.5, cacheRead: 0.15, cacheWrite: 1.5 },
   /** gemini-3.1-flash-lite-image: text input, image output tokens. */
   image: { input: 0.25, imageOutput: 30, tokensPerImage: 1120 },
   /** Anthropic web search, per search. */
@@ -94,7 +94,14 @@ export const illustrationCostUsd = () =>
     PRICES.image.tokensPerImage * PRICES.image.imageOutput) /
   1_000_000;
 
-/** Blended USD per token-ledger token for Coach on Haiku (largest observed output share, 2.5 %, rounded up to 6 %). */
+/**
+ * Blended USD per token-ledger token for Coach, with every input token priced
+ * as uncached and a 6 % output share (the 2026-10-26 eval's largest share,
+ * 2.5 %, rounded up). Since #347 the ledger charges cache reads at their own
+ * rate and output at its reported count when above 6 % (about 9 % in a
+ * typical turn after the 2026-10-28 token reduction), so this is a planning
+ * blend, not a bound on what the ledger charges.
+ */
 export const COACH_OUTPUT_SHARE = 0.06;
 export const coachTokenCostUsd = (provider = "haiku", year = 2027) => {
   const price = tokenPrice(provider, year);

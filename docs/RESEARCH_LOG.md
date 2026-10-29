@@ -1,5 +1,21 @@
 # Research log
 
+## Prompt-cache prices in the AI cost ledger (#347, ADR-0087) — 2026-10-29
+
+Checked on 2026-10-29, USD per MTok:
+
+- [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing), `claude-haiku-5-5`, prompts up to 100,000 tokens: input $0.10, output $0.50, 5-minute cache write $0.125 (1.25×), 1-hour cache write $0.20 (2×), cache hit $0.01 (0.1×). Above 100,000 tokens every price is five times higher, and cache reads and writes count towards that length.
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): `cache_read_input_tokens`, `cache_creation_input_tokens` and `input_tokens` are disjoint and add up to the prompt. `cache_creation` splits writes into `ephemeral_5m_input_tokens` and `ephemeral_1h_input_tokens`. `cache_control: { type: "ephemeral" }` without `ttl` is the 5-minute cache, and a read refreshes it at no charge.
+- [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), `gemini-3.8-flash` and `gemini-3.6-flash`: input $0.75 / output $3.75 and cached input $0.075 through 2026-12-31, then $1.50 / $7.50 and $0.15 from 2027-01-01. The listed storage fee ($0.50, then $1.00 per MTok per hour) is not tied to implicit caching on that page.
+- [Gemini caching](https://ai.google.dev/gemini-api/docs/caching): implicit caching is automatic, has no write or storage charge on that page, and needs at least 4,096 tokens for these models. [GenerateContent reference](https://ai.google.dev/api/generate-content): `usageMetadata.cachedContentTokenCount` is part of `promptTokenCount`.
+
+Consequences:
+
+- The ledger prices Haiku cache reads at $0.01 and cache writes at the 5-minute $0.125, the only TTL the Anthropic adapter sends. Gemini implicit-cache hits are priced at the cached-input rate. Gemini writes have no extra charge, so they are priced as input.
+- Providers report `cacheReadTokens` and `cacheWriteTokens` inside the total. With cache reads discounted, the old 6 % Coach output share fell below the measured output (about 9 % of a typical turn). Output is therefore priced at the larger of the reported count and the share.
+- A missing or inconsistent count gives no read discount. A tool round without a count charges at least the reservation. Neither case prices a call below the old all-input estimate.
+- Not priced (follow-up): Haiku's above-100,000-token tier, which the ledger ignored before this change too. Coach rounds measured so far stay under 62,000 tokens.
+
 ## Offline-tolerant live workout sets (REL-02/REL-04, #290/#291) — 2026-10-27
 
 Checked the [Expo SDK 57 SecureStore docs](https://docs.expo.dev/versions/v57.0.0/sdk/securestore/): Expo sets no size limit, but large values can be rejected by the platform (some iOS releases refused values above about 2,048 bytes). Values persist across app restarts and updates, but not reliably across uninstall, and should not be the only copy of critical data.

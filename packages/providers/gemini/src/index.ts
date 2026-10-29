@@ -57,6 +57,8 @@ const geminiResponseSchema = z.object({
       promptTokenCount: z.number().int().nonnegative().optional(),
       candidatesTokenCount: z.number().int().nonnegative().optional(),
       totalTokenCount: z.number().int().nonnegative().optional(),
+      /** Implicit-cache hits; part of promptTokenCount. */
+      cachedContentTokenCount: z.number().int().nonnegative().optional(),
     })
     .optional(),
   modelVersion: z.string().optional(),
@@ -733,6 +735,7 @@ export class GeminiAgentProvider implements AgentProvider {
           totalTokens:
             usage?.totalTokenCount ??
             (usage?.promptTokenCount ?? 0) + (usage?.candidatesTokenCount ?? 0),
+          cacheReadTokens: usage?.cachedContentTokenCount ?? 0,
           latencyBucket: latencyBucket(elapsed),
           sdkVersion: "google-ai-studio",
         },
@@ -771,6 +774,7 @@ export class GeminiAgentProvider implements AgentProvider {
       totalTokens:
         usage?.totalTokenCount ??
         (usage?.promptTokenCount ?? 0) + (usage?.candidatesTokenCount ?? 0),
+      cacheReadTokens: usage?.cachedContentTokenCount ?? 0,
       latencyBucket: latencyBucket(elapsed),
       sdkVersion: "google-ai-studio",
     };

@@ -124,11 +124,42 @@ describe("GeminiAgentProvider", () => {
     expect(response.providerMetadata).toMatchObject({
       resolvedModel: "gemini-2.5-flash",
       totalTokens: 120,
+      // No implicit-cache hit reported: nothing is priced as cached.
+      cacheReadTokens: 0,
       latencyBucket: "1_to_3s",
     });
     expect(JSON.stringify(generateContent.mock.calls[0])).not.toContain(
       request.userId,
     );
+  });
+
+  it("reports implicit-cache hits as cache reads inside the prompt count (#347)", async () => {
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async () => ({
+        ...validGeminiResponse,
+        usageMetadata: {
+          promptTokenCount: 10_000,
+          candidatesTokenCount: 500,
+          totalTokenCount: 10_500,
+          cachedContentTokenCount: 6_000,
+        },
+      }),
+    );
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+    const response = await provider.respond(request);
+    expect(response.providerMetadata).toMatchObject({
+      promptTokens: 10_000,
+      totalTokens: 10_500,
+      cacheReadTokens: 6_000,
+    });
+    expect(response.providerMetadata).not.toHaveProperty("cacheWriteTokens");
   });
 
   it("accepts plain text assistant responses and wraps them in answer", async () => {
