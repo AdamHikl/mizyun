@@ -1,6 +1,6 @@
 # ADR-0088 — Health-data consent and adults-only accounts
 
-- Status: proposed for Dev implementation, 2026-10-27 (review findings PRIV-01 and PRIV-02). The legal texts are drafts for Adam/legal review; Production release is not authorized by this ADR.
+- Status: proposed for Dev implementation, 2026-10-27 (review findings PRIV-01 and PRIV-02). Adam approved the legal drafts on 2026-10-29; they are published with the Production release that ships the consent step. Production release is not authorized by this ADR.
 - Builds on: ADR-0024 (AI admission after consent), ADR-0084 (first-run card on Home).
 - Drafts: [policy changes](../legal-drafts/PRIVACY_POLICY_HEALTH_CONSENT_DRAFT_2026-10-27.md), [DPIA](../legal-drafts/DPIA_DRAFT_2026-10-27.md).
 

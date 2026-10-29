@@ -1,5 +1,7 @@
 # DRAFT for Adam / legal review — not published, not in effect
 
+**Approved by Adam on 2026-10-29.** Still not published or in effect: apply it to `docs/PRIVACY_POLICY.md` and the public policy page with the Production release that ships the consent step.
+
 **Privacy Policy changes: health-data consent and 18+ only (2026-10-27)**
 
 Status: proposed text only. `docs/PRIVACY_POLICY.md` (effective 2026-10-21) is unchanged and remains the only policy in effect. Nothing here is legal advice or a legal guarantee. Have a qualified privacy lawyer review it before publishing. Publish it with the app release that ships the consent step, not before.

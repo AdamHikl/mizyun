@@ -1,6 +1,6 @@
 # DRAFT — Data Protection Impact Assessment (DPIA), Mizyun
 
-**DRAFT for Adam / legal review. Not signed off, not published, not legal advice.**
+**DRAFT for Adam / legal review. Not published, not legal advice.** Approved by Adam on 2026-10-29.
 Date: 2026-10-27. Basis: GDPR Art. 35. Related: `docs/legal-drafts/PRIVACY_POLICY_HEALTH_CONSENT_DRAFT_2026-10-27.md`, internal findings PRIV-01 and PRIV-02. Facts come from `docs/PRIVACY_POLICY.md` (effective 2026-10-21) and `AGENTS.md`; verify them before sign-off.
 
 ## 1. Description of the processing

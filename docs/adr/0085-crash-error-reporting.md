@@ -1,6 +1,6 @@
 # ADR-0085 — Crash and error reporting
 
-- Status: Proposed (draft) 2026-10-27 — no vendor SDK added; implementation tracked in #342. Review finding OPS-01 (#32).
+- Status: Accepted 2026-10-29 by Adam (proposed 2026-10-27): GlitchTip, conditional on the spike below, with Sentry EU as the fallback. No vendor SDK added yet; implementation tracked in #342. Review finding OPS-01 (#32).
 - Builds on: ADR-0014 (local consent-first analytics), ADR-0026 (first-party analytics backend), ADR-0084 (payload-free telemetry).
 
 ## Context
