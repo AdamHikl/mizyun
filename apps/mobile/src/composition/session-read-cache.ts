@@ -7,7 +7,10 @@ import {
 } from "@mizyun/api-client";
 import type { AuthSession } from "@mizyun/identity";
 import type { Result } from "@mizyun/core";
-import type { PersonalReadStorage } from "@/features/offline-cache/personal-read-storage";
+import type {
+  PersonalReadRecord,
+  PersonalReadStorage,
+} from "@/features/offline-cache/personal-read-storage";
 import { publishSessionReadUpdate } from "./personal-read-events";
 
 const LIFETIME_MS = 5 * 60_000;
@@ -146,6 +149,8 @@ type Entry = {
   bytes: number;
   savedAt: number;
   storageGeneration?: number;
+  /** Kept across a write without a server answer: display-only, never fresh. */
+  stale?: true;
   /**
    * Server validator from a 200 in this process; a stale record is
    * revalidated with If-None-Match. Never saved on the device, so a value
@@ -153,6 +158,31 @@ type Entry = {
    */
   etag?: string;
 };
+const within = (key: string, paths: ReadonlyArray<string>): boolean => {
+  const path = key.split("?")[0]!;
+  return paths.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+};
+// A lost or unsent request (the transport returns no_session or
+// context_changed without sending) leaves a write's outcome unknown, and so
+// does a timeout, rate limit or server/gateway failure, including the API's
+// retryable 503. Any other server answer ends the write: its reads refetch.
+const answered = (result: Result<unknown, ApiError>): boolean => {
+  if (result.ok) return true;
+  const error = result.error;
+  if (
+    error.kind === "network_error" ||
+    error.kind === "no_session" ||
+    error.kind === "context_changed"
+  )
+    return false;
+  return !(
+    error.kind === "http_error" &&
+    (error.status >= 500 || error.status === 408 || error.status === 429)
+  );
+};
+
 type Pending = {
   promise: Promise<Result<unknown, ApiError>>;
   schema: RequestOptions["schema"];
@@ -280,11 +310,14 @@ export class SessionReadCache implements ApiClient {
               savedAt: record.savedAt,
               schema: undefined,
               bytes,
-              // At launch, a record saved moments ago is as fresh as one in memory.
-              expiresAt: this.diskFresh
-                ? record.savedAt + lifetime(record.path)
-                : 0,
+              // At launch, a record saved moments ago is as fresh as one in
+              // memory, unless a write it may predate had no server answer.
+              expiresAt:
+                this.diskFresh && !record.stale
+                  ? record.savedAt + lifetime(record.path)
+                  : 0,
               storageGeneration,
+              ...(record.stale ? { stale: true as const } : {}),
             });
             this.bytes += bytes;
           }
@@ -303,14 +336,7 @@ export class SessionReadCache implements ApiClient {
     clearTimeout(this.persistTimer);
     this.persistTimer = setTimeout(() => {
       if (generation !== this.storage!.generation?.(userId)) return;
-      const records = [...this.entries]
-        .filter(([, entry]) => entry.storageGeneration === generation)
-        .map(([path, entry]) => ({
-          path,
-          value: entry.value,
-          savedAt: entry.savedAt,
-        }));
-      void this.storage!.save(userId, records).catch(() => {});
+      void this.storage!.save(userId, this.records(generation)).catch(() => {});
     }, 100);
   }
   private async purgeSaved(owner?: string): Promise<void> {
@@ -366,33 +392,80 @@ export class SessionReadCache implements ApiClient {
     this.pending.clear();
   }
   private forget(paths: ReadonlyArray<string>): void {
-    for (const [key, entry] of this.entries) {
-      const path = key.split("?")[0]!;
-      if (
-        paths.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
-      ) {
+    for (const [key, entry] of this.entries)
+      if (within(key, paths)) {
         this.bytes -= entry.bytes;
         this.entries.delete(key);
       }
-    }
   }
   /**
-   * Replaces the device copy with the remaining records before a write, so a
-   * record the write changes is never left saved. Fails closed like a purge.
+   * Keeps the records a pending write can change for display only (offline,
+   * a queued set must not blank Workouts). They are never fresh again, and
+   * their validator is dropped, so the next read always refetches them.
    */
-  private async replaceSaved(userId: string): Promise<void> {
-    clearTimeout(this.persistTimer);
-    if (!this.storage) return;
-    if (!this.storage.replace || this.deniedOwners.has(userId))
-      return this.purgeSaved(userId);
-    const generation = this.storage.generation?.(userId);
-    const records = [...this.entries]
+  private markStale(paths: ReadonlyArray<string>): void {
+    for (const [key, entry] of this.entries)
+      if (within(key, paths)) {
+        entry.expiresAt = 0;
+        entry.stale = true;
+        delete entry.etag;
+      }
+  }
+  private records(generation: number | undefined): PersonalReadRecord[] {
+    return [...this.entries]
       .filter(([, entry]) => entry.storageGeneration === generation)
       .map(([path, entry]) => ({
         path,
         value: entry.value,
         savedAt: entry.savedAt,
+        ...(entry.stale ? { stale: true as const } : {}),
       }));
+  }
+  /**
+   * Rewrites the device copy around a write: before it is sent, the records
+   * it can change are marked stale, so a force-quit never relaunches them as
+   * fresh; once the server answers, they are removed (a delete removes them
+   * before sending). Records not hydrated into memory yet (a write right
+   * after launch) are read strictly and kept: if the device copy cannot be
+   * read, it is purged instead, since an unmarked copy could relaunch as
+   * fresh. Fails closed like a purge. Never writes after cleanup.
+   */
+  private async rewriteSaved(
+    userId: string,
+    paths: ReadonlyArray<string>,
+    remove: boolean,
+    generation = this.storage?.generation?.(userId),
+  ): Promise<void> {
+    clearTimeout(this.persistTimer);
+    if (!this.storage) return;
+    if (!this.storage.replace || this.deniedOwners.has(userId))
+      return this.purgeSaved(userId);
+    const inMemory = this.identity === userId;
+    let disk: ReadonlyArray<PersonalReadRecord> = [];
+    if (!inMemory || !this.hydrated) {
+      // Without a strict read, keep the original fail-closed purge.
+      if (!this.storage.loadStrict) return this.purgeSaved(userId);
+      try {
+        disk = await this.storage.loadStrict(userId);
+      } catch {
+        // An unreadable copy (a lost device key) would block every early
+        // write; remove it instead, so no copy can relaunch as fresh.
+        return this.purgeSaved(userId);
+      }
+    }
+    if (generation !== this.storage.generation?.(userId)) return;
+    // serialize() resolves a path held both on disk and in memory: the newest
+    // savedAt wins, and the memory copy (listed last) wins a tie.
+    const records = [
+      ...disk,
+      ...(inMemory ? this.records(generation) : []),
+    ].flatMap((record) =>
+      !within(record.path, paths)
+        ? [record]
+        : remove
+          ? []
+          : [{ ...record, stale: true as const }],
+    );
     await this.storage.replace(userId, records);
   }
   private key(session: AuthSession | null): string | null {
@@ -466,13 +539,18 @@ export class SessionReadCache implements ApiClient {
       return this.raw.request<T>(options);
     if (options.method !== "GET") {
       const affected = affectedReads(options.method, options.path);
-      // Every write retires in-flight reads; only the records it can change
-      // are forgotten, here and on the device, before it is sent.
+      // Every write retires in-flight reads. The records it can change stay
+      // as stale display snapshots, here and on the device, until the server
+      // answers; then they are forgotten and the next read refetches them.
+      // A delete never leaves a copy of what it removes: those records are
+      // forgotten here and on the device before it is sent.
+      const keep = options.method !== "DELETE";
       const invalidate = () => {
         if (affected === "all") this.clear();
         else {
           this.retire();
-          this.forget(affected);
+          if (keep) this.markStale(affected);
+          else this.forget(affected);
         }
       };
       this.writes++;
@@ -493,21 +571,42 @@ export class SessionReadCache implements ApiClient {
           options.isCurrent?.() === false
         )
           return retired();
+        const generation = this.storage?.generation?.(owner.user.id);
         if (affected === "all") await this.purgeSaved(owner.user.id);
-        else if (affected.length > 0 && this.identity === this.owner(owner))
-          await this.replaceSaved(owner.user.id);
-        else if (affected.length > 0) await this.purgeSaved(owner.user.id);
+        else if (affected.length > 0)
+          await this.rewriteSaved(owner.user.id, affected, !keep, generation);
         if (
           this.key(owner) !==
             this.key(await this.session().catch(() => null)) ||
           options.isCurrent?.() === false
         )
           return retired();
-        return await this.raw.request<T>({
+        const result = await this.raw.request<T>({
           ...options,
           expectedUserId: owner.user.id,
           isCurrent: options.isCurrent,
         });
+        if (
+          keep &&
+          affected !== "all" &&
+          affected.length > 0 &&
+          answered(result)
+        ) {
+          this.forget(affected);
+          // With memory hydrated, the records are computed and queued on the
+          // storage lane synchronously, so later saves (which hold only what
+          // memory keeps) stay ordered after it; only a disk read is awaited.
+          // Best effort: a copy left behind is stale, so it is never fresh.
+          const queued = this.identity === owner.user.id && this.hydrated;
+          const removal = this.rewriteSaved(
+            owner.user.id,
+            affected,
+            true,
+            generation,
+          ).catch(() => {});
+          if (!queued) await removal;
+        }
+        return result;
       } catch (cause) {
         return { ok: false, error: { kind: "network_error", cause } };
       } finally {
@@ -521,11 +620,16 @@ export class SessionReadCache implements ApiClient {
     // That is not a sign-out: retry for a caller that is still current, for
     // the same account, instead of reporting a missing session.
     let attempt = options;
+    // A failure kept while waiting out a write is the answer if retries run
+    // out, never a fabricated sign-out.
+    let lastFailure: Result<T, ApiError> | undefined;
     for (let tries = 1; ; tries++) {
       const outcome = await this.read<T>(attempt);
       if ("result" in outcome) return outcome.result;
+      if (outcome.failure) lastFailure = outcome.failure;
       if (!this.foreground && options.isCurrent?.() !== false)
         return suspended();
+      if (tries >= 3 && lastFailure) return lastFailure;
       if (
         tries >= 3 ||
         !outcome.owner ||
@@ -557,7 +661,10 @@ export class SessionReadCache implements ApiClient {
   }
   private async read<T>(
     options: RequestOptions,
-  ): Promise<{ result: Result<T, ApiError> } | { owner: string | null }> {
+  ): Promise<
+    | { result: Result<T, ApiError> }
+    | { owner: string | null; failure?: Result<T, ApiError> }
+  > {
     const beforeLookup = this.revision;
     const lookup = await this.session().then(
       (session) => ({ session }),
@@ -595,7 +702,9 @@ export class SessionReadCache implements ApiClient {
       return { owner: session?.user.id ?? null };
     const revision = this.revision;
     const storageGeneration = this.storage?.generation?.(session.user.id);
-    if (!this.writes) await this.hydrate(session.user.id, revision);
+    const duringWrite = this.writes > 0;
+    const unhydrated = !this.hydrated;
+    if (!duringWrite) await this.hydrate(session.user.id, revision);
     if (revision !== this.revision || options.isCurrent?.() === false)
       return { owner: session?.user.id ?? null };
     const key = options.path;
@@ -617,14 +726,14 @@ export class SessionReadCache implements ApiClient {
         entry = undefined;
       }
     }
-    const saved =
+    const fallback =
       this.storage &&
-      !this.writes &&
       entry &&
       entry.schema === options.schema &&
       this.now() - entry.savedAt <= 48 * 60 * 60_000
         ? entry
         : undefined;
+    const saved = !this.writes ? fallback : undefined;
     let promise: Promise<Result<unknown, ApiError>>;
     if (
       !this.writes &&
@@ -770,6 +879,22 @@ export class SessionReadCache implements ApiClient {
       options.isCurrent?.() === false
     )
       return { owner: session?.user.id ?? null };
+    // A read sent during a write skips the saved copy. Offline it fails at
+    // once (a set replay on opening the logger): when there is a saved copy
+    // to show (or one not loaded yet), retry after the write, keeping this
+    // failure as the answer if retries run out. Reads with nothing saved
+    // return at once, as before.
+    if (
+      duringWrite &&
+      this.storage &&
+      (fallback || unhydrated) &&
+      !result.ok &&
+      result.error.kind === "network_error"
+    )
+      return {
+        owner: session.user.id,
+        failure: result as Result<T, ApiError>,
+      };
     return { result: result as Result<T, ApiError> };
   }
 }

@@ -869,3 +869,177 @@ describe("synchronous warmed workout projection", () => {
     );
   });
 });
+
+describe("offline Workouts after a restart", () => {
+  it.each([
+    ["no connection", { kind: "network_error", cause: "airplane mode" }],
+    [
+      "the API's retryable 503",
+      { kind: "http_error", status: 503, code: "SERVICE_UNAVAILABLE" },
+    ],
+  ] as const)(
+    "shows saved routines, history and the in-progress workout's sets after set replays fail with %s",
+    async (_, replayError) => {
+      const { SessionReadCache } =
+        await import("@/composition/session-read-cache");
+      const { createPersonalReadStorage } =
+        await import("@/features/offline-cache/personal-read-storage");
+      const userId = "00000000-0000-4000-8000-0000000000a1";
+      const session = {
+        user: { id: userId },
+        accessToken: "synthetic-token",
+      } as import("@mizyun/identity").AuthSession;
+      const workout = (
+        id: string,
+        name: string,
+        completedAt: string | null,
+        details: Workout["details"] = {},
+      ): Workout => ({
+        id,
+        userId,
+        name,
+        startedAt: "2026-10-28T09:00:00.000Z",
+        completedAt,
+        source: "manual",
+        notes: null,
+        details,
+        createdAt: "2026-10-28T09:00:00.000Z",
+        updatedAt: "2026-10-28T09:00:00.000Z",
+      });
+      const routine = workout(
+        "00000000-0000-4000-8000-0000000000b1",
+        "Upper routine",
+        null,
+        withWorkoutLifecycle({}, { kind: "routine" }),
+      );
+      const done = workout(
+        "00000000-0000-4000-8000-0000000000b2",
+        "Yesterday",
+        "2026-10-28T10:00:00.000Z",
+      );
+      const live = workout(
+        "00000000-0000-4000-8000-0000000000b3",
+        "Live session",
+        null,
+        withWorkoutLifecycle({}, { kind: "session" }),
+      );
+      const exercise: Exercise = {
+        id: "00000000-0000-4000-8000-0000000000c1",
+        userId,
+        name: "Bench Press",
+        instructions: null,
+        metadata: {},
+        createdAt: "2026-10-01T10:00:00.000Z",
+        updatedAt: "2026-10-01T10:00:00.000Z",
+      };
+      const set: WorkoutSet = {
+        id: "00000000-0000-4000-8000-0000000000d1",
+        userId,
+        workoutId: live.id,
+        exerciseId: exercise.id,
+        sequence: 1,
+        setType: "normal",
+        repetitions: 8,
+        loadKg: 60,
+        durationSeconds: null,
+        distanceMeters: null,
+        perceivedExertion: null,
+        completedAt: "2026-10-28T09:10:00.000Z",
+        createdAt: "2026-10-28T09:10:00.000Z",
+      };
+      const server = vi.fn(
+        async ({ method, path }: { method: string; path: string }) => {
+          if (method !== "GET") return { ok: true, value: {} };
+          if (path.startsWith("/v1/runs"))
+            return { ok: true, value: { runs: [], nextCursor: null } };
+          if (path.startsWith("/v1/exercises"))
+            return {
+              ok: true,
+              value: { exercises: [exercise], nextCursor: null },
+            };
+          if (path.endsWith("/sets"))
+            return {
+              ok: true,
+              value: { workoutSets: path.includes(live.id) ? [set] : [] },
+            };
+          if (path.includes("kind=routine"))
+            return {
+              ok: true,
+              value: { workouts: [routine], nextCursor: null },
+            };
+          return {
+            ok: true,
+            value: { workouts: [routine, done, live], nextCursor: null },
+          };
+        },
+      );
+      const offline = vi.fn(async () => ({
+        ok: false as const,
+        error: { kind: "network_error" as const, cause: "airplane mode" },
+      }));
+      const failing = vi.fn(async () => ({
+        ok: false as const,
+        error: replayError,
+      }));
+      const values = new Map<string, string>();
+      const store = {
+        getItem: async (key: string) => values.get(key) ?? null,
+        setItem: async (key: string, value: string) => {
+          values.set(key, value);
+        },
+        removeItem: async (key: string) => {
+          values.delete(key);
+        },
+      };
+      let time = new Date("2026-10-29T08:00:00.000Z").getTime();
+      const launch = (request: ApiClient["request"]) =>
+        new SessionReadCache(
+          {
+            request,
+            status: () => ({ configured: false, reason: "fixture" }),
+          } as ApiClient,
+          async () => session,
+          () => time,
+          createPersonalReadStorage(store, () => time),
+        );
+      const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+      const online = launch(server as unknown as ApiClient["request"]);
+      const first = await fetchWorkoutsHubData(online);
+      expect(first.message).toBeNull();
+      expect(first.savedAt).toBeUndefined();
+      await settle();
+
+      // Airplane mode: the live workout's queued sets fail to replay.
+      const writing = launch(failing as unknown as ApiClient["request"]);
+      time += 60_000;
+      for (let attempt = 0; attempt < 3; attempt++)
+        expect(
+          (
+            await writing.request({
+              method: "POST",
+              path: `/v1/workouts/${live.id}/sets`,
+              body: { clientOperationId: `synthetic-${attempt}` },
+            })
+          ).ok,
+        ).toBe(false);
+      await settle();
+
+      // Force-quit, then reopen still offline.
+      time += 60_000;
+      const hub = await fetchWorkoutsHubData(
+        launch(offline as unknown as ApiClient["request"]),
+      );
+      expect(hub.message).toBeNull();
+      expect(hub.savedAt).toBe(time - 120_000);
+      expect(
+        hub.activeAndPlanned.map((item) => item.workout.id).sort(),
+      ).toEqual([routine.id, live.id].sort());
+      expect(hub.completed.map((item) => item.workout.id)).toEqual([done.id]);
+      const inProgress = hub.activeAndPlanned.find(
+        (item) => item.workout.id === live.id,
+      );
+      expect(inProgress?.sets.map((row) => row.id)).toEqual([set.id]);
+    },
+  );
+});

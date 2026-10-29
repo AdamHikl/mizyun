@@ -196,6 +196,10 @@ vi.mock("expo-secure-store", () => ({
   },
 }));
 vi.mock("@/features/run-import", () => ({ runImportAvailable: () => false }));
+vi.mock("@/components/ui/device-clock", () => ({
+  formatDeviceInstant: (date: Date) =>
+    `${date.getHours()}:${String(date.getMinutes()).padStart(2, "0")}`,
+}));
 vi.mock("@/composition/app-variant", () => ({
   isBoulderingEnabled: () => mocks.boulderingEnabled,
   isHistoryImportsEnabled: () => false,
@@ -401,6 +405,31 @@ describe("workouts tab read lifecycle", () => {
     resolve(response("private-a"));
     await settle();
     expect(hasWorkout(render(), "private-a")).toBe(false);
+  });
+
+  it("shows saved offline workouts with a calm notice and re-reads them on the next focus", async () => {
+    mocks.fetch.mockResolvedValueOnce({
+      ...response("saved-offline"),
+      savedAt: new Date(2026, 9, 29, 7, 5).getTime(),
+    });
+    render();
+    hooks.focus!();
+    await settle();
+    const tree = render();
+    expect(hasWorkout(tree, "saved-offline")).toBe(true);
+    const notice = find(tree, (node) => node.type === "Notice");
+    expect(notice?.props.tone).toBe("info");
+    expect(notice?.props.message).toMatch(
+      /^Showing workouts saved on this device at .+\. They'll update once Mizyun can reach the server\.$/,
+    );
+    // A saved display is not a completed load.
+    mocks.fetch.mockResolvedValueOnce(response("live"));
+    hooks.focus!();
+    await settle();
+    const live = render();
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(hasWorkout(live, "live")).toBe(true);
+    expect(find(live, (node) => node.type === "Notice")).toBeFalsy();
   });
 
   it("revalidates the visible tab on foreground resume", async () => {

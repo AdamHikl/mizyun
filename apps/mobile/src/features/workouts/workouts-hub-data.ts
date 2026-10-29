@@ -44,6 +44,7 @@ import type { BoulderSessionRecord } from "@mizyun/contracts";
 import { listBoulderSessions } from "@/features/bouldering/public-data";
 
 import { apiClient, peekSessionRead } from "@/composition/api-client";
+import { savedDisplayTime } from "@/composition/personal-read-events";
 import type { AuthSession } from "@mizyun/identity";
 import { readPlannedSetTypes } from "./planned-set-types";
 
@@ -91,6 +92,11 @@ export interface WorkoutsHubResult {
   readonly runWeek?: { from: string; to: string; incomplete: boolean };
   /** Finished indoor bouldering sessions (ADR-0066), newest first. */
   readonly boulderSessions?: readonly BoulderSessionRecord[];
+  /**
+   * When any part came from the snapshot saved on this device (offline, or
+   * revalidating after a write without a server answer): its oldest save time.
+   */
+  readonly savedAt?: number;
 }
 
 export interface CreateWorkoutPayload {
@@ -584,10 +590,18 @@ function projectWorkoutsHub(
         new Date(a.workout.completedAt ?? a.workout.startedAt).getTime(),
     );
 
+  const savedTimes = [
+    workoutResult,
+    routineResult,
+    exerciseResult,
+    runResult,
+    ...setsResults,
+  ].flatMap((result) => savedDisplayTime(result) ?? []);
   return {
     activeAndPlanned,
     completed,
     exercises,
+    ...(savedTimes.length > 0 ? { savedAt: Math.min(...savedTimes) } : {}),
     runs: runResult.ok ? runResult.value.runs : [],
     runsNextCursor: runResult.ok ? runResult.value.nextCursor : null,
     weeklyRuns: weekResult.runs,

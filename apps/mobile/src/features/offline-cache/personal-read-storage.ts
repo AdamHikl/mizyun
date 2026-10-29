@@ -5,6 +5,11 @@ export type PersonalReadRecord = {
   readonly path: string;
   readonly value: unknown;
   readonly savedAt: number;
+  /**
+   * Kept across a write whose outcome is unknown: display-only, never fresh,
+   * so the next read always revalidates it.
+   */
+  readonly stale?: true;
 };
 
 /** Display snapshots only; callers must validate values with their response schema. */
@@ -12,13 +17,20 @@ export interface PersonalReadStorage {
   /** Capture before scheduling work; a later purge retires that scheduled work. */
   generation?(userId: string): number;
   load(userId: string): Promise<ReadonlyArray<PersonalReadRecord>>;
+  /**
+   * Like load, but rejects when the device store cannot be read, so a
+   * rewrite before a write never mistakes a read failure for "nothing saved".
+   * Malformed or expired data still loads as no records.
+   */
+  loadStrict?(userId: string): Promise<ReadonlyArray<PersonalReadRecord>>;
   save(
     userId: string,
     records: ReadonlyArray<PersonalReadRecord>,
   ): Promise<void>;
   /**
    * Replaces the saved records before a write. Unlike save, failures reject,
-   * so a write never proceeds while a record it changes is still saved.
+   * so a write never proceeds while a record it changes is still saved as
+   * fresh.
    */
   replace?(
     userId: string,
@@ -113,7 +125,8 @@ const validRecord = (
   now: number,
 ): value is PersonalReadRecord =>
   object(value) &&
-  Object.keys(value).length === 3 &&
+  (Object.keys(value).length === 3 ||
+    (Object.keys(value).length === 4 && value.stale === true)) &&
   Object.prototype.hasOwnProperty.call(value, "value") &&
   typeof value.path === "string" &&
   isPersonalDisplayPath(value.path) &&
@@ -214,43 +227,50 @@ export function createPersonalReadStorage(
   store: StringStorage = createDefaultOfflineCacheStorage(),
   now: () => number = Date.now,
 ): PersonalReadStorage {
+  // Rejects only when the store itself fails; bad data loads as no records.
+  const read = (userId: string): Promise<ReadonlyArray<PersonalReadRecord>> => {
+    if (!validOwner(userId)) return Promise.resolve([]);
+    const lane = laneFor(userId);
+    const generation = lane.generation;
+    return enqueue(userId, lane, async () => {
+      if (generation !== lane.generation) return [];
+      const json = await store.getItem(personalReadCacheKey(userId));
+      try {
+        if (
+          generation !== lane.generation ||
+          !json ||
+          utf8Bytes(json) > PERSONAL_READ_MAX_BYTES
+        )
+          return [];
+        const envelope: unknown = JSON.parse(json);
+        if (
+          !object(envelope) ||
+          Object.keys(envelope).length !== 3 ||
+          envelope.version !== 1 ||
+          envelope.ownerId !== userId ||
+          !Array.isArray(envelope.records) ||
+          envelope.records.length > PERSONAL_READ_MAX_RECORDS
+        )
+          return [];
+        const time = now();
+        if (!Number.isSafeInteger(time) || time < 0) return [];
+        return envelope.records.filter((record): record is PersonalReadRecord =>
+          validRecord(record, time),
+        );
+      } catch {
+        return [];
+      }
+    });
+  };
   return {
     generation(userId) {
       return generations.get(userId) ?? 0;
     },
     load(userId) {
-      if (!validOwner(userId)) return Promise.resolve([]);
-      const lane = laneFor(userId);
-      const generation = lane.generation;
-      return enqueue(userId, lane, async () => {
-        if (generation !== lane.generation) return [];
-        try {
-          const json = await store.getItem(personalReadCacheKey(userId));
-          if (
-            generation !== lane.generation ||
-            !json ||
-            utf8Bytes(json) > PERSONAL_READ_MAX_BYTES
-          )
-            return [];
-          const envelope: unknown = JSON.parse(json);
-          if (
-            !object(envelope) ||
-            Object.keys(envelope).length !== 3 ||
-            envelope.version !== 1 ||
-            envelope.ownerId !== userId ||
-            !Array.isArray(envelope.records) ||
-            envelope.records.length > PERSONAL_READ_MAX_RECORDS
-          )
-            return [];
-          const time = now();
-          if (!Number.isSafeInteger(time) || time < 0) return [];
-          return envelope.records.filter(
-            (record): record is PersonalReadRecord => validRecord(record, time),
-          );
-        } catch {
-          return [];
-        }
-      });
+      return read(userId).catch(() => []);
+    },
+    loadStrict(userId) {
+      return read(userId);
     },
     save(userId, records) {
       if (!validOwner(userId)) return Promise.resolve();

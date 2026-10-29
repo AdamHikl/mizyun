@@ -162,6 +162,36 @@ describe("encrypted personal read snapshot adapter", () => {
     ).toEqual([]);
   });
 
+  it("rejects a strict load when the device store cannot be read, unlike load", async () => {
+    const { cache, store, values } = memory();
+    await cache.save(OWNER, [record()]);
+    vi.mocked(store.getItem).mockRejectedValueOnce(new Error("locked"));
+    await expect(cache.loadStrict!(OWNER)).rejects.toThrow("locked");
+    vi.mocked(store.getItem).mockRejectedValueOnce(new Error("locked"));
+    expect(await cache.load(OWNER)).toEqual([]);
+    expect(await cache.loadStrict!(OWNER)).toEqual([record()]);
+    // Unreadable data is not a store failure: it loads as no records.
+    values.set(personalReadCacheKey(OWNER), "{corrupt");
+    expect(await cache.loadStrict!(OWNER)).toEqual([]);
+  });
+
+  it("keeps the stale marker of a record saved across an unanswered write", async () => {
+    const { cache, values } = memory();
+    const stale = { ...record("/v1/workouts"), stale: true as const };
+    await cache.save(OWNER, [stale, record()]);
+    expect(await cache.load(OWNER)).toEqual([stale, record()]);
+    // Only the exact marker is accepted; any other fourth field is dropped.
+    values.set(
+      personalReadCacheKey(OWNER),
+      encoded([
+        stale,
+        { ...record("/v1/runs"), stale: false },
+        { ...record("/v1/exercises"), stale: "yes" },
+      ]),
+    );
+    expect(await cache.load(OWNER)).toEqual([stale]);
+  });
+
   it("deduplicates paths by latest savedAt and evicts oldest records above 512", async () => {
     const { cache } = memory();
     const records = Array.from({ length: 520 }, (_, index) =>

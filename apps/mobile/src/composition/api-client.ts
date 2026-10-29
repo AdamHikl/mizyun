@@ -61,6 +61,7 @@ export const sessionReadCache = new SessionReadCache(
   // Composition imports remain safe before native storage initialization.
   {
     load: (userId) => createPersonalReadStorage().load(userId),
+    loadStrict: (userId) => createPersonalReadStorage().loadStrict!(userId),
     save: (userId, records) =>
       createPersonalReadStorage().save(userId, records),
     replace: (userId, records) =>

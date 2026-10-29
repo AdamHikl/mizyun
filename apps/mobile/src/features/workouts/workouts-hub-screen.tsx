@@ -27,6 +27,7 @@ import {
 } from "@/composition/app-variant";
 import { sessionHistorySubtitle } from "@/features/bouldering/public-data";
 import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
+import { formatDeviceInstant } from "@/components/ui/device-clock";
 import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -102,6 +103,10 @@ const INITIAL_DATA: WorkoutsHubResult = {
   completed: [],
   exercises: [],
   message: null,
+};
+const savedTime = (savedAt: number): string => {
+  const time = formatDeviceInstant(new Date(savedAt));
+  return time ? ` at ${time}` : "";
 };
 
 export function WorkoutsHubScreen() {
@@ -271,8 +276,11 @@ export function WorkoutsHubScreen() {
     );
     setLoading(false);
     displayReady.current = true;
+    // Saved data is not a completed load: focus and Check again re-read it.
     loaded.current =
-      result.message === null ? { version, at: Date.now() } : null;
+      result.message === null && result.savedAt === undefined
+        ? { version, at: Date.now() }
+        : null;
   }, [boulderingEnabled, owner]);
 
   useFocusEffect(
@@ -957,6 +965,21 @@ export function WorkoutsHubScreen() {
                 }
               />
             </View>
+          ) : null}
+
+          {!data.message && data.savedAt !== undefined ? (
+            <Notice
+              tone="info"
+              message={`Showing workouts saved on this device${savedTime(data.savedAt)}. They'll update once Mizyun can reach the server.`}
+              action={
+                <Button
+                  label="Check again"
+                  variant="plain"
+                  size="small"
+                  onPress={() => void loadData()}
+                />
+              }
+            />
           ) : null}
 
           {showPlanned ? (
