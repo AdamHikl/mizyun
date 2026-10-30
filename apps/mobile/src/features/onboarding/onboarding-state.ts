@@ -153,6 +153,32 @@ export const validatePrimaryGoal = (form: OnboardingForm): string | null => {
   return validateWeight(form.goalWeight, form.unitSystem, "Goal weight");
 };
 
+/** One line for the welcome step; climbing is optional and build-gated. */
+export const welcomeClimbingLine = (
+  boulderingEnabled: boolean,
+): string | null =>
+  boulderingEnabled
+    ? "Climbing counts too: start a bouldering session from the Workouts tab whenever you like, with or without setup."
+    : null;
+
+/**
+ * The name step is the only one that waits for a Continue attempt before
+ * showing its error; an empty field is not an error until the user tries.
+ */
+export const stepErrorToShow = (
+  step: OnboardingStep,
+  validationError: string | null,
+  attempted: boolean,
+): string | null =>
+  step === "displayName" && !attempted ? null : validationError;
+
+/** Continue stays tappable on the name step so the attempt can be made. */
+export const canContinueStep = (
+  step: OnboardingStep,
+  validationError: string | null,
+  busy: boolean,
+): boolean => !busy && (step === "displayName" || validationError === null);
+
 export const validateStep = (
   step: OnboardingStep,
   form: OnboardingForm,

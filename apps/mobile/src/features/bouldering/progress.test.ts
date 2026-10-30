@@ -100,7 +100,7 @@ describe("timelineColumns", () => {
           },
         ]),
       ),
-    ).toBe("Hardest send in each of the last 1 session. No sends.");
+    ).toBe("Hardest send in your latest session. No sends.");
   });
 });
 

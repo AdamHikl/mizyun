@@ -35,6 +35,8 @@ import { useTheme } from "@/hooks/use-theme";
 
 import { authErrorMessage } from "./auth-error-message";
 import { useAuth } from "./auth-context";
+import { authEntryMode, loadDeviceHadSession } from "./auth-device-history";
+import { LoadingScreen } from "./loading-screen";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -57,6 +59,8 @@ export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up" | "forgot">("sign-in");
+  // False until the device history is read, so the screen never flashes sign-in.
+  const [entryResolved, setEntryResolved] = useState(false);
   const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<
     string | null
   >(null);
@@ -70,6 +74,18 @@ export function AuthScreen() {
 
   const busy = emailBusy || googleBusy || appleBusy || resendBusy;
   const isAndroid = Platform.OS === "android";
+
+  useEffect(() => {
+    let isMounted = true;
+    void loadDeviceHadSession().then((hadSession) => {
+      if (!isMounted) return;
+      setMode(authEntryMode(hadSession));
+      setEntryResolved(true);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -191,6 +207,8 @@ export function AuthScreen() {
       setAppleBusy(false);
     }
   };
+
+  if (!entryResolved) return <LoadingScreen />;
 
   if (pendingConfirmationEmail) {
     return (

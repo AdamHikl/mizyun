@@ -6,6 +6,7 @@ import {
   router,
   type Href,
   useRootNavigationState,
+  usePathname,
 } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
@@ -22,7 +23,10 @@ import {
   CommunityReadLifecycle,
   parseCommunityInvitationLink,
 } from "@/features/community";
-import { analyticsClient } from "@/composition/analytics-client";
+import {
+  activationMilestones,
+  analyticsClient,
+} from "@/composition/analytics-client";
 import { AnalyticsConsentReminderBridge } from "@/composition/analytics-consent-reminder-bridge";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { HealthExportSessionBridge } from "@/composition/health-export-session-bridge";
@@ -41,7 +45,10 @@ import {
   SessionGate,
   useAuth,
 } from "@/features/auth/auth-context";
-import { registerDevicePushToken } from "@/features/beta-pro/beta-pro-client";
+import {
+  pushPromptAllowed,
+  registerDevicePushTokenAfterFirstRecord,
+} from "@/features/beta-pro/beta-pro-client";
 import { ThemePreferenceProvider } from "@/features/theme/theme-context";
 import { ActiveWorkoutProvider } from "@/features/workouts";
 import { Colors } from "@/constants/theme";
@@ -340,24 +347,46 @@ function WeighInNotificationBridge() {
 }
 
 function PushRegistrationBridge() {
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
+  const pathname = usePathname();
+  const registeredFor = useRef<string | null>(null);
+  const inFlight = useRef(false);
+  const owner = session?.user.id ?? null;
+  const preview = session?.accessToken === "preview-token";
+  const profileSetUp = Boolean(profile?.displayName);
 
   useEffect(() => {
-    if (!session || !apiConfiguration.configured) return;
-    let cancelled = false;
+    if (owner === null) registeredFor.current = null;
+  }, [owner]);
 
-    void registerDevicePushToken(apiClient).then((token) => {
-      if (token && !cancelled) {
-        console.log(
-          `[Push] Registered push token with server: ${token.slice(0, 16)}...`,
-        );
-      }
-    });
+  // Re-checked on navigation and profile changes: the OS prompt waits for the
+  // first confirmed record (or, without a first-run anchor, a set-up profile),
+  // so the first route change after that shows it.
+  useEffect(() => {
+    if (!owner || !apiConfiguration.configured || preview) return;
+    if (registeredFor.current === owner || inFlight.current) return;
+    inFlight.current = true;
 
-    return () => {
-      cancelled = true;
-    };
-  }, [session]);
+    void registerDevicePushTokenAfterFirstRecord(apiClient, async () =>
+      pushPromptAllowed({
+        anchor: await activationMilestones.stateFor(owner),
+        profileSetUp,
+        preview,
+      }),
+    )
+      .then(({ deferred, token }) => {
+        if (deferred) return;
+        registeredFor.current = owner;
+        if (token) {
+          console.log(
+            `[Push] Registered push token with server: ${token.slice(0, 16)}...`,
+          );
+        }
+      })
+      .finally(() => {
+        inFlight.current = false;
+      });
+  }, [owner, pathname, preview, profileSetUp]);
 
   return null;
 }

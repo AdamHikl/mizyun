@@ -30,6 +30,7 @@ import { authClient } from "@/composition/auth-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { firstMealReminderLifecycle } from "@/composition/first-meal-reminder-runtime";
 import { profileResponseSchema } from "@mizyun/contracts";
+import { markDeviceHadSession } from "./auth-device-history";
 import { AuthScreen } from "./auth-screen";
 import { AuthSetupScreen } from "./auth-setup-screen";
 import { LoadingScreen } from "./loading-screen";
@@ -229,6 +230,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nextSession?.accessToken ?? null,
       );
       setSession(nextSession);
+      if (nextSession !== null && nextSession.accessToken !== "preview-token")
+        void markDeviceHadSession();
       if (nextSession === null) {
         setProfile(null);
         setIsOnboardingActive(false);

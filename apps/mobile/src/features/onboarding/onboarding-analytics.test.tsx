@@ -44,6 +44,9 @@ vi.mock("react-native", () => ({
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
+vi.mock("@/composition/app-variant", () => ({
+  isBoulderingEnabled: () => true,
+}));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/components/brand-wordmark", () => ({
@@ -227,5 +230,26 @@ describe("onboarding analytics at the actual wizard boundary", () => {
     expect(() =>
       new OnboardingMeasurement({ track: state.track }, scope).complete(),
     ).not.toThrow();
+  });
+});
+
+describe("name step at the wizard boundary", () => {
+  it("shows the blank-name error only after a Continue attempt and does not advance", async () => {
+    state.slots[0] = "displayName";
+    let tree = render();
+    await startEffects();
+    const body = (t: any) => find(t, (n) => n.props?.step === "displayName");
+    expect(body(tree).props.error).toBeNull();
+    const continueButton = find(
+      tree,
+      (n) => n.props?.accessibilityLabel === "Continue",
+    );
+    expect(continueButton.props.disabled).toBe(false);
+
+    continueButton.props.onPress();
+    await settle();
+    tree = render();
+    expect(state.slots[0]).toBe("displayName");
+    expect(body(tree).props.error).toBe("Display name cannot be blank.");
   });
 });

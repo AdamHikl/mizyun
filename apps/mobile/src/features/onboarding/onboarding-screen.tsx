@@ -23,6 +23,7 @@ import {
   Notice,
 } from "@/components/ui";
 import { apiClient } from "@/composition/api-client";
+import { isBoulderingEnabled } from "@/composition/app-variant";
 import { analyticsClient } from "@/composition/analytics-client";
 import { MaxContentWidth, PageGutter, Spacing } from "@/constants/theme";
 import { useOptionalAuth } from "@/features/auth/auth-context";
@@ -35,10 +36,13 @@ import { lengthUnitLabel } from "@/lib/length-units";
 
 import {
   applyOnboardingPatch,
+  canContinueStep,
   freshOnboardingForm,
   nextStep,
   previousStep,
+  stepErrorToShow,
   validateStep,
+  welcomeClimbingLine,
   type OnboardingForm,
   type OnboardingPatch,
   type OnboardingStep,
@@ -69,6 +73,7 @@ export function OnboardingScreen({
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const auth = useOptionalAuth();
   const owner = auth?.session?.user.id ?? null;
   const measurement = useRef<OnboardingMeasurement | null>(null);
@@ -113,11 +118,15 @@ export function OnboardingScreen({
   }, [step, onExit]);
 
   const validationError = useMemo(() => validateStep(step, form), [step, form]);
-  const canContinue = validationError === null && !busy;
+  const canContinue = canContinueStep(step, validationError, busy);
 
   const onAdvance = useCallback(async () => {
     const attempt = measurement.current;
     attempt?.tap();
+    if (validateStep(step, form) !== null) {
+      setAttempted(true);
+      return;
+    }
     const next = nextStep(step);
     if (next === null) {
       // Final step — submit to the API.
@@ -142,12 +151,14 @@ export function OnboardingScreen({
       return;
     }
     attempt?.stepCompleted(step);
+    setAttempted(false);
     setStep(next);
   }, [step, form, onComplete]);
 
   const onBack = useCallback(() => {
     measurement.current?.tap();
     const prev = previousStep(step);
+    setAttempted(false);
     if (prev !== null) setStep(prev);
   }, [step]);
 
@@ -185,7 +196,7 @@ export function OnboardingScreen({
             step={step}
             form={form}
             onPatch={patch}
-            error={validationError}
+            error={stepErrorToShow(step, validationError, attempted)}
           />
 
           {step === "welcome" ? (
@@ -275,6 +286,7 @@ function StepBody({ step, form, onPatch, error }: StepBodyProps) {
 function WelcomeBody() {
   const auth = useOptionalAuth();
   const isPaid = auth?.profile?.planTier === "paid";
+  const climbingLine = welcomeClimbingLine(isBoulderingEnabled());
   const [betaStatus, setBetaStatus] = useState<BetaProStatus | null>(null);
   const [requesting, setRequesting] = useState(false);
   const mountedRef = useRef(true);
@@ -336,6 +348,7 @@ function WelcomeBody() {
         primary goal so the math stays honest. Set up your starting point in
         five short steps.
       </ThemedText>
+      {climbingLine ? <ThemedText>{climbingLine}</ThemedText> : null}
 
       <Card>
         <View style={styles.betaHeaderRow}>
@@ -377,7 +390,7 @@ function WelcomeBody() {
       </Card>
 
       <ThemedText type="small" themeColor="textSecondary">
-        You can change any profile detail later from the Account tab.
+        You can change any profile detail later from Settings (the gear icon).
       </ThemedText>
     </View>
   );
