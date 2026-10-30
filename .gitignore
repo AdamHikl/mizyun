@@ -24,7 +24,8 @@ coverage/
 # Local App Store captures and rendered upload artifacts may contain user data.
 screenshots/IMG_*.PNG
 screenshots/app-store/iphone-6.9/
-screenshots/app-store/preview.png
+screenshots/app-store/iphone-6.3/
+screenshots/app-store/preview*.png
 screenshots/app-store/*.zip
 screenshots/app-store/captured/
 screenshots/google-play/captured/
