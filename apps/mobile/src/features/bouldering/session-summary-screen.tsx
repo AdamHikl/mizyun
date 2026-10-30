@@ -17,7 +17,15 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Button, Card, EmptyState, Icon, Notice } from "@/components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Icon,
+  ListGroup,
+  ListRow,
+  Notice,
+} from "@/components/ui";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { apiClient } from "@/composition/api-client";
@@ -38,7 +46,7 @@ import {
 } from "./presentation";
 import { projectName, projectsSentInSession, sentAfterText } from "./progress";
 import { recallFinish } from "./session-rows";
-import { sessionGradeBars } from "./session-summary";
+import { sessionGradeBars, sessionNextStep } from "./session-summary";
 import { canShareBoulderingSession, shareBoulderingHref } from "./share-gate";
 
 type Loaded = {
@@ -202,6 +210,7 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
   const { session, ascents, achievements } = data;
   const stats = summaryStats(session.summary);
   const bars = sessionGradeBars(session, ascents);
+  const nextStep = sessionNextStep(session);
   const title = session.completedAt
     ? `Session complete${session.session.gymName ? ` · ${session.session.gymName}` : ""}`
     : "Session in progress";
@@ -343,6 +352,17 @@ export function SessionSummaryScreen({ sessionId }: { sessionId: string }) {
                   : null
               }
             />
+          ) : null}
+          {nextStep ? (
+            <ListGroup>
+              <ListRow
+                icon="mobility"
+                iconTone="primary"
+                title={nextStep.title}
+                subtitle={nextStep.subtitle}
+                onPress={() => router.replace(nextStep.href as Href)}
+              />
+            </ListGroup>
           ) : null}
           <Button
             label="View progress"

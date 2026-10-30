@@ -1,10 +1,12 @@
 import {
   bodyMeasurementListResponseSchema,
+  boulderSessionListResponseSchema,
   dailyFoodSummaryListResponseSchema,
   dailyFoodSummaryResponseSchema,
   energySummaryResponseSchema,
   workoutListResponseSchema,
   type BodyMeasurementListResponse,
+  type BoulderSessionListResponse,
   type DailyFoodSummary,
   type DailyFoodSummaryResponse,
   type EnergySummaryResponse,
@@ -120,6 +122,38 @@ const workoutCountRequest = (options: {
   schema: workoutListResponseSchema,
 });
 
+/**
+ * Newest finished bouldering sessions, the same read the Workouts history
+ * makes. 50 is the route maximum and covers a month of climbing.
+ */
+const BOULDER_SESSION_LIMIT = 50;
+const boulderSessionsRequest = {
+  method: "GET" as const,
+  path: `/v1/bouldering/sessions?limit=${BOULDER_SESSION_LIMIT}`,
+  schema: boulderSessionListResponseSchema,
+};
+
+/** Finished sessions whose activity date falls in the inclusive range. */
+const countBoulderSessions = (
+  list: BoulderSessionListResponse,
+  range: { readonly fromIsoDate: string; readonly toIsoDate: string },
+): number =>
+  list.sessions.filter(
+    (session) =>
+      session.completedAt !== null &&
+      session.session.activityDate >= range.fromIsoDate &&
+      session.session.activityDate <= range.toIsoDate,
+  ).length;
+
+/** The older of two optional save times; undefined when neither is known. */
+const oldestSavedTime = (
+  first: number | undefined,
+  second: number | undefined,
+): number | undefined =>
+  first === undefined || second === undefined
+    ? (first ?? second)
+    : Math.min(first, second);
+
 export interface DashboardSnapshotRead<T> {
   readonly value: T;
   readonly savedAt?: number;
@@ -138,6 +172,8 @@ export const readDashboardSnapshot = (
     readonly fromIsoDate: string;
     readonly toIsoDate: string;
     readonly utcOffsetMinutes: number;
+    /** Count finished bouldering sessions in `workouts`. */
+    readonly boulderingEnabled?: boolean;
   },
 ): DashboardReadSnapshot => {
   const daily = peek<DailyFoodSummaryResponse>(dailySummaryRequest(query));
@@ -151,6 +187,12 @@ export const readDashboardSnapshot = (
       toIsoDate: query.date,
     }),
   );
+  // The session read cache does not store the bouldering list yet, so this
+  // misses and Today waits for the live read rather than showing a count
+  // without climbs.
+  const boulders = query.boulderingEnabled
+    ? peek<BoulderSessionListResponse>(boulderSessionsRequest)
+    : null;
   const history =
     query.fromIsoDate <= query.toIsoDate
       ? peek<{ readonly summaries: ReadonlyArray<DailySummary> }>(
@@ -170,13 +212,26 @@ export const readDashboardSnapshot = (
     energy: energy?.ok
       ? { value: energy.value.summary, savedAt: savedDisplayTime(energy) }
       : null,
-    workouts: workouts?.ok
-      ? {
-          value: workouts.value.workouts.filter((w) => w.completedAt !== null)
-            .length,
-          savedAt: savedDisplayTime(workouts),
-        }
-      : null,
+    // With bouldering on, a count that lacks the climbing read would be
+    // wrong, so the whole value waits for both saved reads.
+    workouts:
+      workouts?.ok && (!query.boulderingEnabled || boulders?.ok)
+        ? {
+            value:
+              workouts.value.workouts.filter((w) => w.completedAt !== null)
+                .length +
+              (boulders?.ok
+                ? countBoulderSessions(boulders.value, {
+                    fromIsoDate: query.fromIsoDate,
+                    toIsoDate: query.date,
+                  })
+                : 0),
+            savedAt: oldestSavedTime(
+              savedDisplayTime(workouts),
+              boulders?.ok ? savedDisplayTime(boulders) : undefined,
+            ),
+          }
+        : null,
     history:
       query.fromIsoDate > query.toIsoDate
         ? { value: [] }
@@ -384,6 +439,57 @@ export const fetchWorkoutCountForPeriod = async (
     value: (parsed?.workouts ?? []).filter(
       (workout) => workout.completedAt !== null,
     ).length,
+    error: null,
+  };
+};
+
+/**
+ * Finished bouldering sessions in the period, from the existing session
+ * history read. A server with bouldering switched off counts as zero.
+ */
+export const fetchBoulderSessionCountForPeriod = async (
+  client: ApiClient,
+  principal: DashboardPrincipal,
+  options: {
+    readonly fromIsoDate: string;
+    readonly toIsoDate: string;
+  },
+): Promise<DailyDataResult<WorkoutCount>> => {
+  if (principal === null) return unauthenticatedResult();
+  const result = await client.request(boulderSessionsRequest);
+  if (!result.ok) {
+    return result.error.kind === "http_error" &&
+      result.error.code === "FEATURE_DISABLED"
+      ? { value: 0, error: null }
+      : { value: null, error: result.error };
+  }
+  const parsed = parseSafe(result.value, boulderSessionListResponseSchema);
+  // An unreadable list is a failed read, so the screen keeps its saved count.
+  if (parsed === null)
+    return {
+      value: null,
+      error: { kind: "parse_error", cause: "Invalid bouldering sessions." },
+    };
+  return { value: countBoulderSessions(parsed, options), error: null };
+};
+
+/**
+ * Training total for Today: strength workouts plus bouldering sessions.
+ * Either read failing withholds the total, so the screen keeps its last
+ * saved value instead of showing a count that leaves climbing out.
+ */
+export const combineTrainingCounts = (
+  workouts: DailyDataResult<WorkoutCount>,
+  boulders: DailyDataResult<WorkoutCount> | null,
+): DailyDataResult<WorkoutCount> => {
+  if (workouts.error !== null) return workouts;
+  if (boulders === null) return workouts;
+  if (boulders.error !== null) return { value: null, error: boulders.error };
+  return {
+    value:
+      workouts.value === null || boulders.value === null
+        ? null
+        : workouts.value + boulders.value,
     error: null,
   };
 };

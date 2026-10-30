@@ -106,6 +106,7 @@ vi.mock("@/composition/api-client", () => ({
 }));
 vi.mock("@/composition/app-variant", () => ({
   getAppVariant: () => "dev",
+  isBoulderingEnabled: () => false,
   isProgressPhotosEnabled: () => true,
 }));
 vi.mock("@/features/auth/auth-context", () => ({

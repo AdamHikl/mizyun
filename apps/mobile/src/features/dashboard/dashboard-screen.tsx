@@ -120,6 +120,8 @@ import {
   fetchLatestWeight,
   fetchNutritionReviewSummaries,
   fetchWorkoutCountForPeriod,
+  fetchBoulderSessionCountForPeriod,
+  combineTrainingCounts,
   readDashboardSnapshot,
   type DailyDataResult,
   type DailySummary,
@@ -343,6 +345,16 @@ const actions = [
   },
 ] as const;
 
+/** No dashboard control name exists for it yet, so its tap is not counted. */
+const boulderingAction = {
+  label: "Start bouldering",
+  control: null,
+  path: "/bouldering/session?start=1" as Href,
+  hint: "Log sends and attempts",
+  icon: "mobility" as IconName,
+  tone: "primary" as const,
+} as const;
+
 const homeDateFormat = new Intl.DateTimeFormat(undefined, {
   weekday: "long",
   day: "numeric",
@@ -362,6 +374,7 @@ function initialMetricsFor(session: AuthSession | null): MetricsState {
       fromIsoDate: startOfLocalWeek(now),
       toIsoDate: localYesterday(now),
       utcOffsetMinutes: offset,
+      boulderingEnabled: isBoulderingEnabled(),
     },
   );
   const status = (
@@ -610,13 +623,23 @@ export function DashboardScreen() {
     );
 
     // Launch Tier 2: Period Review Signals in parallel (without duplicate today fetch)
-    const workoutsPromise = fetchWorkoutCountForPeriod(
-      displayClient,
-      principal,
-      {
-        fromIsoDate: periodStartDate,
-        toIsoDate: todayDate,
-      },
+    const trainingRange = {
+      fromIsoDate: periodStartDate,
+      toIsoDate: todayDate,
+    };
+    // Training counts strength workouts and, where bouldering is on, finished
+    // climbing sessions from the same history read the Workouts tab uses.
+    const workoutsPromise = Promise.all([
+      fetchWorkoutCountForPeriod(displayClient, principal, trainingRange),
+      isBoulderingEnabled()
+        ? fetchBoulderSessionCountForPeriod(
+            displayClient,
+            principal,
+            trainingRange,
+          )
+        : Promise.resolve(null),
+    ]).then(([workouts, boulders]) =>
+      combineTrainingCounts(workouts, boulders),
     );
     const historicalReviewPromise = hasHistoricalDays
       ? fetchNutritionReviewSummaries(displayClient, principal, {
@@ -1046,7 +1069,7 @@ export function DashboardScreen() {
   );
 
   const quickLogActions = useMemo(() => {
-    return actions
+    const logged = actions
       .filter(
         (action) =>
           action.label !== "Progress photo" || isProgressPhotosEnabled(),
@@ -1064,6 +1087,11 @@ export function DashboardScreen() {
         }
         return action;
       });
+    // Opening a session screen with `start=1` also resumes one in progress.
+    // It follows the meal action: climbers' first tap should not be buried.
+    return isBoulderingEnabled()
+      ? [logged[0]!, boulderingAction, ...logged.slice(1)]
+      : logged;
   }, [activeWorkout, elapsedSeconds]);
 
   // Hide an old account/day immediately, including the frame before focus
@@ -1194,7 +1222,8 @@ export function DashboardScreen() {
                   action.control === "quick_log_workout" && startingOneTime
                 }
                 onPress={() => {
-                  trackDashboardControl(action.control);
+                  if (action.control !== null)
+                    trackDashboardControl(action.control);
                   if (action.control === "quick_log_workout") {
                     void handleStartWorkout();
                   } else {
@@ -1265,7 +1294,7 @@ export function DashboardScreen() {
               label="Training"
               icon="dumbbell"
               value={formatCount(metrics.workoutsInReview)}
-              detail={`Workouts this ${reviewPeriod}`}
+              detail={`${isBoulderingEnabled() ? "Workouts and climbs" : "Workouts"} this ${reviewPeriod}`}
               onPress={() => {
                 trackDashboardControl("training_card");
                 void router.push("/workouts" as Href);
@@ -1328,6 +1357,9 @@ export function DashboardScreen() {
           <ProgressReviewCard
             nutrition={metrics.nutritionReview}
             workouts={metrics.workoutsInReview}
+            workoutsLabel={
+              isBoulderingEnabled() ? "Workouts & climbs" : "Workouts"
+            }
             period={reviewPeriod}
             loading={metrics.sectionStatus.review.loading}
             hasError={metrics.sectionStatus.review.hasError}
@@ -2156,6 +2188,7 @@ function EnergyCard(props: {
 function ProgressReviewCard(props: {
   readonly nutrition: NutritionReview | null;
   readonly workouts: number | null;
+  readonly workoutsLabel: string;
   readonly period: ReviewPeriod;
   readonly loading?: boolean;
   readonly hasError?: boolean;
@@ -2196,7 +2229,7 @@ function ProgressReviewCard(props: {
       </View>
       <View style={styles.auditGrid}>
         <AuditValue
-          label="Days logged"
+          label="Food days logged"
           value={nutrition === null ? "—" : String(nutrition.loggedDays)}
         />
         <AuditValue
@@ -2207,7 +2240,10 @@ function ProgressReviewCard(props: {
           label="Calories logged"
           value={formatCalories(nutrition?.caloriesKcal ?? null)}
         />
-        <AuditValue label="Workouts" value={formatCount(props.workouts)} />
+        <AuditValue
+          label={props.workoutsLabel}
+          value={formatCount(props.workouts)}
+        />
       </View>
       {nutrition !== null && nutrition.incompleteDays > 0 ? (
         <ThemedText type="footnote" themeColor="textSecondary">

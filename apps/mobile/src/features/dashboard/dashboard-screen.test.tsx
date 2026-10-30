@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   weight: vi.fn(),
   energy: vi.fn(),
   workouts: vi.fn(),
+  boulders: vi.fn(),
+  bouldering: false,
   history: vi.fn(),
   mealDateHistory: vi.fn(),
   mealCopy: vi.fn(),
@@ -177,6 +179,7 @@ vi.mock("@/composition/api-client", () => ({
   getSessionReadVersion: () => "synthetic-read-version",
 }));
 vi.mock("@/composition/app-variant", () => ({
+  isBoulderingEnabled: () => mocks.bouldering,
   isProgressPhotosEnabled: () => true,
 }));
 vi.mock("@/features/auth/auth-context", () => ({
@@ -236,6 +239,7 @@ vi.mock("./dashboard-data", async (original) => ({
   fetchLatestWeight: mocks.weight,
   fetchEnergySummary: mocks.energy,
   fetchWorkoutCountForPeriod: mocks.workouts,
+  fetchBoulderSessionCountForPeriod: mocks.boulders,
   fetchNutritionReviewSummaries: mocks.history,
 }));
 
@@ -355,6 +359,8 @@ beforeEach(() => {
   mocks.weight.mockReset().mockResolvedValue(success({ weightKg: 81.5 }));
   mocks.energy.mockReset().mockResolvedValue(success(energy));
   mocks.workouts.mockReset().mockResolvedValue(success(2));
+  mocks.boulders.mockReset().mockResolvedValue(success(3));
+  mocks.bouldering = false;
   mocks.history.mockReset().mockResolvedValue(success([]));
   mocks.mealDateHistory
     .mockReset()
@@ -1590,4 +1596,108 @@ it("hydrates Home's initial placeholder when startup completes after the tab alr
   expect(nutrition(warmed).props.caloriesToday).toBe(750);
   expect(nutrition(warmed).props.summary).toEqual(summary);
   expect(mocks.daily).not.toHaveBeenCalled();
+});
+
+describe("Home bouldering", () => {
+  const trainingCard = (tree: any) =>
+    find(
+      tree,
+      (node) =>
+        node.type?.name === "MetricCard" && node.props.label === "Training",
+    );
+  const auditLabel = (tree: any, label: string) =>
+    find(
+      tree,
+      (node) => node.type?.name === "AuditValue" && node.props.label === label,
+    );
+  const quickLabels = (tree: any) =>
+    (
+      find(
+        tree,
+        (node) =>
+          node.props?.children?.[0]?.props?.accessibilityLabel === "Log a meal",
+      )?.props.children ?? []
+    )
+      .flat?.()
+      .map((row: any) => row?.props?.accessibilityLabel);
+
+  it("counts finished climbing sessions in Training and says so", async () => {
+    mocks.bouldering = true;
+    render();
+    focus();
+    await settle();
+    const tree = render();
+    expect(mocks.boulders).toHaveBeenCalledTimes(1);
+    const card = trainingCard(tree);
+    expect(card.props.value).toBe("5");
+    expect(card.props.detail).toBe("Workouts and climbs this week");
+    const review = find(
+      tree,
+      (node) => node.type?.name === "ProgressReviewCard",
+    );
+    const rendered = review.type(review.props);
+    expect(auditLabel(rendered, "Workouts & climbs")?.props.value).toBe("5");
+    expect(auditLabel(rendered, "Food days logged")).toBeTruthy();
+  });
+
+  it("offers Start bouldering after Log a meal and opens the session screen", async () => {
+    mocks.bouldering = true;
+    render();
+    focus();
+    await settle();
+    const tree = render();
+    const labels = quickLabels(tree);
+    expect(labels.slice(0, 3)).toEqual([
+      "Log a meal",
+      "Start bouldering",
+      "Start workout",
+    ]);
+    const action = find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "Start bouldering",
+    );
+    action.props.onPress();
+    expect(mocks.push).toHaveBeenLastCalledWith("/bouldering/session?start=1");
+  });
+
+  it("leaves Today unchanged where bouldering is off", async () => {
+    render();
+    focus();
+    await settle();
+    const tree = render();
+    expect(mocks.boulders).not.toHaveBeenCalled();
+    expect(trainingCard(tree).props.value).toBe("2");
+    expect(trainingCard(tree).props.detail).toBe("Workouts this week");
+    expect(quickLabels(tree)).not.toContain("Start bouldering");
+    const review = find(
+      tree,
+      (node) => node.type?.name === "ProgressReviewCard",
+    );
+    const rendered = review.type(review.props);
+    expect(auditLabel(rendered, "Workouts")?.props.value).toBe("2");
+    expect(auditLabel(rendered, "Workouts & climbs")).toBeFalsy();
+  });
+
+  it("keeps the saved total when the climbing read fails", async () => {
+    mocks.bouldering = true;
+    mocks.boulders.mockResolvedValue(serverFailure);
+    render();
+    focus();
+    await settle();
+    const tree = render();
+    // The saved snapshot (2) stays; 2 workouts alone would hide the climbs.
+    expect(trainingCard(tree).props.value).toBe("2");
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(retry(tree)).toBeTruthy();
+  });
+
+  it("does not replace the total with a partial count when only the climbing read is missing", async () => {
+    mocks.bouldering = true;
+    mocks.cache.mockResolvedValue(null);
+    mocks.boulders.mockResolvedValue(serverFailure);
+    render();
+    focus();
+    await settle();
+    expect(trainingCard(render()).props.value).toBe("—");
+  });
 });
