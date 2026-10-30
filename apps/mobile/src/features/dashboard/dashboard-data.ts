@@ -187,9 +187,9 @@ export const readDashboardSnapshot = (
       toIsoDate: query.date,
     }),
   );
-  // The session read cache does not store the bouldering list yet, so this
-  // misses and Today waits for the live read rather than showing a count
-  // without climbs.
+  // Saved like the workout list, so a restart offline shows the combined
+  // count. Until the list has been read once, the total waits for the live
+  // read rather than showing a count without climbs.
   const boulders = query.boulderingEnabled
     ? peek<BoulderSessionListResponse>(boulderSessionsRequest)
     : null;

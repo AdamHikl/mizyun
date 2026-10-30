@@ -90,6 +90,16 @@ describe("write invalidation scope", () => {
     expect(affectedReads("POST", "/v1/bouldering/sessions")).toContain(
       "/v1/workouts",
     );
+    // Climbing writes retire the saved session list Today counts from.
+    for (const path of [
+      "/v1/bouldering/sessions",
+      "/v1/bouldering/sessions/s1/finish",
+      "/v1/bouldering/sessions/s1/ascents",
+    ])
+      expect(affectedReads("POST", path)).toContain("/v1/bouldering/sessions");
+    expect(affectedReads("POST", "/v1/food-entries")).not.toContain(
+      "/v1/bouldering/sessions",
+    );
     expect(affectedReads("POST", "/v1/community/routines/x/import")).toContain(
       "/v1/workouts",
     );
