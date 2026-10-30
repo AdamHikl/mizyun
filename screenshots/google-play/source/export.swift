@@ -20,45 +20,51 @@ struct Shot {
 let shots = [
     Shot(
         name: "01-your-day",
-        source: "Screenshot_20260921_191105_com.mizyun.dev.jpg",
+        source: "IMG_4500.PNG",
         blue: "Your day.",
         black: "In one place."
     ),
     Shot(
         name: "02-photo-meal-logging",
-        source: "Screenshot_20260921_191237_com.mizyun.dev.jpg",
+        source: "IMG_4503.PNG",
         blue: "Snap your meal.",
         black: "See the details."
     ),
     Shot(
         name: "03-workout-tracking",
-        source: "Screenshot_20260921_191837_com.mizyun.dev.jpg",
+        source: "IMG_4506.PNG",
         blue: "Every set.",
         black: "Every rep."
     ),
     Shot(
         name: "04-ai-coach",
-        source: "Screenshot_20260921_191716_com.mizyun.dev.jpg",
+        source: "IMG_4508.PNG",
         blue: "Plan your training",
         black: "with AI Coach."
     ),
     Shot(
         name: "05-meal-history",
-        source: "Screenshot_20260921_191726_com.mizyun.dev.jpg",
+        source: "IMG_4502.PNG",
         blue: "Your meals.",
         black: "Made easy to track."
     ),
     Shot(
         name: "06-workout-routines",
-        source: "Screenshot_20260921_191748_com.mizyun.dev.jpg",
+        source: "IMG_4501.PNG",
         blue: "Build a routine.",
         black: "Make it yours."
     ),
     Shot(
         name: "07-review-nutrition",
-        source: "Screenshot_20260921_191546_com.mizyun.dev.jpg",
+        source: "IMG_4505.PNG",
         blue: "Review your macros.",
         black: "Before you log."
+    ),
+    Shot(
+        name: "08-bouldering-progress",
+        source: "IMG_4507.PNG",
+        blue: "Track your climbs.",
+        black: "Every grade. Every send."
     ),
 ]
 

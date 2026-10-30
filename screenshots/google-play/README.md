@@ -1,12 +1,10 @@
 # Mizyun Google Play screenshots
 
-> **2026-10-04 / #136: replacement required before submission.** This retained set contains BETA badges and no longer matches the updated app. Capture the verified Production candidate again and regenerate the artwork. The historical export checks below do not make this set ready to upload.
-
-Created 2026-09-21 from the seven physical Huawei Android captures in `captured/`.
+Updated 2026-10-26 from the eight captures in `captured/` (addressing #136; BETA badges removed).
 
 ## Upload
 
-Upload the **seven PNG files inside `phone-9x16/`**, in filename order, to the Google Play Console phone screenshot section. `mizyun-google-play-phone-screenshots.zip` is for transferring the set; unzip it before uploading the PNG files. `preview.png` is an overview for review, not an upload asset.
+Upload the **eight PNG files inside `phone-9x16/`**, in filename order, to the Google Play Console phone screenshot section. `mizyun-google-play-phone-screenshots.zip` is for transferring the set; unzip it before uploading the PNG files. `preview.png` is an overview for review, not an upload asset.
 
 Each final file is **1440 × 2560 pixels (9:16), RGB PNG, with no alpha channel**. This satisfies Google Play's current phone-screenshot format, dimension, and aspect-ratio requirements and its recommendation for at least four 1080px-or-larger portrait screenshots.
 
@@ -16,23 +14,24 @@ Upload `feature-graphic.png` in the Google Play Console feature graphic field. I
 
 Suggested alt text: `Mizyun feature graphic reading Nutrition. Training. Progress. Built around your goals on a blue background.`
 
-## Order and physical-device captures
+## Order and captures
 
-| Order | File                        | Original                                        | Headline                            |
-| ----- | --------------------------- | ----------------------------------------------- | ----------------------------------- |
-| 1     | `01-your-day.png`           | `Screenshot_20260921_191105_com.mizyun.dev.jpg` | Your day. In one place.             |
-| 2     | `02-photo-meal-logging.png` | `Screenshot_20260921_191237_com.mizyun.dev.jpg` | Snap your meal. See the details.    |
-| 3     | `03-workout-tracking.png`   | `Screenshot_20260921_191837_com.mizyun.dev.jpg` | Every set. Every rep.               |
-| 4     | `04-ai-coach.png`           | `Screenshot_20260921_191716_com.mizyun.dev.jpg` | Plan your training with AI Coach.   |
-| 5     | `05-meal-history.png`       | `Screenshot_20260921_191726_com.mizyun.dev.jpg` | Your meals. Made easy to track.     |
-| 6     | `06-workout-routines.png`   | `Screenshot_20260921_191748_com.mizyun.dev.jpg` | Build a routine. Make it yours.     |
-| 7     | `07-review-nutrition.png`   | `Screenshot_20260921_191546_com.mizyun.dev.jpg` | Review your macros. Before you log. |
+| Order | File                         | Original       | Headline                                    |
+| ----- | ---------------------------- | -------------- | ------------------------------------------- |
+| 1     | `01-your-day.png`            | `IMG_4500.PNG` | Your day. In one place.                     |
+| 2     | `02-photo-meal-logging.png`  | `IMG_4503.PNG` | Snap your meal. See the details.            |
+| 3     | `03-workout-tracking.png`    | `IMG_4506.PNG` | Every set. Every rep.                       |
+| 4     | `04-ai-coach.png`            | `IMG_4508.PNG` | Plan your training with AI Coach.           |
+| 5     | `05-meal-history.png`        | `IMG_4502.PNG` | Your meals. Made easy to track.             |
+| 6     | `06-workout-routines.png`    | `IMG_4501.PNG` | Build a routine. Make it yours.             |
+| 7     | `07-review-nutrition.png`    | `IMG_4505.PNG` | Review your macros. Before you log.         |
+| 8     | `08-bouldering-progress.png` | `IMG_4507.PNG` | Track your climbs. Every grade. Every send. |
 
 ## Content notes
 
-The app UI is inserted directly from the complete physical-device captures and scaled uniformly without stretching or cropping. Only the outer corners are masked to fit the rounded phone frame. Text, values, personalisation, badges, status bars, and feature states were not rewritten or generated. Original files are untouched.
+The app UI is inserted directly from the captures, scaled uniformly, with only the outer corners masked to fit the rounded phone frame. Text, values, personalisation, badges, status bars, and feature states were not rewritten or generated. Original files are untouched.
 
-These captures show the Dev build; screenshots 1, 4, 5, and 6 visibly contain the app's BETA badge. The first capture also contains the founder's first name and body metric. Confirm that this is the public content intended for the listing and that it matches the submitted Production release before uploading. This export does not prove Play Console acceptance or publication.
+These captures do not contain BETA badges, satisfying the replacement requirement noted in #136. Confirm that this is the public content intended for the listing and that it matches the submitted Production release before uploading. This export does not prove Play Console acceptance or publication.
 
 ## Reproduction
 
