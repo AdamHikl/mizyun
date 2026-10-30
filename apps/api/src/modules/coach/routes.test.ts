@@ -30,7 +30,11 @@ import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
 import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
 import { buildCoachToolRegistry } from "./tools.js";
-import type { CoachLimitService } from "./limits.js";
+import {
+  InMemoryAiCostLedger,
+  InMemoryCoachLimitService,
+  type CoachLimitService,
+} from "./limits.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const tokenVerifier: AccessTokenVerifier = {
@@ -1104,6 +1108,90 @@ describe("coach routes", () => {
       expect(respond).toHaveBeenCalledTimes(5);
     },
   );
+
+  it("settles a Coach turn's prompt-cache reads and writes at their own rates (#347)", async () => {
+    const at = new Date("2026-10-27T09:00:00.000Z");
+    const ledger = new InMemoryAiCostLedger({ clock: () => at });
+    const limits = new InMemoryCoachLimitService({
+      clock: () => at,
+      costLedger: ledger,
+    });
+    const commit = vi.spyOn(limits, "commitTokens");
+    const respond = vi.fn<AgentProvider["respond"]>(async (request) => ({
+      message: { role: "assistant", text: "One sensible next step." },
+      provider: "anthropic",
+      evidence: request.grounding,
+      providerMetadata: {
+        promptTokens: 10_400,
+        completionTokens: 1_000,
+        totalTokens: 11_400,
+        cacheReadTokens: 8_000,
+        cacheWriteTokens: 500,
+      },
+    }));
+    const { app } = makeApp(respond, undefined, { now: () => at, limits });
+    const id = await createConversation(app);
+
+    expect((await sendMessage(app, id, "cached-turn-key")).statusCode).toBe(
+      200,
+    );
+    expect(commit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        costTokensUsed: 11_400,
+        costCacheReadTokens: 8_000,
+        costCacheWriteTokens: 500,
+        costOutputTokens: 1_000,
+        costIncomplete: false,
+      }),
+    );
+    // 1,900 uncached input and 1,000 output tokens at Haiku prices.
+    expect(ledger.usedMicros(userId, "2026-10-27")).toBe(
+      Math.ceil(1_900 * 0.1 + 1_000 * 0.5 + 8_000 * 0.01 + 500 * 0.125),
+    );
+  });
+
+  it.each([
+    [
+      "prices Gemini thinking tokens left out of the completion count as output",
+      {
+        promptTokens: 10_000,
+        completionTokens: 300,
+        totalTokens: 12_000,
+        cacheReadTokens: 6_000,
+      },
+      { costOutputTokens: 2_000, costIncomplete: false },
+      // 4,000 uncached input, 2,000 output and 6,000 cached at 2026 prices.
+      Math.ceil(4_000 * 0.75 + 2_000 * 3.75 + 6_000 * 0.075),
+    ],
+    [
+      "charges at least the reservation for a turn with an uncounted round",
+      { totalTokens: 1_000, tokenCountsIncomplete: true },
+      { costOutputTokens: 0, costIncomplete: true },
+      10_000,
+    ],
+  ] as const)("%s (#347)", async (_case, metadata, passed, micros) => {
+    const at = new Date("2026-10-27T09:00:00.000Z");
+    const ledger = new InMemoryAiCostLedger({ clock: () => at });
+    const limits = new InMemoryCoachLimitService({
+      clock: () => at,
+      costLedger: ledger,
+    });
+    const commit = vi.spyOn(limits, "commitTokens");
+    const respond = vi.fn<AgentProvider["respond"]>(async (request) => ({
+      message: { role: "assistant", text: "One sensible next step." },
+      provider: "gemini",
+      evidence: request.grounding,
+      providerMetadata: metadata,
+    }));
+    const { app } = makeApp(respond, undefined, { now: () => at, limits });
+    const id = await createConversation(app);
+
+    expect((await sendMessage(app, id, "gemini-turn-key")).statusCode).toBe(
+      200,
+    );
+    expect(commit).toHaveBeenCalledWith(expect.objectContaining(passed));
+    expect(ledger.usedMicros(userId, "2026-10-27")).toBe(micros);
+  });
 
   it("does not count canned app help that made no model call", async () => {
     let clock = Date.parse("2026-10-27T09:00:00.000Z");

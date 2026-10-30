@@ -97,6 +97,134 @@ describe("estimateAiCallCostMicros", () => {
     ).toBe(0);
   });
 
+  describe("prompt-cache tokens (#347)", () => {
+    // A typical Coach turn on Haiku (ADR-0087): 8,000 cached prompt tokens,
+    // 2,400 new ones and 1,000 output tokens.
+    const turn = { tokensUsed: 11_400, provider: "anthropic" } as const;
+
+    it("prices Haiku cache reads at a tenth of the input price", () => {
+      const micros = estimateAiCallCostMicros(
+        "coach",
+        { ...turn, cacheReadTokens: 8_000, cacheWriteTokens: 0 },
+        OCT_2026,
+      );
+      // 684 output tokens (6 % of the total) come out of the 3,400 uncached.
+      expect(micros).toBe(Math.ceil(2_716 * 0.1 + 684 * 0.5 + 8_000 * 0.01));
+      expect(micros).toBeLessThan(
+        estimateAiCallCostMicros("coach", turn, OCT_2026),
+      );
+    });
+
+    it("prices Haiku 5-minute cache writes at 1.25 times the input price", () => {
+      const write = estimateAiCallCostMicros(
+        "coach",
+        { ...turn, cacheReadTokens: 0, cacheWriteTokens: 8_000 },
+        OCT_2026,
+      );
+      expect(write).toBe(Math.ceil(2_716 * 0.1 + 684 * 0.5 + 8_000 * 0.125));
+      expect(write).toBeGreaterThan(
+        estimateAiCallCostMicros("coach", turn, OCT_2026),
+      );
+    });
+
+    it("prices Gemini implicit-cache hits at a tenth of input, doubling in 2027", () => {
+      const usage = {
+        tokensUsed: 10_000,
+        provider: "gemini",
+        cacheReadTokens: 6_000,
+      };
+      expect(estimateAiCallCostMicros("coach", usage, OCT_2026)).toBe(
+        Math.ceil(3_400 * 0.75 + 600 * 3.75 + 6_000 * 0.075),
+      );
+      expect(estimateAiCallCostMicros("coach", usage, JAN_2027)).toBe(
+        Math.ceil(3_400 * 1.5 + 600 * 7.5 + 6_000 * 0.15),
+      );
+    });
+
+    it("never prices a call below today's charge when a cache count is missing", () => {
+      const today = estimateAiCallCostMicros("coach", turn, OCT_2026);
+      expect(today).toBe(Math.ceil(11_400 * (0.94 * 0.1 + 0.06 * 0.5)));
+      for (const counts of [
+        {},
+        { cacheReadTokens: undefined, cacheWriteTokens: undefined },
+        { cacheWriteTokens: 0 },
+        { cacheReadTokens: Number.NaN },
+        { cacheReadTokens: -8_000 },
+      ]) {
+        expect(
+          estimateAiCallCostMicros("coach", { ...turn, ...counts }, OCT_2026),
+        ).toBe(today);
+      }
+      // A missing total still charges the reservation, whatever the cache says.
+      expect(
+        estimateAiCallCostMicros(
+          "coach",
+          { provider: "anthropic", cacheReadTokens: 8_000 },
+          OCT_2026,
+        ),
+      ).toBe(AI_COST_RESERVATION_MICROS.coach);
+    });
+
+    it("prices inconsistent cache counts as uncached input, as before", () => {
+      const today = estimateAiCallCostMicros("coach", turn, OCT_2026);
+      for (const counts of [
+        { cacheReadTokens: 20_000 },
+        { cacheReadTokens: 8_000, cacheWriteTokens: 8_000 },
+        { cacheWriteTokens: 12_000 },
+      ]) {
+        expect(
+          estimateAiCallCostMicros("coach", { ...turn, ...counts }, OCT_2026),
+        ).toBe(today);
+      }
+      // Gemini writes cost the input price: a bad write count cannot lower it.
+      const gemini = { tokensUsed: 10_000, provider: "gemini" };
+      expect(
+        estimateAiCallCostMicros(
+          "coach",
+          { ...gemini, cacheWriteTokens: 50_000 },
+          OCT_2026,
+        ),
+      ).toBe(estimateAiCallCostMicros("coach", gemini, OCT_2026));
+    });
+
+    it("charges the typical ADR-0087 turn at least its Haiku list cost", () => {
+      // 8,000 cached + 2,400 new prompt tokens and 1,000 output tokens: the
+      // reported output (9 %) is above the 6 % share, so it is used.
+      const listCost = 2_400 * 0.1 + 1_000 * 0.5 + 8_000 * 0.01;
+      expect(
+        estimateAiCallCostMicros(
+          "coach",
+          { ...turn, cacheReadTokens: 8_000, outputTokens: 1_000 },
+          OCT_2026,
+        ),
+      ).toBe(Math.ceil(listCost));
+      // A reported output below the share keeps the share as the floor.
+      expect(
+        estimateAiCallCostMicros(
+          "coach",
+          { ...turn, cacheReadTokens: 8_000, outputTokens: 100 },
+          OCT_2026,
+        ),
+      ).toBe(Math.ceil(2_716 * 0.1 + 684 * 0.5 + 8_000 * 0.01));
+    });
+
+    it("charges an incomplete multi-round turn at least the reservation", () => {
+      const small = { ...turn, cacheReadTokens: 8_000, incomplete: true };
+      expect(estimateAiCallCostMicros("coach", small, OCT_2026)).toBe(
+        AI_COST_RESERVATION_MICROS.coach,
+      );
+      // Known rounds above the reservation are charged in full.
+      const large = {
+        tokensUsed: 20_000,
+        provider: "gemini",
+        incomplete: true,
+      };
+      expect(estimateAiCallCostMicros("coach", large, OCT_2026)).toBe(
+        Math.ceil(20_000 * (0.94 * 0.75 + 0.06 * 3.75)),
+      );
+    });
+  });
+
   it("charges a fixed price per illustration", () => {
     expect(estimateAiCallCostMicros("illustration", {}, OCT_2026)).toBe(
       ILLUSTRATION_MICROS,
