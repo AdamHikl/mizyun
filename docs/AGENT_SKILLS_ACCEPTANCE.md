@@ -1,7 +1,7 @@
 # Mizyun Agent Skills Acceptance Register (`AGENT-SKILLS-001`)
 
 Date: 2026-09-13. Work package: **AGENT-SKILLS-001**.
-Reference Guide: [`docs/AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md`](AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md).
+Reference Guide: `docs/AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md`.
 
 ---
 

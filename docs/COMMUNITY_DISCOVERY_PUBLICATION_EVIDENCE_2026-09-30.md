@@ -1,6 +1,6 @@
 # Community discovery and deliberate workout publication — #144/#145
 
-Source: HEAD `877d1898e9205c4be19c6344e1cf1d533f4ff312` plus preserved uncommitted foundation/enrollment/relationships and this session. [Source manifest](COMMUNITY_DISCOVERY_PUBLICATION_SOURCE_2026-09-30.json) records the exact reviewed local files. Earlier status claims are historical. No commit/push, shared database migration, Hetzner deployment, native installation, Production or Store action.
+Source: HEAD `877d1898e9205c4be19c6344e1cf1d533f4ff312` plus preserved uncommitted foundation/enrollment/relationships and this session. Source manifest records the exact reviewed local files. Earlier status claims are historical. No commit/push, shared database migration, Hetzner deployment, native installation, Production or Store action.
 
 ## Implemented
 

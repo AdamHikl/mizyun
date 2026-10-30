@@ -4,7 +4,7 @@ Adam authorized latest Dev backend deployment and standalone iPhone installation
 
 ## Source and verification
 
-Combined runtime commit `d81c10f60c0aebc6b2240e48e69e4678addc8079` follows separate API, mobile and operations commits. The [193-path source manifest](COMMUNITY_DEV_TESTING_SOURCE_2026-09-30.json) binds the fresh final `pnpm check` result: exit 0, mobile 995/API 730 tests, 15 existing gated skips, workspace typechecks, dual Hermes exports, formatting/navigation/safeguards, 56 offline invariants and 29 operations tests. Focused API closed-operation regression passes 23 tests; Dev admission checks cover mixed, missing, deceptive and Production configurations. Independent non-author review approved admission, API normalization and Dev-only unit/activation scope.
+Combined runtime commit `d81c10f60c0aebc6b2240e48e69e4678addc8079` follows separate API, mobile and operations commits. The 193-path source manifest binds the fresh final `pnpm check` result: exit 0, mobile 995/API 730 tests, 15 existing gated skips, workspace typechecks, dual Hermes exports, formatting/navigation/safeguards, 56 offline invariants and 29 operations tests. Focused API closed-operation regression passes 23 tests; Dev admission checks cover mixed, missing, deceptive and Production configurations. Independent non-author review approved admission, API normalization and Dev-only unit/activation scope.
 
 The client permits deliberate enrollment only for the validated Dev variant, exact Dev API/Auth hosts and Dev callback. Server cohort/eligibility/consent remain authoritative. Privacy maintenance fixes leave/rejoin cleanup without claiming push jobs or fetching receipts. The unit pins the host's verified `/usr/local/bin/node` v22.23.2 and Dev-only targets. No schema changes in this segment; prior SQL acceptance is qualified in the original review/deployment records.
 
@@ -22,7 +22,7 @@ Deploy the exact candidate to `/var/lib/mizyun/dev/repo`; install only the Dev m
 
 **iPhone installed:** signed standalone Release `com.mizyun.development`,1.0.6(6), teamLQJNDVBL43, Adam's iPhone16Pro `00008140-001114501A86801C`, Xcode27.0. Install succeeded at18:35:38Z. `codesign --verify --deep --strict` passes with signing trust-store access; bundle embeds exact Dev API/Auth/callback. main.jsbundle7090548bytes SHA256 `0d56edb625cf0a31cd41021f34c0eae58e87a5c32a27e62815b57cb3c19f9cc7`, distinct from the earlier closed binary. Both automatic and explicit foreground launch were blocked by the locked device; launch and signed-in feature acceptance remain pending until Adam unlocks/opens it.
 
-Production received no writes, deployment, restart, configuration change or installation in this segment, and no further Production probes were performed under the latest instruction. The earlier closed deployment and binary remain historical in [the original Dev deployment record](COMMUNITY_DEV_DEPLOYMENT_2026-09-30.md).
+Production received no writes, deployment, restart, configuration change or installation in this segment, and no further Production probes were performed under the latest instruction. The earlier closed deployment and binary remain historical in the original Dev deployment record.
 
 ## Next exact user journey and remaining gates
 

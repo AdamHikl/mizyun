@@ -20,7 +20,7 @@ Production backup explicitly closes the tunnel before stopping application write
 
 ## Local verification inventory
 
-Coordinator verification on 2026-10-08: `pnpm test:hetzner-operations` passed, including the existing operations safeguards and all nine new tunnel tests. The full gate is recorded in the [ten-issue batch evidence](LATEST_TEN_ISSUES_EVIDENCE_2026-10-08.md). Formatting completed successfully. Physical Linux/shared-routing acceptance remains unrun.
+Coordinator verification on 2026-10-08: `pnpm test:hetzner-operations` passed, including the existing operations safeguards and all nine new tunnel tests. The full gate is recorded in the ten-issue batch evidence. Formatting completed successfully. Physical Linux/shared-routing acceptance remains unrun.
 
 ```bash
 node --test scripts/test-hetzner-tunnel-isolation.mjs

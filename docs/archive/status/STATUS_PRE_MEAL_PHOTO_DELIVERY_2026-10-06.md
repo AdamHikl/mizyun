@@ -5,8 +5,8 @@
 ## Current authority and delivery
 
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](../../BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend:** pristine938efc5, API4100/DB5433 PID3291091; running migrations/gate/promotion/API recovery+isolationPASS. Prompt `coach-system-v3-app-v3`. [Delivery](../../RUNNING_DEV_DELIVERY_2026-10-06.md).
-- **Latest iPhone Dev install:** 2026-10-06T18:06:35Z, source2ea23093, iPhone16Pro/com.mizyun.development1.0.9(9) PID9578; signature/config/install/launchPASS. Compatible with938efc5; native exits open. Prior build6 acceptance retained in [evidence](../../DEV_IOS_INSTALL_EVIDENCE_2026-10-06.md).
+- **Dev backend:** pristine938efc5, API4100/DB5433 PID3291091; running migrations/gate/promotion/API recovery+isolationPASS. Prompt `coach-system-v3-app-v3`. Delivery.
+- **Latest iPhone Dev install:** 2026-10-06T18:06:35Z, source2ea23093, iPhone16Pro/com.mizyun.development1.0.9(9) PID9578; signature/config/install/launchPASS. Compatible with938efc5; native exits open. Prior build6 acceptance retained in evidence.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
@@ -14,7 +14,7 @@
 
 **#210/#211/#213:** usability fixes/reviews/full gatePASS (mobile1476); fresh Dev simulator sign-in/meal/batch/resume/AX and live fonts verified. Physical/max-font/VoiceOver exits open. [Evidence](../../USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
 
-**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. [Evidence](../../SIMULATOR_WORKFLOW_EVIDENCE_2026-10-06.md).
+**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. Evidence.
 
 **#207 AGENT-NAV-007:** locally verified full gate/runner20/navigation117, non-author review clear. [Evidence](../../AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Navigation acceptance advisory; client/token/speed measurements #54 remain.
 
@@ -22,17 +22,17 @@
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
-- **#217 Pro multi-photo** — `3984c35`; Meals/Coach up to3, separate confirmed drafts and advisory photo questions; focused477/High review/isolated full gatePASS. [Evidence](../../PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md). Next: exact Dev/native/live-provider acceptance; no deployment/release.
+- **#217 Pro multi-photo** — `3984c35`; Meals/Coach up to3, separate confirmed drafts and advisory photo questions; focused477/High review/isolated full gatePASS. Evidence. Next: exact Dev/native/live-provider acceptance; no deployment/release.
 
 Historical checks below do not accept today's combined tree; device/provider/release exits stay open.
 
 - **#206 Set Target** — Header wraps inside card with 44-point action. Focused15/typecheck passed; isolated full command failed only at Apple fixture collision, serial fixture retry passed. Verify narrow/large text, light/dark, Save/Cancel on installed iOS/Android. [Handoff][handoffs]
 - **#202 workout actions** — Shared Add/Finish/Discard and recovery in both modes; historical focused200/full gatePASS, installed. Accept both modes, confirmations/history, failure recovery and accessibility on device. [Handoff][handoffs]
 - **#203 Meals day hierarchy** — Day controls/macros and grouping interactions implemented; isolated full gate passed. Accept current/historical/partial/search days, Add/save/return, grouping, themes and accessibility on iOS/Android. [Handoff][handoffs]
-- **#208 Coach select/Copy** — Implemented; Coach106 passed/review clear. Full checkPASS; next accept old/new Copy/paste on iOS/Android. [Evidence](../../COACH_TEXT_SELECTION_EVIDENCE_2026-10-04.md)
-- **#204 Coach reading space** — Wider, consistent responses and compact controls; focused 103 and isolated full gate passed. Accept long responses/titles, narrow/large text, keyboard, themes and recovery on devices. [Evidence](../../COACH_LAYOUT_EVIDENCE_2026-10-04.md)
+- **#208 Coach select/Copy** — Implemented; Coach106 passed/review clear. Full checkPASS; next accept old/new Copy/paste on iOS/Android. Evidence
+- **#204 Coach reading space** — Wider, consistent responses and compact controls; focused 103 and isolated full gate passed. Accept long responses/titles, narrow/large text, keyboard, themes and recovery on devices. Evidence
 - **#205 Coach feature knowledge** — Historical local API simulation passed (zero model calls); exact Dev `a435a766` had `coach-system-v2-app-v1`. Repeat on installed candidate; provider/device gates remain. [Evidence](../../COACH_FEATURE_KNOWLEDGE_EVIDENCE_2026-10-04.md)
-- **#200 reopen recovery / #182 startup reads** — Identity/generation-safe retained personal reads and Coach foreground retry; isolated full gates passed. Accept cold start, background/reopen, token/account changes, delayed writes, pending Coach operations and offline/reconnect on both devices. [Evidence](../../MOBILE_STARTUP_READS_EVIDENCE_2026-10-03.md)
+- **#200 reopen recovery / #182 startup reads** — Identity/generation-safe retained personal reads and Coach foreground retry; isolated full gates passed. Accept cold start, background/reopen, token/account changes, delayed writes, pending Coach operations and offline/reconnect on both devices. Evidence
 - **#201 settings gear** — Shared gear across 5 tabs; isolated gate passed. Accept coverage, Settings/Back, themes and screen readers on installed candidate. [Handoff][handoffs]
 - **#197 persistent header** — 90%-opaque scroll-under header/Coach follow-up locally verified and installed. Accept all tabs, enrollment/feed, scroll/taps/refresh, large text and Coach keyboard on both platforms. [Handoff][handoffs]
 - **#194 quiet Home refresh** — Retained numbers, exact-scope fallback, reconnect/Retry/polling; Dev delivered. Signed-in startup/offline/server-failure/date/timezone/account/accessibility acceptance remains open. [Evidence](../../HOME_REFRESH_EVIDENCE_2026-10-04.md)
@@ -45,7 +45,7 @@ Historical checks below do not accept today's combined tree; device/provider/rel
 - **#184 Coach envelopes** — Verified fix source `17c6c49a0886b9b191b178d25e2c7bdbfa6ea9de` integrated. Accept historical and new replies on exact Dev/provider/device candidate. [Handoff][handoffs]
 - **#185 per100g nutrition** — Verified source `b57b5aa3022eeca7d94dbe839b81bdb957fa031a` integrated. Accept weight/decimal keyboard, preview/Save/reopen, advanced nutrients, draft/lost-response retry and large text. [Handoff][handoffs]
 - **#186 private analytics** — Real on-demand Mac dashboard 3034 initialized; synthetic 3033 remains isolated. Use `pnpm analytics:dashboard` and ignored private login. Exact instrumentation delivery, consenting/denied/revoked device capture, automatic/Community coverage and official Store imports remain open. Zero Production opt-ins means unobserved usage. #192 tracks local synthetic-verifier Docker guards. Pi hosting is superseded; 8 GB upgrade deferred until revenue. [Runbook/evidence](../../DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md)
-- **#187 one-time workouts** — Delivered to Dev; accept start/add-before-first-set/restart/log/finish/history, retries/offline, appearance/keyboard/accessibility. Only saved selections/sets are claimed restart-safe. [Evidence](../../ONE_TIME_WORKOUTS_EVIDENCE_2026-10-04.md)
+- **#187 one-time workouts** — Delivered to Dev; accept start/add-before-first-set/restart/log/finish/history, retries/offline, appearance/keyboard/accessibility. Only saved selections/sets are claimed restart-safe. Evidence
 - **#188 prior-day meals** — Delivered to Dev; accept heading/date retention, paginated history, manual/recent/AI/Clear, restart/lost-response/conflicts/DST and accessibility. Arbitrary date picker remains outside scope. [Handoff][handoffs]
 - **#189 exercise catalog / #191 pagination** — 609 active entries, original 888 IDs preserved; full gate historically passed. All 609 require qualified per-entry form/variant acceptance, 3 candidate duplicate pairs and swimming/outdoor cycling gaps remain. Accept search/readability/history/targets/restart; 200-record saved pagination deferred to #191. [Verification](../../evidence/exercise-catalog/verification-2026-10-04.md)
 - **#190 direct Coach entry** — Delivered to Dev; accept first text/photo, cancellation/consent, failed creation/retry, existing threads and last deletion on both devices. [Handoff][handoffs]

@@ -48,4 +48,4 @@ Do not deploy, install or close remaining issues from this source package. Integ
 
 ## Subsequent #139 source follow-up
 
-The new routine-editor screenshot prompted a separate per-set planning extension. [Scope/review/deferred checks](WORKOUT_ROUTINE_SET_TYPES_2026-10-07.md). This source is outside the passing batch result above and is committed with per-issue checks explicitly deferred at the user's request. #139 stays open for the combined phone check.
+The new routine-editor screenshot prompted a separate per-set planning extension. Scope/review/deferred checks. This source is outside the passing batch result above and is committed with per-issue checks explicitly deferred at the user's request. #139 stays open for the combined phone check.

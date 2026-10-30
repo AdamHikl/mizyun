@@ -16,7 +16,7 @@ Fresh isolated `mizyun_commit_community_scratch` cloned schema only and applicat
 
 Independent non-author reviewed exact API fix, forward migration and deterministic tests. Suggested clearing ordinary fixture cooldowns before block/withdraw; strengthened regression proves fresh cooldown creation, not merely retention. Final tests cover both Auth participant deletions, stale residue, ordinary safety cooldown preservation and restricted EXECUTE grants.
 
-Runtime behavior unchanged after the final full repository gate. A staged whitespace check found only an extra EOF blank line in the older PostgREST test harness; removed it and confirmed Python syntax, with its final byte hash recorded. Documentation reconciliation after it uses targeted formatting and whitespace checks. [Combined source manifest](COMMUNITY_COMMIT_SOURCE_2026-09-30.json) records exact SHA-256s for all committed runtime/test/dependency files; historical manifests remain intact.
+Runtime behavior unchanged after the final full repository gate. A staged whitespace check found only an extra EOF blank line in the older PostgREST test harness; removed it and confirmed Python syntax, with its final byte hash recorded. Documentation reconciliation after it uses targeted formatting and whitespace checks. Combined source manifest records exact SHA-256s for all committed runtime/test/dependency files; historical manifests remain intact.
 
 ## Evidence tiers and remaining exits
 

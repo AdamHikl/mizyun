@@ -1,6 +1,6 @@
 # Community UI implementation evidence — 2026-10-07
 
-Work package: COMMUNITY-UI-001 / [#224](https://github.com/AdamHikl/mizyun/issues/224). User selected the Quiet feed direction and authorized implementation. Baseline HEAD: `2c61518c29621ff3ca5c2ef8645afce01e95c740`. Original candidate: local uncommitted source overlay, identified by [source hashes](evidence/community-ui-2026-10-07/source-sha256.txt). This document separates local implementation from deployed/native acceptance. [Plan](COMMUNITY_UI_REDESIGN_PLAN_2026-10-07.md), [ADR-0048](adr/0048-community-connected-ui-reads.md).
+Work package: COMMUNITY-UI-001 / [#224](https://github.com/AdamHikl/mizyun/issues/224). User selected the Quiet feed direction and authorized implementation. Baseline HEAD: `2c61518c29621ff3ca5c2ef8645afce01e95c740`. Original candidate: local uncommitted source overlay, identified by [source hashes](evidence/community-ui-2026-10-07/source-sha256.txt). This document separates local implementation from deployed/native acceptance. Plan, [ADR-0048](adr/0048-community-connected-ui-reads.md).
 
 ## Result and feature parity
 
@@ -59,7 +59,7 @@ Adam explicitly requested installation after implementation. `pnpm mobile:instal
 - All103 application/SQL source hashes matched the verified manifest before and after installation. Embedded JS bundle SHA-256: `87526f72c3df94e67f8aee5f0e279d6ae2a136b4ba3e81461b88195a34aef89e`. [Redacted install receipt and hashes](evidence/community-ui-2026-10-07/iphone-install-summary.json).
 - Independent read-only helper inspection checked exact Dev endpoint/native identity safeguards and identified the existing unconditional port8081 termination and nonfatal launch-error handling. Host process checks found no competing native build or port8081 listener before starting; port8081 was also empty afterward. Positive launch plus independent process inspection supplies evidence beyond the installer's exit code.
 
-Build log: `/private/tmp/community-ui-iphone-install.log`; independent metadata: `/private/tmp/community-ui-iphone-app.json`, `/private/tmp/community-ui-iphone-processes.json`. These are install/launch receipts; no signed-in Community interaction, accessibility, two-account behavior, backend transport or Mac-off feature journey was accepted. The earlier Home/meal/Health installation receipt remains in [the earlier October7 evidence](DEV_IOS_INSTALL_EVIDENCE_2026-10-07.md); its native feature gates remain open.
+Build log: `/private/tmp/community-ui-iphone-install.log`; independent metadata: `/private/tmp/community-ui-iphone-app.json`, `/private/tmp/community-ui-iphone-processes.json`. These are install/launch receipts; no signed-in Community interaction, accessibility, two-account behavior, backend transport or Mac-off feature journey was accepted. The earlier Home/meal/Health installation receipt remains in the earlier October7 evidence; its native feature gates remain open.
 
 ## Refinement Dev delivery
 

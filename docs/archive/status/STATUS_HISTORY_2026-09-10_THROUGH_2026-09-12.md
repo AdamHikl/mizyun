@@ -125,7 +125,7 @@
 
 ## Prior handoff — Google Play publishing plan (2026-09-12)
 
-- Added [Google Play implementation plan](../../GOOGLE_PLAY_IMPLEMENTATION_PLAN_2026-09-12.md), PLAY-001–006: account/organization eligibility, local AAB/upload signing, versionCode and API36/16KB compatibility, Android acceptance, health/AI/privacy disclosures, internal/closed testing, review and intentional release.
+- Added Google Play implementation plan, PLAY-001–006: account/organization eligibility, local AAB/upload signing, versionCode and API36/16KB compatibility, Android acceptance, health/AI/privacy disclosures, internal/closed testing, review and intentional release.
 - User reports Apple side should be completed; this session leaves Apple implementation outside scope and preserves all existing uncommitted work. Planning snapshot is `6304400` plus the current working tree, not a clean candidate. No application changes, fresh builds, portal actions or deployments occurred.
 - Independent helper audited signing/disclosures and reviewed the plan; no blocking plan findings, health disclaimer clarification incorporated. Fresh official Google/Expo research recorded in the plan and research log.
 - Next exact action: execute PLAY-001, verifying publisher/account type, organization eligibility for Mizyun's health features, existing app record/signing state and actual Console testing requirements; then PLAY-002 store AAB safeguards. Account access and founder legal/entity decisions remain external inputs. No new Apple task is started by this handoff.
@@ -304,7 +304,7 @@
 
 ## Prior work package — Agent navigation & memory (`DOCS-NAV-001`–`004`) (2026-09-10)
 
-- **Latest independent review:** [N1–N8](../../AGENT_NAVIGATION_REVIEW_2026-09-09.md) supersede blanket completion below. Fresh `pnpm check` and 15 navigation tests pass, but targeted fixtures expose boundary and manifest validation gaps. Impact lacks source-derived dependencies; archive/pattern references, focused context, current guidance, fixture tests, and CI integration remain incomplete. No implementation fixes or remote actions were performed during this review.
+- **Latest independent review:** N1–N8 supersede blanket completion below. Fresh `pnpm check` and 15 navigation tests pass, but targeted fixtures expose boundary and manifest validation gaps. Impact lacks source-derived dependencies; archive/pattern references, focused context, current guidance, fixture tests, and CI integration remain incomplete. No implementation fixes or remote actions were performed during this review.
 - **Delivered**:
   - Compact operational `status.md` (51 lines) and comprehensive history archive in `docs/archive/status/`.
   - Routing index [`docs/START_HERE.md`](../../START_HERE.md), decision index [`docs/adr/README.md`](../../adr/README.md), and pattern catalog [`docs/patterns/README.md`](../../patterns/README.md).

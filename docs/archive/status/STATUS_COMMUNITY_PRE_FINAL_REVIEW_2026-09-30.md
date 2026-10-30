@@ -53,7 +53,7 @@ Implemented and independently reviewed COMM-07 following feed and shared-activit
 
 ## Community #140–145 combined commit and push — 2026-09-30
 
-User authorized publishing the combined work in meaningful multiple commits. Preserved completed design/domain/database/API/mobile sessions on base `877d1898e9205c4be19c6344e1cf1d533f4ff312`; integrated and independently reviewed two reproduced defects before committing: enrolled-only discovery blocked first/re-enrollment, and cooldown capture blocked Auth deletion of recent declined/canceled requester/target. Atomic save now owns handle collision; new forward `20260930160000` prevents cooldown reinsertion during Auth erasure while preserving ordinary block/withdrawal cooldowns. [Combined evidence](../../COMMUNITY_COMMIT_EVIDENCE_2026-09-30.md) and [current source hashes](../../COMMUNITY_COMMIT_SOURCE_2026-09-30.json) supersede older candidate manifests for current-source claims.
+User authorized publishing the combined work in meaningful multiple commits. Preserved completed design/domain/database/API/mobile sessions on base `877d1898e9205c4be19c6344e1cf1d533f4ff312`; integrated and independently reviewed two reproduced defects before committing: enrolled-only discovery blocked first/re-enrollment, and cooldown capture blocked Auth deletion of recent declined/canceled requester/target. Atomic save now owns handle collision; new forward `20260930160000` prevents cooldown reinsertion during Auth erasure while preserving ordinary block/withdrawal cooldowns. [Combined evidence](../../COMMUNITY_COMMIT_EVIDENCE_2026-09-30.md) and current source hashes supersede older candidate manifests for current-source claims.
 
 Fresh final `pnpm check` PASS: mobile851, API656/15 credential-gated skips, dual Metro exports, all typechecks/safeguards and56 offline invariants. Isolated empty Mac scratch passes341 SQL assertions/16 files, first/return real SQL enrollment boundary and all three transaction-race scripts; synthetic fixtures and scratch removed. Shared local/remote databases unchanged. No Dev/Production deployment, native install/device acceptance, Store action or pilot admission; enrollment remains closed.
 
@@ -225,7 +225,7 @@ Implemented and automatically verified foundation stages for Community Following
 
 ## Active workout exercise reordering — issue #138 (2026-09-29)
 
-Implemented and automatically verified [WORKOUT-REORDER-001](../../ACTIVE_WORKOUT_REORDER_EXERCISES_PLAN_2026-09-29.md):
+Implemented and automatically verified WORKOUT-REORDER-001:
 
 - **User Need & Gym Context**: Users frequently encounter occupied equipment (e.g. bench press occupied during a routine) and need to alter exercise order during an active session without modifying the underlying routine template.
 - **Architectural & Session Preservation (ADR-0009)**:
@@ -266,7 +266,7 @@ Resolved App Review rejection 2.1(a) (submission `75463bf8-bc19-4198-bc61-cc3a41
 
 ## Active workout set addition clarification and set types — issue #139 (2026-09-29)
 
-Implemented and automatically verified [WORKOUT-SET-001](../../ACTIVE_WORKOUT_SET_CLARIFICATION_AND_TYPES_PLAN_2026-09-29.md):
+Implemented and automatically verified WORKOUT-SET-001:
 
 - **Active Workout UX Clarification**: Replaced the confusing `+ Add Set {nextSetSequence}` footer button (which previously misled users into thinking it added a draft row instead of logging the pending row) with a distinct `✓ Log Set {nextSetSequence}` action with clear affirmative styling, matching the active row checkmark (`✓`).
 - **Workout Set Types (`normal`, `warmup`, `failure`, `drop`)**:

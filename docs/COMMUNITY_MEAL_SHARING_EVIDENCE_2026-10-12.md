@@ -31,7 +31,7 @@ iOS simulator explicitly deferred by Adam. Next: paired synthetic Dev accounts s
 
 **#210/#211/#213:** usability fixes/reviews/full gatePASS (mobile1476); fresh Dev simulator sign-in/meal/batch/resume/AX and live fonts verified. Physical/max-font/VoiceOver exits open. [Evidence](USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
 
-**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. [Evidence](SIMULATOR_WORKFLOW_EVIDENCE_2026-10-06.md).
+**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. Evidence.
 
 **Retained gates:** #210/#211/#213 usability/#207 navigation source and physical/max-font/VoiceOver/provider exits: [prior status](archive/status/STATUS_PRE_RUNNING_2026-10-06.md).
 

@@ -19,7 +19,7 @@
 
 **#210/#211/#213:** usability fixes/reviews/full gatePASS (mobile1476); fresh Dev simulator sign-in/meal/batch/resume/AX and live fonts verified. Physical/max-font/VoiceOver exits open. [Evidence](../../../docs/USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
 
-**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. [Evidence](../../../docs/SIMULATOR_WORKFLOW_EVIDENCE_2026-10-06.md).
+**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. Evidence.
 
 **Other active authority/gates:** #210/#211/#213 usability and #207 navigation source evidence and physical/max-font/VoiceOver/provider exits remain as recorded in [prior status](../../../docs/archive/status/STATUS_PRE_RUNNING_2026-10-06.md).
 
@@ -31,14 +31,14 @@
 
 - **#230 illustrations:**537f4ae Dev-deployed/installed; instant catalog/photo priority, private generation default-off.243focused/38SQL+5races/High reviews/full gatePASS (1957mobile/970API+15skips), both exports. Next: unlock/native/provider acceptance. [Source](../../../docs/AUTOMATIC_MEAL_ILLUSTRATIONS_EVIDENCE_2026-10-09.md), [delivery](../../../docs/MEAL_ILLUSTRATIONS_DEV_DELIVERY_2026-10-09.md).
 
-- **#208 (Oct9):** iOS selection;110tests/gatePASS; [evidence/gate](../../../docs/COACH_TEXT_SELECTION_HANDLES_EVIDENCE_2026-10-09.md). Next: installed partial-copy/scroll/keyboard/themes/large-text/VoiceOver; per-block scope, native exits open.
+- **#208 (Oct9):** iOS selection;110tests/gatePASS; evidence/gate. Next: installed partial-copy/scroll/keyboard/themes/large-text/VoiceOver; per-block scope, native exits open.
 
-- **#139 closed per Adam (Oct8):** installed type control/warmup metrics;243tests/review/gatePASS. [Evidence](../../../docs/WORKOUT_SET_TYPES_VERIFICATION_2026-10-08.md). Routine/native checks unrun; #228 closed per Adam.
-- **#226 completed workout review:** local on d5c2e06; Close/static date-duration-sets, active-only effects guarded. Focused276/typecheck/High review/source-previewPASS; isolated full gatePASS. [Evidence](../../../docs/COMPLETED_WORKOUT_REVIEW_EVIDENCE_2026-10-07.md). Included in latest Dev install; next: history/active-rest/accessibility acceptance.
-- **#223 Home workout:** client3984c35; direct one-time start with exact ID/Resume/retry/account guards, focused85/review/gatePASS. Installed on latest Dev candidate. Next: device start/add/finish/resume; [evidence](../../../docs/HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md), [prior](../../../docs/archive/status/STATUS_PRE_LATEST_TEN_ISSUES_2026-10-08.md).
-- **#222 first meal:** client3984c35; complete yesterday-local-day earliest meal, rollover clearing, no older fallback. Focused96/TZ45/review/gatePASS; installed latest Dev. Next: device Copy to Today/empty-yesterday; [evidence](../../../docs/FIRST_MEAL_SHORTCUT_EVIDENCE_2026-10-07.md).
-- **#218/#225 photos:** local7d5c9d0; async copy/iOS owner/raw-error fixes;244focused/review/gatePASS (1765mobile/892API+15skips). Installed above. Next: selection/Process/Save/reopen/retry; native/offline/account/multi-photo/AX/Android/provider exits open; Production disabled. [Evidence](../../../docs/MEAL_PHOTO_COPY_FIX_EVIDENCE_2026-10-07.md).
-- **#217 Pro multi-photo:**3984c35 preserved in this Dev/mobile candidate; Meals/Coach up to3 and separate drafts. Focused477/High review/full gatePASS; native/live-provider acceptance open. [Evidence](../../../docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md).
+- **#139 closed per Adam (Oct8):** installed type control/warmup metrics;243tests/review/gatePASS. Evidence. Routine/native checks unrun; #228 closed per Adam.
+- **#226 completed workout review:** local on d5c2e06; Close/static date-duration-sets, active-only effects guarded. Focused276/typecheck/High review/source-previewPASS; isolated full gatePASS. Evidence. Included in latest Dev install; next: history/active-rest/accessibility acceptance.
+- **#223 Home workout:** client3984c35; direct one-time start with exact ID/Resume/retry/account guards, focused85/review/gatePASS. Installed on latest Dev candidate. Next: device start/add/finish/resume; evidence, [prior](../../../docs/archive/status/STATUS_PRE_LATEST_TEN_ISSUES_2026-10-08.md).
+- **#222 first meal:** client3984c35; complete yesterday-local-day earliest meal, rollover clearing, no older fallback. Focused96/TZ45/review/gatePASS; installed latest Dev. Next: device Copy to Today/empty-yesterday; evidence.
+- **#218/#225 photos:** local7d5c9d0; async copy/iOS owner/raw-error fixes;244focused/review/gatePASS (1765mobile/892API+15skips). Installed above. Next: selection/Process/Save/reopen/retry; native/offline/account/multi-photo/AX/Android/provider exits open; Production disabled. Evidence.
+- **#217 Pro multi-photo:**3984c35 preserved in this Dev/mobile candidate; Meals/Coach up to3 and separate drafts. Focused477/High review/full gatePASS; native/live-provider acceptance open. Evidence.
 - **Usability #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136:** implementation/native/provider/release exits: [prior status](../../../docs/archive/status/STATUS_PRE_MEAL_PHOTO_DELIVERY_2026-10-06.md); combined-candidate acceptance open.
 
 ## Earlier implemented packages with open exits
@@ -47,7 +47,7 @@
 - **#184 Coach envelopes** — Verified fix source `17c6c49a0886b9b191b178d25e2c7bdbfa6ea9de` integrated. Accept historical and new replies on exact Dev/provider/device candidate. [Handoff][handoffs]
 - **#185 per100g nutrition** — Verified source `b57b5aa3022eeca7d94dbe839b81bdb957fa031a` integrated. Accept weight/decimal keyboard, preview/Save/reopen, advanced nutrients, draft/lost-response retry and large text. [Handoff][handoffs]
 - **#186 analytics/#192 guards:** real Mac3034 initialized; synthetic3033 isolated. `pnpm analytics:dashboard` + private login. Exact delivery, consent/deny/revoke, automatic/Community capture and Store imports open; zero Prod opt-ins. Pi hosting superseded;8GB deferred until revenue. [Evidence](../../../docs/DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md).
-- **#187 one-time workouts** — Delivered to Dev; accept start/add-before-first-set/restart/log/finish/history, retries/offline, appearance/keyboard/accessibility. Only saved selections/sets are claimed restart-safe. [Evidence](../../../docs/ONE_TIME_WORKOUTS_EVIDENCE_2026-10-04.md)
+- **#187 one-time workouts** — Delivered to Dev; accept start/add-before-first-set/restart/log/finish/history, retries/offline, appearance/keyboard/accessibility. Only saved selections/sets are claimed restart-safe. Evidence
 - **#188 prior-day meals** — Delivered to Dev; accept heading/date retention, paginated history, manual/recent/AI/Clear, restart/lost-response/conflicts/DST and accessibility. Arbitrary date picker remains outside scope. [Handoff][handoffs]
 - **#189/#191 catalog:**609active/888original IDs; historical gatePASS. All609 need per-entry form/variant acceptance;3duplicate pairs/swimming/cycling gaps remain. Next: search/readability/history/targets/restart;200-record saved pagination deferred#191. [Evidence](../../../docs/evidence/exercise-catalog/verification-2026-10-04.md).
 - **#190 direct Coach entry** — Delivered to Dev; accept first text/photo, cancellation/consent, failed creation/retry, existing threads and last deletion on both devices. [Handoff][handoffs]

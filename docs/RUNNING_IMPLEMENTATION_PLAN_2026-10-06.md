@@ -1,6 +1,6 @@
 # Running support implementation plan
 
-> Authored 2026-10-06; original planning baseline `f40e8941afc5307efce6d5c5909c0146ed1f3dda`. Manual running is now implemented and delivered to Dev938efc5; see [current delivery and open gates](RUNNING_DEV_DELIVERY_2026-10-06.md). Research/design targets remain hypotheses until user/native acceptance. Tracking [#216](https://github.com/AdamHikl/mizyun/issues/216) stays active.
+> Authored 2026-10-06; original planning baseline `f40e8941afc5307efce6d5c5909c0146ed1f3dda`. Manual running is now implemented and delivered to Dev938efc5; see current delivery and open gates. Research/design targets remain hypotheses until user/native acceptance. Tracking [#216](https://github.com/AdamHikl/mizyun/issues/216) stays active.
 
 ## A. Context and scope
 
@@ -367,7 +367,7 @@ Sources accessed **2026-10-06**. The consequences below are Mizyun design recomm
 | [Android — Workout experiences](https://developer.android.com/health-and-fitness/health-connect/experiences/workouts), [Exercise routes](https://developer.android.com/health-and-fitness/health-connect/features/exercise-routes)                                    | Sessions, distance and routes have distinct data/permission boundaries. Initial summary import requests the smallest required set and omits routes.                                                                  |
 | [Supabase — RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)                                                                                                                                                                               | Grants and policies both matter. New receipts/child data require allow/deny tests and controlled authenticated execution. Existing private table ownership does not prove a new RPC is safe.                         |
 
-Original planning limits: requester interviews/prototype tasks and GPS/battery measurements were not performed. Current automated/Dev API proof and outstanding native acceptance are recorded in [the delivery follow-up](RUNNING_DEV_DELIVERY_2026-10-06.md); concurrent health work remains separately owned.
+Original planning limits: requester interviews/prototype tasks and GPS/battery measurements were not performed. Current automated/Dev API proof and outstanding native acceptance are recorded in the delivery follow-up; concurrent health work remains separately owned.
 
 ## G. Original planning-session handoff (historical; current delivery linked above)
 

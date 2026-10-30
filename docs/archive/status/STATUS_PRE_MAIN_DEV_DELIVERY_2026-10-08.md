@@ -4,14 +4,14 @@
 
 ## Current authority and delivery
 
-- **Latest ten (Oct8):** #220 local5e9b1b9; #229 local1ca06a0; frozen gate1938mobile/946API(+15/3skips)PASS. #228 restored/closed per Adam. [Evidence/next approvals](../../LATEST_TEN_ISSUES_EVIDENCE_2026-10-08.md). Push auto-review blocked; native/shared-routing exits open.
+- **Latest ten (Oct8):** #220 local5e9b1b9; #229 local1ca06a0; frozen gate1938mobile/946API(+15/3skips)PASS. #228 restored/closed per Adam. Evidence/next approvals. Push auto-review blocked; native/shared-routing exits open.
 
 - **Issues:** prior approvals; #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](../../MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
 - **Git integration — 2026-10-07:** main packages pushed; runtime32d1d790cf072171da8fe38527256fef7b33c898/full gate/High reviewsPASS. [Preserved evidence](../../archive/status/STATUS_PRE_COMPLETED_WORKOUT_REVIEW_2026-10-07.md). Exact-candidate native/device and all release/privacy exits remain open.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](../../BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend:** pristine5b0cff9afc7b88b18dbe6b29964f693b0899a895; API4100/DB5433 PID2496699; exact public readiness/database/Auth/StoragePASS, three migrations through20261008120000. [Combined delivery](../../COMBINED_DEV_IPHONE_INSTALL_2026-10-08.md). Tunnel dependency#229 open; routing restored.
-- **Latest iPhone Dev:** 584452e,1.0.9(9)/com.mizyun.development/iPhone16Pro; original workout UI restored; full gate/signature/install/launch/processPASS PID17907. [Evidence](../../WORKOUT_UI_RESTORATION_2026-10-08.md). Combined departments and contrast fix retained; native/provider/accessibility/Apple-key exits open.
+- **Dev backend:** pristine5b0cff9afc7b88b18dbe6b29964f693b0899a895; API4100/DB5433 PID2496699; exact public readiness/database/Auth/StoragePASS, three migrations through20261008120000. Combined delivery. Tunnel dependency#229 open; routing restored.
+- **Latest iPhone Dev:** 584452e,1.0.9(9)/com.mizyun.development/iPhone16Pro; original workout UI restored; full gate/signature/install/launch/processPASS PID17907. Evidence. Combined departments and contrast fix retained; native/provider/accessibility/Apple-key exits open.
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
@@ -19,7 +19,7 @@
 
 **#210/#211/#213:** usability fixes/reviews/full gatePASS (mobile1476); fresh Dev simulator sign-in/meal/batch/resume/AX and live fonts verified. Physical/max-font/VoiceOver exits open. [Evidence](../../USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
 
-**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. [Evidence](../../SIMULATOR_WORKFLOW_EVIDENCE_2026-10-06.md).
+**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. Evidence.
 
 **Other active authority/gates:** #210/#211/#213 usability and #207 navigation source evidence and physical/max-font/VoiceOver/provider exits remain as recorded in [prior status](../../archive/status/STATUS_PRE_RUNNING_2026-10-06.md).
 
@@ -27,12 +27,12 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#139 closed per Adam (Oct8):** installed type control/warmup metrics;243tests/review/gatePASS. [Evidence](../../WORKOUT_SET_TYPES_VERIFICATION_2026-10-08.md). Routine/native checks unrun; #228 closed per Adam.
-- **#226 completed workout review:** local on d5c2e06; Close/static date-duration-sets, active-only effects guarded. Focused276/typecheck/High review/source-previewPASS; isolated full gatePASS. [Evidence](../../COMPLETED_WORKOUT_REVIEW_EVIDENCE_2026-10-07.md). Included in latest Dev install; next: history/active-rest/accessibility acceptance.
-- **#223 Home workout:** client3984c35; direct one-time start with exact ID/Resume/retry/account guards, focused85/review/gatePASS. Installed on latest Dev candidate. Next: device start/add/finish/resume; [evidence](../../HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md), [prior](../../archive/status/STATUS_PRE_LATEST_TEN_ISSUES_2026-10-08.md).
-- **#222 first meal:** client3984c35; complete yesterday-local-day earliest meal, rollover clearing, no older fallback. Focused96/TZ45/review/gatePASS; installed latest Dev. Next: device Copy to Today/empty-yesterday; [evidence](../../FIRST_MEAL_SHORTCUT_EVIDENCE_2026-10-07.md).
-- **#218 photos / #225 copy fix:** local on7d5c9d0 fixes async copy races, iOS owner prefixes and raw errors;244focused/High review/full gatePASS:1765mobile/892API+15skips. [Evidence/prior integration](../../MEAL_PHOTO_COPY_FIX_EVIDENCE_2026-10-07.md). Installed above; next: iPhone selection/Process/Save/reopen/retry acceptance; native/offline/account/multi-photo/accessibility/Android/provider exits open, Production disabled.
-- **#217 Pro multi-photo:**3984c35 preserved in this Dev/mobile candidate; Meals/Coach up to3 and separate drafts. Focused477/High review/full gatePASS; native/live-provider acceptance open. [Evidence](../../PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md).
+- **#139 closed per Adam (Oct8):** installed type control/warmup metrics;243tests/review/gatePASS. Evidence. Routine/native checks unrun; #228 closed per Adam.
+- **#226 completed workout review:** local on d5c2e06; Close/static date-duration-sets, active-only effects guarded. Focused276/typecheck/High review/source-previewPASS; isolated full gatePASS. Evidence. Included in latest Dev install; next: history/active-rest/accessibility acceptance.
+- **#223 Home workout:** client3984c35; direct one-time start with exact ID/Resume/retry/account guards, focused85/review/gatePASS. Installed on latest Dev candidate. Next: device start/add/finish/resume; evidence, [prior](../../archive/status/STATUS_PRE_LATEST_TEN_ISSUES_2026-10-08.md).
+- **#222 first meal:** client3984c35; complete yesterday-local-day earliest meal, rollover clearing, no older fallback. Focused96/TZ45/review/gatePASS; installed latest Dev. Next: device Copy to Today/empty-yesterday; evidence.
+- **#218 photos / #225 copy fix:** local on7d5c9d0 fixes async copy races, iOS owner prefixes and raw errors;244focused/High review/full gatePASS:1765mobile/892API+15skips. Evidence/prior integration. Installed above; next: iPhone selection/Process/Save/reopen/retry acceptance; native/offline/account/multi-photo/accessibility/Android/provider exits open, Production disabled.
+- **#217 Pro multi-photo:**3984c35 preserved in this Dev/mobile candidate; Meals/Coach up to3 and separate drafts. Focused477/High review/full gatePASS; native/live-provider acceptance open. Evidence.
 - **Usability #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136:** prior implementation/evidence and exact native/provider/release exits retained in [pre-photo status](../../archive/status/STATUS_PRE_MEAL_PHOTO_DELIVERY_2026-10-06.md); combined-candidate acceptance open.
 
 ## Earlier implemented packages with open exits
@@ -41,7 +41,7 @@
 - **#184 Coach envelopes** — Verified fix source `17c6c49a0886b9b191b178d25e2c7bdbfa6ea9de` integrated. Accept historical and new replies on exact Dev/provider/device candidate. [Handoff][handoffs]
 - **#185 per100g nutrition** — Verified source `b57b5aa3022eeca7d94dbe839b81bdb957fa031a` integrated. Accept weight/decimal keyboard, preview/Save/reopen, advanced nutrients, draft/lost-response retry and large text. [Handoff][handoffs]
 - **#186 private analytics** — Real on-demand Mac dashboard 3034 initialized; synthetic 3033 remains isolated. Use `pnpm analytics:dashboard` and ignored private login. Exact instrumentation delivery, consenting/denied/revoked device capture, automatic/Community coverage and official Store imports remain open. Zero Production opt-ins means unobserved usage. #192 tracks local synthetic-verifier Docker guards. Pi hosting is superseded; 8 GB upgrade deferred until revenue. [Runbook/evidence](../../DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md)
-- **#187 one-time workouts** — Delivered to Dev; accept start/add-before-first-set/restart/log/finish/history, retries/offline, appearance/keyboard/accessibility. Only saved selections/sets are claimed restart-safe. [Evidence](../../ONE_TIME_WORKOUTS_EVIDENCE_2026-10-04.md)
+- **#187 one-time workouts** — Delivered to Dev; accept start/add-before-first-set/restart/log/finish/history, retries/offline, appearance/keyboard/accessibility. Only saved selections/sets are claimed restart-safe. Evidence
 - **#188 prior-day meals** — Delivered to Dev; accept heading/date retention, paginated history, manual/recent/AI/Clear, restart/lost-response/conflicts/DST and accessibility. Arbitrary date picker remains outside scope. [Handoff][handoffs]
 - **#189 exercise catalog / #191 pagination** — 609 active entries, original 888 IDs preserved; full gate historically passed. All 609 require qualified per-entry form/variant acceptance, 3 candidate duplicate pairs and swimming/outdoor cycling gaps remain. Accept search/readability/history/targets/restart; 200-record saved pagination deferred to #191. [Verification](../../evidence/exercise-catalog/verification-2026-10-04.md)
 - **#190 direct Coach entry** — Delivered to Dev; accept first text/photo, cancellation/consent, failed creation/retry, existing threads and last deletion on both devices. [Handoff][handoffs]

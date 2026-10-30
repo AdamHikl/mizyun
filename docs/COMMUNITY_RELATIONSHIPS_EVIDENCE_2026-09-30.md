@@ -1,6 +1,6 @@
 # COMM-04 / #143 relationship evidence — 2026-09-30
 
-Source: HEAD `877d1898e9205c4be19c6344e1cf1d533f4ff312` plus preserved uncommitted community foundation, #143 implementation and concurrent #142 enrollment work. Exact local source hashes are in [source manifest](COMMUNITY_RELATIONSHIPS_SOURCE_2026-09-30.json). No commit/push, Hetzner deployment, native install/device acceptance, Production or Store action. Concurrent changes remain preserved together.
+Source: HEAD `877d1898e9205c4be19c6344e1cf1d533f4ff312` plus preserved uncommitted community foundation, #143 implementation and concurrent #142 enrollment work. Exact local source hashes are in source manifest. No commit/push, Hetzner deployment, native install/device acceptance, Production or Store action. Concurrent changes remain preserved together.
 
 ## Implemented
 

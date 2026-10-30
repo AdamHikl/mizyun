@@ -8,7 +8,7 @@ Reporting, deterministic publication filtering, caller-owned recent evidence, na
 
 ## Source and ownership
 
-Baseline `f37a0f7491b4d1f3732c00c62f6385c7bcc7a59e` on `codex/community-140-145`. Preserved pre-existing uncommitted #146/#147 and unfinished #148; completed #148 across core/contracts, repositories, API, mobile and staff tooling. [SHA-256 candidate manifest](COMMUNITY_MODERATION_SOURCE_2026-09-30.json) binds the combined runtime/migration/test tree, including preserved dependencies; it is not a committed or deployed candidate. No commit/push, shared local migration, Dev/Production deployment, native install, Store action or broader admission in this session.
+Baseline `f37a0f7491b4d1f3732c00c62f6385c7bcc7a59e` on `codex/community-140-145`. Preserved pre-existing uncommitted #146/#147 and unfinished #148; completed #148 across core/contracts, repositories, API, mobile and staff tooling. SHA-256 candidate manifest binds the combined runtime/migration/test tree, including preserved dependencies; it is not a committed or deployed candidate. No commit/push, shared local migration, Dev/Production deployment, native install, Store action or broader admission in this session.
 
 Disjoint helper ownership: staff routes/CLI; database migration/adapter/SQL tests; mobile safety/discovery/relationships/detail. Coordinator owns ports/in-memory/report routes, integration, continuity and GitHub. Non-author final SQL/adapter/staff and coordinator/mobile reviews accepted after the identified authorization, privacy, lost-response and lifecycle findings were resolved. Reviewer completion alone was not acceptance evidence; coordinator ran actual final gates.
 

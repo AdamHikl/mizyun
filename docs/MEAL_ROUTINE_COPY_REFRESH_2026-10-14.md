@@ -1,6 +1,6 @@
 # Copied-meal routine suggestion refresh — 2026-10-14
 
-User report: a meal copied to today did not show a recurring suggestion. Package: NUTR-REC-002 / [#242](https://github.com/AdamHikl/mizyun/issues/242). Baseline: `d7e2055b260552c785325414756c6beeea1b7d8c`, already delivered to Dev with migration20261013120000. See [original implementation/acceptance](MEAL_ROUTINE_SUGGESTIONS_EVIDENCE_2026-10-13.md) and [Dev delivery](DEV_LOCAL_DELIVERY_2026-10-14.md).
+User report: a meal copied to today did not show a recurring suggestion. Package: NUTR-REC-002 / [#242](https://github.com/AdamHikl/mizyun/issues/242). Baseline: `d7e2055b260552c785325414756c6beeea1b7d8c`, already delivered to Dev with migration20261013120000. See [original implementation/acceptance](MEAL_ROUTINE_SUGGESTIONS_EVIDENCE_2026-10-13.md) and Dev delivery.
 
 ## Verified findings
 
