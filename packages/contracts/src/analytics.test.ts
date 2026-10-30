@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ANALYTICS_ACTIVATION_V1_CATALOG,
+  ANALYTICS_DASHBOARD_CATALOG,
   CURRENT_ANALYTICS_CONSENT_VERSION,
+  activationV1AnalyticsEventV2Schema,
   analyticsBatchIngestRequestSchema,
   analyticsBatchIngestResponseSchema,
   analyticsClearRequestSchema,
@@ -122,6 +125,102 @@ describe("activation scorecard telemetry (GTM-04)", () => {
       analyticsEventsListQuerySchema.safeParse({ catalog: "activation-v1" })
         .success,
     ).toBe(true);
+  });
+});
+
+describe("share-card result telemetry (activation-v2)", () => {
+  const share = {
+    ...validBaseEnvelope,
+    name: "share_card_result",
+    properties: { card: "bouldering", outcome: "share_sheet_shown" },
+  };
+
+  it("accepts only the card kind and a fixed outcome", () => {
+    expect(analyticsEventV2Schema.safeParse(share).success).toBe(true);
+    expect(
+      analyticsBatchIngestRequestSchema.safeParse({
+        consentVersion: CURRENT_ANALYTICS_CONSENT_VERSION,
+        epoch: "33333333-3333-4333-8333-333333333333",
+        events: [share],
+      }).success,
+    ).toBe(true);
+    for (const properties of [
+      { card: "bouldering", outcome: "shared", target: "instagram" },
+      { card: "bouldering", outcome: "share_sheet_shown", gymName: "Boulder" },
+      { card: "bouldering", outcome: "share_sheet_shown", grade: "6A" },
+      { card: "meal", outcome: "share_sheet_shown" },
+      { card: "workout", outcome: "sent to Anna" },
+      { card: "workout" },
+    ])
+      expect(
+        analyticsEventV2Schema.safeParse({ ...share, properties }).success,
+      ).toBe(false);
+  });
+
+  it("serves it only under activation-v2 and keeps older catalogs frozen", () => {
+    // Pinned: builds that request activation-v1 parse exactly these events.
+    expect(
+      activationV1AnalyticsEventV2Schema.options.map((s) => s.shape.name.value),
+    ).toEqual([
+      "app_session_started",
+      "screen_viewed",
+      "onboarding_started",
+      "onboarding_step_completed",
+      "onboarding_completed",
+      "onboarding_failed",
+      "onboarding_exited",
+      "logging_flow_started",
+      "logging_flow_completed",
+      "logging_flow_failed",
+      "logging_flow_exited",
+      "core_record_created",
+      "feature_action_result",
+      "dashboard_control_clicked",
+      "settings_search_used",
+      "settings_search_selected",
+      "first_run_completed",
+      "acquisition_source_selected",
+      "first_confirmed_record",
+      "return_milestone_reached",
+    ]);
+    expect(
+      analyticsEventV2Schema.options.map((s) => s.shape.name.value),
+    ).toContain("share_card_result");
+    for (const catalog of [
+      undefined,
+      "dashboard-v1",
+      ANALYTICS_ACTIVATION_V1_CATALOG,
+    ] as const) {
+      const projected = projectAnalyticsEventsForCatalog([share], catalog);
+      expect(projected.events).toEqual([]);
+      expect(projected.omittedEventCount).toBe(1);
+    }
+    expect(ANALYTICS_DASHBOARD_CATALOG).toBe("activation-v2");
+    expect(
+      projectAnalyticsEventsForCatalog([share], ANALYTICS_DASHBOARD_CATALOG)
+        .events,
+    ).toHaveLength(1);
+    expect(
+      analyticsEventsListQuerySchema.safeParse({ catalog: "activation-v2" })
+        .success,
+    ).toBe(true);
+  });
+
+  it("keeps the Coach send action available to every catalog", () => {
+    const coach = {
+      ...validBaseEnvelope,
+      name: "feature_action_result",
+      properties: {
+        action: "coach_message_request",
+        outcome: "success",
+        duration: "under_30_seconds",
+      },
+    };
+    expect(legacyAnalyticsEventV2Schema.safeParse(coach).success).toBe(true);
+    expect(
+      projectAnalyticsEventsForCatalog([coach], ANALYTICS_ACTIVATION_V1_CATALOG)
+        .events,
+    ).toHaveLength(1);
   });
 });
 

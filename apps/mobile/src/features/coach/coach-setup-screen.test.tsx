@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   permission: vi.fn(),
   picker: vi.fn(),
   normalize: vi.fn(),
+  track: vi.fn(),
   consent: true,
   pendingAction: null as any,
   execute: null as any,
@@ -86,6 +87,7 @@ vi.mock("react-native", () => ({
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Pressable: "Pressable",
   ScrollView: "ScrollView",
+  Text: "Text",
   TextInput: "TextInput",
   View: "View",
   Platform: {
@@ -153,6 +155,9 @@ vi.mock("@/features/auth/auth-context", () => ({
   }),
 }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
+vi.mock("@/composition/analytics-client", () => ({
+  analyticsClient: { track: mocks.track },
+}));
 vi.mock("@/composition/personal-read-events", () => ({
   subscribeSessionReadUpdates: (listener: (path: string) => void) => {
     mocks.readListeners.add(listener);
@@ -291,6 +296,7 @@ beforeEach(() => {
   mocks.permission.mockResolvedValue({ granted: true });
   mocks.picker.mockResolvedValue({ canceled: false, assets: [{}] });
   mocks.normalize.mockResolvedValue(new Blob());
+  mocks.track.mockResolvedValue({ recorded: true });
 });
 afterEach(() => {
   hooks.slots.forEach((slot) => slot?.cleanup?.());
@@ -490,6 +496,91 @@ describe("Coach VoiceOver announcements", () => {
     await open();
     await sendReply();
     expect(mocks.announce).not.toHaveBeenCalled();
+  });
+
+  it("renders the live-region announcement inside a Text node", async () => {
+    mocks.platform = "android";
+    await open();
+    await sendReply();
+    const region = nodes(render()).find(
+      (n) => n.props?.accessibilityLiveRegion === "polite",
+    );
+    const children = [region.props.children].flat();
+    expect(children.some((child: unknown) => typeof child === "string")).toBe(
+      false,
+    );
+    const label = children.find((child: any) => child?.type === "Text");
+    expect(label.props.children).toBe(
+      "New Coach message: Try a short walk after lunch.",
+    );
+  });
+});
+
+describe("Coach send analytics", () => {
+  const sendOnce = async () => {
+    await open();
+    const pending = typeMessage("My knee hurts after climbing").props.onPress();
+    await settle();
+    await vi.advanceTimersByTimeAsync(500);
+    await pending;
+  };
+
+  it("reports a successful send as the fixed action with buckets only", async () => {
+    await sendOnce();
+    expect(mocks.track.mock.calls).toEqual([
+      [
+        {
+          name: "feature_action_result",
+          properties: {
+            action: "coach_message_request",
+            outcome: "success",
+            duration: "under_30_seconds",
+          },
+        },
+      ],
+    ]);
+    expect(JSON.stringify(mocks.track.mock.calls)).not.toContain("knee");
+  });
+
+  it("reports a failed send with a coarse reason, never the message", async () => {
+    mocks.send.mockResolvedValue({
+      ok: false,
+      message: "Check your network connection and try again.",
+    });
+    await sendOnce();
+    expect(mocks.track.mock.calls).toEqual([
+      [
+        {
+          name: "feature_action_result",
+          properties: {
+            action: "coach_message_request",
+            outcome: "failure",
+            reason: "network",
+            duration: "under_30_seconds",
+          },
+        },
+      ],
+    ]);
+  });
+
+  it("reports a reached daily allowance as disabled", async () => {
+    mocks.send.mockResolvedValue({
+      ok: false,
+      message: "You've used today's Coach messages.",
+      limitReached: true,
+    });
+    await sendOnce();
+    expect(mocks.track.mock.calls[0]![0].properties).toMatchObject({
+      outcome: "failure",
+      reason: "disabled",
+    });
+  });
+
+  it("sends nothing when AI consent is still pending", async () => {
+    mocks.consent = false;
+    await sendOnce();
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.track).not.toHaveBeenCalled();
   });
 });
 

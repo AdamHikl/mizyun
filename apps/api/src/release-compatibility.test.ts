@@ -27,6 +27,7 @@ import {
   API_COMPAT_HEADER,
   API_COMPAT_VERSION,
   accountExportResponseSchema as currentAccountExportResponseSchema,
+  activationV1AnalyticsEventV2Schema,
   aiConsentResponseSchema as currentAiConsentResponseSchema,
   communityFeedResponseSchema as currentCommunityFeedResponseSchema,
   goalHistoryResponseSchema as currentGoalHistoryResponseSchema,
@@ -501,6 +502,10 @@ describe("current API compatibility with the pinned original build6 client contr
         "return_milestone_reached",
         { milestone: "day_7", cohortWeek: "2026-W44" },
       ],
+      [
+        "share_card_result",
+        { card: "bouldering", outcome: "share_sheet_shown" },
+      ],
     ].map(([name, properties], sequence) => ({
       ...base,
       id: `66666666-6666-4666-8666-66666666666${sequence}`,
@@ -531,15 +536,30 @@ describe("current API compatibility with the pinned original build6 client contr
     ).export;
     expect(build10Export.productAnalytics?.events).toHaveLength(1);
     expect(build10Export.manifest?.completeness).toBe("partial");
-    const current = await request(
+    // Builds that request activation-v1 parse its frozen 20-event union.
+    const activationV1 = await request(
       "GET",
       "/v1/analytics/events?catalog=activation-v1",
     );
-    expect(current.events).toHaveLength(6);
-    const currentExport = currentAccountExportResponseSchema.parse(
+    expect(
+      activationV1.events.map(
+        (event: unknown) => activationV1AnalyticsEventV2Schema.parse(event).id,
+      ),
+    ).toEqual(events.slice(0, 6).map((event) => event.id));
+    const activationV1Export = currentAccountExportResponseSchema.parse(
       await request("GET", "/v1/account/export?catalog=activation-v1"),
     ).export;
-    expect(currentExport.productAnalytics?.events).toHaveLength(6);
+    expect(activationV1Export.productAnalytics?.events).toHaveLength(6);
+    expect(activationV1Export.manifest?.completeness).toBe("partial");
+    const current = await request(
+      "GET",
+      "/v1/analytics/events?catalog=activation-v2",
+    );
+    expect(current.events).toHaveLength(7);
+    const currentExport = currentAccountExportResponseSchema.parse(
+      await request("GET", "/v1/account/export?catalog=activation-v2"),
+    ).export;
+    expect(currentExport.productAnalytics?.events).toHaveLength(7);
     expect(currentExport.manifest?.completeness).toBe("complete");
   });
 

@@ -86,7 +86,8 @@ type UiAnalyticsEventName =
   | "first_run_completed"
   | "acquisition_source_selected"
   | "first_confirmed_record"
-  | "return_milestone_reached";
+  | "return_milestone_reached"
+  | "share_card_result";
 type UiAnalyticsEventInput = {
   [Name in UiAnalyticsEventName]: Pick<
     Extract<AnalyticsEventV2, { name: Name }>,

@@ -174,6 +174,32 @@ export function FirstRunCard({
           you set up Mizyun.
         </ThemedText>
       </View>
+      {/* Above the options: a first tap ends the card, so a prompt below
+          them was never seen (climber audit gap 4). */}
+      <AnalyticsConsentPrompt onConsentChange={setConsent} />
+
+      {consent === "granted" ? (
+        <View style={styles.section}>
+          <ThemedText type="smallBold">
+            How did you hear about Mizyun?
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Optional. Only the option you pick is sent, when you choose what to
+            log first.
+          </ThemedText>
+          <ChoiceGroup>
+            {acquisitionSourceSchema.options.map((option) => (
+              <ChoiceChip
+                key={option}
+                label={acquisitionSourceLabels[option]}
+                selected={source === option}
+                onPress={() => setSource(option)}
+              />
+            ))}
+          </ChoiceGroup>
+        </View>
+      ) : null}
+
       <ListGroup>
         {firstLogOptions(boulderingEnabled).map((option) => (
           <ListRow
@@ -214,30 +240,6 @@ export function FirstRunCard({
           </ThemedText>
         ) : null}
       </View>
-
-      <AnalyticsConsentPrompt onConsentChange={setConsent} />
-
-      {consent === "granted" ? (
-        <View style={styles.section}>
-          <ThemedText type="smallBold">
-            How did you hear about Mizyun?
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Optional. Only the option you pick is sent, when you choose what to
-            log first.
-          </ThemedText>
-          <ChoiceGroup>
-            {acquisitionSourceSchema.options.map((option) => (
-              <ChoiceChip
-                key={option}
-                label={acquisitionSourceLabels[option]}
-                selected={source === option}
-                onPress={() => setSource(option)}
-              />
-            ))}
-          </ChoiceGroup>
-        </View>
-      ) : null}
 
       <Button
         label="Just look around"

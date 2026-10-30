@@ -27,3 +27,11 @@ No migration, API route or retention change. No new platform API: SecureStore an
 - Cohort weeks are device-local while event timestamps are UTC, so boundary-day records can fall in adjacent weeks.
 - Bouldering is enabled by default only on Dev; Production shows the climbing option only when its switch is on.
 - Device acceptance (real first-run timing, Coach answer inside two minutes) remains open.
+
+## Amendment, 2026-10-30 (climber first-run audit, gaps 4 and 3)
+
+- **Prompt placement.** The first-run card shows the optional analytics prompt, and after consent the source question, above the log options. The wording and consent behaviour are unchanged; a first tap still ends the card.
+- **Anchor without a first run.** A confirmed core record on a device with no stored anchor for the account now creates one with no first-run choice (stored as `"none"`) and sends `first_confirmed_record` (under current consent only). It sends no `first_run_completed` and no `return_milestone_reached`: the scorecard's activation and return denominators require a first-run choice, so return events from such anchors (already set-up accounts, second devices, reinstalls) would inflate day-7 and week-4 numerators. The anchor still hides the card and pins the first record. An existing but unreadable anchor is left untouched, and a record arriving after a local erasure in the same app process does not re-create the anchor. Older builds accept the `"none"` string and keep the card hidden, but after a downgrade they may send return milestones for such an anchor.
+- **Coach.** Each Coach text send reports `feature_action_result` {`coach_message_request`, success or failure, a coarse failure reason, a duration bucket}. The action was already in every catalog.
+- **Share card.** `share_card_result` {card: `bouldering` | `workout`, outcome: `share_sheet_shown` | `unavailable` | `failed`} records the "Share image" result. `share_sheet_shown` means the system sheet opened and closed; neither OS reports whether a target was chosen, so it is not counted as a share.
+- **Catalogs.** `activation-v1` is frozen at its 20 events. The current catalog is `activation-v2`, which adds `share_card_result`; new builds request it. The same release order applies: deploy the API before shipping a build that sends `share_card_result` or requests `activation-v2`.

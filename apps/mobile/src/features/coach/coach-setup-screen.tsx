@@ -18,6 +18,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
   useWindowDimensions,
@@ -66,6 +67,8 @@ import {
 } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { announce, useAnnouncement } from "@/lib/announce";
+import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
+import { trackFeatureActionResult } from "@/features/analytics/ui-analytics";
 
 import {
   clearLoggingDraft,
@@ -763,6 +766,20 @@ export function CoachSetupScreen() {
           idempotencyKey,
         );
         if (currentUser.current !== userId) return;
+        // Only the fixed action, outcome and coarse buckets, never the text.
+        trackFeatureActionResult(
+          "coach_message_request",
+          result.ok
+            ? { outcome: "success", durationMs: Date.now() - sentAt }
+            : {
+                outcome: "failure",
+                // The daily message allowance is a closed limit, not an error.
+                reason: result.limitReached
+                  ? "disabled"
+                  : classifyAnalyticsFailure(result.message),
+                durationMs: Date.now() - sentAt,
+              },
+        );
         if (result.ok) {
           setActive(result.conversation);
           if (result.usage !== undefined) setMessageUsage(result.usage);
@@ -1278,11 +1295,14 @@ export function CoachSetupScreen() {
             accessibilityRole="text"
             style={styles.srOnly}
           >
-            {liveRegionTick > 0 && messages.length > 0
-              ? `New Coach message: ${
-                  messages[messages.length - 1]?.text?.slice(0, 200) ?? ""
-                }`
-              : ""}
+            {/* React Native renders strings only inside <Text>. */}
+            <Text>
+              {liveRegionTick > 0 && messages.length > 0
+                ? `New Coach message: ${
+                    messages[messages.length - 1]?.text?.slice(0, 200) ?? ""
+                  }`
+                : ""}
+            </Text>
           </View>
 
           {(loading && !historyVisible) ||
