@@ -25,5 +25,5 @@ No migration, API route or retention change. No new platform API: SecureStore an
 - Release order: the API must be deployed before a mobile build with these events ships. An older API rejects `catalog=activation-v1` (Account analytics list/export) and whole ingest batches containing the new event names.
 - Week-4 rates require the weekly ledger; a missed Monday leaves that cohort's denominator unavailable rather than zero.
 - Cohort weeks are device-local while event timestamps are UTC, so boundary-day records can fall in adjacent weeks.
-- Bouldering is enabled by default only on Dev; Production shows the climbing option only when its switch is on.
+- Bouldering is enabled in every variant: `apps/mobile/app.config.js` sets `enableBouldering: true` in `extra` for Dev and Production, so the climbing option shows wherever the first-run card does. Only a build without that key falls back to Dev-only (`isBoulderingEnabled`).
 - Device acceptance (real first-run timing, Coach answer inside two minutes) remains open.

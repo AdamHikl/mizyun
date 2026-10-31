@@ -67,6 +67,50 @@ export async function requestBetaProPass(
   });
 }
 
+/**
+ * Whether the OS notification prompt may show. An anchor with a first record
+ * allows it and an anchor without one defers. With no anchor (the first-run
+ * card was skipped, or this is a reinstall) a set-up profile stands in, so a
+ * brand-new account is never asked before value.
+ */
+export const pushPromptAllowed = (input: {
+  readonly anchor: { readonly firstRecordOn: string | null } | null;
+  readonly profileSetUp: boolean;
+  readonly preview: boolean;
+}): boolean => {
+  if (input.preview) return false;
+  if (input.anchor !== null) return input.anchor.firstRecordOn !== null;
+  return input.profileSetUp;
+};
+
+export interface PushRegistrationAttempt {
+  /** True when the OS prompt is still pending and no record exists yet. */
+  readonly deferred: boolean;
+  readonly token: string | null;
+}
+
+/**
+ * Registers the device token, but holds back the OS notification prompt until
+ * the account's first confirmed record. A device that already decided (granted
+ * or denied) registers at once; nothing is asked of a new user before value.
+ */
+export async function registerDevicePushTokenAfterFirstRecord(
+  client: ApiClient,
+  firstRecordConfirmed: () => Promise<boolean>,
+): Promise<PushRegistrationAttempt> {
+  try {
+    const Notifications = await import("expo-notifications");
+    const perm = await Notifications.getPermissionsAsync();
+    const wouldPrompt = !perm.granted && perm.canAskAgain;
+    if (wouldPrompt && !(await firstRecordConfirmed().catch(() => false))) {
+      return { deferred: true, token: null };
+    }
+  } catch {
+    return { deferred: false, token: null };
+  }
+  return { deferred: false, token: await registerDevicePushToken(client) };
+}
+
 export async function registerDevicePushToken(
   client: ApiClient,
 ): Promise<string | null> {

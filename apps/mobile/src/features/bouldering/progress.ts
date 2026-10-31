@@ -136,7 +136,9 @@ export const timelineSummary = (
   const sent = columns.filter((c) => c.grade !== null);
   const pbs = columns.filter((c) => c.personalBest).length;
   const parts = [
-    `Hardest send in each of the last ${plural(columns.length, "session", "sessions")}.`,
+    columns.length === 1
+      ? "Hardest send in your latest session."
+      : `Hardest send in each of the last ${columns.length} sessions.`,
   ];
   if (sent.length === 0) parts.push("No sends.");
   else {

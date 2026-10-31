@@ -12,6 +12,9 @@ import {
   validateEnergyProfile,
   validateDisplayName,
   validateStep,
+  canContinueStep,
+  stepErrorToShow,
+  welcomeClimbingLine,
   type OnboardingForm,
 } from "./onboarding-state";
 
@@ -343,5 +346,35 @@ describe("applyOnboardingPatch", () => {
     });
     expect(after).not.toBe(before);
     expect(before.displayName).toBe("");
+  });
+});
+
+describe("name step error timing", () => {
+  const blank = validateDisplayName(fresh());
+
+  it("hides the blank-name error until Continue was attempted", () => {
+    expect(blank).toMatch(/blank/i);
+    expect(stepErrorToShow("displayName", blank, false)).toBeNull();
+    expect(stepErrorToShow("displayName", blank, true)).toBe(blank);
+  });
+
+  it("keeps Continue tappable on the name step so the attempt can happen", () => {
+    expect(canContinueStep("displayName", blank, false)).toBe(true);
+    expect(canContinueStep("displayName", blank, true)).toBe(false);
+  });
+
+  it("leaves other steps unchanged", () => {
+    const weak = validateStep("baselineWeight", fresh());
+    expect(weak).not.toBeNull();
+    expect(stepErrorToShow("baselineWeight", weak, false)).toBe(weak);
+    expect(canContinueStep("baselineWeight", weak, false)).toBe(false);
+    expect(canContinueStep("units", null, false)).toBe(true);
+  });
+});
+
+describe("welcomeClimbingLine", () => {
+  it("mentions bouldering only when the build has it", () => {
+    expect(welcomeClimbingLine(true)).toMatch(/bouldering/i);
+    expect(welcomeClimbingLine(false)).toBeNull();
   });
 });
