@@ -110,7 +110,7 @@ describe("account-data-management", () => {
     const result = await fetchAccountExport(client);
     expect(client.request).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: "/v1/account/export?catalog=activation-v1",
+        path: "/v1/account/export?catalog=activation-v2",
       }),
     );
     expect(result.ok).toBe(true);

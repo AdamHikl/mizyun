@@ -206,6 +206,25 @@ export type AcquisitionSource = z.infer<typeof acquisitionSourceSchema>;
 export const returnMilestoneSchema = z.enum(["day_7", "day_28"]);
 export type ReturnMilestone = z.infer<typeof returnMilestoneSchema>;
 
+/** Share-card kinds (ADR-0082); never the card's content. */
+export const analyticsShareCardKindSchema = z.enum(["bouldering", "workout"]);
+export type AnalyticsShareCardKind = z.infer<
+  typeof analyticsShareCardKindSchema
+>;
+
+/**
+ * "share_sheet_shown" means the system sheet opened and closed. Neither OS
+ * reports whether a target was picked, so it is not a confirmed share.
+ */
+export const analyticsShareCardOutcomeSchema = z.enum([
+  "share_sheet_shown",
+  "unavailable",
+  "failed",
+]);
+export type AnalyticsShareCardOutcome = z.infer<
+  typeof analyticsShareCardOutcomeSchema
+>;
+
 /** ISO-8601 week of the first confirmed record, e.g. "2026-W44". */
 export const cohortWeekSchema = z
   .string()
@@ -507,6 +526,21 @@ export type ReturnMilestoneReachedEvent = z.infer<
   typeof returnMilestoneReachedEventSchema
 >;
 
+/** The share-card preview's "Share image" result; kind and outcome only. */
+export const shareCardResultEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("share_card_result"),
+    properties: z
+      .object({
+        card: analyticsShareCardKindSchema,
+        outcome: analyticsShareCardOutcomeSchema,
+      })
+      .strict(),
+  })
+  .strict();
+export type ShareCardResultEvent = z.infer<typeof shareCardResultEventSchema>;
+
 const legacyCoreRecordCreatedEventSchema = coreRecordCreatedEventSchema.extend({
   properties: z.object({ recordKind: legacyCoreRecordKindSchema }).strict(),
 });
@@ -531,6 +565,30 @@ export const dashboardV1AnalyticsEventV2Schema = z.discriminatedUnion("name", [
   settingsSearchSelectedEventSchema,
 ]);
 
+/** Frozen `activation-v1` catalog read by builds released before the share event. */
+export const activationV1AnalyticsEventV2Schema = z.discriminatedUnion("name", [
+  appSessionStartedEventSchema,
+  screenViewedEventSchema,
+  onboardingStartedEventSchema,
+  onboardingStepCompletedEventSchema,
+  onboardingCompletedEventSchema,
+  onboardingFailedEventSchema,
+  onboardingExitedEventSchema,
+  loggingFlowStartedEventSchema,
+  loggingFlowCompletedEventSchema,
+  loggingFlowFailedEventSchema,
+  loggingFlowExitedEventSchema,
+  coreRecordCreatedEventSchema,
+  featureActionResultEventSchema,
+  dashboardControlClickedEventSchema,
+  settingsSearchUsedEventSchema,
+  settingsSearchSelectedEventSchema,
+  firstRunCompletedEventSchema,
+  acquisitionSourceSelectedEventSchema,
+  firstConfirmedRecordEventSchema,
+  returnMilestoneReachedEventSchema,
+]);
+
 export const analyticsEventV2Schema = z.discriminatedUnion("name", [
   appSessionStartedEventSchema,
   screenViewedEventSchema,
@@ -552,6 +610,7 @@ export const analyticsEventV2Schema = z.discriminatedUnion("name", [
   acquisitionSourceSelectedEventSchema,
   firstConfirmedRecordEventSchema,
   returnMilestoneReachedEventSchema,
+  shareCardResultEventSchema,
 ]);
 
 export type AnalyticsEventV2 = z.infer<typeof analyticsEventV2Schema>;
@@ -582,10 +641,13 @@ export type LegacyAnalyticsEventV2 = z.infer<
 export const CURRENT_ANALYTICS_CONSENT_VERSION = "product-analytics-v2";
 /** Catalog requested by build 10 and earlier; frozen. */
 export const ANALYTICS_DASHBOARD_V1_CATALOG = "dashboard-v1";
-/** Current catalog: adds first-run, acquisition and return events. */
-export const ANALYTICS_DASHBOARD_CATALOG = "activation-v1";
+/** Adds first-run, acquisition and return events; frozen. */
+export const ANALYTICS_ACTIVATION_V1_CATALOG = "activation-v1";
+/** Current catalog: adds the share-card result event. */
+export const ANALYTICS_DASHBOARD_CATALOG = "activation-v2";
 export const analyticsCatalogSchema = z.enum([
   ANALYTICS_DASHBOARD_V1_CATALOG,
+  ANALYTICS_ACTIVATION_V1_CATALOG,
   ANALYTICS_DASHBOARD_CATALOG,
 ]);
 export type AnalyticsCatalog = z.infer<typeof analyticsCatalogSchema>;
@@ -606,9 +668,11 @@ export function projectAnalyticsEventsForCatalog(
   const schema =
     catalog === ANALYTICS_DASHBOARD_CATALOG
       ? analyticsEventV2Schema
-      : catalog === ANALYTICS_DASHBOARD_V1_CATALOG
-        ? dashboardV1AnalyticsEventV2Schema
-        : legacyAnalyticsEventV2Schema;
+      : catalog === ANALYTICS_ACTIVATION_V1_CATALOG
+        ? activationV1AnalyticsEventV2Schema
+        : catalog === ANALYTICS_DASHBOARD_V1_CATALOG
+          ? dashboardV1AnalyticsEventV2Schema
+          : legacyAnalyticsEventV2Schema;
   const projected = events.flatMap((event) => {
     const parsed = schema.safeParse(event);
     return parsed.success ? [parsed.data] : [];

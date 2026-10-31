@@ -24,6 +24,7 @@ import {
   analyticsEventV2Schema,
   ANALYTICS_DASHBOARD_CATALOG,
   ANALYTICS_DASHBOARD_V1_CATALOG,
+  ANALYTICS_ACTIVATION_V1_CATALOG,
   legacyAnalyticsEventV2Schema,
 } from "./analytics";
 
@@ -223,6 +224,7 @@ export const accountExportSchema = z.object({
         .enum([
           "legacy-v2",
           ANALYTICS_DASHBOARD_V1_CATALOG,
+          ANALYTICS_ACTIVATION_V1_CATALOG,
           ANALYTICS_DASHBOARD_CATALOG,
         ])
         .optional(),

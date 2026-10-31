@@ -27,6 +27,7 @@ import {
 import { Radius, Spacing } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
+import { trackShareCardResult } from "@/features/analytics/ui-analytics";
 import { releaseShareCardImage, shareCardImage } from "./share-card-native";
 import { shareCardMark } from "./share-card-mark";
 import {
@@ -138,6 +139,10 @@ export function ShareCardSheet({
     if (preferences.rememberGymName) update({ ...preferences, gymName });
     const outcome = await shareCardImage(cardRef);
     setSharing(false);
+    trackShareCardResult(
+      content.kind,
+      outcome.kind === "shared" ? "share_sheet_shown" : outcome.kind,
+    );
     if (outcome.kind === "failed") setMessage(outcome.message);
     else if (outcome.kind === "unavailable")
       setMessage("Sharing images needs the latest version of the app.");
@@ -150,29 +155,23 @@ export function ShareCardSheet({
       animationType="fade"
       onRequestClose={close}
     >
-      <Pressable
-        style={[styles.overlay, { backgroundColor: theme.overlay }]}
-        onPress={close}
-        accessible={false}
-      >
+      {/* The backdrop is a sibling, not a parent: a ScrollView inside a
+          touch-capturing Pressable did not scroll (climber audit gap 3). */}
+      <View style={styles.overlay}>
         <Pressable
-          style={[styles.sheet, { backgroundColor: theme.background }]}
-          onPress={(e) => e.stopPropagation()}
+          style={[StyleSheet.absoluteFill, { backgroundColor: theme.overlay }]}
+          onPress={close}
           accessible={false}
-        >
+        />
+        <View style={[styles.sheet, { backgroundColor: theme.background }]}>
           <View style={styles.header}>
-            <View style={styles.headerTitle}>
-              <ThemedText type="subtitle" accessibilityRole="header">
-                Share as image
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                This exact image is what you share. It never includes food,
-                weight, measurements, photos, notes or Coach text.
-                {content.kind === "workout"
-                  ? " Exercise names appear as you typed them."
-                  : ""}
-              </ThemedText>
-            </View>
+            <ThemedText
+              type="subtitle"
+              accessibilityRole="header"
+              style={styles.headerTitle}
+            >
+              Share as image
+            </ThemedText>
             <IconButton
               icon="close"
               accessibilityLabel="Close share preview"
@@ -181,10 +180,19 @@ export function ShareCardSheet({
           </View>
 
           <ScrollView
+            style={styles.scroll}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
+            <ThemedText type="small" themeColor="textSecondary">
+              This exact image is what you share. It never includes food,
+              weight, measurements, photos, notes or Coach text.
+              {content.kind === "workout"
+                ? " Exercise names appear as you typed them."
+                : ""}
+            </ThemedText>
+
             <View style={styles.preview}>
               <ShareCardView
                 ref={cardRef}
@@ -251,9 +259,11 @@ export function ShareCardSheet({
                 />
               ) : null}
             </ListGroup>
+          </ScrollView>
 
+          {/* Pinned below the scroll area so it stays reachable at any text size. */}
+          <View style={styles.footer}>
             {message ? <Notice tone="warning" message={message} /> : null}
-
             <Button
               label={sharing ? "Preparing…" : "Share image"}
               icon="share"
@@ -263,9 +273,9 @@ export function ShareCardSheet({
               accessibilityHint="Opens the system share sheet with this image"
               onPress={() => void share()}
             />
-          </ScrollView>
-        </Pressable>
-      </Pressable>
+          </View>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -289,11 +299,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: Spacing.two,
   },
-  headerTitle: { flex: 1, gap: 2 },
+  headerTitle: { flex: 1 },
+  // Sizes to its content but shrinks to fit the sheet's maximum height.
+  scroll: { flexGrow: 0, flexShrink: 1 },
   content: { gap: Spacing.three },
+  footer: { gap: Spacing.two },
   preview: {
     alignItems: "center",
     borderRadius: Radius.md,

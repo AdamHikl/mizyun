@@ -119,6 +119,27 @@ describe("first-run card", () => {
     expect(onChoose).toHaveBeenCalledExactlyOnceWith("climb");
   });
 
+  it("shows the analytics prompt and source question before the options", () => {
+    let { tree } = render();
+    const order = (node: Node) =>
+      (node.props.children as unknown[])
+        .flat()
+        .map((child) => (child as Node | null)?.type ?? null)
+        .filter((type) => type !== null);
+    expect(order(tree).indexOf("AnalyticsConsentPrompt")).toBeLessThan(
+      order(tree).indexOf("ListGroup"),
+    );
+    const [prompt] = findAll(tree, "AnalyticsConsentPrompt");
+    (prompt!.props.onConsentChange as (value: string) => void)("granted");
+    ({ tree } = render());
+    const labels = findAll(tree, "ChoiceChip").map((chip) => chip.props.label);
+    expect(labels.indexOf("Climbing gym or club")).toBeLessThan(
+      labels.indexOf("Metric (kg, cm)"),
+    );
+    const sourceSection = order(tree).indexOf("View", 1);
+    expect(sourceSection).toBeLessThan(order(tree).indexOf("ListGroup"));
+  });
+
   it("hides climbing where bouldering is not enabled", () => {
     expect(firstLogOptions(false).map((option) => option.choice)).toEqual([
       "workout",
@@ -149,7 +170,8 @@ describe("first-run card", () => {
     const [prompt] = findAll(tree, "AnalyticsConsentPrompt");
     (prompt!.props.onConsentChange as (value: string) => void)("granted");
     ({ tree } = render());
-    const sources = findAll(tree, "ChoiceChip").slice(2);
+    // Source choices come before the two unit chips.
+    const sources = findAll(tree, "ChoiceChip").slice(0, -2);
     expect(sources.map((chip) => chip.props.label)).toContain(
       "Climbing gym or club",
     );
@@ -173,7 +195,7 @@ describe("first-run card", () => {
     const change = prompt!.props.onConsentChange as (value: string) => void;
     change("granted");
     ({ tree } = render());
-    (findAll(tree, "ChoiceChip")[2]!.props.onPress as () => void)();
+    (findAll(tree, "ChoiceChip")[0]!.props.onPress as () => void)();
     change("denied");
     ({ tree } = render());
     expect(findAll(tree, "ChoiceChip")).toHaveLength(2);

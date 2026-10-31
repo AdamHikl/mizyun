@@ -27,10 +27,11 @@ function memoryStore(): ActivationStore & { values: Map<string, string> } {
   };
 }
 
-function harness(recorded = true) {
+function harness(initiallyRecorded = true) {
   const store = memoryStore();
   const sent: AnalyticsEventInput[] = [];
   let now = new Date(2026, 9, 26, 9, 0);
+  let recorded = initiallyRecorded;
   const track = vi.fn(async (event: AnalyticsEventInput) => {
     if (recorded) sent.push(event);
     return recorded
@@ -45,6 +46,9 @@ function harness(recorded = true) {
     milestones,
     at(day: number, hour = 9) {
       now = new Date(2026, 9, 26 + day, hour, 0);
+    },
+    grantConsent() {
+      recorded = true;
     },
   };
 }
@@ -110,13 +114,93 @@ describe("activation milestones", () => {
     ]);
   });
 
-  it("ignores accounts that never had a first run on this device", async () => {
+  it("anchors a first record made without a first-run choice", async () => {
     const h = harness();
     await h.milestones.completeFirstRun("owner-a", "workout", Date.now());
-    await h.milestones.recordCoreAction("owner-b", "workout");
+    await h.milestones.recordCoreAction("owner-b", "bouldering_session");
     await h.milestones.recordCoreAction(null, "workout");
-    expect(await h.milestones.stateFor("owner-b")).toBeNull();
-    expect(h.sent.map((event) => event.name)).toEqual(["first_run_completed"]);
+    const state = await h.milestones.stateFor("owner-b");
+    expect(state).toMatchObject({
+      owner: "owner-b",
+      choice: null,
+      firstRecordOn: "2026-10-26",
+    });
+    // No first-run choice is invented; the record is the first one.
+    expect(h.sent).toEqual([
+      {
+        name: "first_run_completed",
+        properties: { choice: "workout", duration: "under_30_seconds" },
+      },
+      {
+        name: "first_confirmed_record",
+        properties: { recordKind: "bouldering_session" },
+      },
+    ]);
+    expect(h.sent.every(wire)).toBe(true);
+    // A later first-run card does not replace the anchor or its first record.
+    await h.milestones.completeFirstRun("owner-b", "climb", Date.now());
+    expect((await h.milestones.stateFor("owner-b"))?.choice).toBeNull();
+    expect(h.sent).toHaveLength(2);
+  });
+
+  it("sends no return milestones from an anchor without a first-run choice", async () => {
+    const h = harness();
+    await h.milestones.recordCoreAction("owner-d", "meal");
+    for (const day of [3, 6, 22, 28]) {
+      h.at(day);
+      await h.milestones.recordCoreAction("owner-d", "workout");
+    }
+    expect(h.sent.map((event) => event.name)).toEqual([
+      "first_confirmed_record",
+    ]);
+  });
+
+  it("stores a missing choice as a string older builds accept", async () => {
+    const h = harness();
+    await h.milestones.recordCoreAction("owner-e", "workout");
+    const raw = JSON.parse(h.store.values.get("mizyun.activation.v1.owner-e")!);
+    expect(raw.choice).toBe("none");
+    // The pre-change parser required a string choice to treat it as present.
+    expect(typeof raw.choice).toBe("string");
+  });
+
+  it("leaves an unreadable stored anchor untouched", async () => {
+    const h = harness();
+    h.store.values.set("mizyun.activation.v1.owner-f", '{"version":2}');
+    await h.milestones.recordCoreAction("owner-f", "meal");
+    expect(h.store.values.get("mizyun.activation.v1.owner-f")).toBe(
+      '{"version":2}',
+    );
+    expect(h.sent).toEqual([]);
+  });
+
+  it("does not re-create an erased owner's anchor from a late record", async () => {
+    const h = harness();
+    await h.milestones.completeFirstRun("owner-g", "meal", Date.now());
+    await clearActivationState("owner-g", h.store);
+    await h.milestones.recordCoreAction("owner-g", "meal");
+    expect(await h.milestones.stateFor("owner-g")).toBeNull();
+    // A new first run after the erasure starts a fresh anchor.
+    await h.milestones.completeFirstRun("owner-g", "climb", Date.now());
+    await h.milestones.recordCoreAction("owner-g", "bouldering_session");
+    expect((await h.milestones.stateFor("owner-g"))?.firstRecordOn).toBe(
+      "2026-10-26",
+    );
+  });
+
+  it("anchors a record made without consent and never replays it", async () => {
+    const h = harness(false);
+    await h.milestones.recordCoreAction("owner-c", "bouldering_session");
+    expect(h.sent).toEqual([]);
+    expect((await h.milestones.stateFor("owner-c"))?.firstRecordOn).toBe(
+      "2026-10-26",
+    );
+    // A later opt-in sends nothing for the earlier record.
+    h.grantConsent();
+    await h.milestones.recordCoreAction("owner-c", "meal");
+    h.at(3);
+    await h.milestones.recordCoreAction("owner-c", "workout");
+    expect(h.sent).toEqual([]);
   });
 
   it("keeps the first-run anchor but sends nothing without consent", async () => {
@@ -188,22 +272,23 @@ describe("activation milestones", () => {
     ).resolves.toBeUndefined();
   });
 
+  // Erasures are remembered per process, so these owners are used nowhere else.
   it("orders an erasure after a core action that already started", async () => {
     const h = harness();
-    await h.milestones.completeFirstRun("owner-a", "meal", Date.now());
-    const pending = h.milestones.recordCoreAction("owner-a", "meal");
-    const erased = clearActivationState("owner-a", h.store);
+    await h.milestones.completeFirstRun("erased-a", "meal", Date.now());
+    const pending = h.milestones.recordCoreAction("erased-a", "meal");
+    const erased = clearActivationState("erased-a", h.store);
     await Promise.all([pending, erased]);
     expect(h.store.values.size).toBe(0);
   });
 
   it("erases only the owner's anchor and rejects unsafe keys", async () => {
     const h = harness();
-    await h.milestones.completeFirstRun("owner-a", "meal", Date.now());
-    await clearActivationState("owner-b", h.store);
-    expect(await h.milestones.stateFor("owner-a")).not.toBeNull();
-    await clearActivationState("owner-a", h.store);
-    expect(await h.milestones.stateFor("owner-a")).toBeNull();
+    await h.milestones.completeFirstRun("erased-a", "meal", Date.now());
+    await clearActivationState("erased-b", h.store);
+    expect(await h.milestones.stateFor("erased-a")).not.toBeNull();
+    await clearActivationState("erased-a", h.store);
+    expect(await h.milestones.stateFor("erased-a")).toBeNull();
     await expect(clearActivationState("../x", h.store)).rejects.toThrow();
   });
 });

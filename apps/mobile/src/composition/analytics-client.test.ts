@@ -59,7 +59,7 @@ describe("analytics release metadata composition", () => {
     expect(mocks.request).toHaveBeenCalledWith(
       expect.objectContaining({
         method: "GET",
-        path: "/v1/analytics/events?catalog=activation-v1",
+        path: "/v1/analytics/events?catalog=activation-v2",
       }),
     );
   });
