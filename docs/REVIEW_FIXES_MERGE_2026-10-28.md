@@ -9,6 +9,7 @@ A read-only multi-agent review of the app at `a3947503` (2026-10-26) produced 17
 - `pnpm check` PASS on the merged tree (input SHA-256 `d1013f7caa13615aa3bda5bf27cb844ef74ac23e7e51721c594142484bbb52fe`): mobile 3911, API 1496 passed + 15 skipped, all package and tooling gates.
 - 2026-10-29: `pnpm db:verify` PASS on `45e8d8ea` (local disposable database, 61 files / 2002 tests).
 - 2026-10-29: `45e8d8ea` pushed to `origin/main` and deployed to Hetzner Dev via `pnpm deploy:dev` (its own `pnpm check` PASS, input SHA-256 `4e61022d…`; applied migrations `20261027120000`, `120100`, `120200`, `120300`, `130000`); public Dev health HTTP 200 at 07:29Z. Mizyun Dev Release build installed on Adam's iPhone 16 Pro and launched at 07:35Z (PID 9461); install needed one retry after a CoreDevice connection reset. Device acceptance not yet performed.
+- 2026-10-30: Android Dev `be59ac97` installed on LYA-L29 (Android 10) at 11:49Z (PID 20932). `9f621ebd` (`pnpm check` PASS, 3936 mobile/1496 API + 15 skipped) pushed and deployed to Hetzner Dev, health HTTP 200 at 12:17Z; iPhone Dev build installed 12:14Z, not launched because the phone was locked.
 
 ## Branches merged
 
