@@ -53,6 +53,7 @@ function cacheable(options: RequestOptions): boolean {
       "/v1/food-entries/summary",
       "/v1/workouts",
       "/v1/runs",
+      "/v1/bouldering/sessions",
       "/v1/coach/conversations",
     ].includes(path) ||
     /^\/v1\/runs\/[^/]+$/.test(path) ||
@@ -81,6 +82,7 @@ const TRAINING = [
   "/v1/workouts",
   "/v1/exercises",
   "/v1/runs",
+  "/v1/bouldering/sessions",
   "/v1/energy/summary",
 ];
 const BODY = [

@@ -4,6 +4,28 @@ import type {
   BoulderSessionRecord,
 } from "@mizyun/contracts";
 
+export interface SessionNextStep {
+  readonly title: string;
+  readonly subtitle: string;
+  readonly href: "/bouldering/session";
+}
+
+/**
+ * The one suggested step after a finished session, so "Done" is not the only
+ * way forward. It opens the session screen without `start=1`, whose empty state
+ * asks before it starts anything. A session still in progress has none.
+ */
+export const sessionNextStep = (
+  session: Pick<BoulderSessionRecord, "completedAt">,
+): SessionNextStep | null =>
+  session.completedAt === null
+    ? null
+    : {
+        title: "Log your next session",
+        subtitle: "Start a new one when you're back at the wall",
+        href: "/bouldering/session",
+      };
+
 export interface GradeBar {
   readonly grade: string;
   readonly sends: number;

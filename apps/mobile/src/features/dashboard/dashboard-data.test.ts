@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+  BoulderSessionListResponse,
+  BoulderSessionRecord,
   DailyFoodSummary,
   DailyFoodSummaryListResponse,
   DailyFoodSummaryResponse,
@@ -22,6 +24,9 @@ import {
   fetchNutritionReview,
   fetchNutritionReviewSummaries,
   fetchWorkoutCountForPeriod,
+  fetchBoulderSessionCountForPeriod,
+  combineTrainingCounts,
+  readDashboardSnapshot,
   extractFirstEligibleMeal,
   summariseNutritionReview,
   type LocalDayQuery,
@@ -1475,5 +1480,214 @@ describe("computeDailyNutritionDisplay protein range (#293)", () => {
       });
       expect(result.proteinStatus).toBe("unknown");
     }
+  });
+});
+
+const boulderSession = (
+  activityDate: string,
+  completedAt: string | null = `${activityDate}T10:00:00.000Z`,
+): BoulderSessionRecord => ({
+  id: "33333333-3333-4333-8333-333333333333",
+  clientOperationId: "11111111-1111-4111-8111-111111111111",
+  name: "Bouldering",
+  notes: null,
+  startedAt: `${activityDate}T08:00:00.000Z`,
+  completedAt,
+  session: {
+    version: 1,
+    gradeScale: "font",
+    recordingTimezone: "Europe/Bratislava",
+    activityDate,
+    gymName: null,
+  },
+  summary: {
+    boulders: 4,
+    sends: 3,
+    flashes: 1,
+    attempts: 7,
+    attemptsComplete: true,
+    topGrade: "6C",
+  },
+});
+const boulderList = (
+  ...sessions: BoulderSessionRecord[]
+): BoulderSessionListResponse => ({ sessions, nextCursor: null });
+
+describe("fetchBoulderSessionCountForPeriod", () => {
+  const range = { fromIsoDate: "2026-10-26", toIsoDate: "2026-10-30" };
+
+  it("counts finished sessions whose activity date is in the period", async () => {
+    const client = fakeClient({
+      ok: true,
+      value: boulderList(
+        boulderSession("2026-10-30"),
+        boulderSession("2026-10-27"),
+        boulderSession("2026-10-29", null),
+        boulderSession("2026-10-20"),
+      ),
+    });
+    const result = await fetchBoulderSessionCountForPeriod(
+      client,
+      fakePrincipal,
+      range,
+    );
+    expect(result).toEqual({ value: 2, error: null });
+  });
+
+  it("reads the existing session history route", async () => {
+    const paths: string[] = [];
+    const client: ApiClient = {
+      ...fakeClient({ ok: true, value: boulderList() }),
+      request: <T>(options: RequestOptions) => {
+        paths.push(options.path);
+        return Promise.resolve({
+          ok: true,
+          value: boulderList(),
+        } as Result<T, ApiError>);
+      },
+    };
+    await fetchBoulderSessionCountForPeriod(client, fakePrincipal, range);
+    expect(paths).toEqual(["/v1/bouldering/sessions?limit=50"]);
+  });
+
+  it("reports a failed read instead of a zero", async () => {
+    const error: ApiError = { kind: "network_error", cause: "offline" };
+    const result = await fetchBoulderSessionCountForPeriod(
+      fakeClient({ ok: false, error }),
+      fakePrincipal,
+      range,
+    );
+    expect(result).toEqual({ value: null, error });
+  });
+
+  it("counts zero where the server has bouldering switched off", async () => {
+    const result = await fetchBoulderSessionCountForPeriod(
+      fakeClient({
+        ok: false,
+        error: {
+          kind: "http_error",
+          status: 404,
+          code: "FEATURE_DISABLED",
+          message: "off",
+        },
+      }),
+      fakePrincipal,
+      range,
+    );
+    expect(result).toEqual({ value: 0, error: null });
+  });
+
+  it("reports an unreadable list as a failed read, not an empty count", async () => {
+    const result = await fetchBoulderSessionCountForPeriod(
+      fakeClient({ ok: true, value: { sessions: "nope" } }),
+      fakePrincipal,
+      range,
+    );
+    expect(result.value).toBeNull();
+    expect(result.error?.kind).toBe("parse_error");
+  });
+
+  it("returns the no-session error without a principal", async () => {
+    const result = await fetchBoulderSessionCountForPeriod(
+      fakeClient({ ok: true, value: boulderList() }),
+      null,
+      range,
+    );
+    expect(result.error?.kind).toBe("no_session");
+  });
+});
+
+describe("combineTrainingCounts", () => {
+  const ok = (value: number) => ({ value, error: null });
+  const failure = {
+    value: null,
+    error: { kind: "network_error", cause: "offline" } as ApiError,
+  };
+
+  it("adds climbing sessions to workouts", () => {
+    expect(combineTrainingCounts(ok(2), ok(3))).toEqual(ok(5));
+  });
+
+  it("keeps the workout count where bouldering is off", () => {
+    expect(combineTrainingCounts(ok(2), null)).toEqual(ok(2));
+  });
+
+  it("withholds the total when the climbing read fails", () => {
+    expect(combineTrainingCounts(ok(2), failure)).toEqual(failure);
+  });
+
+  it("withholds the total when the workout read fails", () => {
+    expect(combineTrainingCounts(failure, ok(3))).toEqual(failure);
+  });
+});
+
+describe("readDashboardSnapshot training count", () => {
+  const query = {
+    date: "2026-10-30",
+    fromIsoDate: "2026-10-26",
+    toIsoDate: "2026-10-29",
+    utcOffsetMinutes: 0,
+  };
+  const workoutList: WorkoutListResponse = { workouts: [] };
+  const peekWith =
+    (reads: Record<string, unknown>) =>
+    <T>(options: RequestOptions): Result<T, ApiError> | null => {
+      const key = Object.keys(reads).find((path) =>
+        options.path.startsWith(path),
+      );
+      return key === undefined
+        ? null
+        : ({ ok: true, value: reads[key] } as Result<T, ApiError>);
+    };
+
+  it("adds saved climbing sessions when bouldering is on", () => {
+    const snapshot = readDashboardSnapshot(
+      peekWith({
+        "/v1/workouts": workoutList,
+        "/v1/bouldering/sessions": boulderList(boulderSession("2026-10-28")),
+      }),
+      { ...query, boulderingEnabled: true },
+    );
+    expect(snapshot.workouts?.value).toBe(1);
+  });
+
+  it("keeps the older save time and never invents one", () => {
+    const saved = (value: unknown, savedAt?: number) => ({
+      ok: true as const,
+      value,
+      ...(savedAt === undefined ? {} : { savedAt }),
+    });
+    const reads = (workoutAt?: number, boulderAt?: number) =>
+      readDashboardSnapshot(
+        <T>(options: RequestOptions) =>
+          (options.path.startsWith("/v1/workouts")
+            ? saved(workoutList, workoutAt)
+            : options.path.startsWith("/v1/bouldering/sessions")
+              ? saved(boulderList(), boulderAt)
+              : null) as Result<T, ApiError> | null,
+        { ...query, boulderingEnabled: true },
+      ).workouts;
+    expect(reads(undefined, undefined)?.savedAt).toBeUndefined();
+    expect(reads(500, 300)?.savedAt).toBe(300);
+    expect(reads(500, undefined)?.savedAt).toBe(500);
+  });
+
+  it("waits for the saved climbing read instead of showing a partial count", () => {
+    const snapshot = readDashboardSnapshot(
+      peekWith({ "/v1/workouts": workoutList }),
+      { ...query, boulderingEnabled: true },
+    );
+    expect(snapshot.workouts).toBeNull();
+  });
+
+  it("ignores climbing sessions where bouldering is off", () => {
+    const snapshot = readDashboardSnapshot(
+      peekWith({
+        "/v1/workouts": workoutList,
+        "/v1/bouldering/sessions": boulderList(boulderSession("2026-10-28")),
+      }),
+      query,
+    );
+    expect(snapshot.workouts?.value).toBe(0);
   });
 });
