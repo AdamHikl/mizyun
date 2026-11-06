@@ -11,6 +11,7 @@ import { authClient } from "./auth-client";
 import { mobileConfigResult } from "./mobile-config";
 import { CommunityReadCache } from "@/features/community/state/read-cache";
 import { SessionReadCache } from "./session-read-cache";
+import { sha256Base64Url } from "./sha256-base64url";
 import { createPersonalReadStorage } from "@/features/offline-cache/personal-read-storage";
 
 /**
@@ -31,6 +32,8 @@ export const selectApiClient = (
     ? new HttpApiClient({
         baseUrl: apiUrl,
         authClient: auth,
+        // Rejects an old body the iOS URLCache pairs with a current ETag.
+        sha256Base64Url,
       })
     : new DisabledApiClient();
 

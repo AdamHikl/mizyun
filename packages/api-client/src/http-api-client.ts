@@ -43,11 +43,30 @@ export interface HttpApiClientDependencies {
   readonly fetch?: typeof globalThis.fetch;
   /** Device IANA zone sent with each request; defaults to the runtime's. */
   readonly deviceTimeZone?: () => string | null;
+  /**
+   * Unpadded base64url SHA-256 of a string's UTF-8 bytes. When provided, a
+   * GET 200 whose `ETag` is the API's `sha256:` digest is accepted only if
+   * the body hashes to it, so an OS HTTP cache cannot pair an old body with
+   * a current tag (see `#verifiedBody`).
+   */
+  readonly sha256Base64Url?: (text: string) => Promise<string>;
 }
 
 const AUTHORIZATION_HEADER = "authorization";
 const CONTENT_TYPE_HEADER = "content-type";
 const JSON_CONTENT_TYPE = "application/json";
+
+/** An entity tag the API never issues (its tags are `sha256:` digests). */
+const BYPASS_VALIDATOR = '"mizyun-cache-bypass"';
+
+const hasIfNoneMatch = (headers: RequestInit["headers"]): boolean => {
+  if (!headers) return false;
+  if (headers instanceof Headers) return headers.has("if-none-match");
+  const names = Array.isArray(headers)
+    ? headers.map(([name]) => name)
+    : Object.keys(headers);
+  return names.some((name) => name.toLowerCase() === "if-none-match");
+};
 
 /** The runtime's current IANA zone, or null when it cannot report one. */
 const runtimeTimeZone = (): string | null => {
@@ -63,11 +82,18 @@ const runtimeTimeZone = (): string | null => {
  * the server can tell current clients from installed legacy builds, and the
  * device zone (REL-01), read per request because the phone can change zone
  * while the app runs.
+ *
+ * With `guardOsCache`, a GET that carries no validator of its own gets one
+ * the API never issues. iOS (expo/fetch: shared URLCache, default policy,
+ * Fetch `cache` option ignored) then cannot revalidate an entry it stored
+ * before the API sent `no-store` and merge the server's 304 into that old
+ * body; the server, matching nothing, sends the full current body.
  */
 const withCompatHeader =
   (
     fetcher: typeof globalThis.fetch,
     deviceTimeZone: () => string | null = runtimeTimeZone,
+    guardOsCache = false,
   ): typeof globalThis.fetch =>
   (input, init) => {
     const extra: Array<[string, string]> = [
@@ -76,6 +102,12 @@ const withCompatHeader =
     const zone = deviceTimeZone();
     if (zone) extra.push([DEVICE_TIME_ZONE_HEADER, zone]);
     const headers = init?.headers;
+    if (
+      guardOsCache &&
+      (init?.method ?? "GET").toUpperCase() === "GET" &&
+      !hasIfNoneMatch(headers)
+    )
+      extra.push([IF_NONE_MATCH_HEADER, BYPASS_VALIDATOR]);
     let next: NonNullable<NonNullable<typeof init>["headers"]>;
     if (headers instanceof Headers) {
       const copy = new Headers(headers);
@@ -104,6 +136,15 @@ const usableEtag = (value: string | null | undefined): string | undefined =>
   PRINTABLE_ASCII.test(value)
     ? value
     : undefined;
+
+/**
+ * The API's entity tags are `"sha256:<first 32 base64url chars>"` of the exact
+ * JSON bytes (apps/api/src/plugins/conditional-get.ts). A proxy may weaken
+ * them (`W/`) when it compresses, which leaves the digest unchanged.
+ */
+const DIGEST_TAG = /^(?:W\/)?"sha256:([A-Za-z0-9_-]{32})"$/;
+const digestOf = (tag: string | undefined): string | undefined =>
+  tag === undefined ? undefined : DIGEST_TAG.exec(tag.trim())?.[1];
 
 /** Opaque part of an entity tag, for the weak comparison of RFC 9110 §8.8.3.2. */
 const opaqueTag = (tag: string): string => tag.trim().replace(/^W\//, "");
@@ -164,6 +205,7 @@ export class HttpApiClient implements ApiClient {
   readonly #baseUrl: string;
   readonly #authClient: AuthClient;
   readonly #fetch: typeof globalThis.fetch;
+  readonly #sha256Base64Url: ((text: string) => Promise<string>) | undefined;
   readonly getMealRecipeSessionContext: MealRecipeSessionApi["context"];
   readonly revalidateMealRecipes: MealRecipeSessionApi["revalidate"];
   readonly getMealRecipeCapabilities: MealRecipeApi["capabilities"];
@@ -174,9 +216,11 @@ export class HttpApiClient implements ApiClient {
   constructor(dependencies: HttpApiClientDependencies) {
     this.#baseUrl = trimTrailingSlash(dependencies.baseUrl);
     this.#authClient = dependencies.authClient;
+    this.#sha256Base64Url = dependencies.sha256Base64Url;
     this.#fetch = withCompatHeader(
       dependencies.fetch ?? globalThis.fetch.bind(globalThis),
       dependencies.deviceTimeZone,
+      dependencies.sha256Base64Url !== undefined,
     );
     const recipes = createMealRecipeTransport({
       ...dependencies,
@@ -415,6 +459,13 @@ export class HttpApiClient implements ApiClient {
   }
 
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
+    return this.#request<T>(options, false);
+  }
+
+  async #request<T>(
+    options: RequestOptions,
+    bypassCache: boolean,
+  ): Promise<Result<T, ApiError>> {
     if (isAbsoluteUrl(options.path)) {
       return err({
         kind: "parse_error",
@@ -450,6 +501,17 @@ export class HttpApiClient implements ApiClient {
         if (name.toLowerCase() === "if-none-match") delete headers[name];
       }
       headers[IF_NONE_MATCH_HEADER] = options.ifNoneMatch as string;
+    }
+    if (bypassCache) {
+      // The verified retry asks every cache to revalidate and sends the
+      // never-matching validator, replacing any the caller set in any casing.
+      headers[CACHE_CONTROL_HEADER] = "no-cache";
+      if (!conditional) {
+        for (const name of Object.keys(headers)) {
+          if (name.toLowerCase() === "if-none-match") delete headers[name];
+        }
+        headers[IF_NONE_MATCH_HEADER] = BYPASS_VALIDATOR;
+      }
     }
 
     const url = `${this.#baseUrl}${options.path}`;
@@ -521,7 +583,7 @@ export class HttpApiClient implements ApiClient {
       if (tag === undefined) {
         void response.body?.cancel().catch(() => {});
         const { ifNoneMatch: _unused, ...unconditional } = options;
-        return this.request<T>(unconditional);
+        return this.#request<T>(unconditional, bypassCache);
       }
       if (opaqueTag(tag) === opaqueTag(options.ifNoneMatch as string)) {
         void response.body?.cancel().catch(() => {});
@@ -541,9 +603,36 @@ export class HttpApiClient implements ApiClient {
       return ok(undefined as T);
     }
 
+    const tagDigest =
+      options.method === "GET" &&
+      response.status === 200 &&
+      this.#sha256Base64Url !== undefined
+        ? digestOf(readEtag(response))
+        : undefined;
     let parsedBody: unknown;
     try {
-      parsedBody = await response.json();
+      if (tagDigest !== undefined) {
+        const verified = await this.#verifiedBody(response, tagDigest);
+        if (!verified.ok && "cause" in verified) {
+          return err({ kind: "network_error", cause: verified.cause });
+        }
+        if (!verified.ok) {
+          // The body is not the representation its tag names: an OS cache
+          // merged a server 304 into a response it stored earlier. Ask once
+          // more past every cache; never accept the mismatched body.
+          if (!bypassCache) {
+            const { ifNoneMatch: _unused, ...unconditional } = options;
+            return this.#request<T>(unconditional, true);
+          }
+          return err({
+            kind: "network_error",
+            cause: new Error("Response body does not match its ETag"),
+          });
+        }
+        parsedBody = verified.value;
+      } else {
+        parsedBody = await response.json();
+      }
     } catch (cause) {
       // Some non-2xx responses have empty bodies; treat JSON parse failure
       // as a structural mismatch only when the status indicates an error.
@@ -585,7 +674,29 @@ export class HttpApiClient implements ApiClient {
 
     return withEtag(ok(parsedBody as T), readEtag(response));
   }
+
+  /**
+   * Reads the body as text and checks it against the tag's digest. The
+   * server hashes the exact UTF-8 JSON it sends; decoding is lossless for
+   * that JSON, so re-encoding the text reproduces the hashed bytes.
+   */
+  async #verifiedBody(
+    response: Response,
+    digest: string,
+  ): Promise<{ ok: true; value: unknown } | { ok: false; cause?: unknown }> {
+    const text = await response.text();
+    let actual: string;
+    try {
+      actual = await this.#sha256Base64Url!(text);
+    } catch (cause) {
+      return { ok: false, cause };
+    }
+    if (actual.slice(0, 32) !== digest) return { ok: false };
+    return { ok: true, value: JSON.parse(text) as unknown };
+  }
 }
+
+const CACHE_CONTROL_HEADER = "Cache-Control";
 
 const withEtag = <T>(
   result: Result<T, never>,

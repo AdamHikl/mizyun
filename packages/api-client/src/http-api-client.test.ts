@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, type Mock } from "vitest";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import type { AuthClient, AuthSession } from "@mizyun/identity";
@@ -1250,5 +1251,229 @@ describe("HttpApiClient — conditional GET revalidation", () => {
     });
     expect(result).toEqual({ ok: false, error: { kind: "session_expired" } });
     expect(signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("HttpApiClient — ETag body verification (stale OS cache)", () => {
+  // Same tag format as apps/api/src/plugins/conditional-get.ts.
+  const sha256Base64Url = (text: string): Promise<string> =>
+    Promise.resolve(createHash("sha256").update(text).digest("base64url"));
+  const tagFor = (text: string, weak = false): string =>
+    `${weak ? "W/" : ""}"sha256:${createHash("sha256").update(text).digest("base64url").slice(0, 32)}"`;
+
+  const current = JSON.stringify({ workouts: ["oct-23", "oct-26", "nov-02"] });
+  const stale = JSON.stringify({ workouts: ["oct-23"] });
+  const schema = z.object({ workouts: z.array(z.string()) });
+
+  const textResponse = (
+    body: string,
+    headers: Record<string, string>,
+  ): Response =>
+    ({
+      status: 200,
+      ok: true,
+      headers: new Headers(headers),
+      text: () => Promise.resolve(body),
+      json: () => Promise.resolve(JSON.parse(body)),
+    }) as unknown as Response;
+
+  const build = (...responses: Response[]) => {
+    const fetchMock = vi.fn();
+    for (const response of responses) fetchMock.mockResolvedValueOnce(response);
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock,
+      sha256Base64Url,
+    });
+    return { client, fetchMock };
+  };
+  const headersOf = (fetchMock: Mock, call: number) =>
+    (fetchMock.mock.calls[call]?.[1] as RequestInit).headers as Record<
+      string,
+      string
+    >;
+
+  it("refetches past the cache when an old body carries the current tag", async () => {
+    // iOS URLCache merged a server 304 into a body it stored on Oct 23.
+    const { client, fetchMock } = build(
+      textResponse(stale, { etag: tagFor(current) }),
+      textResponse(current, { etag: tagFor(current, true) }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/workouts?limit=200",
+      schema,
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: JSON.parse(current),
+      etag: tagFor(current, true),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(headersOf(fetchMock, 0)["Cache-Control"]).toBeUndefined();
+    expect(headersOf(fetchMock, 0)["If-None-Match"]).toBe(
+      '"mizyun-cache-bypass"',
+    );
+    const retry = headersOf(fetchMock, 1);
+    expect(retry["Cache-Control"]).toBe("no-cache");
+    expect(retry["If-None-Match"]).toBe('"mizyun-cache-bypass"');
+  });
+
+  it("never returns a body that still does not match its tag", async () => {
+    const { client, fetchMock } = build(
+      textResponse(stale, { etag: tagFor(current) }),
+      textResponse(stale, { etag: tagFor(current) }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/workouts?limit=200",
+      schema,
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ kind: "network_error" }),
+    });
+    expect(resultEtag(result)).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts a body that matches its strong or proxy-weakened tag in one request", async () => {
+    for (const weak of [false, true]) {
+      const { client, fetchMock } = build(
+        textResponse(current, { etag: tagFor(current, weak) }),
+      );
+      const result = await client.request({
+        method: "GET",
+        path: "/v1/workouts?limit=200",
+        schema,
+      });
+      expect(result).toEqual({
+        ok: true,
+        value: JSON.parse(current),
+        etag: tagFor(current, weak),
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("hashes the UTF-8 bytes, so non-ASCII bodies verify", async () => {
+    const body = JSON.stringify({ workouts: ["Übung – Kniebeuge 🏋️"] });
+    const { client, fetchMock } = build(
+      textResponse(body, { etag: tagFor(body) }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/workouts",
+      schema,
+    });
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("guards only unconditional GETs with the never-matching validator", async () => {
+    const { client, fetchMock } = build(
+      textResponse(current, { etag: tagFor(current) }),
+      textResponse(current, { etag: tagFor(current) }),
+      textResponse("{}", {}),
+    );
+    await client.request({ method: "GET", path: "/v1/workouts", schema });
+    await client.request({
+      method: "GET",
+      path: "/v1/workouts",
+      schema,
+      ifNoneMatch: '"sha256:held"',
+    });
+    await client.request({ method: "POST", path: "/v1/workouts", body: {} });
+    expect(headersOf(fetchMock, 0)["If-None-Match"]).toBe(
+      '"mizyun-cache-bypass"',
+    );
+    expect(headersOf(fetchMock, 1)["If-None-Match"]).toBe('"sha256:held"');
+    expect(headersOf(fetchMock, 2)["If-None-Match"]).toBeUndefined();
+  });
+
+  it("drops the caller's validator when a conditional 200 fails verification", async () => {
+    const { client, fetchMock } = build(
+      textResponse(stale, { etag: tagFor(current) }),
+      textResponse(current, { etag: tagFor(current) }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/workouts",
+      schema,
+      ifNoneMatch: '"sha256:held"',
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: JSON.parse(current),
+      etag: tagFor(current),
+    });
+    expect(headersOf(fetchMock, 1)["If-None-Match"]).toBe(
+      '"mizyun-cache-bypass"',
+    );
+  });
+
+  it("reports a failed digest as a network error without retrying", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(textResponse(current, { etag: tagFor(current) }));
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock,
+      sha256Base64Url: () => Promise.reject(new Error("crypto unavailable")),
+    });
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/workouts",
+      schema,
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "network_error", cause: new Error("crypto unavailable") },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a 304 to the bypass request as an error, not a stale hit", async () => {
+    const { client, fetchMock } = build(
+      textResponse(stale, { etag: tagFor(current) }),
+      {
+        status: 304,
+        ok: false,
+        headers: new Headers(),
+      } as unknown as Response,
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/workouts",
+      schema,
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ kind: "http_error", status: 304 }),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves tags that are not API digests unverified", async () => {
+    const { client, fetchMock } = build(
+      textResponse(stale, { etag: 'W/"v1"' }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/workouts",
+      schema,
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: JSON.parse(stale),
+      etag: 'W/"v1"',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
