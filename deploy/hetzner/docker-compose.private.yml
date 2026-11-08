@@ -6,8 +6,28 @@ services:
     ports: !override
       - "127.0.0.1:8000:8000/tcp"
       - "127.0.0.1:8443:8443/tcp"
+    # Studio is disabled below; Kong must not wait for it.
+    depends_on: !reset {}
 
   supavisor:
     ports: !override
       - "127.0.0.1:5432:5432/tcp"
       - "127.0.0.1:6543:6543/tcp"
+
+  # Unused by Mizyun (2026-11-08): no client uses Realtime channels, Edge
+  # Functions (only the template function is installed), Studio or its Meta
+  # backend. The `disabled` profile keeps them out of `docker compose up`,
+  # including the nightly backup recovery, to save about 560 MiB of RAM.
+  # Kong returns errors on their routes. Matches the Dev stack.
+  # Re-enable a service by removing its entry here.
+  studio:
+    profiles: ["disabled"]
+
+  meta:
+    profiles: ["disabled"]
+
+  realtime:
+    profiles: ["disabled"]
+
+  functions:
+    profiles: ["disabled"]
