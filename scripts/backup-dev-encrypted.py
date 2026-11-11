@@ -28,7 +28,7 @@ STORAGE = COMPOSE / "volumes/storage"
 ROOT = Path("/var/lib/mizyun/dev/recovery")
 DB = "mizyun-dev-db"
 WRITERS = ("mizyun-dev-kong", "mizyun-dev-auth", "mizyun-dev-rest",
-           "mizyun-dev-storage", "mizyun-dev-imgproxy")
+           "mizyun-dev-storage")
 UNITS = ("mizyun-community-dev-maintenance.timer",
          "mizyun-community-dev-maintenance.service", "mizyun-api-dev.service")
 STATE = ROOT / "active-state.json"

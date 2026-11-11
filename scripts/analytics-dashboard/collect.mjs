@@ -101,26 +101,17 @@ export function sourceTopologyCommand(environment) {
       bindings,
     );
   }
-  const poolerBindings = {
+  // Supavisor was removed on 2026-11-11; the database owns loopback 5432.
+  const bindings = {
     "5432/tcp": [{ HostIp: "127.0.0.1", HostPort: "5432" }],
-    "6543/tcp": [{ HostIp: "127.0.0.1", HostPort: "6543" }],
   };
-  return [
-    check(
-      "supabase-db",
-      "supabase",
-      "supabase_default",
-      {},
-      { "5432/tcp": null },
-    ),
-    check(
-      "supabase-pooler",
-      "supabase",
-      "supabase_default",
-      poolerBindings,
-      poolerBindings,
-    ),
-  ].join("\n");
+  return check(
+    "supabase-db",
+    "supabase",
+    "supabase_default",
+    bindings,
+    bindings,
+  );
 }
 export function remoteCommand(environment) {
   const target = targets[environment];

@@ -8,18 +8,36 @@ services:
       - "127.0.0.1:8443:8443/tcp"
     # Studio is disabled below; Kong must not wait for it.
     depends_on: !reset {}
+    environment:
+      # One nginx worker is enough for this traffic and halves Kong memory
+      # (the default is one worker per CPU core).
+      KONG_NGINX_WORKER_PROCESSES: "1"
 
-  supavisor:
-    ports: !override
+  # The database owns loopback 5432 directly, as Dev does on 5433. Supavisor
+  # used to hold this port, but nothing connected through it except its own
+  # bookkeeping (2026-11-11).
+  db:
+    ports:
       - "127.0.0.1:5432:5432/tcp"
-      - "127.0.0.1:6543:6543/tcp"
 
-  # Unused by Mizyun (2026-11-08): no client uses Realtime channels, Edge
-  # Functions (only the template function is installed), Studio or its Meta
-  # backend. The `disabled` profile keeps them out of `docker compose up`,
-  # including the nightly backup recovery, to save about 560 MiB of RAM.
-  # Kong returns errors on their routes. Matches the Dev stack.
-  # Re-enable a service by removing its entry here.
+  # No client requests transformed images, so Storage runs without imgproxy.
+  storage:
+    depends_on: !override
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+
+  # Unused by Mizyun: no client uses Realtime channels, Edge Functions (only
+  # the template function is installed), Studio or its Meta backend
+  # (2026-11-08), the Supavisor pooler or imgproxy (2026-11-11). The
+  # `disabled` profile keeps them out of `docker compose up`, including the
+  # nightly backup recovery, to save about 750 MiB of RAM. Kong returns errors
+  # on their routes. Matches the Dev stack.
+  # Re-enable a service by removing its entry here. Supavisor also needs the
+  # `db` port binding above removed, because both claim loopback 5432.
   studio:
     profiles: ["disabled"]
 
@@ -30,4 +48,13 @@ services:
     profiles: ["disabled"]
 
   functions:
+    profiles: ["disabled"]
+
+  supavisor:
+    profiles: ["disabled"]
+    ports: !override
+      - "127.0.0.1:5432:5432/tcp"
+      - "127.0.0.1:6543:6543/tcp"
+
+  imgproxy:
     profiles: ["disabled"]

@@ -249,15 +249,8 @@ function topology(environment) {
         }),
       }
     : {
-        "supabase-db": container(
-          "supabase",
-          "supabase_default",
-          {},
-          { "5432/tcp": null },
-        ),
-        "supabase-pooler": container("supabase", "supabase_default", {
+        "supabase-db": container("supabase", "supabase_default", {
           "5432/tcp": [{ HostIp: "127.0.0.1", HostPort: "5432" }],
-          "6543/tcp": [{ HostIp: "127.0.0.1", HostPort: "6543" }],
         }),
       };
 }
@@ -288,7 +281,7 @@ function runTopology(environment, fixtures) {
   });
 }
 
-test("fixed source topology shell accepts isolated Dev and the actual Production pooler topology", () => {
+test("fixed source topology shell accepts isolated Dev and the direct loopback Production database", () => {
   for (const environment of ["dev", "prod"]) {
     const result = runTopology(environment, topology(environment));
     assert.equal(result.status, 0);
@@ -350,37 +343,35 @@ test("fixed shell denies stopped, wrong-project, extra-network and swapped/publi
     [
       "prod",
       (v) => {
-        v["supabase-pooler"].running = "false";
+        v["supabase-db"].running = "false";
       },
     ],
     [
       "prod",
       (v) => {
-        v["supabase-pooler"].project = "mizyun-dev";
+        v["supabase-db"].project = "mizyun-dev";
       },
     ],
     [
       "prod",
       (v) => {
-        v["supabase-pooler"].networks = "mizyun-dev_default ";
+        v["supabase-db"].networks = "mizyun-dev_default ";
       },
     ],
     [
       "prod",
       (v) => {
-        v["supabase-pooler"].bindings = JSON.stringify({
-          "5432/tcp": [{ HostIp: "127.0.0.1", HostPort: "6543" }],
-          "6543/tcp": [{ HostIp: "127.0.0.1", HostPort: "5432" }],
+        v["supabase-db"].bindings = JSON.stringify({
+          "5432/tcp": [{ HostIp: "127.0.0.1", HostPort: "5433" }],
         });
       },
     ],
     [
       "prod",
       (v) => {
-        v["supabase-pooler"].ports = JSON.stringify({
-          "5432/tcp": [{ HostIp: "0.0.0.0", HostPort: "5432" }],
-          "6543/tcp": [{ HostIp: "127.0.0.1", HostPort: "6543" }],
-        });
+        // The old unbound database behind the pooler is no longer accepted.
+        v["supabase-db"].bindings = JSON.stringify({});
+        v["supabase-db"].ports = JSON.stringify({ "5432/tcp": null });
       },
     ],
   ];

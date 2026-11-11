@@ -12,7 +12,10 @@ Group=mizyun
 WorkingDirectory=/var/lib/mizyun/repo
 EnvironmentFile=/etc/mizyun/production.env
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/local/bin/pnpm --filter @mizyun/api start
+# Start node directly from apps/api (the directory `pnpm --filter` used to
+# enter); `exec` leaves node as the only process. The pnpm and tsx CLI
+# wrappers stayed resident and cost about 60 MiB per environment.
+ExecStart=/bin/sh -c 'cd apps/api && exec /usr/local/bin/node --import tsx src/server.ts'
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
