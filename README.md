@@ -2,6 +2,14 @@
 
 Mizyun is a modular fitness and nutrition application designed for Android and iOS. The foundation intentionally separates domain rules, memory, AI orchestration, infrastructure, and UI so any one of them can evolve without forcing changes through the others.
 
+**Who it's for:** busy intermediate gym-goers who want food, workouts, measurements and coaching context in one private place, without tracking feeling like a second job. See [`goals.md`](goals.md).
+
+**Built with:** TypeScript in a pnpm monorepo; an Expo / React Native app (Expo Router); a Fastify API; Supabase (Postgres with row-level security, Auth, Storage); server-side AI providers behind provider-neutral ports.
+
+**Roadmap:** [`ROADMAP.md`](ROADMAP.md) summarizes the work ahead; [GitHub Issues](https://github.com/AdamHikl/mizyun/issues) holds the detailed list.
+
+All data in this repository (fixtures, seeds, screenshots, evidence) is synthetic. No real user data is stored here.
+
 ## Project navigation
 
 Start here in a new development session:
@@ -79,3 +87,7 @@ before enabling the app for any other person or external beta.
 ## Core rule
 
 Applications depend on interfaces. Model vendors, memory databases, Supabase, HealthKit, and Health Connect are replaceable adapters selected only by a composition root.
+
+## License
+
+Copyright (c) 2026 Adam Hikl. Licensed under the GNU Affero General Public License v3.0; see [`LICENSE`](LICENSE). Anyone who runs a modified version, including as a network service, must make its complete source available under the same license. The Mizyun name and logo are not licensed for use by forks or derived apps.
